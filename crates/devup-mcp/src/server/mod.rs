@@ -1,5 +1,6 @@
 pub mod artifacts;
 mod asset_jobs;
+mod audit_plan;
 mod call_cache;
 mod compact;
 pub mod delivery;
@@ -2655,9 +2656,15 @@ impl DevupServer {
             "confirm" => screen_plan::confirm(&input, &self.output_policy),
             "assume" => screen_plan::assume(&input, &self.output_policy),
             "status" => screen_plan::status(&input, &self.output_policy, &self.artifacts).await,
+            "auditPlan" => {
+                screen_plan::audit_plan(&input, &self.output_policy, &self.artifacts).await
+            }
+            "defer" => screen_plan::defer(&input, &self.output_policy),
             other => Err(DevupError::new(
                 ErrorCode::DevupInvalidInput,
-                format!("action must be draft, confirm, status or assume, not {other}."),
+                format!(
+                    "action must be draft, confirm, status, assume, auditPlan or defer, not {other}."
+                ),
                 false,
             )),
         }

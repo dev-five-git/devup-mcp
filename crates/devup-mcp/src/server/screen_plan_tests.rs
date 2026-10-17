@@ -1948,10 +1948,11 @@ async fn admin_frames_go_to_the_admin_app() {
     );
 }
 
-/// A file with both maps each screen to its side and asks only about the
-/// screens whose side is unclear; confirm writes each route in its own app.
+/// A file with both maps each screen to its side; a screen with no admin
+/// evidence goes to the public app without a question, and each screen's
+/// route options point into its own app.
 #[tokio::test]
-async fn a_mixed_file_maps_each_screen_and_asks_only_the_unclear() {
+async fn a_mixed_file_maps_each_screen_and_sends_the_unclear_to_the_public_app() {
     let fixture = template_fixture();
     let screens = [
         screen("62:1", "Home", 1440.0),
@@ -1959,35 +1960,87 @@ async fn a_mixed_file_maps_each_screen_and_asks_only_the_unclear() {
         screen("62:3", "Settings", 1440.0),
     ];
     let plan = plan_screens_at(fixture.root(), &screens).await;
-    assert_eq!(default_item(&plan, "target-app")["mechanism"], "per-screen");
+    let chosen = default_item(&plan, "target-app");
+    assert_eq!(chosen["mechanism"], "per-screen");
+    assert!(
+        text(&chosen["decision"]).contains("no admin evidence go to apps/front"),
+        "{chosen}"
+    );
     let apps = rows_app(&plan).into_iter().collect::<BTreeMap<_, _>>();
     assert_eq!(apps["62:1"], "apps/front");
     assert_eq!(apps["62:2"], "apps/admin");
-    let unclear = find(&plan, "app:62:3");
-    assert_eq!(first_label(unclear), "apps/front (Recommended)");
+    assert_eq!(apps["62:3"], "apps/front");
     assert!(
         !question_ids(&plan)
             .iter()
-            .any(|id| id == "app:62:1" || id == "app:62:2")
+            .any(|id| id.starts_with("app:") || id == "site:app"),
+        "{:?}",
+        question_ids(&plan)
+    );
+    let settings = find(&plan, "route:62:3");
+    assert!(
+        text(&settings["options"][0]["description"])
+            .contains("apps/front/src/app/settings/page.tsx"),
+        "{settings}"
+    );
+    // Home is offered nothing from the admin app; the dashboard is offered
+    // the admin app's own pages.
+    for question in array(&plan["questions"]) {
+        let about_home = text(&question["id"]).ends_with("62:1");
+        let mentions_admin = question["options"].to_string().contains("apps/admin/");
+        assert!(!(about_home && mentions_admin), "{question}");
+    }
+    assert!(
+        find(&plan, "route:62:2")["options"]
+            .to_string()
+            .contains("apps/admin/src/app/page.tsx")
     );
 }
 
-/// Frames that say nothing either way: asked once, recommending the public
-/// app - never the alphabetically first one.
+/// Frames that say nothing either way go to the public app: with no admin
+/// evidence that is the default, recorded rather than asked.
 #[tokio::test]
-async fn ambiguous_frames_are_asked_recommending_the_public_app() {
+async fn frames_that_say_nothing_go_to_the_public_app_without_a_question() {
     let fixture = template_fixture();
     let screens = [
         screen("63:1", "Frame 12", 1440.0),
         screen("63:2", "Frame 13", 1440.0),
     ];
     let plan = plan_screens_at(fixture.root(), &screens).await;
-    let which = find(&plan, "site:app");
-    assert_eq!(
-        labels(which)[..2],
-        ["apps/front (Recommended)", "apps/admin"]
+    assert!(!question_ids(&plan).iter().any(|id| id == "site:app"));
+    let chosen = default_item(&plan, "target-app");
+    assert_eq!(chosen["mechanism"], "decided");
+    assert_eq!(chosen["decision"], "apps/front");
+    assert!(
+        chosen["evidence"].to_string().contains("no admin evidence"),
+        "{chosen}"
     );
-    assert!(text(&which["options"][0]["description"]).contains("public site"));
+    assert!(rows_app(&plan).iter().all(|(_, app)| app == "apps/front"));
+}
+
+/// Only when no app looks like the public site is the app asked - and the
+/// answer still decides where each route is written.
+#[tokio::test]
+async fn the_app_is_asked_only_when_no_app_is_the_public_site() {
+    let fixture = template_fixture();
+    for (from, to) in [("apps/front", "apps/alpha"), ("apps/admin", "apps/beta")] {
+        std::fs::rename(fixture.0.join(from), fixture.0.join(to)).unwrap();
+    }
+    fixture.write(
+        "apps/alpha/package.json",
+        r#"{"name": "alpha", "dependencies": {"next": "16.1.0"}}"#,
+    );
+    fixture.write(
+        "apps/beta/package.json",
+        r#"{"name": "beta", "dependencies": {"next": "16.1.0"}}"#,
+    );
+    let screens = [
+        screen("63:1", "Frame 12", 1440.0),
+        screen("63:2", "Frame 13", 1440.0),
+    ];
+    let plan = plan_screens_at(fixture.root(), &screens).await;
+    let which = find(&plan, "site:app");
+    assert_eq!(labels(which).len(), 2, "{which}");
 
     let draft_input = ScreenPlanInput {
         action: "draft".into(),
@@ -1999,7 +2052,7 @@ async fn ambiguous_frames_are_asked_recommending_the_public_app() {
         .unwrap();
     let mut confirm_input = input(&fixture, "confirm");
     confirm_input.plan_id = drafted["planId"].as_str().map(str::to_owned);
-    let mut pairs = vec![("site:app", "apps/admin")];
+    let mut pairs = vec![("site:app", "apps/beta")];
     for question in array(&drafted["questions"]) {
         let id = text(&question["id"]);
         if id.starts_with("route:") {
@@ -2031,9 +2084,168 @@ async fn ambiguous_frames_are_asked_recommending_the_public_app() {
     assert_eq!(
         files[0],
         (
-            "apps/admin".to_owned(),
-            "apps/admin/src/app/members/page.tsx".to_owned()
+            "apps/beta".to_owned(),
+            "apps/beta/src/app/members/page.tsx".to_owned()
         ),
         "{files:?}"
     );
+}
+
+/// auditPlan writes one runtime-audit plan per confirmed URL and the runner
+/// once, records them, and reports the frames it has no export for instead
+/// of skipping them.
+#[tokio::test]
+async fn audit_plan_writes_a_plan_per_url_and_reports_what_it_cannot_compare() {
+    let fixture = Fixture::new();
+    write_plan_file(&fixture, &confirmed_plan());
+    let store = ArtifactStore::default();
+    let mut request = input(&fixture, "auditPlan");
+    request.artifacts = vec!["expired-artifact".into()];
+    let result = audit_plan(&request, &fixture.policy(), &store)
+        .await
+        .unwrap();
+    let plans = array(&result["plans"]);
+    assert_eq!(
+        plans
+            .iter()
+            .map(|plan| text(&plan["url"]))
+            .collect::<Vec<_>>(),
+        ["/", "/about"]
+    );
+    assert!(
+        fixture
+            .0
+            .join(".devup/runtime-audit/home/plan.json")
+            .exists()
+    );
+    assert!(
+        fixture
+            .0
+            .join(".devup/runtime-audit/about/plan.json")
+            .exists()
+    );
+    assert!(
+        fixture
+            .0
+            .join(".devup/runtime-audit/runner/run.mjs")
+            .exists()
+    );
+    assert_eq!(result["runner"]["state"], "written");
+    assert_eq!(
+        result["expiredArtifacts"][0]["artifactId"],
+        "expired-artifact"
+    );
+    assert_eq!(result["maxFixAttempts"], 3);
+    let frames = array(&result["missingReferences"])
+        .iter()
+        .filter(|item| item["kind"] == "frame")
+        .map(|item| {
+            (
+                text(&item["nodeId"]).to_owned(),
+                item["width"].as_u64().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        frames,
+        [
+            ("10:1".to_owned(), 1440),
+            ("10:2".to_owned(), 390),
+            ("10:3".to_owned(), 1440)
+        ]
+    );
+    let home = &plans[0];
+    assert_eq!(home["checks"]["view-transition"], 1);
+    assert_eq!(home["checks"]["page-health"], 1);
+    let written = read_plan(fixture.root()).unwrap().unwrap();
+    assert_eq!(array(&written["audit"]["plans"]).len(), 2);
+    assert!(text(&written["audit"]["plans"][0]["reportPath"]).ends_with("home/report/report.json"));
+
+    // The runner is written once; a second run leaves it alone.
+    let again = audit_plan(&request, &fixture.policy(), &store)
+        .await
+        .unwrap();
+    assert_eq!(again["runner"]["state"], "current");
+}
+
+/// A decision mid-run never stops the work: it is pending, its URL's other
+/// work comes first, and assume takes it at the end - except a destructive
+/// one, which stays unbuilt and is reported.
+#[tokio::test]
+async fn a_pending_decision_is_taken_at_the_end_and_a_destructive_one_is_left_unbuilt() {
+    let fixture = Fixture::new();
+    write_plan_file(&fixture, &confirmed_plan());
+    let mut request = input(&fixture, "defer");
+    request.decision = Some(PendingDecisionInput {
+        id: "about-form".into(),
+        about: "/about contact form".into(),
+        question: "Where does the contact form post?".into(),
+        options: vec!["mailto".into(), "an API route".into()],
+        recommended: "mailto".into(),
+        destructive: false,
+    });
+    let deferred = defer(&request, &fixture.policy()).unwrap();
+    assert_eq!(deferred["pendingDecisions"][0]["status"], "open");
+    request.decision = Some(PendingDecisionInput {
+        id: "drop-old-page".into(),
+        about: "src/app/old/page.tsx".into(),
+        question: "Delete the old page?".into(),
+        options: Vec::new(),
+        recommended: "keep it".into(),
+        destructive: true,
+    });
+    defer(&request, &fixture.policy()).unwrap();
+
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&plan, &evidence(), None);
+    let about = array(&report["workQueue"])
+        .iter()
+        .find(|row| row["url"] == "/about")
+        .unwrap()
+        .clone();
+    let order = array(&about["items"])
+        .iter()
+        .map(|item| text(&item["do"]).to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        order.last().map(String::as_str),
+        Some("blocked"),
+        "{order:?}"
+    );
+
+    let mut take = input(&fixture, "assume");
+    take.assumptions = vec![
+        AssumptionInput {
+            about: "about-form".into(),
+            decision: "mailto".into(),
+            reason: Some("recommended".into()),
+        },
+        AssumptionInput {
+            about: "drop-old-page".into(),
+            decision: "delete".into(),
+            reason: None,
+        },
+    ];
+    let taken = assume(&take, &fixture.policy()).unwrap();
+    let decisions = array(&taken["pendingDecisions"]);
+    assert_eq!(decisions[0]["status"], "taken");
+    assert_eq!(decisions[0]["taken"], "mailto");
+    assert_eq!(decisions[1]["status"], "left-unbuilt");
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&plan, &evidence(), None);
+    let text_report = text(&report["finalReport"]);
+    assert!(
+        text_report
+            .contains("about-form: Where does the contact form post? -> mailto (taken at the end)"),
+        "{text_report}"
+    );
+    assert!(
+        text_report
+            .contains("drop-old-page: Delete the old page? -> keep it (destructive: left unbuilt)")
+    );
+    assert!(
+        text_report
+            .contains("| URL | width | health | geometry | page | section | asset | interaction |")
+    );
+    assert!(text_report.contains("Dependencies: the update step has not been recorded."));
 }

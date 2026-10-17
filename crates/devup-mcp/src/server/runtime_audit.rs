@@ -297,7 +297,18 @@ pub struct CaptureReferenceInput {
     pub scope: String,
     pub artifact_id: String,
     pub asset_id: String,
+    /// Changed-pixel ratio the comparison allows; default 0.03 for a
+    /// section and 0.05 for an asset, which absorbs anti-aliased edges but
+    /// not a filled shape where an outline was drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f64>,
 }
+
+/// Changed-pixel ratios that absorb anti-aliasing between Figma's renderer
+/// and Chromium. A small icon has proportionally more edge, so it gets more.
+pub(crate) const PAGE_THRESHOLD: f64 = 0.03;
+pub(crate) const SECTION_THRESHOLD: f64 = 0.03;
+pub(crate) const ASSET_THRESHOLD: f64 = 0.05;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -340,6 +351,9 @@ pub struct FrameReferenceInput {
     pub node_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_id: Option<String>,
+    /// Changed-pixel ratio the page comparison allows; default 0.03.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f64>,
 }
 
 fn invalid(message: impl Into<String>) -> DevupError {
@@ -644,6 +658,12 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
             }
             bounded_text("reference.artifactId", &reference.artifact_id)?;
             bounded_text("reference.assetId", &reference.asset_id)?;
+            if reference
+                .threshold
+                .is_some_and(|value| !(0.0..=1.0).contains(&value))
+            {
+                return Err(invalid("reference.threshold must be between 0 and 1."));
+            }
         }
         "dimensions" => {
             needs(true, false)?;
@@ -815,6 +835,105 @@ pub(crate) async fn create_plan(
     write_plan(input, policy, output_path, template_path, references)
 }
 
+/// One screen at one width by what was checked: health (renders, no
+/// overflow, no clipped text), geometry (size and position), interaction
+/// (states and view transitions), and the three visual levels, which stay
+/// "to compare" until devup_visual_compare results come back through
+/// devup_screen_plan status.
+fn columns(
+    screen: &ScreenInput,
+    viewport: &ViewportInput,
+    judged: &[(&str, &CheckInput)],
+    row: &Value,
+) -> Value {
+    let fold = |kinds: &[&str]| {
+        let statuses = judged
+            .iter()
+            .filter(|(_, check)| kinds.contains(&check.kind.as_str()))
+            .map(|(status, _)| *status)
+            .collect::<Vec<_>>();
+        if statuses.is_empty() {
+            "-"
+        } else if statuses.contains(&"fail") {
+            "fail"
+        } else if statuses.iter().all(|status| *status == "pass") {
+            "pass"
+        } else if statuses.contains(&"inconclusive") {
+            "inconclusive"
+        } else {
+            "not-run"
+        }
+    };
+    let unreached = row["reasons"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .any(|reason| reason.starts_with("page error") || reason.starts_with("screen not reached"));
+    let health = if unreached {
+        "fail"
+    } else {
+        fold(&["page-health", "no-horizontal-overflow", "no-clipped-text"])
+    };
+    let captures = |scope: &str| {
+        let count = judged
+            .iter()
+            .filter(|(status, check)| {
+                *status == "pass"
+                    && check
+                        .reference
+                        .as_ref()
+                        .is_some_and(|reference| reference.scope == scope)
+            })
+            .count();
+        let missing = judged
+            .iter()
+            .filter(|(status, check)| {
+                *status != "pass"
+                    && check
+                        .reference
+                        .as_ref()
+                        .is_some_and(|reference| reference.scope == scope)
+            })
+            .count();
+        match (count, missing) {
+            (0, 0) => json!("-"),
+            (_, 0) => json!(format!("{count} to compare")),
+            _ => json!(format!("{count} to compare, {missing} not captured")),
+        }
+    };
+    let drawn = screen
+        .figma
+        .as_ref()
+        .is_some_and(|figma| figma.drawn_widths.contains(&viewport.width));
+    json!({
+        "health": health,
+        "geometry": fold(&["bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
+        "interaction": fold(&["interaction", "view-transition"]),
+        "page": if drawn { json!(if row["screenshot"].is_string() { "1 to compare" } else { "not captured" }) } else { json!("not drawn") },
+        "section": captures("section"),
+        "asset": captures("asset"),
+    })
+}
+
+/// A check limited to some widths does not exist at the others.
+fn applies(check: &CheckInput, width: u32) -> bool {
+    check.widths.is_empty() || check.widths.contains(&width)
+}
+
+fn planned_items(plan: &PlanInput) -> usize {
+    plan.viewports
+        .iter()
+        .map(|viewport| {
+            plan.screens
+                .iter()
+                .flat_map(|screen| &screen.checks)
+                .filter(|check| applies(check, viewport.width))
+                .count()
+        })
+        .sum()
+}
+
 /// A view-transition check clicks away from its screen, so every one moves
 /// behind the screen's other checks, keeping their order otherwise. The
 /// executor also returns to the screen's URL after it; together a plan
@@ -841,7 +960,6 @@ fn write_plan(
         ));
     }
     let id = plan_id(&input)?;
-    let checks = input.screens.iter().map(|s| s.checks.len()).sum::<usize>();
     let references = input
         .screens
         .iter()
@@ -866,7 +984,7 @@ fn write_plan(
         "expected": {
             "runs": input.viewports.len(),
             "screensPerRun": input.screens.len(),
-            "checkItems": checks * input.viewports.len(),
+            "checkItems": planned_items(&input),
             "dimensionRows": input.viewports.len() * input.screens.iter().map(|s| s.checks.iter().filter(|c| c.kind == "dimensions").count()).sum::<usize>(),
         },
         "limits": {"dimensionRows": MAX_DIMENSION_ROWS, "dimensionRowsOmitted": 0},
@@ -1052,6 +1170,8 @@ fn ingest_references(
     let mut visual_comparisons = Vec::new();
     let mut dimension_rows = Vec::new();
     let mut screen_rows = Vec::new();
+    let mut findings = Vec::new();
+    let mut missing_nodes = Vec::new();
     for viewport in &plan.viewports {
         let matching_runs = report["runs"]
             .as_array()
@@ -1091,6 +1211,7 @@ fn ingest_references(
         let mut screenshots_verified = 0;
         let mut screenshot_issues = Vec::new();
         let mut drawn_width_shots = Vec::new();
+        let mut captures = Vec::new();
         for screen in &plan.screens {
             if run.is_some_and(|run| {
                 run["screens"]
@@ -1113,7 +1234,11 @@ fn ingest_references(
                     .find(|candidate| candidate["id"] == screen.id.as_str())
             });
             let mut outcomes = Vec::new();
+            let mut judged = Vec::new();
             for (index, check) in screen.checks.iter().enumerate() {
+                if !applies(check, viewport.width) {
+                    continue;
+                }
                 if reported.is_some_and(|s| {
                     s["checks"]
                         .as_array()
@@ -1186,18 +1311,81 @@ fn ingest_references(
                         .unwrap_or_default()
                         .to_owned(),
                 ));
+                let reason = dimension
+                    .as_ref()
+                    .map(|row| &row["reason"])
+                    .or_else(|| item.map(|item| &item["reason"]))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                judged.push((status, check));
+                if status == "fail" {
+                    findings.push(finding(
+                        screen,
+                        viewport,
+                        Some((index, check)),
+                        failure_class(&check.kind, reason),
+                        reason,
+                        dimension
+                            .as_ref()
+                            .map(|row| &row["domCssPx"])
+                            .or_else(|| item.map(|item| &item["measured"]))
+                            .unwrap_or(&Value::Null),
+                        reported.and_then(|s| s["screenshot"]["path"].as_str()),
+                    ));
+                }
+                if status == "inconclusive"
+                    && reason.contains("matched no element")
+                    && let Some(node_id) = &check.node_id
+                {
+                    missing_nodes.push(json!({"screen": screen.id, "width": viewport.width,
+                        "nodeId": node_id, "check": index, "kind": check.kind}));
+                }
+                if check.kind == "capture"
+                    && status == "pass"
+                    && let (Some(reference), Some(shot)) = (
+                        &check.reference,
+                        item.map(|item| &item["screenshot"])
+                            .filter(|shot| shot.is_object()),
+                    )
+                {
+                    match verify_capture(policy, &report_dir, shot, None) {
+                        Ok(verified) => captures.push((screen, index, check, reference, verified)),
+                        Err(Integrity::Tampered(issue)) => {
+                            integrity_problems.push(json!({"screen": screen.id, "issue": issue}));
+                        }
+                        Err(Integrity::Unverified(issue)) => {
+                            screenshot_issues.push(json!({"screen": screen.id, "issue": issue}));
+                        }
+                    }
+                }
                 if let Some(row) = dimension {
                     dimension_rows.push(row);
                 }
             }
-            screen_rows.push(screen_row(
+            let mut row = screen_row(
                 screen,
                 viewport,
                 run.is_some(),
                 reported,
                 &environment_errors,
                 &outcomes,
-            ));
+            );
+            row["columns"] = columns(screen, viewport, &judged, &row);
+            // A screen that never rendered fails as a runtime error, not as
+            // the checks that could not measure it.
+            if row["status"] == "fail" && !outcomes.iter().any(|(status, _, _)| *status == "fail") {
+                let reason = array_text(&row["reasons"]);
+                findings.push(finding(
+                    screen,
+                    viewport,
+                    None,
+                    "runtime-error",
+                    &reason,
+                    &Value::Null,
+                    None,
+                ));
+            }
+            screen_rows.push(row);
             let Some(shot) = reported
                 .map(|screen| &screen["screenshot"])
                 .filter(|shot| shot.is_object())
@@ -1243,6 +1431,11 @@ fn ingest_references(
                 screen, node_id, viewport, shot, &report, run_valid,
             ));
         }
+        for (screen, index, check, reference, shot) in &captures {
+            visual_comparisons.push(capture_comparison(
+                screen, *index, check, reference, viewport, shot,
+            ));
+        }
         runs.push(json!({
             "viewport": viewport,
             "reported": run.is_some(),
@@ -1257,7 +1450,7 @@ fn ingest_references(
             json!({"artifacts": integrity_problems}),
         ));
     }
-    let planned = plan.viewports.len() * plan.screens.iter().map(|s| s.checks.len()).sum::<usize>();
+    let planned = planned_items(&plan);
     let count = |status: &str| counts.get(status).copied().unwrap_or(0);
     let verdict = if count("fail") > 0 && !environment_invalid {
         "fail"
@@ -1301,6 +1494,8 @@ fn ingest_references(
         "runs": runs,
         "figmaReferences": figma,
         "visualComparisons": visual_comparisons,
+        "findings": findings,
+        "missingNodes": missing_nodes,
         "screenTable": screen_rows,
         "widthTable": plan.viewports.iter().map(|viewport| json!({
             "width": viewport.width, "height": viewport.height,
@@ -1544,6 +1739,17 @@ fn verify_screenshot(
     shot: &Value,
     viewport: &ViewportInput,
 ) -> Result<VerifiedShot, Integrity> {
+    verify_capture(policy, report_dir, shot, Some(viewport))
+}
+
+/// An element capture has the element's size, not the viewport's; only its
+/// bytes and PNG decoding are checked.
+fn verify_capture(
+    policy: &OutputPolicy,
+    report_dir: &Path,
+    shot: &Value,
+    viewport: Option<&ViewportInput>,
+) -> Result<VerifiedShot, Integrity> {
     let path = shot["path"]
         .as_str()
         .ok_or_else(|| Integrity::Unverified("no path".into()))?;
@@ -1577,18 +1783,185 @@ fn verify_screenshot(
             "{path}: not a decodable PNG within 8192px per side"
         ))
     })?;
-    let expected = (f64::from(viewport.width) * viewport.device_scale_factor).round() as u32;
-    let minimum = (f64::from(viewport.height) * viewport.device_scale_factor).round() as u32;
-    if width != expected || height < minimum {
-        return Err(Integrity::Unverified(format!(
-            "{path}: {width}x{height} is not {expected} wide and at least {minimum} tall; the capture does not show this viewport"
-        )));
+    if let Some(viewport) = viewport {
+        let expected = (f64::from(viewport.width) * viewport.device_scale_factor).round() as u32;
+        let minimum = (f64::from(viewport.height) * viewport.device_scale_factor).round() as u32;
+        if width != expected || height < minimum {
+            return Err(Integrity::Unverified(format!(
+                "{path}: {width}x{height} is not {expected} wide and at least {minimum} tall; the capture does not show this viewport"
+            )));
+        }
     }
     Ok(VerifiedShot {
         path: target.display_path().display().to_string(),
         sha256: digest,
         width,
         height,
+    })
+}
+
+/// The one place a finding's identity is made, so a later run of the same
+/// check at the same width finds its earlier attempts.
+fn comparison_id(screen: &ScreenInput, kind: &str, subject: &str, width: u32) -> String {
+    format!("{}|{kind}|{subject}|{width}", screen.id)
+}
+
+fn diff_path(actual: &str, id: &str) -> String {
+    let directory = Path::new(actual).parent().unwrap_or(Path::new(""));
+    let name = id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    directory
+        .join("diff")
+        .join(format!("{name}.png"))
+        .display()
+        .to_string()
+}
+
+fn array_text(value: &Value) -> String {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// What kind of problem a failed check is, so a fix starts in the right
+/// place: a page that does not render, content wider than its box, a box in
+/// the wrong place or of the wrong size, a state or a transition missing.
+pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
+    match kind {
+        "page-health" => "runtime-error",
+        "no-horizontal-overflow" | "no-clipped-text" => "overflow",
+        "bounds" if reason.starts_with("position") => "layout-position",
+        "bounds" | "dimensions" | "visible" => "layout-size",
+        "contained" | "aligned" | "spans" => "layout-position",
+        "interaction" => "interaction",
+        "view-transition" => "view-transition",
+        _ => "layout-position",
+    }
+}
+
+/// A concrete first step for each class. The measured evidence names the
+/// element where the executor reported one.
+pub(crate) fn fix_hint(class: &str, kind: &str, measured: &Value) -> String {
+    match class {
+        "runtime-error" => "Open the URL at this width and read the first page or console error: an error-boundary text (\"This page couldn't load\", \"Application error\") means a component threw while rendering or a data fetch failed. Fix the throwing component or give the data a loading and error state, then re-run.".to_owned(),
+        "overflow" if kind == "no-clipped-text" => "Text is cut off by a box with overflow hidden: let the box grow (drop the fixed height or width the Figma frame had), let the text wrap, or, when truncation is designed, use textOverflow ellipsis or lineClamp.".to_owned(),
+        "overflow" => format!(
+            "Content is wider than the viewport{}: give the element maxW=\"100%\", let its row wrap (flexWrap=\"wrap\") or shrink (minW={{0}}), and turn a fixed Figma width into a responsive value at this width.",
+            measured["widest"].as_str().map(|widest| format!(" (widest: {widest})")).unwrap_or_default()
+        ),
+        "layout-position" => "The element sits in the wrong place relative to its parent: compare the parent's gap, padding and alignment (justifyContent, alignItems) with the Figma frame, check the order of its children (a card out of order fails here) and any absolute offsets.".to_owned(),
+        "layout-size" => "The element has the wrong size: compare its width and height props with the Figma sizing (fixed, fill or hug), make fill stretch at widths that were not drawn, and check an image's aspect ratio and min/max sizes.".to_owned(),
+        "asset-mismatch" => "The rendered asset differs from the Figma node's render. Likely causes, in order: a CSS mask on a multi-colour SVG paints one solid shape (render it with <Image src> instead; masks are for single-colour icons only); the wrong file at the src path; a crop or objectFit (cover vs contain) or a missing viewBox. Open the diff PNG to see which.".to_owned(),
+        "section-visual" => "The section differs from its Figma render: open the diff PNG, find the highlighted area and fix the elements there; the usual causes are font size, weight or line height, a missing background or border, and spacing.".to_owned(),
+        "page-visual" => "The page differs from the frame: fix the section and asset comparisons first, they localise the problem; a difference only the page shows is usually the page background, its padding or the spacing between sections.".to_owned(),
+        "interaction" => "A link or button shows no hover or focus change: give it the interaction recipe for its role from the plan defaults (theme tokens only, at most two properties, the shared 150-250ms transition) and a visible _focusVisible outline.".to_owned(),
+        "view-transition" => "No view transition ran on this navigation: wrap the routed content in React's <ViewTransition> (or add @view-transition { navigation: auto } for a cross-document transition) and navigate with the framework's Link so it is a client navigation.".to_owned(),
+        _ => "Re-run the check and read its reason.".to_owned(),
+    }
+}
+
+fn finding(
+    screen: &ScreenInput,
+    viewport: &ViewportInput,
+    check: Option<(usize, &CheckInput)>,
+    class: &str,
+    reason: &str,
+    measured: &Value,
+    screenshot: Option<&str>,
+) -> Value {
+    let kind = check.map_or("screen", |(_, check)| check.kind.as_str());
+    let subject = check
+        .and_then(|(index, check)| {
+            check
+                .node_id
+                .clone()
+                .or_else(|| check.label.clone())
+                .or_else(|| Some(format!("#{index}")))
+        })
+        .unwrap_or_else(|| "page".to_owned());
+    json!({
+        "id": comparison_id(screen, kind, &subject, viewport.width),
+        "class": class,
+        "screen": screen.id,
+        "routePath": screen.route_path,
+        "width": viewport.width,
+        "check": check.map(|(index, _)| index),
+        "kind": kind,
+        "label": check.and_then(|(_, check)| check.label.clone()),
+        "nodeId": check.and_then(|(_, check)| check.node_id.clone()),
+        "codeFile": screen.component_path,
+        "reason": reason,
+        "fixHint": fix_hint(class, kind, measured),
+        "evidence": {"screenshot": screenshot, "measured": measured},
+    })
+}
+
+/// The `devup_visual_compare` call for one element capture against the
+/// Figma node's own native render.
+fn capture_comparison(
+    screen: &ScreenInput,
+    index: usize,
+    check: &CheckInput,
+    reference: &CaptureReferenceInput,
+    viewport: &ViewportInput,
+    shot: &VerifiedShot,
+) -> Value {
+    let class = if reference.scope == "asset" {
+        "asset-mismatch"
+    } else {
+        "section-visual"
+    };
+    let subject = check.node_id.clone().unwrap_or_else(|| format!("#{index}"));
+    let id = comparison_id(screen, &reference.scope, &subject, viewport.width);
+    let threshold = reference
+        .threshold
+        .unwrap_or(if reference.scope == "asset" {
+            ASSET_THRESHOLD
+        } else {
+            SECTION_THRESHOLD
+        });
+    let mut blockers = Vec::new();
+    if (viewport.device_scale_factor - 1.0).abs() > f64::EPSILON {
+        blockers.push(format!(
+            "Captured at deviceScaleFactor {}; the native render is at scale 1.",
+            viewport.device_scale_factor
+        ));
+    }
+    json!({
+        "id": id,
+        "class": class,
+        "screen": screen.id,
+        "routePath": screen.route_path,
+        "nodeId": check.node_id,
+        "label": check.label,
+        "check": index,
+        "codeFile": screen.component_path,
+        "viewport": viewport,
+        "screenshot": {"path": shot.path, "sha256": shot.sha256, "width": shot.width, "height": shot.height},
+        "call": {
+            "tool": "devup_visual_compare",
+            "arguments": {
+                "actual": shot.path,
+                "reference": {"artifactId": reference.artifact_id, "assetId": reference.asset_id},
+                "threshold": threshold,
+                "diffPath": diff_path(&shot.path, &id),
+            },
+        },
+        "ifItFails": {"class": class, "fixHint": fix_hint(class, "capture", &Value::Null)},
+        "blockers": blockers,
+        "note": "A size mismatch with the native render is reported as dimensions, not pixels: fix the element's size (its bounds check says by how much) and compare again.",
     })
 }
 
@@ -1660,19 +2033,40 @@ fn visual_comparison(
                 .to_owned(),
         );
     }
+    let frame = screen
+        .figma
+        .iter()
+        .flat_map(|figma| &figma.frames)
+        .find(|frame| frame.width == viewport.width);
+    let node_id = frame.map_or(node_id, |frame| frame.node_id.as_str());
+    let artifact = frame.and_then(|frame| frame.artifact_id.clone());
+    if artifact.is_some() {
+        must_add.retain(|field| *field != "reference.artifactId");
+    }
+    let id = comparison_id(screen, "page", node_id, viewport.width);
+    let threshold = frame
+        .and_then(|frame| frame.threshold)
+        .unwrap_or(PAGE_THRESHOLD);
     json!({
+        "id": id,
+        "class": "page-visual",
         "screen": screen.id,
+        "routePath": screen.route_path,
         "nodeId": node_id,
+        "codeFile": screen.component_path,
         "viewport": viewport,
         "screenshot": {"path": shot.path, "sha256": shot.sha256, "width": shot.width, "height": shot.height},
         "call": {
             "tool": "devup_visual_compare",
             "arguments": {
                 "actual": shot.path,
-                "reference": {"artifactId": format!("<artifactId of devup_figma_export for node {node_id} with outputs [\"referencePng\"]>")},
+                "reference": {"artifactId": artifact.unwrap_or_else(|| format!("<artifactId of devup_figma_export for node {node_id} with outputs [\"referencePng\"]>"))},
+                "threshold": threshold,
+                "diffPath": diff_path(&shot.path, &id),
                 "environment": environment,
             },
         },
+        "ifItFails": {"class": "page-visual", "fixHint": fix_hint("page-visual", "", &Value::Null)},
         "consumerMustAdd": must_add,
         "blockers": blockers,
         "note": "Filled from the plan, the verified screenshot and the executor's report. Export the frame with outputs [\"referencePng\"] first and put its artifactId in reference; devup_visual_compare pins that reference itself. The fields in consumerMustAdd are the consumer's to state.",
@@ -2300,6 +2694,154 @@ mod tests {
         assert!(must_add.contains(&json!("environment.locale")));
         assert!(must_add.contains(&json!("environment.tsxResource")));
         assert_eq!(comparison["blockers"], json!([]), "{comparison}");
+        drop(policy);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Every failed check comes back as a finding of one class with the
+    /// Figma node, the code file and a fix hint; a capture comes back as a
+    /// ready asset comparison against the node's own render, and checks
+    /// limited to a width are neither planned nor not-run elsewhere.
+    #[test]
+    fn failures_are_classified_and_captures_become_asset_comparisons() {
+        let (dir, policy) = root();
+        let node = |id: &str| json!({"css": format!("[data-figma-node-id=\"{id}\"]")});
+        let input: PlanInput = serde_json::from_value(json!({
+            "baseUrl": "http://127.0.0.1:4173", "allowedOrigins": ["http://127.0.0.1:4173"],
+            "viewports": [{"width": 1440, "height": 900}, {"width": 390, "height": 900}],
+            "screens": [{"id": "home", "routePath": "/", "componentPath": "src/app/page.tsx",
+                "figma": {"nodeId": "1:1", "drawnWidths": [1440], "frames": [{"width": 1440, "nodeId": "1:1", "artifactId": "art-1"}]},
+                "checks": [
+                    {"kind": "page-health"},
+                    {"kind": "bounds", "subject": node("1:3"), "container": node("1:2"), "nodeId": "1:3",
+                        "expected": {"x": 0, "y": 0, "width": 10, "height": 10}, "widths": [1440]},
+                    {"kind": "interaction", "state": "hover", "widths": [1440]},
+                    {"kind": "capture", "subject": node("1:4"), "nodeId": "1:4", "widths": [1440],
+                        "reference": {"scope": "asset", "artifactId": "art-1", "assetId": "icon"}},
+                ]}],
+        }))
+        .unwrap();
+        let written = plan(
+            input,
+            &policy,
+            Some(&dir.join("plan.json").to_string_lossy()),
+        )
+        .unwrap();
+        assert_eq!(
+            written["expected"]["checkItems"], 5,
+            "four at 1440, health alone at 390"
+        );
+        let plan_bytes = std::fs::read(dir.join("plan.json")).unwrap();
+        let page = png(1440, 900);
+        let icon = png(24, 24);
+        std::fs::write(dir.join("page.png"), &page).unwrap();
+        std::fs::write(dir.join("icon.png"), &icon).unwrap();
+        let shot = |bytes: &[u8], path: &str| json!({"path": path, "sha256": sha256(bytes), "bytes": bytes.len()});
+        let report = json!({"schemaVersion": 1, "kind": REPORT_KIND, "planId": written["planId"],
+        "planSha256": sha256(&plan_bytes), "status": "completed", "runs": [
+            {"viewport": {"width": 1440, "height": 900, "deviceScaleFactor": 1}, "environmentErrors": [],
+             "screens": [{"id": "home", "status": "completed", "screenshot": shot(&page, "page.png"), "checks": [
+                {"index": 0, "status": "pass", "reason": "ok", "measured": {}},
+                {"index": 1, "status": "fail", "reason": "position: y off by 60px", "measured": {}},
+                {"index": 2, "status": "fail", "reason": "hover changes nothing on 1 of 2", "measured": {}},
+                {"index": 3, "status": "pass", "reason": "captured", "measured": {}, "screenshot": shot(&icon, "icon.png")},
+             ]}]},
+            {"viewport": {"width": 390, "height": 900, "deviceScaleFactor": 1}, "environmentErrors": [],
+             "screens": [{"id": "home", "status": "completed", "checks": [
+                {"index": 0, "status": "fail", "reason": "the page shows \"Application error\"", "measured": {}},
+             ]}]},
+        ]});
+        std::fs::write(
+            dir.join("report.json"),
+            serde_json::to_vec(&report).unwrap(),
+        )
+        .unwrap();
+        let result = ingest(
+            &policy,
+            &dir.join("plan.json").to_string_lossy(),
+            &dir.join("report.json").to_string_lossy(),
+        )
+        .unwrap();
+        assert_eq!(result["summary"]["notRun"], 0, "{result}");
+        let findings = result["findings"].as_array().unwrap();
+        let classes = findings
+            .iter()
+            .map(|finding| {
+                (
+                    finding["class"].as_str().unwrap(),
+                    finding["width"].as_u64().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            classes,
+            [
+                ("layout-position", 1440),
+                ("interaction", 1440),
+                ("runtime-error", 390)
+            ]
+        );
+        let position = &findings[0];
+        assert_eq!(position["nodeId"], "1:3");
+        assert_eq!(position["codeFile"], "src/app/page.tsx");
+        assert_eq!(position["id"], "home|bounds|1:3|1440");
+        assert!(
+            position["fixHint"]
+                .as_str()
+                .unwrap()
+                .contains("order of its children")
+        );
+        assert!(
+            findings[2]["fixHint"]
+                .as_str()
+                .unwrap()
+                .contains("error-boundary")
+        );
+
+        let comparisons = result["visualComparisons"].as_array().unwrap();
+        let page_call = comparisons
+            .iter()
+            .find(|c| c["class"] == "page-visual")
+            .unwrap();
+        assert_eq!(
+            page_call["call"]["arguments"]["reference"],
+            json!({"artifactId": "art-1"})
+        );
+        assert_eq!(page_call["call"]["arguments"]["threshold"], PAGE_THRESHOLD);
+        let asset_call = comparisons
+            .iter()
+            .find(|c| c["class"] == "asset-mismatch")
+            .unwrap();
+        assert_eq!(asset_call["id"], "home|asset|1:4|1440");
+        assert_eq!(
+            asset_call["call"]["arguments"]["reference"],
+            json!({"artifactId": "art-1", "assetId": "icon"})
+        );
+        assert_eq!(
+            asset_call["call"]["arguments"]["threshold"],
+            ASSET_THRESHOLD
+        );
+        assert!(
+            asset_call["call"]["arguments"]["diffPath"]
+                .as_str()
+                .unwrap()
+                .ends_with("home_asset_1_4_1440.png")
+        );
+        assert!(
+            asset_call["ifItFails"]["fixHint"]
+                .as_str()
+                .unwrap()
+                .contains("multi-colour SVG")
+        );
+        let wide = result["screenTable"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["width"] == 1440)
+            .unwrap();
+        assert_eq!(wide["columns"]["geometry"], "fail");
+        assert_eq!(wide["columns"]["asset"], "1 to compare");
+        assert_eq!(wide["columns"]["page"], "1 to compare");
         drop(policy);
         std::fs::remove_dir_all(dir).unwrap();
     }

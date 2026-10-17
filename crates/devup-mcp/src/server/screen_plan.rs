@@ -97,10 +97,13 @@ const ROOT_WORDS: &[&str] = &["home", "main", "index", "landing", "메인", "홈
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct ScreenPlanInput {
     /// draft: map screens to routes and return every open question.
-    /// confirm: apply all answers at once. status: URL x width report.
-    /// assume: after confirm, record a decision implementation made without
-    /// asking.
-    #[schemars(extend("enum" = ["draft", "confirm", "status", "assume"]))]
+    /// confirm: apply all answers at once. status: URL x width report, the
+    /// audit findings, the work queue and the final report. assume: after
+    /// confirm, record a decision implementation made without asking, or
+    /// take a pending decision. auditPlan: write the runtime-audit plan for
+    /// every confirmed URL. defer: record a decision the work needs as
+    /// pending, with its recommended option, and keep working.
+    #[schemars(extend("enum" = ["draft", "confirm", "status", "assume", "auditPlan", "defer"]))]
     pub action: String,
     /// The Next App Router project. The plan is written to
     /// <projectRoot>/.devup/screen-plan.json and .md, under an allowed root.
@@ -158,6 +161,54 @@ pub struct ScreenPlanInput {
     /// pages, data source, language) - asked in the same up-front rounds.
     #[serde(default)]
     pub extra_questions: Vec<ExtraQuestionInput>,
+    /// auditPlan: where the app is served; default http://localhost:3000.
+    #[serde(default)]
+    pub base_url: Option<String>,
+    /// auditPlan: app name -> base URL, when the plan spans several apps.
+    #[serde(default)]
+    pub base_urls: BTreeMap<String, String>,
+    /// auditPlan: every devup_figma_export artifactId of this plan's frames
+    /// (the TSX export, the referencePng export, the native renders). They
+    /// are searched for each frame's geometry and references.
+    #[serde(default)]
+    pub artifacts: Vec<String>,
+    /// auditPlan: only these URLs; default every confirmed URL.
+    #[serde(default)]
+    pub urls: Vec<String>,
+    /// status: the devup_visual_compare result for each visualComparisons
+    /// call the last status returned.
+    #[serde(default)]
+    pub visual_results: Vec<super::audit_plan::VisualResultInput>,
+    /// status, with auditPlanPath and no report: the runner could not be
+    /// installed or started, and why. That URL's audit is inconclusive; the
+    /// work goes on.
+    #[serde(default)]
+    pub tooling_unavailable: Option<String>,
+    /// defer: the decision the work needs.
+    #[serde(default)]
+    pub decision: Option<PendingDecisionInput>,
+}
+
+/// A decision the work hit after confirm. It never stops the work: it is
+/// recorded with the option the agent recommends, the rest goes on, and it
+/// is taken with assume at the end - except a destructive one, which is
+/// left unbuilt.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct PendingDecisionInput {
+    /// A short id, e.g. contact-form-target.
+    pub id: String,
+    /// What it is about: a URL, a frame id, a file.
+    pub about: String,
+    pub question: String,
+    #[serde(default)]
+    pub options: Vec<String>,
+    /// The option to take when the work is otherwise done.
+    pub recommended: String,
+    /// It deletes or overwrites something, or reaches outside the project.
+    #[serde(default)]
+    pub destructive: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -316,6 +367,11 @@ pub(super) struct PlanConfig {
     /// recorded as unresolved with its evidence; default 3.
     #[serde(default)]
     pub max_fix_attempts: Option<u32>,
+    /// Changed-pixel ratios for the visual comparisons: page, section,
+    /// asset, and nodes keyed by Figma node id for one asset that needs its
+    /// own.
+    #[serde(default)]
+    pub visual_thresholds: Option<super::audit_plan::VisualThresholds>,
 }
 
 /// Whether exports into this project mark their elements with
@@ -1968,7 +2024,16 @@ fn assign_apps(
             })
             .collect::<Vec<_>>()
     };
+    let has_public = sides.iter().any(|(_, (side, _))| *side == Side::Public);
     let decision = match (admin_screens, public_screens, &admin_app) {
+        // Nothing says admin, so the public site: the bias the user chose.
+        (0, 0, _) if has_public => {
+            for (screen, _) in &screen_sides {
+                assigned.insert(screen.node_id.clone(), public_app.clone());
+            }
+            json!({"item": "target-app", "mechanism": "decided", "decision": public_app.dir,
+                "evidence": ([app_evidence, vec!["the frames name neither side; with no admin evidence the public app is taken".to_owned()]].concat())})
+        }
         (0, 0, _) => {
             let mut asked = question(
                 "site:app".into(),
@@ -2002,23 +2067,9 @@ fn assign_apps(
                     public_app.clone()
                 };
                 assigned.insert(screen.node_id.clone(), app);
-                if *side == Side::Unclear {
-                    let mut asked = question(
-                        format!("app:{}", screen.node_id),
-                        header("App", &screen.name),
-                        format!(
-                            "This file has public and admin screens. Which app is \"{}\" ({}) for?",
-                            screen.name, screen.node_id
-                        ),
-                        options(),
-                        "site",
-                    );
-                    asked["field"] = json!("app");
-                    questions.push(asked);
-                }
             }
             json!({"item": "target-app", "mechanism": "per-screen",
-                "decision": format!("Admin screens go to {}, public screens to {}; screens of unclear side are asked.", admin_app.dir, public_app.dir),
+                "decision": format!("Admin screens go to {}; public screens and screens with no admin evidence go to {}.", admin_app.dir, public_app.dir),
                 "evidence": app_evidence})
         }
         (admin, 0, Some(admin_app)) if admin > 0 => {
@@ -3112,6 +3163,32 @@ pub(super) fn draft_plan_with(
         }
         _ => evidence,
     };
+    // A mixed file builds into several apps: each screen's routes come from
+    // its own app, never from another app's pages.
+    let per_app = if chosen.len() > 1 {
+        chosen
+            .iter()
+            .filter_map(|dir| {
+                let app = screen_apps.values().find(|app| &app.dir == dir)?;
+                let mut narrowed = evidence.clone();
+                narrowed
+                    .routes
+                    .retain(|(_, page)| page.starts_with(&format!("{dir}/")));
+                narrowed.app_dir = app.path(app.app_router.as_deref().unwrap_or("src/app"));
+                narrowed.target_app = Some(app.clone());
+                Some((dir.clone(), narrowed))
+            })
+            .collect::<BTreeMap<_, _>>()
+    } else {
+        BTreeMap::new()
+    };
+    let evidence_for = |frames: &[Frame]| -> &ProjectEvidence {
+        frames
+            .first()
+            .and_then(|frame| screen_apps.get(&frame.node_id))
+            .and_then(|app| per_app.get(&app.dir))
+            .unwrap_or(evidence)
+    };
     for asked in stack_questions(evidence) {
         questions.push(with_when(asked, &base_when));
     }
@@ -3185,7 +3262,7 @@ pub(super) fn draft_plan_with(
                 &screen.frames,
                 &screen.words,
                 targets,
-                evidence,
+                evidence_for(&screen.frames),
                 &mut screen_notes[index],
             );
             let proposed = agreed(&hits).map(|hit| (hit.route.clone(), hit.kind));
@@ -3244,7 +3321,7 @@ pub(super) fn draft_plan_with(
                 .map(move |frame| (frame.node_id.clone(), index))
         })
         .collect::<BTreeMap<_, _>>();
-    let route_choice = |route: &str, why: &str, extra: Value| {
+    let route_choice = |evidence: &ProjectEvidence, route: &str, why: &str, extra: Value| {
         let description = match existing_page(route, evidence) {
             Some(page) => format!("{why} Exists at {page}; the screen is merged into it."),
             None => format!(
@@ -3258,27 +3335,29 @@ pub(super) fn draft_plan_with(
         }
         choice(route, description, action)
     };
-    let unclaimed_for = |words: &[String], exclude: &BTreeSet<String>| {
-        let mut unclaimed = evidence
-            .routes
-            .iter()
-            .filter(|(route, _)| !claimed.contains(route) && !exclude.contains(route))
-            .map(|(route, _)| {
-                let score = route
-                    .trim_matches('/')
-                    .split(['/', '-'])
-                    .filter(|segment| words.iter().any(|word| word == segment))
-                    .count();
-                (score, route.clone())
-            })
-            .collect::<Vec<_>>();
-        unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-        unclaimed
-    };
+    let unclaimed_for =
+        |evidence: &ProjectEvidence, words: &[String], exclude: &BTreeSet<String>| {
+            let mut unclaimed = evidence
+                .routes
+                .iter()
+                .filter(|(route, _)| !claimed.contains(route) && !exclude.contains(route))
+                .map(|(route, _)| {
+                    let score = route
+                        .trim_matches('/')
+                        .split(['/', '-'])
+                        .filter(|segment| words.iter().any(|word| word == segment))
+                        .count();
+                    (score, route.clone())
+                })
+                .collect::<Vec<_>>();
+            unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+            unclaimed
+        };
     let mut rows = Vec::new();
     let mut heuristics = Vec::new();
     let mut part_screens = BTreeMap::<String, Vec<String>>::new();
     for (index, screen) in drafts.iter().enumerate() {
+        let evidence = evidence_for(&screen.frames);
         let (hits, proposed) = &decided[index];
         let modal = is_modal(screen.name());
         let id = screen.id().to_owned();
@@ -3408,6 +3487,7 @@ pub(super) fn draft_plan_with(
                 let mut choices = Vec::new();
                 for hit in frame_hits.iter().filter(|hit| hit.kind != NAME_MATCH) {
                     choices.push(route_choice(
+                        evidence,
                         &hit.route,
                         &format!("From {}.", hit.detail),
                         json!({}),
@@ -3415,6 +3495,7 @@ pub(super) fn draft_plan_with(
                 }
                 for hit in frame_hits.iter().filter(|hit| hit.kind == NAME_MATCH) {
                     choices.push(route_choice(
+                        evidence,
                         &hit.route,
                         "Inferred from the layer name; only one frame can take it.",
                         json!({}),
@@ -3427,16 +3508,18 @@ pub(super) fn draft_plan_with(
                     .unwrap_or_default();
                 if !section_slug.is_empty() && !screen_slug.is_empty() {
                     choices.push(route_choice(
+                        evidence,
                         &format!("/{section_slug}/{screen_slug}"),
                         "Named after its Figma section and layer.",
                         json!({}),
                     ));
                 }
-                for (_, route) in unclaimed_for(&screen.words, &candidates)
+                for (_, route) in unclaimed_for(evidence, &screen.words, &candidates)
                     .iter()
                     .filter(|(score, _)| *score > 0)
                 {
                     choices.push(route_choice(
+                        evidence,
                         route,
                         "Existing route with a similar name.",
                         json!({}),
@@ -3522,10 +3605,13 @@ pub(super) fn draft_plan_with(
                 .collect::<Vec<_>>();
             let own_route = proposed
                 .as_ref()
-                .map(|(route, _)| route_choice(route, "A page with its own URL.", json!({})))
+                .map(|(route, _)| {
+                    route_choice(evidence, route, "A page with its own URL.", json!({}))
+                })
                 .or_else(|| {
                     new_route.as_ref().map(|route| {
                         route_choice(
+                            evidence,
                             route,
                             "A page with its own URL, named after the layer.",
                             json!({}),
@@ -3574,6 +3660,7 @@ pub(super) fn draft_plan_with(
             heuristics.push(json!({"screen": id, "name": name, "decision": format!("route: {route}"), "evidence": NAME_MATCH, "askedIn": format!("review:{id}")}));
             let mut choices = vec![
                 route_choice(
+                    evidence,
                     route,
                     "Keep the inferred route.",
                     json!({"collision": "merge"}),
@@ -3589,6 +3676,7 @@ pub(super) fn draft_plan_with(
                 .filter(|candidate| *candidate != route && !claimed.contains(*candidate))
             {
                 choices.push(route_choice(
+                    evidence,
                     alternative,
                     "Named after the layer.",
                     json!({}),
@@ -3621,24 +3709,32 @@ pub(super) fn draft_plan_with(
             let mut choices = Vec::new();
             for route in &candidates {
                 choices.push(route_choice(
+                    evidence,
                     route,
                     "Named by conflicting evidence.",
                     json!({}),
                 ));
             }
-            let unclaimed = unclaimed_for(&screen.words, &candidates);
+            let unclaimed = unclaimed_for(evidence, &screen.words, &candidates);
             for (_, route) in unclaimed.iter().filter(|(score, _)| *score > 0) {
                 choices.push(route_choice(
+                    evidence,
                     route,
                     "Existing route with a similar name.",
                     json!({}),
                 ));
             }
             if let Some(route) = new_route.as_ref().filter(|route| !claimed.contains(*route)) {
-                choices.push(route_choice(route, "Named after the layer.", json!({})));
+                choices.push(route_choice(
+                    evidence,
+                    route,
+                    "Named after the layer.",
+                    json!({}),
+                ));
             }
             for (_, route) in unclaimed.iter().filter(|(score, _)| *score == 0).take(1) {
                 choices.push(route_choice(
+                    evidence,
                     route,
                     "Existing route not claimed by another screen.",
                     json!({}),
@@ -4625,6 +4721,28 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         ));
     }
     let recorded_at = now();
+    // An assumption about a pending decision takes it, unless it is
+    // destructive: that one stays unbuilt and goes into the final report.
+    let mut decisions = array(&plan["pendingDecisions"]).to_vec();
+    for decision in &mut decisions {
+        let Some(taken) = input
+            .assumptions
+            .iter()
+            .find(|assumption| decision["id"] == assumption.about.as_str())
+        else {
+            continue;
+        };
+        if decision["destructive"] == true {
+            decision["status"] = json!("left-unbuilt");
+        } else {
+            decision["status"] = json!("taken");
+            decision["taken"] = json!(taken.decision);
+        }
+        decision["takenAt"] = json!(recorded_at);
+    }
+    if !decisions.is_empty() {
+        plan["pendingDecisions"] = json!(decisions);
+    }
     if let Some(update) = &input.dependency_update {
         plan["dependencies"] = json!({"updatedAt": recorded_at, "bumped": update.bumped,
             "pins": update.pins, "command": UPDATE_STEP});
@@ -4671,6 +4789,7 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
     Ok(json!({
         "status": "confirmed",
         "planId": plan["planId"],
+        "pendingDecisions": plan["pendingDecisions"],
         "stillNotBuilt": blocked.iter().map(|id| json!({"frame": id,
             "why": "Excluded or sent back for a design fix; an assumption cannot build it, and the export gate refuses it."})).collect::<Vec<_>>(),
         "assumptions": plan["assumptions"],
@@ -4679,6 +4798,101 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         "how": "Keep implementing. Every assumption appears in status and must be in your final report.",
     }))
 }
+
+/// Records a decision the work needs without stopping it.
+pub(super) fn defer(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
+    let root = require_root(input)?;
+    let mut plan = read_plan(root)?.ok_or_else(|| {
+        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
+    })?;
+    if plan["status"] != "confirmed" {
+        return Err(invalid(
+            "A decision before confirm is a question: put it in extraQuestions on draft.",
+        ));
+    }
+    let decision = input
+        .decision
+        .as_ref()
+        .ok_or_else(|| invalid("action defer needs decision."))?;
+    for (field, value) in [
+        ("id", &decision.id),
+        ("about", &decision.about),
+        ("question", &decision.question),
+        ("recommended", &decision.recommended),
+    ] {
+        if value.trim().is_empty() {
+            return Err(invalid(format!("decision.{field} is empty.")));
+        }
+    }
+    let mut decisions = array(&plan["pendingDecisions"]).to_vec();
+    decisions.retain(|existing| existing["id"] != decision.id.as_str());
+    decisions.push(
+        json!({"id": decision.id, "about": decision.about, "question": decision.question,
+        "options": decision.options, "recommended": decision.recommended,
+        "destructive": decision.destructive, "status": "open", "raisedAt": now()}),
+    );
+    plan["pendingDecisions"] = json!(decisions);
+    let written = write_plan(policy, root, &plan)?;
+    Ok(json!({
+        "status": "confirmed",
+        "pendingDecisions": plan["pendingDecisions"],
+        "writtenTo": written,
+        "how": if decision.destructive {
+            "Recorded. Do not build what it touches; carry on with everything else. It stays unbuilt and is listed in the final report."
+        } else {
+            "Recorded. Carry on with everything else; items it blocks move to the back of the work queue. When the rest is done, take it with action assume (about: the decision id, decision: the recommended option)."
+        },
+    }))
+}
+
+/// Writes one runtime-audit plan per confirmed URL and records where.
+pub(super) async fn audit_plan(
+    input: &ScreenPlanInput,
+    policy: &OutputPolicy,
+    artifacts: &ArtifactStore,
+) -> Result<Value, DevupError> {
+    let root = require_root(input)?;
+    let mut plan = read_plan(root)?.ok_or_else(|| {
+        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
+    })?;
+    if plan["status"] != "confirmed" {
+        return Err(invalid(
+            "auditPlan needs the confirmed plan: answer the questions and confirm first.",
+        ));
+    }
+    let config = read_config(root)?.unwrap_or_default();
+    let thresholds = config.visual_thresholds.clone().unwrap_or_default();
+    let mut result = super::audit_plan::write(
+        &plan,
+        &super::audit_plan::AuditRequest {
+            root,
+            base_url: input.base_url.as_deref().unwrap_or("http://localhost:3000"),
+            base_urls: &input.base_urls,
+            only: &input.urls,
+            artifact_ids: &input.artifacts,
+            thresholds: &thresholds,
+        },
+        policy,
+        artifacts,
+    )
+    .await?;
+    let mut entries = array(&plan["audit"]["plans"]).to_vec();
+    for written in array(&result["plans"]) {
+        entries.retain(|entry| entry["url"] != written["url"]);
+        entries.push(json!({"url": written["url"], "screen": written["screen"],
+            "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
+    }
+    let max_fix_attempts = config.max_fix_attempts.unwrap_or(3);
+    plan["audit"]["plans"] = json!(entries);
+    plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
+    plan["audit"]["generatedAt"] = json!(now());
+    result["writtenTo"] = write_plan(policy, root, &plan)?;
+    result["maxFixAttempts"] = json!(max_fix_attempts);
+    result["doneWhen"] = json!(DONE_RULE);
+    Ok(result)
+}
+
+pub(super) const DONE_RULE: &str = "A URL is done when every check and comparison passes at its drawn widths and health and overflow pass at every width, or each remaining finding is unresolved with its evidence after maxFixAttempts fix-and-rerun rounds.";
 
 fn screen_table(plan: &Value) -> Vec<Value> {
     array(&plan["screens"])
@@ -4832,20 +5046,75 @@ pub(super) async fn status(
             "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"]}, "how": ASK_INSTRUCTION},
         }));
     }
-    let audit = match (&input.audit_plan_path, &input.audit_report_path) {
-        (Some(plan_path), Some(report_path)) => Some(
+    let mut plan = plan;
+    let audit = match (
+        &input.audit_plan_path,
+        &input.audit_report_path,
+        &input.tooling_unavailable,
+    ) {
+        (Some(plan_path), Some(report_path), None) => Some((
             super::runtime_audit::ingest_with_artifacts(policy, plan_path, report_path, artifacts)
                 .await?,
-        ),
-        (None, None) => None,
+            sha256(&policy.resolve(report_path)?.read_bounded(8 * 1024 * 1024)?),
+        )),
+        (Some(plan_path), None, Some(reason)) => {
+            let bytes = policy.resolve(plan_path)?.read_bounded(MAX_PLAN_BYTES)?;
+            let audit_plan: Value = serde_json::from_slice(&bytes)
+                .map_err(|_| invalid("auditPlanPath is not a runtime audit plan."))?;
+            for screen in array(&audit_plan["plan"]["screens"]) {
+                if let Some(route) = screen["routePath"].as_str() {
+                    plan["audit"]["inconclusive"][route] = json!(reason);
+                }
+            }
+            write_plan(policy, root, &plan)?;
+            None
+        }
+        (None, None, None) => None,
         _ => {
             return Err(invalid(
-                "status needs both auditPlanPath and auditReportPath, or neither.",
+                "status takes auditPlanPath with auditReportPath, or auditPlanPath with toolingUnavailable, or neither.",
             ));
         }
     };
     let evidence = project_evidence(root).await?;
-    Ok(status_report(&plan, &evidence, audit.as_ref()))
+    let round = match &audit {
+        Some((audit, report_sha)) if audit["verdict"] != "rejected" => {
+            let routes = array(&audit["screenTable"])
+                .iter()
+                .filter_map(|row| row["routePath"].as_str())
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            if let Some(inconclusive) = plan["audit"]["inconclusive"].as_object_mut() {
+                inconclusive.retain(|route, _| !routes.contains(route));
+            }
+            let max = plan["audit"]["maxFixAttempts"]
+                .as_u64()
+                .and_then(|max| u32::try_from(max).ok())
+                .or(evidence.config.max_fix_attempts)
+                .unwrap_or(3);
+            let round = super::audit_plan::record_round(
+                &mut plan,
+                audit,
+                report_sha,
+                &input.visual_results,
+                &evidence.figma_nodes,
+                max,
+            );
+            write_plan(policy, root, &plan)?;
+            Some(round)
+        }
+        _ => None,
+    };
+    let mut report = status_report(&plan, &evidence, audit.as_ref().map(|(audit, _)| audit));
+    if let Some((audit, _)) = &audit {
+        report["visualComparisons"] = audit["visualComparisons"].clone();
+        report["missingNodes"] = audit["missingNodes"].clone();
+    }
+    if let Some(round) = round {
+        report["pendingComparisons"] = round["pendingComparisons"].clone();
+        report["inconclusiveComparisons"] = round["inconclusiveComparisons"].clone();
+    }
+    Ok(report)
 }
 
 /// The pure half of `status`, so the not-run rule is tested on its own.
@@ -4919,6 +5188,7 @@ pub(super) fn status_report(
                 json!({
                     "width": width,
                     "result": result,
+                    "columns": matching[0]["columns"],
                     "reasons": matching.iter().flat_map(|row| array(&row["reasons"]).to_vec()).collect::<Vec<_>>(),
                     "screenshots": matching.iter().filter_map(|row| row["screenshot"].as_str()).collect::<Vec<_>>(),
                 })
@@ -4926,6 +5196,7 @@ pub(super) fn status_report(
             .collect::<Vec<_>>();
         rows.push(json!({
             "url": url,
+            "screen": route["screen"],
             "figmaScreen": route["name"],
             "nodeIds": route["nodeIds"],
             "file": page.clone().map_or_else(|| route["file"].clone(), Value::from),
@@ -5080,8 +5351,48 @@ pub(super) fn status_report(
             cell(&item["detail"])
         ));
     }
-    table.push_str(&trailing_lists(plan));
+    let trailing = trailing_lists(plan);
+    table.push_str(&trailing);
+    // Visual failures and fixed findings change a width's verdict after the
+    // run: a failing comparison fails its width, and the columns say which
+    // level failed.
+    let open = super::audit_plan::findings_by_status(plan, "open");
+    let unresolved = super::audit_plan::findings_by_status(plan, "unresolved");
+    for row in &mut rows {
+        let url = text(&row["url"]).to_owned();
+        for width in row["widths"].as_array_mut().into_iter().flatten() {
+            let at = width["width"].clone();
+            for finding in open.iter().chain(&unresolved).filter(|finding| {
+                finding["kind"] == "visual"
+                    && finding["routePath"] == url.as_str()
+                    && finding["width"] == at
+            }) {
+                width["result"] = json!("fail");
+                let column = match text(&finding["class"]) {
+                    "asset-mismatch" => "asset",
+                    "section-visual" => "section",
+                    _ => "page",
+                };
+                width["columns"][column] = json!("fail");
+                if let Some(reasons) = width["reasons"].as_array_mut() {
+                    reasons.push(json!(format!(
+                        "{}: {}",
+                        text(&finding["class"]),
+                        text(&finding["reason"])
+                    )));
+                }
+            }
+        }
+    }
+    let queue = super::audit_plan::work_queue(plan, &rows, &[]);
+    let final_report = super::audit_plan::final_report(plan, &rows, &trailing);
     json!({
+        "findings": open,
+        "unresolved": unresolved,
+        "workQueue": queue,
+        "pendingDecisions": plan["pendingDecisions"],
+        "finalReport": final_report,
+        "doneWhen": DONE_RULE,
         "status": "confirmed",
         "planId": plan["planId"],
         "summary": summary,
