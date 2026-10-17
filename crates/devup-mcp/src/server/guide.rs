@@ -39,8 +39,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "run devup_ui_validate and report wired/tested counts before functional completion.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
-    "2c. Several pages: devup_screen_plan first; ask every questionRound back to back before implementing, ",
-    "never after confirm (skill devup-implementation-plan).\n",
+    "2c. Several pages: devup_screen_plan first; only the linked scope, never trash/archive; ask all its questions ",
+    "before implementing, never after confirm (skill devup-implementation-plan).\n",
     "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
     "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );

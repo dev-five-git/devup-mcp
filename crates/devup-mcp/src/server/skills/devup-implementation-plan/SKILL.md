@@ -31,11 +31,13 @@ So the order is fixed, and none of it is optional.
 
 - **No implementation before confirm.** No page, layout or component file is
   written until `devup_screen_plan` `confirm` has succeeded.
-- **All questions up front, back to back.** Ask every round in
-  `questionRounds` before any implementation starts, in consecutive turns with
-  no other work in between. Several rounds are fine - AskUserQuestion takes at
-  most four questions per call, and the server has already split them - but
-  never one decision at a time spread through the work.
+- **All questions up front, back to back.** Ask every question before any
+  implementation starts. If your question tool has no per-call cap (OpenCode
+  `question`), ask the flat `questions` list in one call; each conditional
+  question says when it applies. If it has one (Claude Code AskUserQuestion:
+  4), ask `questionRounds` in consecutive turns with no other work in between;
+  pass `maxQuestionsPerRound` to draft when your cap is different. Never one
+  decision at a time spread through the work.
 - **Never ask during implementation.** After `confirm`, ask the user nothing:
   someone may have walked away from the keyboard, and a question three hours
   in stops everything. When something new comes up, take the plan's
@@ -52,6 +54,19 @@ So the order is fixed, and none of it is optional.
   named question got that answer, e.g. a per-frame route only after "Separate
   pages". Rounds are ordered so the answer it depends on is always already in
   hand.
+- **Stay inside the scope the user gave.** Only frames under the linked
+  Section, frame or page (or the Bridge selection) are candidates. Never widen
+  to the whole file or other pages on your own, and never build from trash,
+  archive, old, draft, test, copy or hidden areas: draft lists them under
+  `excluded` and asks once whether to accept that.
+- **Never resolve a cross-section ambiguity yourself.** Frames that look like
+  one screen in different sections - device-named ones such as PC / Mobile
+  included - are a designer's structure. Ask the `sections:` question as
+  returned; it names the sections, frames, widths and node ids.
+- **Frames marked for a design fix are reported, not built.** When the user
+  answers "The Figma structure is wrong: I will fix it", those frames are left
+  out, listed under "Design fixes requested" with what to move or rename, and
+  the rest of the work goes on without waiting.
 - **Never invent a route.** A route comes from an existing page built from the
   frame, a nav link already bound to an href, an explicit `navigationTargets`
   entry, the project's `routeAliases`, or the user's answer. A route inferred
@@ -70,11 +85,12 @@ So the order is fixed, and none of it is optional.
    step 1 (with each frame's `section`) to skip a second Figma read, and
    `navigationTargets` for any Figma node -> route binding you were given
    explicitly. It writes `.devup/screen-plan.json` and `.devup/screen-plan.md`.
-3. **Show the plan, then ask every round.** Show the user the `screens` table
+3. **Show the plan, then ask everything.** Show the user the `screens` table
    (Figma screen, widths, proposed route, evidence, existing file, shared
-   parts, open decisions) and the `heuristics` list, then ask round 1, round
-   2, ... of `questionRounds` back to back, exactly as returned. Do not reword
-   the options; the labels are what confirm reads.
+   parts, open decisions), the `heuristics` list and the `excluded` list, then
+   ask the questions - the flat list in one call, or the rounds back to back -
+   exactly as returned. Do not reword the options; the labels are what confirm
+   reads.
 4. **Confirm.** Call `devup_screen_plan` with `action: "confirm"`, the
    `planId`, and `answers` keyed by question id (the chosen label, with or
    without " (Recommended)", or the user's custom text) for every question
@@ -86,7 +102,8 @@ So the order is fixed, and none of it is optional.
    a different one. Screens confirmed as a state of another page are built
    inside that page. An export of a frame the confirmed plan does not place
    answers `plan_required` and writes nothing: leave it unbuilt and record an
-   assumption - do not ask.
+   assumption - do not ask. An excluded or design-fix frame answers `refused`:
+   it is never built, and no assumption changes that.
 6. **Run the runtime audit.** `devup_runtime_audit` `plan` with every confirmed
    URL as a screen (`routePath`) at the default widths (1440, 1100, 858, 390),
    each with a `no-horizontal-overflow` check; run the executor in the
@@ -96,7 +113,8 @@ So the order is fixed, and none of it is optional.
    audit item is `not-run`, never `pass`.
 8. **Finish with the table.** End your reply with the `markdownTable` from
    status - `URL | Figma screen | file | status | widths verified |
-   screenshots`, followed by the assumptions made during implementation - and
+   screenshots`, followed by the design fixes requested, the excluded frames
+   and the assumptions made during implementation - and
    its one-line `summary`, such as
    `7 URLs: 5 implemented, 3 verified at all widths, /about overflows at 390`.
    Report every `fail`, `not-run` and assumption as what it is. Do not call the
@@ -106,7 +124,11 @@ So the order is fixed, and none of it is optional.
 
 | id | asked when | resolves to |
 | --- | --- | --- |
-| `group:<nodeId>` | frames share a name across widths or sections | one responsive page, separate pages, or one route per frame (custom `/a, /b`) |
+| `scope` | the link itself points into a trash, archive or draft area | plan it anyway, or build nothing |
+| `exclusions` | frames were excluded by name or because they are hidden | accept, or review each (`exclusion:` / `exclusion-route:`) |
+| `group:<nodeId>` | one name drawn at several widths in one section | one responsive page, separate pages, or one route per frame (custom `/a, /b`) |
+| `sections:<nodeId>` | one name in different sections | separate pages, one responsive page, or the Figma structure is wrong |
+| `structure:<kind>:<nodeId>` | a duplicate, a screen split across sections, or a frame outside any section | keep as is, or the Figma structure is wrong |
 | `split-route:<nodeId>` | `when` its group is separate pages | that frame's URL, skip, or not a page |
 | `route:<nodeId>` | no evidence names a route, or evidence conflicts | the URL, skip, or not a page |
 | `heuristics` | a route was inferred from a layer name | accept all, or review individually |
@@ -117,10 +139,10 @@ So the order is fixed, and none of it is optional.
 | `link:<nodeId>:<n>` | a link's destination is not in the plan | a route, or unlinked |
 | `layout:<part>` | a part appears on several screens and no layout renders it | shared layout, or per page |
 
-Which way a `group` question recommends follows the evidence: several widths
-in one section with matching names recommend one responsive page; the same
-name in different sections recommends separate pages, unless the sections are
-named only for devices (`PC`, `Mobile`).
+A `group` question recommends one responsive page: the widths are in one
+section with matching names. A `sections` question recommends separate pages,
+unless every section name is a device name (`PC`, `Mobile`, `Tablet`,
+`모바일`) - and then it says the recommendation was inferred from those names.
 
 ## Project config
 
@@ -132,11 +154,19 @@ evidence and replaces the question it would otherwise take:
 {
   "modalKeywords": ["popup", "sheet"],
   "routeAliases": { "메인": "/", "회사소개": "/company" },
-  "widthGrouping": "responsive"
+  "widthGrouping": "responsive",
+  "excludeKeywords": ["trash", "archive", "legacy"],
+  "includeKeywords": ["test drive"]
 }
 ```
 
 - `modalKeywords` replaces the built-in modal words.
 - `routeAliases` maps a layer name to a route.
-- `widthGrouping` is `responsive` (merge same-named widths into one page),
-  `separate` (never merge), or `ask` (the default: ask per group).
+- `widthGrouping` is `responsive` (merge same-named widths in one section
+  into one page), `separate` (never merge), or `ask` (the default: ask per
+  group). Frames in different sections are always asked.
+- `excludeKeywords` replaces the built-in words that mark an area as not for
+  implementation (trash/휴지통, archive/아카이브, old/구버전/이전,
+  deprecated/사용안함/미사용, backup/백업, draft/WIP/작업중, test/테스트,
+  sandbox, playground, copy/사본).
+- `includeKeywords` forces names containing them back in.

@@ -1058,7 +1058,13 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `devup_figma_export`는 `projectRoot`가 있고 페이지를 쓰는 호출(`pageScaffold` write, `app/` 아래 `outputPaths`, `outputPaths`가 있는 여러 프레임·`allScreens`)인데 그 프레임을 덮는 확정 계획이 없으면 쓰지 않고 `status: "plan_required"`와 `devup_screen_plan draft`로 가는 `nextAction`을 돌려줍니다. 컴포넌트 하나, 쓰지 않는 미리보기는 막지 않습니다. 확정 계획이 있으면 `pageScaffold.route`는 계획에서 가져오고, 다른 라우트를 넘기면 `routeMismatch`로 거절합니다. 전체 흐름은 `devup_skills`로 설치하는 `devup-implementation-plan` 스킬에 있습니다.
 
-디자이너마다 이름 짓는 방식이 달라서, 프로젝트는 선택적으로 `.devup/screen-plan.config.json`에 `modalKeywords`(모달로 볼 레이어 이름 단어, 기본 목록을 대체), `routeAliases`(레이어 이름 → 라우트), `widthGrouping`(`responsive` | `separate` | `ask`, 기본 `ask`)을 둘 수 있습니다. 있는 항목은 근거로 쓰이고 그에 해당하는 질문을 대신합니다.
+디자이너마다 이름 짓는 방식이 달라서, 프로젝트는 선택적으로 `.devup/screen-plan.config.json`에 `modalKeywords`(모달로 볼 레이어 이름 단어, 기본 목록을 대체), `routeAliases`(레이어 이름 → 라우트), `widthGrouping`(한 Section 안의 여러 폭: `responsive` | `separate` | `ask`, 기본 `ask`), `excludeKeywords`(구현 대상이 아닌 영역을 표시하는 단어, 기본 목록을 대체), `includeKeywords`(이 단어가 든 이름은 제외하지 않음)를 둘 수 있습니다. 있는 항목은 근거로 쓰이고 그에 해당하는 질문을 대신합니다.
+
+범위는 링크가 가리킨 노드 아래로만 한정합니다. 파일 전체나 다른 페이지로 넓히지 않고(`outOfScope`에 기록), 이름이 휴지통/trash, 아카이브/archive, 구버전/old, 사용안함/deprecated, 백업/backup, 작업중/draft/WIP, 테스트/test, sandbox, playground, 사본/copy인 페이지·Section·프레임과 숨겨진 프레임은 짓지 않습니다. 제외한 것은 `excluded`에 이유와 함께 남기고 `.md`와 확인 질문("These N were excluded ... Accept the exclusions (Recommended) / Review individually")에 보여 줍니다. 링크 자체가 그런 영역 안을 가리키면 제외하지 않고 한 번 묻습니다.
+
+같은 이름의 프레임이 서로 다른 Section에 있으면(PC/Mobile처럼 기기 이름 Section 포함) 서버가 정하지 않습니다. Section 이름·프레임 이름·폭·nodeId와 관련 있어 보이는 이유를 적은 질문으로 "Separate pages: the sections are different pages", "One responsive page: the sections only split by device"(모든 Section 이름이 기기 이름일 때만 추천), "The Figma structure is wrong: I will fix it" 중에서 묻습니다. 한 화면이 여러 Section에 나뉜 경우, Section 밖에 홀로 있는 프레임, 한 Section 안의 같은 이름·같은 폭 중복도 같은 "고치겠다" 선택지로 묻습니다. 고치겠다고 한 프레임은 짓지 않고 `status`와 최종 보고의 "Design fixes requested"에 옮기거나 이름을 바꿀 프레임과 Section을 정확히 적습니다. 에이전트는 기다리지 않고 나머지를 계속합니다. export gate는 제외되었거나 디자인 수정 대상인 프레임의 페이지 쓰기를 가정(`assume`)이 있어도 거절합니다.
+
+질문 도구에 호출당 개수 제한이 없으면(OpenCode `question`) 평평한 `questions` 목록을 한 번에 묻고, 제한이 있으면(Claude Code `AskUserQuestion`: 4) `maxQuestionsPerRound`(기본 4)로 나눈 `questionRounds`를 연달아 묻습니다.
 
 ## 읽기 전용·개인정보 보호
 

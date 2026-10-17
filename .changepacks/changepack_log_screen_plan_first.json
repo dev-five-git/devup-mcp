@@ -2,6 +2,6 @@
   "changes": {
     "crates/devup-mcp/Cargo.toml": "Minor"
   },
-  "note": "Add devup_screen_plan (draft, confirm, status, assume) so every Figma screen is mapped to an evidence-backed URL and confirmed in question rounds asked up front before pages are written, never asking during implementation; ask per group whether same-named frames are one responsive page or separate pages; surface layer-name guesses for confirmation; honour an optional .devup/screen-plan.config.json; gate page-writing exports on a confirmed plan; report URL x width runtime status with assumptions; and ship the devup-implementation-plan skill.",
+  "note": "Add devup_screen_plan (draft, confirm, status, assume) so every Figma screen under the linked node is mapped to an evidence-backed URL and confirmed in questions asked up front, never during implementation; keep the plan inside the linked scope and out of trash, archive, draft, copy and hidden areas (listed and confirmed, overridable with excludeKeywords/includeKeywords); ask cross-section and other structural ambiguities explicitly with a fix-the-Figma option whose frames are reported, not built; surface layer-name guesses; honour .devup/screen-plan.config.json; gate page-writing exports on the confirmed plan and refuse excluded or design-fix frames; report URL x width runtime status with assumptions; and ship the devup-implementation-plan skill.",
   "date": "2026-10-17T00:00:00+09:00"
 }
