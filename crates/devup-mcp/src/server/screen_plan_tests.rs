@@ -1232,6 +1232,7 @@ fn site_files_are_asked_with_evidence_backed_candidates() {
             name: "Logo".into(),
             ..PlanAssetInput::default()
         }],
+        &[],
         &BTreeMap::new(),
         &evidence,
         json!({}),
@@ -1270,7 +1271,8 @@ fn site_files_are_asked_with_evidence_backed_candidates() {
         .map(|default| text(&default["item"]))
         .collect::<Vec<_>>();
     for item in [
-        "interaction-states",
+        "interaction-recipes",
+        "view-transitions",
         "transition",
         "reduced-motion",
         "metadata",
@@ -1382,11 +1384,16 @@ async fn status_reports_site_completeness() {
     };
     assert_eq!(item("favicon")["state"], "asked-and-answered");
     assert_eq!(item("metadata /company")["state"], "missing");
-    // The fixture header has two bare links.
-    assert_eq!(item("hover-focus")["state"], "missing");
+    // The fixture header has two bare links in a nav.
+    assert_eq!(item("interaction-roles")["state"], "missing");
     assert_eq!(
-        item("hover-focus")["detail"],
-        "0 of 2 interactive elements have hover or focus states"
+        item("interaction-roles")["detail"],
+        "nav items 0/2 hover+focus+aria-current"
+    );
+    // App Router pages but no next in package.json: skipped, and said why.
+    assert_eq!(item("view-transitions")["state"], "not-applicable");
+    assert!(
+        text(&item("view-transitions")["detail"]).starts_with("skipped: App Router pages exist")
     );
     assert_eq!(item("site-name")["state"], "filled");
     let table = text(&report["markdownTable"]);
@@ -1423,4 +1430,235 @@ fn a_missing_app_icon_is_a_warning() {
     assert_eq!(finding.rule, "app-icon");
     fixture.write("src/app/favicon.ico", "ico");
     assert!(missing_app_icon(fixture.root()).is_none());
+}
+
+fn with_package(package: &str, lock: Option<&str>) -> Fixture {
+    let fixture = Fixture::new();
+    fixture.write("package.json", package);
+    if let Some(lock) = lock {
+        fixture.write("package-lock.json", lock);
+    }
+    fixture
+}
+
+async fn transition_default(fixture: &Fixture) -> Value {
+    let evidence = project_evidence(fixture.root()).await.unwrap();
+    let plan = draft_plan(
+        &[screen("40:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    array(&plan["defaults"])
+        .iter()
+        .find(|default| default["item"] == "view-transitions")
+        .cloned()
+        .expect("a view-transitions default")
+}
+
+/// The mechanism follows the versions the project declares, never a guess:
+/// Next 16 with React 19.3 needs no flag, Next 15.2+ only has the
+/// experimental one, older App Routers get none, and an existing page-motion
+/// library turns the default into a question.
+#[tokio::test]
+async fn view_transitions_follow_the_project_versions() {
+    let supported = with_package(
+        r#"{"dependencies": {"next": "^16.1.0", "react": "19.3.0"}}"#,
+        None,
+    );
+    let chosen = transition_default(&supported).await;
+    assert_eq!(chosen["mechanism"], "react-view-transition");
+    assert!(text(&chosen["decision"]).contains("import { ViewTransition } from 'react'"));
+    assert!(text(&chosen["decision"]).contains("prefers-reduced-motion"));
+
+    let experimental = with_package(
+        r#"{"dependencies": {"next": "15.3.0", "react": "19.1.0"}}"#,
+        None,
+    );
+    let chosen = transition_default(&experimental).await;
+    assert_eq!(chosen["mechanism"], "react-unstable-view-transition");
+    assert!(text(&chosen["decision"]).contains("experimental.viewTransition: true"));
+
+    let old = with_package(
+        r#"{"dependencies": {"next": "^14.2.0", "react": "^18.3.0"}}"#,
+        None,
+    );
+    let chosen = transition_default(&old).await;
+    assert_eq!(chosen["mechanism"], "skipped");
+    assert!(text(&chosen["evidence"]).contains("one document"));
+
+    // The lockfile's installed version wins over the declared range.
+    let locked = with_package(
+        r#"{"dependencies": {"next": "latest", "react": "latest"}}"#,
+        Some(
+            r#"{"packages": {"node_modules/next": {"version": "16.2.1"}, "node_modules/react": {"version": "19.3.2"}}}"#,
+        ),
+    );
+    assert_eq!(
+        transition_default(&locked).await["mechanism"],
+        "react-view-transition"
+    );
+
+    let unknown = with_package(r#"{"dependencies": {"next": "latest"}}"#, None);
+    assert_eq!(transition_default(&unknown).await["mechanism"], "skipped");
+
+    let animated = with_package(
+        r#"{"dependencies": {"next": "16.1.0", "react": "19.3.0", "framer-motion": "^11.0.0"}}"#,
+        None,
+    );
+    let chosen = transition_default(&animated).await;
+    assert_eq!(chosen["mechanism"], "asked");
+    assert_eq!(chosen["ifAdded"]["mechanism"], "react-view-transition");
+    let evidence = project_evidence(animated.root()).await.unwrap();
+    let plan = draft_plan(
+        &[screen("40:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        first_label(find(&plan, "site:view-transitions")),
+        "Keep framer-motion only (Recommended)"
+    );
+}
+
+#[test]
+fn the_recipe_default_names_every_role_and_the_restraint_rules() {
+    let plan = draft_plan(
+        &[screen("41:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let recipes = array(&plan["defaults"])
+        .iter()
+        .find(|default| default["item"] == "interaction-recipes")
+        .cloned()
+        .unwrap();
+    let roles = array(&recipes["recipes"])
+        .iter()
+        .map(|row| text(&row["role"]))
+        .collect::<Vec<_>>();
+    for role in [
+        "primary button",
+        "card that links",
+        "nav item / tab",
+        "icon button",
+        "input / select / textarea",
+    ] {
+        assert!(roles.contains(&role), "{role} missing from {roles:?}");
+    }
+    let restraint = text(&recipes["restraint"]);
+    for rule in [
+        "at most two properties",
+        "150-250ms",
+        "0.97 and 1.05",
+        "_motionReduce",
+        "no hover",
+    ] {
+        assert!(restraint.contains(rule), "{rule} missing");
+    }
+}
+
+/// The agent's own questions go into the same up-front rounds, and their
+/// answers come back from confirm.
+#[tokio::test]
+async fn extra_questions_are_asked_up_front_and_answered_at_confirm() {
+    let fixture = Fixture::new();
+    let mut draft_input = input(&fixture, "draft");
+    draft_input.extra_questions = vec![
+        ExtraQuestionInput {
+            id: "contact-target".into(),
+            header: "Contact form target".into(),
+            question: "Where should the contact form send its messages?".into(),
+            options: vec![
+                ExtraOptionInput {
+                    label: "Email to the address in the footer (Recommended)".into(),
+                    description: "A server action sending to the footer address.".into(),
+                },
+                ExtraOptionInput {
+                    label: "An existing API endpoint".into(),
+                    description: "Named in openapi.json.".into(),
+                },
+            ],
+            multiple: false,
+        },
+        ExtraQuestionInput {
+            id: "legal".into(),
+            header: "Legal pages".into(),
+            question: "Which legal pages does the site need?".into(),
+            options: vec![
+                ExtraOptionInput {
+                    label: "Privacy policy".into(),
+                    description: "/privacy".into(),
+                },
+                ExtraOptionInput {
+                    label: "Terms of service".into(),
+                    description: "/terms".into(),
+                },
+            ],
+            multiple: true,
+        },
+    ];
+    let drafted = draft(
+        &draft_input,
+        &[screen("42:1", "Pricing", 1440.0)],
+        json!({}),
+        &fixture.policy(),
+    )
+    .await
+    .unwrap();
+    let ids = array(&drafted["questions"])
+        .iter()
+        .map(|q| text(&q["id"]))
+        .collect::<Vec<_>>();
+    assert!(
+        ids.contains(&"extra:contact-target") && ids.contains(&"extra:legal"),
+        "{ids:?}"
+    );
+    let contact = array(&drafted["questions"])
+        .iter()
+        .find(|q| q["id"] == "extra:contact-target")
+        .unwrap();
+    assert_eq!(
+        first_label(contact),
+        "Email to the address in the footer (Recommended)"
+    );
+
+    let mut confirm_input = input(&fixture, "confirm");
+    confirm_input.plan_id = drafted["planId"].as_str().map(str::to_owned);
+    confirm_input.answers = answers(&[
+        ("route:42:1", "/pricing (Recommended)"),
+        ("extra:contact-target", "contact@prime.example"),
+    ]);
+    confirm_input.answers.insert(
+        "extra:legal".into(),
+        AnswerInput::Many(vec!["Privacy policy".into(), "Terms of service".into()]),
+    );
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    assert_eq!(
+        confirmed["extraAnswers"]["extra:contact-target"],
+        "contact@prime.example"
+    );
+    assert_eq!(
+        confirmed["extraAnswers"]["extra:legal"],
+        json!(["Privacy policy", "Terms of service"])
+    );
+
+    draft_input.extra_questions[0].header = "A header far longer than thirty characters".into();
+    let error = draft(
+        &draft_input,
+        &[screen("42:1", "Pricing", 1440.0)],
+        json!({}),
+        &fixture.policy(),
+    )
+    .await
+    .unwrap_err();
+    assert!(error.message.contains("header"), "{}", error.message);
 }

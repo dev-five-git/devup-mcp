@@ -222,6 +222,18 @@ widths is checked in the consumer project: `devup_runtime_audit` writes the
 plan and verifies the report, and never runs the browser itself. Its ingest
 returns a ready `devup_visual_compare` call for each screenshot taken at a
 drawn width.
+
+## 14. Interactions by role, restrained
+
+Hover plus a transition is not a finished interaction. Each interactive
+element gets its role's recipe - button, link, card, nav item, icon button,
+input, disclosure - with pressed, focus, current-page, expanded, disabled and
+loading states where they apply, and view transitions between pages where the
+project's Next.js and React support them. Restraint is a rule, not a taste: at
+most two properties per state, 150-250ms, existing tokens only, scale 0.97 to
+1.05, nothing infinite, everything off under `_motionReduce`. The table is in
+the devup-implementation-plan skill; `devup_screen_plan` records it in
+`defaults` and `devup_ui_validate` reports both too little and too much.
 "#;
 
 #[cfg(test)]

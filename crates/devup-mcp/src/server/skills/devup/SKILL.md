@@ -29,10 +29,13 @@ the full rules; these are the steps.
 3. **Project context.** `devup_project_context` with `scope: "theme"` (the
    tokens the code must use) and `scope: "routes"` (the pages that exist).
 4. **Screen plan.** `devup_screen_plan` with `action: "draft"`, `projectRoot`,
-   the link and the notes. It returns the screens, the excluded areas, the
-   defaults it will fill in, and every open question - routes, sections and
-   structure, and the site questions (favicon, share image, site name and URL,
-   analytics, motion).
+   the link, the notes and `extraQuestions` - every question you would
+   otherwise have to guess at any point in the job (form target, contact
+   details, external links, legal pages, data source, language). It returns
+   the screens, the excluded areas, the defaults it will fill in, and every
+   open question - routes, sections and structure, the site questions
+   (favicon, share image, site name and URL, analytics, scroll reveal) and
+   yours.
 5. **Ask everything now, with your question tool.** The flat `questions` list
    in one call if your tool has no per-call cap; otherwise `questionRounds`
    back to back. Never in prose, never one decision at a time, never later.
@@ -40,18 +43,33 @@ the full rules; these are the steps.
    every answer that applies.
 7. **Implement URL by URL without asking anything.** `devup_figma_export` with
    `projectRoot` and each screen's `frameIds`; `pageScaffold` takes its route
-   from the plan. Add the plan's `defaults` as you go: `_hover`,
-   `_focusVisible`, `_active`, `_disabled` and `cursor="pointer"` on every
-   interactive element from existing tokens, one shared transition,
-   `_motionReduce`, root and per-page `metadata` with openGraph, `lang`, alt
-   text, image dimensions, a not-found page. Run `devup_ui_validate` with
-   `projectRoot` on what you wrote. Anything new: take the recommended or most
-   conservative option and record it with `action: "assume"`.
+   from the plan. Add the plan's `defaults` as you go: each interactive
+   element's role recipe (hover, pressed, focus ring, current page, expanded,
+   disabled, loading - restrained: at most two properties per state,
+   150-250ms, existing tokens only), one shared transition, `_motionReduce`,
+   view transitions by the plan's mechanism, root and per-page `metadata` with
+   openGraph, `lang`, alt text, image dimensions, a not-found page. Run
+   `devup_ui_validate` with `projectRoot` on what you wrote. Anything new:
+   take the recommended or most conservative option and record it with
+   `action: "assume"`.
 8. **Runtime audit.** `devup_runtime_audit` `plan` with every confirmed URL at
    1440, 1100, 858 and 390, run the executor in the project, then `ingest`.
 9. **Status.** `devup_screen_plan` with `action: "status"`, `auditPlanPath`
    and `auditReportPath`.
-10. **Final table.** End with the status `markdownTable` and `summary`: URL |
+10. **Submission checklist.** Before reporting done, every item holds - fix
+    and re-run until it does, without stopping to ask:
+
+    - every confirmed URL is implemented;
+    - the build passes (`next build` or the project's build script);
+    - lint and typecheck pass;
+    - `devup_ui_validate` reports no errors;
+    - the runtime audit at every width shows no page error and no horizontal
+      overflow;
+    - the site completeness block is filled;
+    - the final table `URL | Figma screen | file | status | widths verified |
+      screenshots` is there, with the assumptions, the design fixes requested and
+      the excluded frames.
+11. **Final table.** End with the status `markdownTable` and `summary`: URL |
     Figma screen | file | status | widths verified | screenshots, then site
     completeness, design fixes requested, excluded frames, the defaults filled
     in and every assumption.

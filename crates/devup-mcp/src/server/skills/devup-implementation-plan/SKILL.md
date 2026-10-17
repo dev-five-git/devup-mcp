@@ -41,6 +41,10 @@ So the order is fixed, and none of it is optional.
   4), ask `questionRounds` in consecutive turns with no other work in between;
   pass `maxQuestionsPerRound` to draft when your cap is different. Never one
   decision at a time spread through the work.
+- **Ask what the whole job needs, now.** Every question you would need at
+  any point - screens and routes, site files and facts, and your own
+  (`extraQuestions`) - goes into the up-front rounds. Then finish the site
+  without stopping.
 - **Never ask during implementation.** After `confirm`, ask the user nothing:
   someone may have walked away from the keyboard, and a question three hours
   in stops everything. When something new comes up, take the plan's
@@ -80,21 +84,20 @@ So the order is fixed, and none of it is optional.
 ## Site completeness
 
 A site built only from what Figma draws feels dead: no hover, no focus, no
-transitions, no metadata, no icon. The plan splits what that takes in two.
+pressed or current state, no transitions, no metadata, no icon. Hover plus a
+transition is still not enough. The plan splits what a finished site takes in
+two.
 
 **Filled in by you, without a question** - draft lists these as `defaults`,
 and the final report repeats them:
 
-- interaction states on every link, button, linked card, tab and input:
-  `_hover`, `_focusVisible` (a visible focus ring), `_active`, `_disabled`
-  where it applies, `cursor="pointer"`. Use the Figma hover/pressed/focus
-  variants when they exist; otherwise a small, consistent fallback built only
-  from existing theme tokens (a darker or lighter shade, an underline, a slight
-  lift or shadow). Never invent a colour; with no suitable token, record an
-  assumption;
-- one shared `transition` of about 0.2s ease on the properties that change,
-  defined once (a token or shared constant), not per element;
+- the interaction recipe for each element's role (table below), on every
+  interactive element `interactiveCandidates` and the navigation checks find;
+- one shared `transition`, 150-250ms, ease or ease-out, on the properties that
+  change, defined once (a token or shared constant), not per element;
 - `_motionReduce` so `prefers-reduced-motion` gets no transform or animation;
+- view transitions between pages, by the mechanism the plan chose from the
+  project's versions (below);
 - root `metadata` (title template, description, `metadataBase` when the URL is
   known) and per-page `title`, `description` and `openGraph` from the page's
   Figma heading and lead text - the devfive-frontend SEO rule; `lang` on
@@ -102,16 +105,83 @@ and the final report repeats them:
 - `alt` from the layer name or text, width and height on every image, and a
   `not-found` page when there is none.
 
+### Interaction recipe per role
+
+| Role | Hover | Active / pressed | Focus | Also |
+| --- | --- | --- | --- | --- |
+| Primary button | one token step darker | `scale(0.98)` or one more step darker | 2px ring with offset (`_focusVisible`) | disabled: reduced opacity, `cursor: not-allowed`; loading (disabled + spinner) while the form it submits is pending |
+| Secondary / ghost / outline button | subtle tinted background | slightly stronger tint | same ring | same disabled |
+| Text link / "더 보기 >" | colour change or underline | - | ring | a trailing chevron moves 2px on hover |
+| Card that links | 2-4px lift + shadow token; inner image zooms 1.02-1.04 (overflow hidden) | lift removed | ring on the card | - |
+| Nav item / tab | colour | - | ring | current route: `aria-current="page"` and the Figma active style (e.g. the underline the header draws) |
+| Icon button | background circle or tint | press | ring | `aria-label` required |
+| Input / select / textarea | border | - | border + ring | invalid state with its message; disabled |
+| Accordion / disclosure / dropdown | - | - | ring | `aria-expanded`; the chevron rotates 180deg |
+| Mobile menu / drawer | - | - | - | an open/close transition, when the design has one |
+
+**Restraint - hard rules.** Rich is not busy:
+
+- Figma variant states first; otherwise existing theme tokens only. No new
+  colours - record an assumption when nothing fits.
+- At most two properties change per state.
+- 150-250ms, ease or ease-out, one shared definition.
+- No bounce, no infinite or attention-seeking animation; transforms of 4px or
+  less and scale between 0.97 and 1.05.
+- Everything that moves is off under `_motionReduce`.
+- Non-interactive elements get no hover effect.
+
+`status` counts every role against its recipe ("buttons 6/6
+hover+active+focus, cards 4/6 hover+focus"); that table is the record of which
+recipe each element got.
+
+### View transitions
+
+On by default where the stack supports them, as progressive enhancement -
+browsers without support simply navigate. The plan reads the Next.js and React
+versions (package-lock.json first, then package.json) and records the
+mechanism in `defaults`:
+
+- **Next 16+ with React 19.3+**: `import { ViewTransition } from 'react'`, no
+  `next.config` flag; wrap each page's content in its `page.tsx` (not the
+  layout, which persists across navigations).
+- **Next 15.2+ with an older React**: `experimental.viewTransition: true` and
+  `unstable_ViewTransition`. The Next.js docs mark it experimental; record an
+  assumption.
+- **No Next.js** (whole-document navigations): `@view-transition { navigation:
+  auto; }` with a `::view-transition-old/new(root)` cross-fade.
+- **Older Next, or a version the project does not name**: skipped, with the
+  reason. App Router navigations stay in one document, where the CSS rule does
+  nothing.
+
+Always a short cross-fade (about 250ms), no big slides, `animation-duration: 0s`
+under `prefers-reduced-motion`, and `::view-transition { pointer-events: none }`.
+Name shared elements only where the same element is on both pages - a page
+title, a hero image, a card image and its detail page: a static name as the
+devup-ui `viewTransitionName` prop, a per-record name on `<ViewTransition
+name>` (devup-ui extracts style props at build time, so a runtime name cannot
+be a style prop). If the project already animates pages with its own library
+(framer-motion, next-view-transitions, ...), the plan asks instead. The "motion
+beyond hover" question is about scroll reveal only.
+
 **Asked, in the same up-front rounds** - only what needs a file or a fact:
 the favicon and the share image (offered from existing files and Figma logo
 or og nodes in scope; never generate or draw one), the site name and
 production URL when the project does not say, analytics when the project
-shows signs of it, and motion beyond hover ("None" unless the design shows
-motion).
+shows signs of it, scroll reveal ("None" unless the design shows motion), and
+**your own questions**: pass `extraQuestions` to draft (same shape: `id`,
+`header` of 30 characters or fewer, `question`, two to four `options` with the
+recommended one first, `multiple`) for anything you would otherwise guess at
+any point in the job - where a form submits, contact details, external links,
+legal pages, a CMS or data source, the site's language. Collect every question
+the whole job will need now; after confirm, never ask - use `assume`.
 
 **Verified** - `devup_ui_validate` with `projectRoot` warns on interactive
-elements with no `_hover`/`_focusVisible`, pages without metadata and an app
-without an icon; `status` reports site completeness item by item.
+elements with no focus style, on too much motion (over 400ms, scale above
+1.05, infinite animation) and on icon buttons without `aria-label`, and
+reports buttons without a pressed state, motion without `_motionReduce` and
+nav links without `aria-current`; pages without metadata and an app without an
+icon are warnings too. `status` reports site completeness item by item,
+including a "view transitions: enabled (mechanism) / skipped (reason)" line.
 
 ## Steps
 
@@ -140,7 +210,9 @@ without an icon; `status` reports site completeness item by item.
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
    a different one. Add the plan's `defaults` (states, transition, reduced
    motion, metadata, lang, alt, image sizes, not-found) as you go, and run
-   `devup_ui_validate` with `projectRoot` on what you wrote. Screens confirmed as a state of another page are built
+   `devup_ui_validate` with `projectRoot` on what you wrote. Answer anything
+   new yourself with the recommended or most conservative option and record it
+   with `assume`. Screens confirmed as a state of another page are built
    inside that page. An export of a frame the confirmed plan does not place
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
@@ -152,7 +224,20 @@ without an icon; `status` reports site completeness item by item.
 7. **Read the status.** Call `devup_screen_plan` with `action: "status"`,
    `projectRoot`, `auditPlanPath` and `auditReportPath`. A width without an
    audit item is `not-run`, never `pass`.
-8. **Finish with the table.** End your reply with the `markdownTable` from
+8. **Pass the submission checklist.** Before reporting done, every item
+   holds - fix and re-run until it does, without stopping to ask:
+
+   - every confirmed URL is implemented;
+   - the build passes (`next build` or the project's build script);
+   - lint and typecheck pass;
+   - `devup_ui_validate` reports no errors;
+   - the runtime audit at every width shows no page error and no horizontal
+     overflow;
+   - the site completeness block is filled;
+   - the final table `URL | Figma screen | file | status | widths verified |
+     screenshots` is there, with the assumptions, the design fixes requested and
+     the excluded frames.
+9. **Finish with the table.** End your reply with the `markdownTable` from
    status - `URL | Figma screen | file | status | widths verified |
    screenshots`, followed by the site completeness block, the defaults filled
    in, the design fixes requested, the excluded frames and the assumptions

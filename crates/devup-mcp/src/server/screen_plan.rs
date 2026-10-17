@@ -149,6 +149,81 @@ pub struct ScreenPlanInput {
     /// frame named og or share), beside the screens.
     #[serde(default)]
     pub assets: Vec<PlanAssetInput>,
+    /// draft: the agent's own questions - anything it would otherwise guess
+    /// during the job (form target, contact details, external links, legal
+    /// pages, data source, language) - asked in the same up-front rounds.
+    #[serde(default)]
+    pub extra_questions: Vec<ExtraQuestionInput>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ExtraQuestionInput {
+    /// Becomes `extra:<id>`.
+    pub id: String,
+    /// 30 characters or fewer.
+    pub header: String,
+    pub question: String,
+    /// Two to four, the recommended one first.
+    pub options: Vec<ExtraOptionInput>,
+    #[serde(default)]
+    pub multiple: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ExtraOptionInput {
+    pub label: String,
+    pub description: String,
+}
+
+/// The agent's own questions in the plan's shape, or why one cannot be asked
+/// as given. The recommended option is the first, as everywhere else.
+fn extra_questions(extra: &[ExtraQuestionInput]) -> Result<Vec<Value>, DevupError> {
+    let mut seen = BTreeSet::new();
+    extra
+        .iter()
+        .map(|asked| {
+            let id = format!("extra:{}", asked.id.trim().trim_start_matches("extra:"));
+            if id == "extra:" || !seen.insert(id.clone()) {
+                return Err(invalid(format!(
+                    "extraQuestions ids must be non-empty and unique; {:?} is not.",
+                    asked.id
+                )));
+            }
+            if asked.header.trim().is_empty() || asked.header.chars().count() > HEADER_LIMIT {
+                return Err(invalid(format!(
+                    "{id}: header must be 1 to {HEADER_LIMIT} characters."
+                )));
+            }
+            if !(2..=MAX_OPTIONS).contains(&asked.options.len()) {
+                return Err(invalid(format!("{id}: give 2 to {MAX_OPTIONS} options.")));
+            }
+            let choices = asked
+                .options
+                .iter()
+                .map(|option| {
+                    let label = strip_recommended(&option.label).to_owned();
+                    choice(
+                        label.clone(),
+                        option.description.clone(),
+                        json!({"extra": label}),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let mut built = question(
+                id,
+                asked.header.clone(),
+                asked.question.clone(),
+                choices,
+                "extra",
+            );
+            built["multiple"] = json!(asked.multiple);
+            Ok(built)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -355,6 +430,11 @@ pub(super) struct ProjectEvidence {
     pub analytics: Vec<String>,
     pub not_found: Option<String>,
     pub lang: Option<(String, String)>,
+    /// (version as declared or resolved, where it was read).
+    pub next_version: Option<(String, String)>,
+    pub react_version: Option<(String, String)>,
+    /// Page-transition and animation libraries the project depends on.
+    pub motion_libraries: Vec<String>,
 }
 
 /// The `data-figma-node-id="..."` values in one source file.
@@ -1181,6 +1261,14 @@ fn join_relative(root: &Path, relative: &str) -> PathBuf {
         .fold(root.to_path_buf(), |path, part| path.join(part))
 }
 
+fn read_small_up_to(path: &Path, limit: u64) -> Option<String> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if metadata.len() > limit {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
+}
+
 fn read_small(path: &Path) -> Option<String> {
     let metadata = std::fs::metadata(path).ok()?;
     if metadata.len() > MAX_SOURCE_BYTES {
@@ -1239,6 +1327,22 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
             evidence.analytics.push(format!("a Google tag in {layout}"));
         }
     }
+    // The lockfile says what is installed, which a range in package.json
+    // does not.
+    if let Some(lock) = read_small_up_to(&root.join("package-lock.json"), 8 * 1024 * 1024)
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    {
+        for (name, slot) in [
+            ("next", &mut evidence.next_version),
+            ("react", &mut evidence.react_version),
+        ] {
+            if let Some(version) =
+                lock["packages"][format!("node_modules/{name}")]["version"].as_str()
+            {
+                *slot = Some((version.to_owned(), "package-lock.json".into()));
+            }
+        }
+    }
     for file in [".env", ".env.local", ".env.production"] {
         let Some(source) = read_small(&root.join(file)) else {
             continue;
@@ -1274,6 +1378,25 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
     {
         evidence.package_name = package["name"].as_str().map(str::to_owned);
         for section in ["dependencies", "devDependencies"] {
+            for (name, slot) in [
+                ("next", &mut evidence.next_version),
+                ("react", &mut evidence.react_version),
+            ] {
+                if slot.is_none()
+                    && let Some(version) = package[section][name].as_str()
+                {
+                    *slot = Some((version.to_owned(), format!("package.json {section}")));
+                }
+            }
+            for name in MOTION_LIBRARIES {
+                if package[section].get(*name).is_some()
+                    && !evidence.motion_libraries.iter().any(|known| known == name)
+                {
+                    evidence.motion_libraries.push((*name).to_owned());
+                }
+            }
+        }
+        for section in ["dependencies", "devDependencies"] {
             for name in ANALYTICS_PACKAGES {
                 if package[section].get(*name).is_some() {
                     evidence.analytics.push(format!("{name} in package.json"));
@@ -1281,6 +1404,153 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
             }
         }
     }
+}
+
+/// Libraries that already animate page changes. With one present, adding
+/// view transitions is a question, not a default.
+const MOTION_LIBRARIES: &[&str] = &[
+    "framer-motion",
+    "motion",
+    "next-view-transitions",
+    "react-transition-group",
+    "@react-spring/web",
+    "gsap",
+];
+
+/// The interaction recipe per element role: what each one gets on hover,
+/// press and focus. The devup-implementation-plan skill carries the same
+/// table with the reasoning; status counts elements against it per role.
+const INTERACTION_RECIPES: &[(&str, &str)] = &[
+    (
+        "primary button",
+        "hover one token step darker; active scale(0.98) or one more step darker; focusVisible 2px ring with offset; disabled reduced opacity and cursor not-allowed; a loading state (disabled, spinner) while a form it submits is pending",
+    ),
+    (
+        "secondary / ghost / outline button",
+        "hover a subtle tinted background; active a slightly stronger tint; the same focus ring and disabled state",
+    ),
+    (
+        "text link / \"더 보기 >\" link",
+        "hover a colour change or underline; a trailing chevron moves 2px; focus ring",
+    ),
+    (
+        "card that links",
+        "hover a 2-4px lift and a shadow token; the image inside zooms to 1.02-1.04 with overflow hidden; active drops the lift; focus ring on the card",
+    ),
+    (
+        "nav item / tab",
+        "hover colour; the current route marked with aria-current=\"page\" and the Figma active style (e.g. the underline the header draws); focus ring",
+    ),
+    (
+        "icon button",
+        "hover a background circle or tint; active press; aria-label required",
+    ),
+    (
+        "input / select / textarea",
+        "hover border; focus border and ring; invalid state with its message; disabled",
+    ),
+    (
+        "accordion / disclosure / dropdown",
+        "aria-expanded; the chevron rotates 180deg",
+    ),
+    (
+        "mobile menu / drawer",
+        "an open and close transition, when the design has one",
+    ),
+];
+
+const RESTRAINT_RULES: &str = "Figma variant states first, otherwise existing theme tokens only (no new colours; record an assumption when none fits); at most two properties change per state; 150-250ms, ease or ease-out, defined once as a shared token or constant; no bounce and no infinite or attention-seeking animation; transforms of 4px or less and scale between 0.97 and 1.05; everything that moves is off under _motionReduce; non-interactive elements get no hover.";
+
+/// `major.minor.patch` from a version or range as package.json writes it:
+/// `^16.1.0`, `~19.3.0-canary-...`, `16`. `None` for `latest`,
+/// `workspace:*`, `catalog:` and the like, which say nothing about the API.
+fn version_triple(value: &str) -> Option<(u64, u64, u64)> {
+    let start = value.find(|c: char| c.is_ascii_digit())?;
+    if !value[..start]
+        .chars()
+        .all(|c| matches!(c, '^' | '~' | '>' | '=' | '<' | 'v' | ' '))
+    {
+        return None;
+    }
+    let mut parts = value[start..]
+        .split(|c: char| !c.is_ascii_digit())
+        .take(3)
+        .map(|part| part.parse::<u64>().unwrap_or(0));
+    Some((
+        parts.next()?,
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    ))
+}
+
+/// The view-transition default: which mechanism this project's Next.js and
+/// React support, or why there is none. Decided from the versions the
+/// project declares, against the current Next.js view-transitions guide
+/// (App Router, `import { ViewTransition } from 'react'`, React 19.3) and the
+/// Next 15 `experimental.viewTransition` flag that preceded it.
+fn view_transition_default(evidence: &ProjectEvidence) -> Value {
+    let item = |mechanism: &str, decision: String, why: String| json!({"item": "view-transitions", "mechanism": mechanism, "decision": decision, "evidence": why});
+    let common = "a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion; browsers without support navigate normally";
+    let Some((next_text, next_from)) = &evidence.next_version else {
+        if !evidence.routes.is_empty() {
+            return item(
+                "skipped",
+                "No view transitions until the Next.js version is known.".into(),
+                "App Router pages exist but package.json declares no next version".into(),
+            );
+        }
+        return item(
+            "css-cross-document",
+            format!("@view-transition {{ navigation: auto; }} with a ::view-transition-old/new(root) cross-fade, for full page loads; {common}."),
+            "no Next.js in package.json: navigations load whole documents, which is where the CSS rule applies".into(),
+        );
+    };
+    let Some(next) = version_triple(next_text) else {
+        return item(
+            "skipped",
+            "No view transitions until the Next.js version is known.".into(),
+            format!(
+                "next is {next_text:?} in {next_from}, which names no version; resolve it and redraft"
+            ),
+        );
+    };
+    let react = evidence
+        .react_version
+        .as_ref()
+        .and_then(|(text, _)| version_triple(text));
+    let react_text = evidence
+        .react_version
+        .as_ref()
+        .map_or("not declared".to_owned(), |(text, _)| text.clone());
+    if next.0 >= 16 && react.is_some_and(|react| react >= (19, 3, 0)) {
+        return item(
+            "react-view-transition",
+            format!(
+                "import {{ ViewTransition }} from 'react' - no next.config flag - wrapping each page's content in page.tsx (not the layout, which persists); {common}."
+            ),
+            format!(
+                "next {next_text} and react {react_text}: the App Router supports React's ViewTransition with no configuration"
+            ),
+        );
+    }
+    if next >= (15, 2, 0) {
+        return item(
+            "react-unstable-view-transition",
+            format!(
+                "experimental.viewTransition: true in next.config and import {{ unstable_ViewTransition as ViewTransition }} from 'react', wrapping each page's content; {common}. Record it as an assumption: the Next.js docs mark this flag experimental."
+            ),
+            format!(
+                "next {next_text} with react {react_text}: only the experimental flag is available; Next 16 with React 19.3 needs none"
+            ),
+        );
+    }
+    item(
+        "skipped",
+        "No view transitions.".into(),
+        format!(
+            "next {next_text} predates view-transition support, and its App Router navigations stay in one document, where the CSS @view-transition rule does not apply"
+        ),
+    )
 }
 
 /// What the agent fills in by itself, without a question. Recorded in the
@@ -1303,12 +1573,14 @@ fn site_defaults(evidence: &ProjectEvidence, screens: &[PlanScreenInput]) -> Vec
         }
     });
     let mut defaults = vec![
-        json!({"item": "interaction-states",
-            "decision": "Every link, button, linked card, tab and input gets _hover, _focusVisible (a visible focus ring), _active, _disabled where it applies, and cursor=\"pointer\". Figma hover/pressed/focus variants are used when they exist; otherwise a small consistent fallback from existing theme tokens only - a darker or lighter shade, an underline, a slight lift or shadow. No new colours: with no suitable token, record an assumption.",
-            "evidence": "devfive-frontend critical-rules 4 (interactive states); devup-ui pseudo-selectors"}),
+        json!({"item": "interaction-recipes",
+            "decision": "Each interactive element gets its role's recipe; status counts every role against it.",
+            "recipes": INTERACTION_RECIPES.iter().map(|(role, recipe)| json!({"role": role, "recipe": recipe})).collect::<Vec<_>>(),
+            "restraint": RESTRAINT_RULES,
+            "evidence": "devfive-frontend critical-rules 4 (interactive states); devup-ui pseudo-selectors; the devup-implementation-plan recipe table"}),
         json!({"item": "transition",
-            "decision": "One shared transition of about 0.2s ease on the properties that change (colour, background, border, shadow, transform), defined once as a token or shared constant and not per element.",
-            "evidence": "devfive-frontend critical-rules 4 (transition all 0.2s ease)"}),
+            "decision": "One shared transition, 150-250ms, ease or ease-out, on the properties that change (at most two per state), defined once as a token or shared constant and not per element.",
+            "evidence": "devfive-frontend critical-rules 4 (transition 0.15-0.3s ease)"}),
         json!({"item": "reduced-motion",
             "decision": "_motionReduce removes transforms and transitions (or one globalCss rule does), so prefers-reduced-motion gets no movement.",
             "evidence": "devup-ui _motionReduce"}),
@@ -1321,6 +1593,14 @@ fn site_defaults(evidence: &ProjectEvidence, screens: &[PlanScreenInput]) -> Vec
         json!({"item": "image-dimensions", "decision": "width and height on every image, so nothing shifts as it loads.",
             "evidence": "no layout shift"}),
     ];
+    let transitions = view_transition_default(evidence);
+    defaults.push(if evidence.motion_libraries.is_empty() {
+        transitions
+    } else {
+        json!({"item": "view-transitions", "mechanism": "asked", "question": "site:view-transitions",
+            "decision": "Asked: the project already animates with its own library.", "ifAdded": transitions,
+            "evidence": evidence.motion_libraries.join(", ")})
+    });
     defaults.push(match &evidence.not_found {
         Some(path) => {
             json!({"item": "not-found", "decision": format!("Keep {path}."), "evidence": path})
@@ -1564,6 +1844,20 @@ fn site_questions(
     } else {
         site.insert("analytics".into(), json!({"state": "not-needed", "evidence": "no analytics or verification signs in the project"}));
     }
+    if !evidence.motion_libraries.is_empty() {
+        let libraries = evidence.motion_libraries.join(", ");
+        site.insert("viewTransitions".into(), json!({"state": "asked", "question": "site:view-transitions", "found": evidence.motion_libraries}));
+        questions.push(site_question(
+            "viewTransitions",
+            "site:view-transitions",
+            "View transitions",
+            format!("The project already animates with {libraries}. Add view transitions between pages as well, or keep page motion to {libraries}?"),
+            vec![
+                choice(format!("Keep {libraries} only"), "No view transitions; the existing motion stays the only page motion.", json!({"viewTransitions": {"source": "keep-library"}})),
+                choice("Add view transitions too", "A short cross-fade between pages, beside the existing library.", json!({"viewTransitions": {"source": "add"}})),
+            ],
+        ));
+    }
     match &config.motion {
         Some(value) => {
             site.insert(
@@ -1580,7 +1874,7 @@ fn site_questions(
                 "motion",
                 "site:motion",
                 "Motion beyond hover",
-                "Beyond hover and focus transitions, should sections animate? Nothing in the plan shows designed motion.".into(),
+                "Beyond hover, focus and page transitions, should sections reveal on scroll? Nothing in the plan shows designed motion.".into(),
                 vec![
                     choice("None", "Recommended unless the design shows motion; hover and focus transitions are still added.", json!({"motion": {"source": "none"}})),
                     choice("Subtle reveal on scroll", "Sections fade and slide in once as they enter; off under prefers-reduced-motion.", json!({"motion": {"source": "reveal"}})),
@@ -1639,29 +1933,55 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
         items.push(json!({"item": format!("metadata {url}"), "state": state,
             "detail": page.unwrap_or_else(|| "page not implemented".into())}));
     }
-    let mut interactive = 0;
-    let mut with_states = 0;
+    let mut roles = BTreeMap::<devup_mcp_devup_ui::ui_validate::site::Role, (usize, usize)>::new();
     let mut motion = false;
     let mut reduced = false;
+    let mut transitions = false;
     for relative in &evidence.sources {
         let Some(source) = read_small(&join_relative(&evidence.root, relative)) else {
             continue;
         };
-        let coverage =
-            devup_mcp_devup_ui::ui_validate::site::interaction_coverage(relative, &source);
-        interactive += coverage.interactive;
-        with_states += coverage.with_states;
+        for row in devup_mcp_devup_ui::ui_validate::site::role_coverage(relative, &source) {
+            let entry = roles.entry(row.role).or_default();
+            entry.0 += row.total;
+            entry.1 += row.complete;
+        }
         motion |= source.contains("transition")
             || source.contains("transform")
             || source.contains("animation");
         reduced |= source.contains("_motionReduce") || source.contains("prefers-reduced-motion");
+        transitions |= source.contains("ViewTransition")
+            || source.contains("viewTransitionName")
+            || source.contains("@view-transition");
     }
-    items.push(json!({"item": "hover-focus",
-        "state": if interactive == 0 { "not-applicable" } else if with_states == interactive { "filled" } else { "missing" },
-        "detail": format!("{with_states} of {interactive} interactive elements have hover or focus states")}));
+    let complete = roles.values().all(|(total, done)| total == done);
+    items.push(json!({"item": "interaction-roles",
+        "state": if roles.is_empty() { "not-applicable" } else if complete { "filled" } else { "missing" },
+        "detail": if roles.is_empty() {
+            "no interactive elements in the sources".to_owned()
+        } else {
+            roles.iter().map(|(role, (total, done))| format!("{} {done}/{total} {}", role.as_str(), role.requirement())).collect::<Vec<_>>().join(", ")
+        }}));
     items.push(json!({"item": "reduced-motion",
         "state": if reduced { "filled" } else if motion { "missing" } else { "not-applicable" },
         "detail": if reduced { "prefers-reduced-motion is handled" } else if motion { "transitions or transforms with no prefers-reduced-motion handling" } else { "no motion in the sources" }}));
+    let planned = array(&plan["defaults"])
+        .iter()
+        .find(|default| default["item"] == "view-transitions")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let mechanism = text(&planned["mechanism"]).to_owned();
+    let declined = plan["site"]["viewTransitions"]["answer"]["source"] == "keep-library";
+    items.push(match mechanism.as_str() {
+        "skipped" | "" => json!({"item": "view-transitions", "state": "not-applicable",
+            "detail": format!("skipped: {}", text(&planned["evidence"]))}),
+        _ if declined => json!({"item": "view-transitions", "state": "not-applicable",
+            "detail": "skipped: the user kept the project's own page motion"}),
+        _ if transitions => json!({"item": "view-transitions", "state": "filled",
+            "detail": format!("enabled ({mechanism})")}),
+        _ => json!({"item": "view-transitions", "state": "missing",
+            "detail": format!("planned ({mechanism}) but not in the sources yet")}),
+    });
     for (item, field) in [("site-name", "siteName"), ("site-url", "siteUrl")] {
         let entry = &site[field];
         let state = match entry["state"].as_str() {
@@ -1982,7 +2302,7 @@ pub(super) fn draft_plan(
     source: Value,
     notes: Option<&str>,
 ) -> Result<Value, DevupError> {
-    draft_plan_with(screens, &[], targets, evidence, source, notes)
+    draft_plan_with(screens, &[], &[], targets, evidence, source, notes)
 }
 
 /// [`draft_plan`] with Figma nodes that may become the favicon or share
@@ -1990,6 +2310,7 @@ pub(super) fn draft_plan(
 pub(super) fn draft_plan_with(
     screens: &[PlanScreenInput],
     assets: &[PlanAssetInput],
+    extra: &[ExtraQuestionInput],
     targets: &BTreeMap<String, String>,
     evidence: &ProjectEvidence,
     source: Value,
@@ -2191,6 +2512,9 @@ pub(super) fn draft_plan_with(
         }
         None => true,
     });
+    for asked in extra_questions(extra)? {
+        questions.push(with_when(asked, &base_when));
+    }
     let defaults = site_defaults(evidence, &kept);
     let cover = kept
         .first()
@@ -3144,6 +3468,7 @@ pub(super) async fn draft_with(
     let mut plan = draft_plan_with(
         screens,
         assets,
+        &input.extra_questions,
         &input.navigation_targets,
         &evidence,
         source,
@@ -3214,6 +3539,13 @@ fn resolve_answer(
 ) -> Result<(Value, Option<String>), DevupError> {
     let id = text(&question["id"]);
     let values = answer.values();
+    if question["multiple"] == true {
+        let labels = values
+            .iter()
+            .map(|value| strip_recommended(value))
+            .collect::<Vec<_>>();
+        return Ok((json!({"extra": labels}), None));
+    }
     let [value] = values.as_slice() else {
         return Err(invalid(format!("{id} takes exactly one answer.")));
     };
@@ -3262,6 +3594,7 @@ fn resolve_answer(
             json!({"link": normalize_route(label)}),
             Some(label.to_owned()),
         )),
+        "extra" => Ok((json!({"extra": label}), Some(label.to_owned()))),
         // A custom site answer is the file, name or URL itself.
         "site" => {
             let field = text(&question["field"]);
@@ -3603,6 +3936,13 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             plan["site"][&field]["answer"] = action[&field].clone();
         }
     }
+    plan["extraAnswers"] = json!(
+        actions
+            .iter()
+            .filter(|(id, _)| id.starts_with("extra:"))
+            .map(|(id, action)| (id.clone(), action["extra"].clone()))
+            .collect::<BTreeMap<_, _>>()
+    );
     plan["routes"] = json!(routes);
     plan["excluded"] = json!(excluded);
     plan["designFixes"] = json!(design_fixes);
@@ -3621,6 +3961,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "designFixes": design_fixes,
         "site": plan["site"],
         "defaults": plan["defaults"],
+        "extraAnswers": plan["extraAnswers"],
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
