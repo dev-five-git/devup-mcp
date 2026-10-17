@@ -275,8 +275,8 @@ test('page health, bounds, clipped text, interaction states and captures in a re
         screens: [
           { id: 'layout', routePath: '/layout.html', checks: [
             { kind: 'page-health', label: 'health' },
-            { kind: 'bounds', label: 'card 1', subject: node('1:3'), container: node('1:2'), expected: { x: 20, y: 20, width: 160, height: 100 }, tolerancePx: 2 },
-            { kind: 'bounds', label: 'card 2', subject: node('1:4'), container: node('1:2'), expected: { x: 200, y: 20, width: 160, height: 100 }, tolerancePx: 2 },
+            { kind: 'bounds', label: 'card 1', subject: node('1:3'), container: node('1:2'), expected: { x: 20, y: 20, width: 160, height: 100 } },
+            { kind: 'bounds', label: 'card 2', subject: node('1:4'), container: node('1:2'), expected: { x: 200, y: 20, width: 160, height: 100 } },
             { kind: 'no-clipped-text', label: 'text', subject: node('1:6') },
             { kind: 'interaction', label: 'cta hover', state: 'hover', subject: { role: 'button', name: 'Send' } },
             { kind: 'interaction', label: 'cta focus', state: 'focus', subject: { role: 'button', name: 'Send' } },
@@ -308,6 +308,46 @@ test('page health, bounds, clipped text, interaction states and captures in a re
     assert.ok(!narrow.screens[0].checks.some((item) => item.label === 'icon'), 'a capture runs only at its widths');
     assert.equal(statuses(wide.screens[1]).health, 'fail');
     assert.match(wide.screens[1].checks[0].reason, /couldn't load/);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
+test('a page merged from two width frames is found by its per-width node ids', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-merged-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const at = (width, id) => ({ css: `[data-figma-node-id="${id}"], [data-figma-node-ids~="${width}:${id}"]` });
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-merged',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1440, height: 800, deviceScaleFactor: 1 }, { width: 390, height: 800, deviceScaleFactor: 1 }],
+        screens: [{ id: 'merged', routePath: '/merged.html', checks: [
+          { kind: 'bounds', label: 'hero 1440', subject: at(1440, 'd:2'), container: at(1440, 'd:1'), expected: { x: 0, y: 0, width: 1440, height: 400 }, widths: [1440] },
+          { kind: 'bounds', label: 'hero 390', subject: at(390, 'm:2'), container: at(390, 'm:1'), expected: { x: 0, y: 0, width: 390, height: 300 }, widths: [390] },
+          { kind: 'visible', label: 'promo 1440', subject: at(1440, 'd:3'), widths: [1440] },
+          { kind: 'hidden', label: 'promo 390', subject: { css: '[data-figma-node-id="d:3"]' }, widths: [390] },
+        ] }],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const results = report.runs.flatMap((run) => run.screens[0].checks.map((item) => [item.label, item.status, item.reason]));
+    assert.deepEqual(results.map(([label, status]) => [label, status]), [
+      ['hero 1440', 'pass'], ['promo 1440', 'pass'], ['hero 390', 'pass'], ['promo 390', 'pass'],
+    ], JSON.stringify(results));
+    assert.ok(!results.some(([, , reason]) => /matched no element/.test(reason)), 'no missing nodes');
+    assert.ok(report.runs[0].screens[0].links.includes('/plain.html'), JSON.stringify(report.runs[0].screens[0].links));
   } finally {
     server.close();
     await rm(out, { recursive: true, force: true });

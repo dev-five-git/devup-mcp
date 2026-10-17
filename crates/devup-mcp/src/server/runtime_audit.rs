@@ -222,14 +222,18 @@ pub struct CheckInput {
     /// "Application error", ...), page error, console error or failed
     /// navigation while the screen was open.
     /// bounds: subject's size and position relative to container's top-left,
-    /// in CSS px, against `expected` (the Figma geometry) within tolerancePx.
+    /// in CSS px, against `expected` (the Figma geometry). Exact: layout is
+    /// converted statically, so only half a pixel of rounding is allowed and
+    /// no tolerance can be set.
+    /// hidden: subject is absent or has no visible box - an element a width's
+    /// frame does not draw.
     /// no-clipped-text: no text inside subject (or the page) is cut off by an
     /// overflow-hidden box; ellipsis and line clamp are intended and pass.
     /// interaction: hovering or keyboard-focusing subject (`state`) changes
     /// something visible; without a subject, every visible link and button.
     /// capture: screenshot subject's element box for devup_visual_compare
     /// against `reference`; ingest turns it into a ready call.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture"]))]
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -613,7 +617,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
     };
     match check.kind.as_str() {
         "no-horizontal-overflow" | "page-health" => needs(false, false)?,
-        "visible" | "view-transition" => needs(true, false)?,
+        "visible" | "view-transition" | "hidden" => needs(true, false)?,
         "no-clipped-text" => {
             if check.container.is_some() {
                 return Err(invalid("A no-clipped-text check takes no container."));
@@ -621,6 +625,11 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         }
         "bounds" => {
             needs(true, true)?;
+            if check.tolerance_px.is_some() {
+                return Err(invalid(
+                    "A bounds check is exact (half a pixel of rounding); it takes no tolerancePx. A mismatch is code drift or a converter bug, never noise.",
+                ));
+            }
             let Some(expected) = &check.expected else {
                 return Err(invalid(
                     "A bounds check needs expected {x, y, width, height}.",
@@ -1012,6 +1021,11 @@ fn write_plan(
                 include_bytes!("../../../../harness/runtime-audit/checks.mjs").as_slice(),
             ),
             (
+                "strip-figma-node-ids.mjs",
+                include_bytes!("../../../../harness/runtime-audit/strip-figma-node-ids.mjs")
+                    .as_slice(),
+            ),
+            (
                 "package.json",
                 include_bytes!("../../../../harness/runtime-audit/package.json").as_slice(),
             ),
@@ -1172,6 +1186,7 @@ fn ingest_references(
     let mut screen_rows = Vec::new();
     let mut findings = Vec::new();
     let mut missing_nodes = Vec::new();
+    let mut links = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
     for viewport in &plan.viewports {
         let matching_runs = report["runs"]
             .as_array()
@@ -1233,6 +1248,19 @@ fn ingest_references(
                     .iter()
                     .find(|candidate| candidate["id"] == screen.id.as_str())
             });
+            if let (Some(route), Some(found)) = (
+                screen.route_path.as_ref(),
+                reported.and_then(|s| s["links"].as_array()),
+            ) {
+                links.entry(route.clone()).or_default().extend(
+                    found
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .filter(|href| href.starts_with('/') && href.len() <= MAX_TEXT)
+                        .take(200)
+                        .map(str::to_owned),
+                );
+            }
             let mut outcomes = Vec::new();
             let mut judged = Vec::new();
             for (index, check) in screen.checks.iter().enumerate() {
@@ -1496,6 +1524,7 @@ fn ingest_references(
         "visualComparisons": visual_comparisons,
         "findings": findings,
         "missingNodes": missing_nodes,
+        "links": links,
         "screenTable": screen_rows,
         "widthTable": plan.viewports.iter().map(|viewport| json!({
             "width": viewport.width, "height": viewport.height,
@@ -1517,6 +1546,7 @@ fn ingest_references(
             ],
             "executorDeclared": [
                 "element geometry, locator counts, visibility and non-dimension check outcomes",
+                "the same-origin links found on each page",
                 "page, console and network errors",
                 "timing, browser and environment versions",
             ],
@@ -1861,8 +1891,11 @@ pub(crate) fn fix_hint(class: &str, kind: &str, measured: &Value) -> String {
             "Content is wider than the viewport{}: give the element maxW=\"100%\", let its row wrap (flexWrap=\"wrap\") or shrink (minW={{0}}), and turn a fixed Figma width into a responsive value at this width.",
             measured["widest"].as_str().map(|widest| format!(" (widest: {widest})")).unwrap_or_default()
         ),
-        "layout-position" => "The element sits in the wrong place relative to its parent: compare the parent's gap, padding and alignment (justifyContent, alignItems) with the Figma frame, check the order of its children (a card out of order fails here) and any absolute offsets.".to_owned(),
+        "layout-position" | "layout-size" if kind == "bounds" => "Layout is exact at a drawn width: a box off by more than half a pixel is code drift (the code no longer writes what the export wrote) or a converter bug (it does, and renders wrong). devup_screen_plan status tells which; never hand-tune the value.".to_owned(),
+        "layout-position" => "The element sits in the wrong place relative to its parent: compare the parent's gap, padding and alignment (justifyContent, alignItems) with the Figma frame, check the order of its children and any absolute offsets.".to_owned(),
         "layout-size" => "The element has the wrong size: compare its width and height props with the Figma sizing (fixed, fill or hug), make fill stretch at widths that were not drawn, and check an image's aspect ratio and min/max sizes.".to_owned(),
+        "code-drift" => "Restore the values the export wrote for this element (the finding lists what is missing and what was added); layout is exact, so do not tune it by hand - re-export the node if the design changed.".to_owned(),
+        "converter-bug" => "The code still equals the export and the browser box differs from Figma: a devup-mcp converter bug. File the repro; a local override may finish the site only with a comment naming the repro file. Retrying does not help.".to_owned(),
         "asset-mismatch" => "The rendered asset differs from the Figma node's render. Likely causes, in order: a CSS mask on a multi-colour SVG paints one solid shape (render it with <Image src> instead; masks are for single-colour icons only); the wrong file at the src path; a crop or objectFit (cover vs contain) or a missing viewBox. Open the diff PNG to see which.".to_owned(),
         "section-visual" => "The section differs from its Figma render: open the diff PNG, find the highlighted area and fix the elements there; the usual causes are font size, weight or line height, a missing background or border, and spacing.".to_owned(),
         "page-visual" => "The page differs from the frame: fix the section and asset comparisons first, they localise the problem; a difference only the page shows is usually the page background, its padding or the spacing between sections.".to_owned(),
@@ -2136,7 +2169,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 4);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 5);
         assert_eq!(planned["template"]["executed"], false);
         assert_eq!(
             std::fs::read(dir.join("runner/run.mjs")).unwrap(),
@@ -2460,6 +2493,16 @@ mod tests {
             ok(json!({"kind": "interaction"}))
                 .unwrap_err()
                 .contains("hover or focus")
+        );
+        assert!(ok(json!({"kind": "hidden", "subject": node("1:9")})).is_ok());
+        assert!(
+            ok(
+                json!({"kind": "bounds", "subject": node("1:2"), "container": node("1:1"),
+                "expected": {"x": 0, "y": 0, "width": 10, "height": 10}, "tolerancePx": 4})
+            )
+            .unwrap_err()
+            .contains("exact"),
+            "geometry takes no tolerance"
         );
         assert!(
             ok(json!({"kind": "capture", "subject": node("1:2")}))
@@ -2789,7 +2832,7 @@ mod tests {
             position["fixHint"]
                 .as_str()
                 .unwrap()
-                .contains("order of its children")
+                .contains("Layout is exact")
         );
         assert!(
             findings[2]["fixHint"]

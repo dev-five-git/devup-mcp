@@ -169,12 +169,24 @@ export function evaluatePageHealth(observed) {
 }
 
 /**
+ * Layout from a Figma frame is converted statically, so at a drawn width it
+ * is exact: either the converter wrote the right value or it did not. The
+ * only allowance is rounding. Chromium reports getBoundingClientRect in
+ * LayoutUnits (1/64 px) without snapping to device pixels at
+ * deviceScaleFactor 1, while Figma keeps fractional geometry that the
+ * converter writes as rounded px - so a correct element can sit up to half a
+ * pixel from the frame, and nothing correct sits further.
+ */
+export const GEOMETRY_ROUNDING_PX = 0.5;
+
+/**
  * Size and position of the subject relative to its container, against the
  * Figma frame's own geometry (expected: { x, y, width, height } in CSS px,
- * relative to the container's top-left).
+ * relative to the container's top-left). Exact up to GEOMETRY_ROUNDING_PX;
+ * there is no tolerance to configure.
  */
 export function evaluateBounds(check, measured) {
-  const tolerance = check.tolerancePx ?? 2;
+  const tolerance = GEOMETRY_ROUNDING_PX;
   const subjectProblem = missing('subject', measured.subjectCount);
   if (subjectProblem) return { status: 'inconclusive', reason: subjectProblem, measured: {} };
   const containerProblem = missing('container', measured.containerCount);
@@ -190,19 +202,29 @@ export function evaluateBounds(check, measured) {
   const off = (key) => actual[key] - expected[key];
   const position = ['x', 'y'].filter((key) => Math.abs(off(key)) > tolerance);
   const size = ['width', 'height'].filter((key) => Math.abs(off(key)) > tolerance);
-  const evidence = { actual: rounded(actual), expected, tolerancePx: tolerance };
+  const exact = (box) => Object.fromEntries(Object.entries(box).map(([key, value]) => [key, Math.round(value * 1000) / 1000]));
+  const evidence = { actual: exact(actual), expected, roundingPx: tolerance };
   if (position.length === 0 && size.length === 0) {
     return { status: 'pass', reason: 'size and position within tolerance', measured: evidence };
   }
   const parts = [
-    ...position.map((key) => `${key} off by ${round(off(key))}px`),
-    ...size.map((key) => `${key} off by ${round(off(key))}px`),
+    ...position.map((key) => `${key} off by ${Math.round(off(key) * 100) / 100}px`),
+    ...size.map((key) => `${key} off by ${Math.round(off(key) * 100) / 100}px`),
   ];
   return {
     status: 'fail',
     reason: `${position.length ? 'position' : 'size'}: ${parts.join(', ')}`,
     measured: { ...evidence, positionOff: position, sizeOff: size },
   };
+}
+
+/** An element a width does not draw: absent, or present with no visible box. */
+export function evaluateHidden(observed) {
+  if (observed.subjectCount === 0) return { status: 'pass', reason: 'not rendered at this width', measured: {} };
+  if (observed.subjectCount > 1) return { status: 'inconclusive', reason: `subject matched ${observed.subjectCount} elements; a check needs exactly one`, measured: {} };
+  return observed.visible
+    ? { status: 'fail', reason: 'shown at a width its Figma frame does not draw it at', measured: {} }
+    : { status: 'pass', reason: 'hidden at this width', measured: {} };
 }
 
 /** Text cut off by its own box: clipped overflow, not an intended ellipsis or line clamp. */

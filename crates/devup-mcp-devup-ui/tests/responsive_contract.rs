@@ -365,3 +365,47 @@ fn text_that_reads_differently_at_a_width_is_not_verified() {
         merged.gaps
     );
 }
+
+/// Every merged element names the node each width drew it from, so a
+/// runtime audit finds it at every drawn width; one drawn at a single width
+/// is expected hidden at the other.
+#[test]
+fn a_merged_page_carries_the_node_of_every_width() {
+    let mut screen = merged(|index, nodes| {
+        if index == 1 {
+            nodes.insert(
+                "promo:1".into(),
+                json!({"id":"promo:1","type":"FRAME","fields":{
+                "name":"promo","parentId":"frame:1","width":300,"height":60,
+                "fills":[{"type":"SOLID","visible":true,"color":{"r":0,"g":0,"b":1}}]}}),
+            );
+            nodes["frame:1"]["fields"]["childrenIds"] = json!(["card:1", "promo:1"]);
+        }
+    });
+    let written = devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut screen);
+    assert!(
+        screen.tsx.contains(
+            r#"data-figma-node-id="frame:1" data-figma-node-ids="1440:frame:1 390:frame:0""#
+        ),
+        "{}",
+        screen.tsx
+    );
+    assert!(
+        screen.tsx.contains(
+            r#"data-figma-node-id="card:1" data-figma-node-ids="1440:card:1 390:card:0""#
+        ),
+        "{}",
+        screen.tsx
+    );
+    assert!(
+        screen.tsx.contains(r#"data-figma-node-ids="1440:promo:1""#),
+        "{}",
+        screen.tsx
+    );
+    let promo = written
+        .iter()
+        .find(|element| element["ids"][0]["nodeId"] == "promo:1")
+        .unwrap();
+    assert_eq!(promo["hiddenAt"], json!([390]));
+    devup_mcp_devup_ui::validation::validate_tsx(&screen.module("Page")).unwrap();
+}

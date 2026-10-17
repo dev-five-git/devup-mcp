@@ -4882,6 +4882,20 @@ pub(super) async fn audit_plan(
         entries.push(json!({"url": written["url"], "screen": written["screen"],
             "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
+    // A dynamic route sampled from its Figma frame is an assumption, and is
+    // reported as one.
+    let mut assumptions = array(&plan["assumptions"]).to_vec();
+    for written in array(&result["plans"]) {
+        if let Some(assumption) = written["dynamic"]["assumption"].as_str()
+            && !assumptions
+                .iter()
+                .any(|existing| existing["decision"] == assumption)
+        {
+            assumptions.push(json!({"about": written["dynamic"]["pattern"], "decision": assumption,
+                "reason": "no generateStaticParams and no link to the route on an audited page yet", "recordedAt": now()}));
+        }
+    }
+    plan["assumptions"] = json!(assumptions);
     let max_fix_attempts = config.max_fix_attempts.unwrap_or(3);
     plan["audit"]["plans"] = json!(entries);
     plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
@@ -4892,7 +4906,7 @@ pub(super) async fn audit_plan(
     Ok(result)
 }
 
-pub(super) const DONE_RULE: &str = "A URL is done when every check and comparison passes at its drawn widths and health and overflow pass at every width, or each remaining finding is unresolved with its evidence after maxFixAttempts fix-and-rerun rounds.";
+pub(super) const DONE_RULE: &str = "A URL is done when every check and comparison passes at its drawn widths and health and overflow pass at every width, or each remaining finding is a converter bug with its repro filed, or unresolved with its evidence after maxFixAttempts fix-and-rerun rounds. Layout is exact: a geometry mismatch is code drift (restore the export) or a converter bug, never tuned by hand.";
 
 fn screen_table(plan: &Value) -> Vec<Value> {
     array(&plan["screens"])
@@ -5077,6 +5091,10 @@ pub(super) async fn status(
         }
     };
     let evidence = project_evidence(root).await?;
+    let mut audit = audit;
+    if let Some((audit, _)) = &mut audit {
+        super::audit_plan::classify_geometry(audit, root, &evidence.sources, policy);
+    }
     let round = match &audit {
         Some((audit, report_sha)) if audit["verdict"] != "rejected" => {
             let routes = array(&audit["screenTable"])
@@ -5086,6 +5104,11 @@ pub(super) async fn status(
                 .collect::<Vec<_>>();
             if let Some(inconclusive) = plan["audit"]["inconclusive"].as_object_mut() {
                 inconclusive.retain(|route, _| !routes.contains(route));
+            }
+            // The links each page holds, for auditPlan's next pass over the
+            // dynamic routes.
+            for (route, hrefs) in audit["links"].as_object().into_iter().flatten() {
+                plan["audit"]["links"][route] = hrefs.clone();
             }
             let max = plan["audit"]["maxFixAttempts"]
                 .as_u64()
@@ -5386,9 +5409,14 @@ pub(super) fn status_report(
     }
     let queue = super::audit_plan::work_queue(plan, &rows, &[]);
     let final_report = super::audit_plan::final_report(plan, &rows, &trailing);
+    let converter_bugs = plan["audit"]["converterBugs"]
+        .as_object()
+        .map(|bugs| bugs.values().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
     json!({
         "findings": open,
         "unresolved": unresolved,
+        "converterBugs": converter_bugs,
         "workQueue": queue,
         "pendingDecisions": plan["pendingDecisions"],
         "finalReport": final_report,

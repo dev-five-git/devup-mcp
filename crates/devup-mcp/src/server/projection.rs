@@ -1571,6 +1571,10 @@ pub(super) async fn complete_operation(
     output_policy: &OutputPolicy,
     artifact_store: &ArtifactStore,
 ) -> Result<Value, DevupError> {
+    let project_root = match &operation {
+        PendingOperation::Export { theme_options, .. } => theme_options.project_root.clone(),
+        _ => None,
+    };
     let mut response = project_operation(
         operation,
         payload,
@@ -1585,6 +1589,23 @@ pub(super) async fn complete_operation(
         .filter(|source| source.is_object())
     {
         attach_bridge_source(source, payload);
+    }
+    // What this export wrote for each marked node, so the audit can tell
+    // code drift from a converter bug later.
+    if let Some(root) = project_root.as_deref()
+        && response.get("figmaNodeIds").is_some()
+    {
+        let root_node = payload.target.node_id.clone().unwrap_or_default();
+        match super::export_record::write(
+            output_policy,
+            root,
+            &payload.target.file_key,
+            &root_node,
+            &response,
+        ) {
+            Ok(path) => response["exportRecord"] = json!(path),
+            Err(error) => response["exportRecordError"] = json!(error.message),
+        }
     }
     Ok(response)
 }
@@ -2582,7 +2603,7 @@ async fn project_operation(
             if outputs
                 .iter()
                 .any(|output| output == "tsx" || output == "responsiveTsx")
-                && let Some(merged) = merge_breakpoints(
+                && let Some(mut merged) = merge_breakpoints(
                     &responsive_snapshot,
                     &CodegenOptions {
                         asset_policies: asset_policies.clone(),
@@ -2631,6 +2652,21 @@ async fn project_operation(
                         "responsiveTsx",
                         "Two frames occupy the same breakpoint slot. Request tsx separately, or select one frame per breakpoint slot.",
                     ));
+                }
+                if let Some(root) = theme_options.project_root.as_deref()
+                    && super::screen_plan::node_ids_enabled(root)
+                {
+                    let written =
+                        devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut merged);
+                    let ids = result.entry("figmaNodeIds").or_insert_with(|| {
+                        json!({"attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE})
+                    });
+                    ids["perWidthAttribute"] =
+                        json!(devup_mcp_devup_ui::codegen::node_ids::NODE_IDS_ATTRIBUTE);
+                    ids["responsive"] = json!(written);
+                    ids["responsiveFormat"] = json!(
+                        "data-figma-node-id is the node at the widest width the element is shown at; data-figma-node-ids lists \"<width>:<nodeId>\" for every drawn width it is shown at, widest first, space-separated, so [data-figma-node-ids~=\"390:56:78\"] selects it at one width. hiddenAt lists the drawn widths it is hidden at."
+                    );
                 }
                 let module = merged.module(&name);
                 // The responsive tree builder does not run the ordinary

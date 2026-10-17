@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  STATE_PROPERTIES, evaluateBounds, evaluateCheck, evaluateClippedText, evaluateDimensions, evaluateInteraction,
+  GEOMETRY_ROUNDING_PX, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions, evaluateInteraction,
   evaluatePageHealth, evaluateViewTransition, summarize,
 } from '../checks.mjs';
 import { validateDimensionsPlan } from '../run.mjs';
@@ -101,9 +101,14 @@ test('page health fails on an error page, a page error or a console error', () =
 
 test('bounds judge position and size relative to the container', () => {
   const container = box(100, 50, 600, 400);
-  const check = { kind: 'bounds', expected: { x: 20, y: 20, width: 160, height: 100 }, tolerancePx: 2 };
+  const check = { kind: 'bounds', expected: { x: 20, y: 20, width: 160, height: 100 } };
   const at = (x, y, width, height) => ({ subjectCount: 1, containerCount: 1, subject: box(100 + x, 50 + y, width, height), container });
-  assert.equal(evaluateBounds(check, at(21, 19, 160, 100)).status, 'pass');
+  assert.equal(evaluateBounds(check, at(20.4, 19.6, 160.4, 100)).status, 'pass', 'rounding is not a mismatch');
+  const onePixel = evaluateBounds(check, at(21, 20, 160, 100));
+  assert.equal(onePixel.status, 'fail', 'layout is exact: 1px off at a drawn width fails');
+  assert.match(onePixel.reason, /^position: x off by 1px/);
+  assert.equal(evaluateBounds({ ...check, tolerancePx: 50 }, at(21, 20, 160, 100)).status, 'fail', 'no tolerance can be configured');
+  assert.equal(GEOMETRY_ROUNDING_PX, 0.5);
   const moved = evaluateBounds(check, at(20, 80, 160, 100));
   assert.equal(moved.status, 'fail');
   assert.match(moved.reason, /^position: y off by 60px/);
@@ -132,4 +137,26 @@ test('an interaction sweep fails on the links and buttons that change nothing', 
   assert.equal(result.status, 'fail');
   assert.match(result.reason, /1 of 2: <button> "Send"/);
   assert.equal(evaluateInteraction({ state: 'focus' }, { items: [items[0]] }).status, 'pass');
+});
+
+test('an element a width does not draw must be hidden there', () => {
+  assert.equal(evaluateHidden({ subjectCount: 0 }).status, 'pass');
+  assert.equal(evaluateHidden({ subjectCount: 1, visible: false }).status, 'pass');
+  assert.equal(evaluateHidden({ subjectCount: 1, visible: true }).status, 'fail');
+});
+
+test('production builds lose the audit attributes; dev and audit builds keep them', async () => {
+  const { default: plugin, stripFigmaNodeIds, keepsAttributes } = await import('../strip-figma-node-ids.mjs');
+  const source = '<Box data-figma-node-id="1:2" data-figma-node-ids="1440:1:2 390:3:4" p="20px">\n  <Text data-figma-node-id="1:3">Hi</Text>\n</Box>';
+  const stripped = stripFigmaNodeIds(source);
+  assert.ok(!stripped.includes('data-figma-node-id'), stripped);
+  assert.equal(stripped, '<Box p="20px">\n  <Text>Hi</Text>\n</Box>');
+  const production = plugin({});
+  assert.equal(production.enforce, 'pre');
+  assert.equal(production.apply({}, { command: 'build' }), true);
+  assert.equal(production.apply({}, { command: 'serve' }), false, 'a dev server keeps them for the audit');
+  assert.equal(plugin({ DEVUP_AUDIT: '1' }).apply({}, { command: 'build' }), false, 'DEVUP_AUDIT=1 is an audit build');
+  assert.equal(production.transform(source, '/app/src/app/page.tsx').code, stripped);
+  assert.equal(production.transform(source, '/app/src/style.css'), null);
+  assert.equal(keepsAttributes('build', {}), false);
 });

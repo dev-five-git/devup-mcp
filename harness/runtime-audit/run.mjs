@@ -16,7 +16,7 @@ import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateCheck, evaluateClippedText, evaluateDimensions,
+  ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateViewTransition, summarize,
 } from './checks.mjs';
 
@@ -426,6 +426,17 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
           record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.includes(needle)), errors }) });
           continue;
         }
+        if (check.kind === 'hidden') {
+          const target = locate(page, check.subject);
+          const subjectCount = await target.count();
+          const visible = subjectCount === 1 && await target.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0
+              && (!element.checkVisibility || element.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+          });
+          record.checks.push({ ...item, ...evaluateHidden({ subjectCount, visible }) });
+          continue;
+        }
         if (check.kind === 'no-clipped-text') {
           record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
           continue;
@@ -473,6 +484,17 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       });
       await writeFile(join(out, name), bytes);
       record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
+      // Links on this page, so a dynamic route ([slug]) can be audited at the
+      // URLs the site itself links to.
+      record.links = await page.evaluate(() => {
+        const seen = new Set();
+        for (const anchor of document.querySelectorAll('a[href]')) {
+          const url = new URL(anchor.getAttribute('href'), location.href);
+          if (url.origin === location.origin) seen.add(url.pathname);
+          if (seen.size >= 200) break;
+        }
+        return [...seen];
+      }).catch(() => []);
       for (const [index, check] of screen.checks.entries()) {
         if (check.kind !== 'view-transition') continue;
         if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;

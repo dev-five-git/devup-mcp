@@ -110,10 +110,12 @@ impl FigmaUpstream for PrimaryFillUpstream {
 }
 
 async fn export(arguments: Value) -> anyhow::Result<Value> {
-    let server = DevupServer::new(Services::new(
-        Arc::new(ConnectedAuth),
-        Arc::new(PrimaryFillUpstream),
-    ));
+    // The fixtures' project roots live in the temp directory; a project an
+    // export writes into is an allowed root.
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), Arc::new(PrimaryFillUpstream)),
+        vec![std::env::current_dir()?, std::env::temp_dir()],
+    )?;
     let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -243,6 +245,23 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
         result["figmaNodeIds"]["root"], "3879:35481",
         "{}",
         result["figmaNodeIds"]
+    );
+    // What the export wrote for the node, kept to tell code drift from a
+    // converter bug later.
+    let record: Value =
+        serde_json::from_slice(&fs::read(root.join(".devup/exports/3879-35481.json"))?)?;
+    assert_eq!(record["kind"], "devup-export-record");
+    assert_eq!(record["rootNodeId"], "3879:35481");
+    assert!(
+        record["nodes"]["3879:35481"]["attributes"]
+            .as_array()
+            .is_some_and(|attributes| !attributes.is_empty()),
+        "{record}"
+    );
+    assert!(
+        result["exportRecord"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("3879-35481.json"))
     );
 
     fs::write(

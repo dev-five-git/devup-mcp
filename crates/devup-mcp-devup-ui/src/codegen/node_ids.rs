@@ -7,6 +7,58 @@ use crate::codegen::CodegenOutput;
 use crate::provenance::attributes::opening_elements;
 
 pub const NODE_ID_ATTRIBUTE: &str = "data-figma-node-id";
+/// On a page merged from one frame per width: `"<width>:<nodeId>"` for each
+/// drawn width the element is shown at, widest first, separated by spaces,
+/// so `[data-figma-node-ids~="390:56:78"]` selects it at one width.
+pub const NODE_IDS_ATTRIBUTE: &str = "data-figma-node-ids";
+
+/// Writes both attributes on every element of a merged page that a width
+/// draws: `data-figma-node-id` is the node at the widest width it is shown
+/// at, `data-figma-node-ids` the map. Returns each element written, with the
+/// widths it is drawn hidden at.
+pub fn annotate_merged(
+    screen: &mut crate::codegen::responsive::MergedScreen,
+) -> Vec<serde_json::Value> {
+    let elements = opening_elements(&screen.tsx);
+    if elements.len() != screen.elements.len() {
+        return Vec::new();
+    }
+    let mut inserts = Vec::new();
+    let mut written = Vec::new();
+    for (element, merged) in elements.iter().zip(&screen.elements) {
+        let Some((_, widest)) = merged.ids.first() else {
+            continue;
+        };
+        let Some(opening) = screen.tsx.get(element.start..element.end) else {
+            continue;
+        };
+        if merged.in_text || opening.contains(NODE_ID_ATTRIBUTE) {
+            continue;
+        }
+        let name_end = opening[1..]
+            .find(|c: char| !(c.is_alphanumeric() || matches!(c, '_' | '.' | ':' | '-' | '$')))
+            .map_or(opening.len(), |offset| offset + 1);
+        let map = merged
+            .ids
+            .iter()
+            .map(|(width, id)| format!("{width}:{id}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        inserts.push((
+            element.start + name_end,
+            format!(" {NODE_ID_ATTRIBUTE}=\"{widest}\" {NODE_IDS_ATTRIBUTE}=\"{map}\""),
+        ));
+        written.push(serde_json::json!({
+            "ids": merged.ids.iter().map(|(width, id)| serde_json::json!({"width": width, "nodeId": id})).collect::<Vec<_>>(),
+            "hiddenAt": merged.hidden_at,
+        }));
+    }
+    inserts.sort_by_key(|insert| std::cmp::Reverse(insert.0));
+    for (at, text) in inserts {
+        screen.tsx.insert_str(at, &text);
+    }
+    written
+}
 
 /// Writes `data-figma-node-id="<id>"` on the opening element generated for
 /// each of `node_ids`, found through the source map, and returns the ids it

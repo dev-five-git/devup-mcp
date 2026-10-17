@@ -28,10 +28,8 @@ const DEFAULT_HEIGHT: u32 = 900;
 const MAX_VIEWPORT_SIDE: u32 = 4096;
 const MAX_VIEWPORTS: usize = 8;
 const MAX_CHECKS: usize = 200;
-/// Sections and cards hold text, whose line boxes differ between Figma and
-/// a browser by a few pixels; an asset's box does not.
-const LAYOUT_TOLERANCE_PX: f64 = 4.0;
-const ASSET_TOLERANCE_PX: f64 = 2.0;
+/// Most concrete URLs audited for one dynamic route.
+const MAX_DYNAMIC_URLS: usize = 10;
 /// Font CDNs a page commonly loads; anything else outside the app is
 /// blocked and recorded, which leaves the run inconclusive.
 const FONT_ORIGINS: [&str; 3] = [
@@ -227,6 +225,15 @@ fn node(id: &str) -> Value {
     json!({"css": format!("[data-figma-node-id=\"{id}\"]")})
 }
 
+/// The element a frame drawn at `width` made from `id`: on a single-frame
+/// page it carries the id itself, on a page merged from one frame per width
+/// the id is in its `data-figma-node-ids` map under that width.
+fn node_at(width: u32, id: &str) -> Value {
+    json!({"css": format!(
+        "[data-figma-node-id=\"{id}\"], [data-figma-node-ids~=\"{width}:{id}\"]"
+    )})
+}
+
 fn check(value: Value) -> CheckInput {
     serde_json::from_value(value).expect("audit checks are built from the schema")
 }
@@ -240,6 +247,9 @@ pub(super) struct Target<'a> {
     pub frames: Vec<(u32, String, Option<f64>)>,
     /// The URL a view-transition check follows a link to.
     pub next_url: Option<&'a str>,
+    /// Elements of a merged page a drawn width does not show: (width, the
+    /// element's id at its widest width).
+    pub hidden: Vec<(u32, String)>,
 }
 
 /// The runtime-audit plan for one URL, the references it could not find,
@@ -367,11 +377,6 @@ pub(super) fn url_plan(
                     frame_box,
                     section_box,
                     *width,
-                    if is_asset {
-                        ASSET_TOLERANCE_PX
-                    } else {
-                        LAYOUT_TOLERANCE_PX
-                    },
                 ));
                 if !is_asset {
                     for part in visible_children(payload, section) {
@@ -383,7 +388,6 @@ pub(super) fn url_plan(
                                 section_box,
                                 part_box,
                                 *width,
-                                LAYOUT_TOLERANCE_PX,
                             ));
                         }
                     }
@@ -432,7 +436,6 @@ pub(super) fn url_plan(
                         section_box,
                         asset_box,
                         *width,
-                        ASSET_TOLERANCE_PX,
                     ));
                 }
                 match sources.native_render(&child) {
@@ -466,6 +469,12 @@ pub(super) fn url_plan(
     }
     checks.extend(layout);
     checks.extend(parts);
+    for (width, id) in &target.hidden {
+        checks.push(check(
+            json!({"kind": "hidden", "label": format!("{id} hidden at {width}"),
+            "subject": node(id), "nodeId": id, "widths": [width]}),
+        ));
+    }
     checks.truncate(MAX_CHECKS - 3);
     checks.push(check(json!({"kind": "interaction", "label": "hover on every link and button", "state": "hover", "widths": [widest]})));
     checks.push(check(json!({"kind": "interaction", "label": "focus on every link and button", "state": "focus", "widths": [widest]})));
@@ -503,7 +512,7 @@ pub(super) fn url_plan(
         viewports,
         screens: vec![screen],
         readiness: None,
-        fonts: Vec::new(),
+        fonts: fonts(sources, &target.frames),
         locale: Some("en-US".to_owned()),
         timezone: Some("UTC".to_owned()),
         step_timeout_ms: None,
@@ -527,6 +536,8 @@ fn viewport(width: u32, height: u32) -> ViewportInput {
     }
 }
 
+/// Size and position against the frame, exact: the executor allows only
+/// half a pixel of rounding and takes no tolerance.
 fn bounds_check(
     name: &str,
     subject: &str,
@@ -534,16 +545,47 @@ fn bounds_check(
     container_box: Bounds,
     subject_box: Bounds,
     width: u32,
-    tolerance: f64,
 ) -> CheckInput {
-    let round = |value: f64| (value * 100.0).round() / 100.0;
+    let round = |value: f64| (value * 1000.0).round() / 1000.0;
     check(
         json!({"kind": "bounds", "label": format!("{name} size and position"),
-        "subject": node(subject), "container": node(container), "nodeId": subject,
+        "subject": node_at(width, subject), "container": node_at(width, container), "nodeId": subject,
         "expected": {"x": round(subject_box.x - container_box.x), "y": round(subject_box.y - container_box.y),
             "width": round(subject_box.width), "height": round(subject_box.height)},
-        "tolerancePx": tolerance, "widths": [width]}),
+        "widths": [width]}),
     )
+}
+
+/// The font families the frames' text uses: they must be loaded before a
+/// text box is measured, and a missing one is an environment error rather
+/// than a layout failure.
+fn fonts(sources: &Sources, frames: &[(u32, String, Option<f64>)]) -> Vec<String> {
+    let mut families = BTreeSet::new();
+    for (_, frame, _) in frames {
+        let Some((_, payload)) = sources.frame(frame) else {
+            continue;
+        };
+        let mut stack = vec![frame.clone()];
+        let mut seen = BTreeSet::new();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            let Some(node) = payload.snapshot.nodes.get(&id) else {
+                continue;
+            };
+            let view = node.typed_view();
+            if let Some(family) = view
+                .value("fontName")
+                .and_then(|font| font.get("family"))
+                .and_then(Value::as_str)
+            {
+                families.insert(family.to_owned());
+            }
+            stack.extend(view.child_ids().map(str::to_owned));
+        }
+    }
+    families.into_iter().take(20).collect()
 }
 
 fn capture(
@@ -557,7 +599,7 @@ fn capture(
 ) -> CheckInput {
     check(
         json!({"kind": "capture", "label": format!("{name} against its Figma render"),
-        "subject": node(subject), "nodeId": subject, "widths": [width],
+        "subject": node_at(width, subject), "nodeId": subject, "widths": [width],
         "reference": {"scope": scope, "artifactId": artifact, "assetId": asset, "threshold": threshold}}),
     )
 }
@@ -612,10 +654,37 @@ pub(super) async fn write(
         .flatten()
         .filter(|route| route["implementation"] == "page" && route["url"].is_string())
         .collect::<Vec<_>>();
-    let urls = routes
+    let records = super::export_record::records(Path::new(root));
+    // Every route as the concrete URLs it is audited at: a dynamic route at
+    // the URLs its params, the site's links or its Figma frame give.
+    let mut concrete = Vec::<(usize, String, Option<Value>)>::new();
+    let mut not_audited = Vec::new();
+    for (index, route) in routes.iter().enumerate() {
+        let url = route["url"].as_str().unwrap_or_default();
+        if !only.is_empty() && !only.iter().any(|wanted| wanted == url) {
+            continue;
+        }
+        if !url.contains('[') {
+            concrete.push((index, url.to_owned(), None));
+            continue;
+        }
+        let resolved = dynamic_urls(root, route, &plan["audit"]["links"], &sources);
+        if resolved.urls.is_empty() {
+            not_audited.push(json!({"url": url, "why": resolved.why}));
+            continue;
+        }
+        for sample in resolved.urls {
+            concrete.push((
+                index,
+                sample,
+                Some(json!({"pattern": url, "from": resolved.source,
+                "assumption": resolved.assumption})),
+            ));
+        }
+    }
+    let urls = concrete
         .iter()
-        .filter_map(|route| route["url"].as_str())
-        .filter(|url| !url.contains('['))
+        .map(|(_, url, _)| url.as_str())
         .collect::<Vec<_>>();
     let several_apps = routes
         .iter()
@@ -647,16 +716,9 @@ pub(super) async fn write(
         "stale: delete .devup/runtime-audit/runner and run auditPlan again to get this server's runner"
     };
     let mut written = Vec::new();
-    let mut not_audited = Vec::new();
-    for route in &routes {
-        let url = route["url"].as_str().unwrap_or_default();
-        if !only.is_empty() && !only.iter().any(|wanted| wanted == url) {
-            continue;
-        }
-        if url.contains('[') {
-            not_audited.push(json!({"url": url, "why": "A dynamic route has no path to open; audit a real path once the data gives one."}));
-            continue;
-        }
+    for (index, url, dynamic) in &concrete {
+        let route = routes[*index];
+        let url = url.as_str();
         let app = route["app"].as_str().unwrap_or_default();
         let screen = if several_apps && !app.is_empty() {
             format!("{}-{}", slug(app), slug(url))
@@ -678,12 +740,14 @@ pub(super) async fn write(
         let next_url = position
             .filter(|_| urls.len() > 1)
             .map(|index| urls[(index + 1) % urls.len()]);
+        let hidden = hidden_elements(&records, &frames);
         let target = Target {
             url,
             screen: screen.clone(),
             file: route["file"].as_str(),
             frames,
             next_url,
+            hidden,
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
         let built = url_plan(&target, base, &sources, thresholds)?;
@@ -723,6 +787,7 @@ pub(super) async fn write(
             "checks": counts,
             "missingReferences": built.missing,
             "notes": built.notes,
+            "dynamic": dynamic,
             "run": ["node", "run.mjs", "--plan", plan_path.display().to_string(), "--out", report_dir.display().to_string()],
         }));
     }
@@ -735,9 +800,11 @@ pub(super) async fn write(
                 .unwrap_or_default()
         })
         .collect::<Vec<_>>();
+    let strip = production_strip(&routes, root, policy)?;
     Ok(json!({
         "plans": written,
         "notAudited": not_audited,
+        "productionStrip": strip,
         "missingReferences": missing,
         "expiredArtifacts": expired,
         "runner": {"directory": runner.display().to_string(), "state": template_state,
@@ -746,6 +813,400 @@ pub(super) async fn write(
         "nodeIdentity": "Sections, cards and assets are found by data-figma-node-id, which devup_figma_export writes into a project's TSX. A check whose element is missing reports missingNodes; re-export with projectRoot.",
         "nextAction": "For each URL in order: export what missingReferences names and run auditPlan again, start the app, run the plan, then call devup_screen_plan action status with auditPlanPath and auditReportPath (report/report.json). Run each visualComparisons call, pass the results back as visualResults, fix every finding, and repeat until the URL is done.",
     }))
+}
+
+/// Elements of a merged page that a route's drawn widths do not show, from
+/// the export records: each must be hidden at those widths.
+fn hidden_elements(records: &[Value], frames: &[(u32, String, Option<f64>)]) -> Vec<(u32, String)> {
+    let drawn = frames
+        .iter()
+        .map(|(width, _, _)| *width)
+        .collect::<BTreeSet<_>>();
+    let roots = frames
+        .iter()
+        .map(|(_, id, _)| id.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut hidden = Vec::new();
+    for record in records {
+        let elements = record["responsive"].as_array().cloned().unwrap_or_default();
+        let ours = elements.iter().any(|element| {
+            element["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|id| id["nodeId"].as_str().is_some_and(|id| roots.contains(id)))
+        });
+        if !ours {
+            continue;
+        }
+        for element in &elements {
+            let Some(widest) = element["ids"][0]["nodeId"].as_str() else {
+                continue;
+            };
+            for width in element["hiddenAt"].as_array().into_iter().flatten() {
+                if let Some(width) = width.as_u64().and_then(|width| u32::try_from(width).ok())
+                    && drawn.contains(&width)
+                {
+                    hidden.push((width, widest.to_owned()));
+                }
+            }
+        }
+    }
+    hidden
+}
+
+/// The concrete URLs a dynamic route is audited at, and where they came from.
+pub(super) struct Dynamic {
+    pub urls: Vec<String>,
+    pub source: &'static str,
+    pub why: String,
+    pub assumption: Option<String>,
+}
+
+/// `[slug]` -> ("slug", false); `[...slug]` and `[[...slug]]` -> ("slug", true).
+fn params(pattern: &str) -> Vec<(String, bool)> {
+    pattern
+        .split('/')
+        .filter(|segment| segment.starts_with('[') && segment.ends_with(']'))
+        .map(|segment| {
+            let inner = segment.trim_matches(|c| c == '[' || c == ']');
+            match inner.strip_prefix("...") {
+                Some(name) => (name.to_owned(), true),
+                None => (inner.to_owned(), false),
+            }
+        })
+        .collect()
+}
+
+fn fill(pattern: &str, values: &BTreeMap<String, String>) -> Option<String> {
+    let mut out = Vec::new();
+    for segment in pattern.split('/') {
+        if segment.starts_with('[') && segment.ends_with(']') {
+            let inner = segment.trim_matches(|c| c == '[' || c == ']');
+            out.push(values.get(inner.trim_start_matches("...")).cloned()?);
+        } else {
+            out.push(segment.to_owned());
+        }
+    }
+    Some(out.join("/"))
+}
+
+/// Every literal value of `key` in `text`: `key: 'a'`, `"key": "a"`, or
+/// `key: ['a', 'b']` (joined with `/` for a catch-all).
+pub(super) fn values_of(text: &str, key: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let bytes = text.as_bytes();
+    let mut from = 0;
+    while let Some(at) = text[from..].find(key) {
+        let start = from + at;
+        from = start + key.len();
+        let before = start.checked_sub(1).map(|i| bytes[i] as char);
+        if before.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '$' || c == '.') {
+            continue;
+        }
+        let mut rest = text[from..].trim_start_matches(['"', '\'']).trim_start();
+        let Some(after) = rest.strip_prefix(':') else {
+            continue;
+        };
+        rest = after.trim_start();
+        let quoted = |rest: &str| -> Option<(String, usize)> {
+            let quote = rest
+                .chars()
+                .next()
+                .filter(|c| matches!(c, '"' | '\'' | '`'))?;
+            let end = rest[1..].find(quote)?;
+            Some((rest[1..=end].to_owned(), end + 2))
+        };
+        if let Some((value, _)) = quoted(rest) {
+            found.push(value);
+        } else if let Some(list) = rest.strip_prefix('[') {
+            let end = list.find(']').unwrap_or(list.len());
+            let parts = list[..end]
+                .split(',')
+                .filter_map(|part| quoted(part.trim()).map(|(value, _)| value))
+                .collect::<Vec<_>>();
+            if !parts.is_empty() {
+                found.push(parts.join("/"));
+            }
+        }
+    }
+    found.dedup();
+    found
+}
+
+/// Local modules a page imports: `./x`, `../x` or `@/x`, with the names
+/// imported from each.
+fn local_imports(source: &str) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("import ") else {
+            continue;
+        };
+        let Some((names, module)) = rest.rsplit_once(" from ") else {
+            continue;
+        };
+        let module = module
+            .trim()
+            .trim_end_matches(';')
+            .trim_matches(['"', '\'']);
+        if module.starts_with("./") || module.starts_with("../") || module.starts_with("@/") {
+            found.push((names.to_owned(), module.to_owned()));
+        }
+    }
+    found
+}
+
+fn read_module(base: &Path, module: &str) -> Option<String> {
+    for suffix in [
+        "",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".mjs",
+        ".json",
+        "/index.ts",
+        "/index.js",
+    ] {
+        let path = base.join(format!("{module}{suffix}"));
+        if path.is_file()
+            && std::fs::metadata(&path).is_ok_and(|meta| meta.len() <= 512 * 1024)
+            && let Ok(text) = std::fs::read_to_string(&path)
+        {
+            return Some(text);
+        }
+    }
+    None
+}
+
+/// `generateStaticParams` in the route's page: literal params in its body,
+/// else the param's values in a local data file it reads.
+pub(super) fn static_params(
+    root: &Path,
+    app_dir: &str,
+    page_file: &str,
+    pattern: &str,
+) -> Vec<String> {
+    let page = root.join(page_file);
+    let Ok(source) = std::fs::read_to_string(&page) else {
+        return Vec::new();
+    };
+    let Some(at) = source.find("generateStaticParams") else {
+        return Vec::new();
+    };
+    let body = &source[at..];
+    let body = body[1..]
+        .find("\nexport ")
+        .map_or(body, |end| &body[..=end]);
+    let names = params(pattern);
+    let collect = |text: &str| {
+        let lists = names
+            .iter()
+            .map(|(name, _)| values_of(text, name))
+            .collect::<Vec<_>>();
+        let count = lists.iter().map(Vec::len).min().unwrap_or(0);
+        (0..count)
+            .filter_map(|index| {
+                let values = names
+                    .iter()
+                    .zip(&lists)
+                    .map(|((name, _), list)| (name.clone(), list[index].clone()))
+                    .collect::<BTreeMap<_, _>>();
+                fill(pattern, &values)
+            })
+            .collect::<Vec<_>>()
+    };
+    let literal = collect(body);
+    if !literal.is_empty() {
+        return literal;
+    }
+    let page_dir = page.parent().unwrap_or(root);
+    for (imported, module) in local_imports(&source) {
+        let used = imported
+            .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$'))
+            .filter(|name| !name.is_empty() && *name != "as")
+            .any(|name| body.contains(name));
+        if !used {
+            continue;
+        }
+        let text = match module.strip_prefix("@/") {
+            Some(rest) => read_module(&root.join(app_dir).join("src"), rest)
+                .or_else(|| read_module(&root.join(app_dir), rest)),
+            None => read_module(page_dir, &module),
+        };
+        if let Some(text) = text {
+            let from_data = collect(&text);
+            if !from_data.is_empty() {
+                return from_data;
+            }
+        }
+    }
+    Vec::new()
+}
+
+/// The first text of a frame, depth first: a detail page's title.
+fn first_text(sources: &Sources, frame: &str) -> Option<String> {
+    let (_, payload) = sources.frame(frame)?;
+    let mut stack = vec![frame.to_owned()];
+    while let Some(id) = stack.pop() {
+        let node = payload.snapshot.nodes.get(&id)?;
+        let view = node.typed_view();
+        if let Some(text) = view
+            .string("characters")
+            .filter(|text| !text.trim().is_empty())
+        {
+            return Some(text.to_owned());
+        }
+        let mut children = view.child_ids().map(str::to_owned).collect::<Vec<_>>();
+        children.reverse();
+        stack.extend(children);
+    }
+    None
+}
+
+fn sample_segment(text: &str) -> String {
+    let words = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .take(6)
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>();
+    if words.is_empty() {
+        "sample".to_owned()
+    } else {
+        words.join("-")
+    }
+}
+
+/// A dynamic route's concrete URLs: its `generateStaticParams`, else the
+/// links the audited pages hold into it, else a sample from its Figma detail
+/// frame (an assumption). At most ten.
+pub(super) fn dynamic_urls(root: &str, route: &Value, links: &Value, sources: &Sources) -> Dynamic {
+    let pattern = route["url"].as_str().unwrap_or_default();
+    let app_dir = route["app"]
+        .as_str()
+        .filter(|app| !app.is_empty())
+        .unwrap_or(".");
+    let cap = |mut urls: Vec<String>| {
+        urls.sort();
+        urls.dedup();
+        urls.truncate(MAX_DYNAMIC_URLS);
+        urls
+    };
+    if let Some(file) = route["file"].as_str() {
+        let found = static_params(Path::new(root), app_dir, file, pattern);
+        if !found.is_empty() {
+            return Dynamic {
+                urls: cap(found),
+                source: "generateStaticParams",
+                why: String::new(),
+                assumption: None,
+            };
+        }
+    }
+    let linked = links
+        .as_object()
+        .into_iter()
+        .flatten()
+        .flat_map(|(_, hrefs)| hrefs.as_array().cloned().unwrap_or_default())
+        .filter_map(|href| href.as_str().map(str::to_owned))
+        .filter(|href| super::navigation::matches_route(pattern, href))
+        .collect::<Vec<_>>();
+    if !linked.is_empty() {
+        return Dynamic {
+            urls: cap(linked),
+            source: "links on audited pages",
+            why: String::new(),
+            assumption: None,
+        };
+    }
+    let frame = route["nodeIds"][0].as_str().unwrap_or_default();
+    if let Some(text) = first_text(sources, frame) {
+        let segment = sample_segment(&text);
+        let values = params(pattern)
+            .into_iter()
+            .map(|(name, _)| (name, segment.clone()))
+            .collect::<BTreeMap<_, _>>();
+        if let Some(url) = fill(pattern, &values) {
+            return Dynamic {
+                assumption: Some(format!(
+                    "{pattern} audited at {url}: the sample comes from the detail frame {frame}'s title \"{text}\"; the app must serve it."
+                )),
+                urls: vec![url],
+                source: "Figma detail frame",
+                why: String::new(),
+            };
+        }
+    }
+    Dynamic {
+        urls: Vec::new(),
+        source: "none",
+        why: "No generateStaticParams with literal or local-data params, no link to it on an audited page (run the audit once and auditPlan again), and no detail frame text to sample.".to_owned(),
+        assumption: None,
+    }
+}
+
+const STRIP_PLUGIN: &[u8] =
+    include_bytes!("../../../../harness/runtime-audit/strip-figma-node-ids.mjs");
+const STRIP_FILE: &str = "vite-plugin-strip-figma-node-ids.mjs";
+
+/// Puts the plugin that strips the audit attributes from production builds
+/// next to each app's vite.config, once, and says whether the config uses
+/// it yet.
+fn production_strip(
+    routes: &[&Value],
+    root: &str,
+    policy: &OutputPolicy,
+) -> Result<Vec<Value>, DevupError> {
+    let apps = routes
+        .iter()
+        .map(|route| {
+            route["app"]
+                .as_str()
+                .filter(|app| !app.is_empty())
+                .unwrap_or(".")
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    let mut out = Vec::new();
+    for app in apps {
+        let dir = Path::new(root).join(&app);
+        let file = dir.join(STRIP_FILE);
+        let written = if file.exists() {
+            false
+        } else {
+            let target = policy.resolve(&file.to_string_lossy())?;
+            let mut transaction = super::output::OutputTransaction::new();
+            transaction.stage("stripPlugin", target, STRIP_PLUGIN)?;
+            transaction.commit()?;
+            true
+        };
+        let config = [
+            "vite.config.ts",
+            "vite.config.mts",
+            "vite.config.js",
+            "vite.config.mjs",
+        ]
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|path| path.is_file());
+        let wired = config
+            .as_ref()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .is_some_and(|text| text.contains(STRIP_FILE));
+        out.push(json!({
+            "app": app,
+            "plugin": file.display().to_string(),
+            "written": written,
+            "viteConfig": config.map(|path| path.display().to_string()),
+            "wired": wired,
+            "add": format!("import stripFigmaNodeIds from './{STRIP_FILE}'  // then plugins: [stripFigmaNodeIds(), vinext()]"),
+            "nextCli": "On the next CLI instead: compiler.reactRemoveProperties: process.env.DEVUP_AUDIT === '1' ? false : { properties: ['^data-figma-node-ids?$'] }",
+            "audit": "Audit against `bun run dev` or an audit build: DEVUP_AUDIT=1 bun run build.",
+            "verify": "After `bun run build`, `grep -rl data-figma-node-id dist` (or the app's build output) must find nothing.",
+        }));
+    }
+    Ok(out)
 }
 
 /// One devup_visual_compare result for a comparison status returned.
@@ -877,6 +1338,18 @@ pub(super) fn record_round(
         })
         .map(|comparison| comparison["id"].clone())
         .collect::<Vec<_>>();
+    // A converter bug is reported once and kept, whatever later runs show.
+    for (finding, _) in &current {
+        if finding["class"] == "converter-bug"
+            && let Some(node) = finding["nodeId"].as_str()
+        {
+            plan["audit"]["converterBugs"][node] = json!({
+                "nodeId": node, "routePath": finding["routePath"], "width": finding["width"],
+                "reason": finding["reason"], "repro": finding["evidence"]["repro"],
+                "codeFile": finding["codeFile"],
+            });
+        }
+    }
     let records = &mut plan["audit"]["findings"];
     if !records.is_object() {
         *records = json!({});
@@ -918,7 +1391,11 @@ pub(super) fn record_round(
             record[field] = finding[field].clone();
         }
         record["fixAttempts"] = json!(fix_attempts);
-        record["status"] = json!(if fix_attempts >= u64::from(max_fix_attempts) {
+        // A deterministic result does not change by retrying: a converter
+        // bug leaves the fix loop at once and never spends attempts.
+        record["status"] = json!(if finding["class"] == "converter-bug" {
+            "converter-bug"
+        } else if fix_attempts >= u64::from(max_fix_attempts) {
             "unresolved"
         } else {
             "open"
@@ -1037,7 +1514,15 @@ pub(super) fn work_queue(
             }
             let done = items.is_empty();
             items.extend(blocked);
-            json!({"url": url, "items": items, "done": done})
+            let reported = plan["audit"]["converterBugs"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(_, bug)| bug["routePath"] == url)
+                .map(|(_, bug)| json!({"converterBug": bug["nodeId"], "repro": bug["repro"],
+                    "note": "reported, not retried; a local override needs a comment naming the repro"}))
+                .collect::<Vec<_>>();
+            json!({"url": url, "items": items, "reported": reported, "done": done})
         })
         .collect()
 }
@@ -1063,7 +1548,7 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
         other => other.to_string(),
     };
     let mut out = String::from(
-        "| URL | width | health | geometry | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|\n",
+        "| URL | width | health | geometry | drift / converter bugs | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let records = plan["audit"]["findings"].as_object();
     for row in rows {
@@ -1080,11 +1565,25 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
                 })
                 .filter_map(|(_, record)| record["evidence"]["diff"].as_str())
                 .collect::<Vec<_>>();
+            let count = |class: &str| {
+                records
+                    .into_iter()
+                    .flatten()
+                    .filter(|(_, record)| {
+                        record["routePath"] == url
+                            && record["width"] == width["width"]
+                            && record["class"] == class
+                            && record["status"] != "resolved"
+                    })
+                    .count()
+            };
             out.push_str(&format!(
-                "| {url} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {url} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |\n",
                 width["width"],
                 cell(&columns["health"]),
                 cell(&columns["geometry"]),
+                count("code-drift"),
+                count("converter-bug"),
                 cell(&columns["page"]),
                 cell(&columns["section"]),
                 cell(&columns["asset"]),
@@ -1117,6 +1616,25 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
             cell(&finding["codeFile"]),
             cell(&finding["evidence"]["screenshot"]),
             cell(&finding["evidence"]["diff"]),
+        ));
+    }
+    out.push_str("\nConverter bugs (filed, not retried):\n");
+    let bugs = plan["audit"]["converterBugs"]
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    if bugs.is_empty() {
+        out.push_str("- none\n");
+    }
+    for bug in bugs.values() {
+        out.push_str(&format!(
+            "- {} at {}px, {}: {} (repro: {}; code: {})\n",
+            cell(&bug["routePath"]),
+            bug["width"],
+            cell(&bug["nodeId"]),
+            cell(&bug["reason"]),
+            cell(&bug["repro"]),
+            cell(&bug["codeFile"]),
         ));
     }
     out.push_str("\nPending decisions:\n");
@@ -1170,3 +1688,85 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
 #[cfg(test)]
 #[path = "audit_plan_tests.rs"]
 mod tests;
+
+/// Geometry is exact, so a box that fails at a drawn width is classified by
+/// cause: the code drifted from what the export wrote, or it did not and the
+/// converter is wrong. A converter bug gets its repro written under
+/// `.devup/converter-bugs/`.
+pub(super) fn classify_geometry(
+    audit: &mut Value,
+    project_root: &str,
+    sources: &[String],
+    policy: &OutputPolicy,
+) {
+    let Some(findings) = audit["findings"].as_array_mut() else {
+        return;
+    };
+    for finding in findings {
+        if !matches!(finding["kind"].as_str(), Some("bounds" | "dimensions")) {
+            continue;
+        }
+        let Some(node) = finding["nodeId"].as_str().map(str::to_owned) else {
+            continue;
+        };
+        match super::export_record::geometry_cause(Path::new(project_root), &node, sources) {
+            super::export_record::Cause::Drift {
+                file,
+                missing,
+                added,
+            } => {
+                finding["class"] = json!("code-drift");
+                finding["codeFile"] = json!(file);
+                finding["evidence"]["drift"] = json!({"missing": missing, "added": added});
+                finding["fixHint"] = json!(format!(
+                    "{} Missing or changed: {}. Added layout props: {}.",
+                    runtime_audit::fix_hint("code-drift", "bounds", &Value::Null),
+                    if missing.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        missing.join(", ")
+                    },
+                    if added.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        added.join(", ")
+                    },
+                ));
+            }
+            super::export_record::Cause::ConverterBug {
+                file,
+                record,
+                exported,
+            } => {
+                let width = finding["width"].clone();
+                match super::export_record::write_repro(
+                    policy,
+                    project_root,
+                    &node,
+                    &width,
+                    finding,
+                    &file,
+                    &record,
+                    &exported,
+                ) {
+                    Ok((path, _)) => {
+                        finding["class"] = json!("converter-bug");
+                        finding["codeFile"] = json!(file);
+                        finding["evidence"]["repro"] = json!(path);
+                        finding["fixHint"] = json!(runtime_audit::fix_hint(
+                            "converter-bug",
+                            "bounds",
+                            &Value::Null
+                        ));
+                    }
+                    Err(error) => {
+                        finding["evidence"]["reproError"] = json!(error.message);
+                    }
+                }
+            }
+            super::export_record::Cause::Unknown(why) => {
+                finding["evidence"]["cause"] = json!(why);
+            }
+        }
+    }
+}

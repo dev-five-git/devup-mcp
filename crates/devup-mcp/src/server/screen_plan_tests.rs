@@ -2131,6 +2131,18 @@ async fn audit_plan_writes_a_plan_per_url_and_reports_what_it_cannot_compare() {
             .exists()
     );
     assert_eq!(result["runner"]["state"], "written");
+    // The plugin that strips the audit ids from production builds sits next
+    // to the app's vite.config, and the config is not wired to it yet.
+    let strip = &result["productionStrip"][0];
+    assert!(
+        fixture
+            .0
+            .join("vite-plugin-strip-figma-node-ids.mjs")
+            .exists()
+    );
+    assert_eq!(strip["written"], true);
+    assert_eq!(strip["wired"], false);
+    assert!(text(&strip["verify"]).contains("grep -rl data-figma-node-id"));
     assert_eq!(
         result["expiredArtifacts"][0]["artifactId"],
         "expired-artifact"
@@ -2245,7 +2257,7 @@ async fn a_pending_decision_is_taken_at_the_end_and_a_destructive_one_is_left_un
     );
     assert!(
         text_report
-            .contains("| URL | width | health | geometry | page | section | asset | interaction |")
+            .contains("| URL | width | health | geometry | drift / converter bugs | page | section | asset | interaction |")
     );
     assert!(text_report.contains("Dependencies: the update step has not been recorded."));
 }
