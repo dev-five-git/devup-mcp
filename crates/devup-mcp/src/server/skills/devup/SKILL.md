@@ -75,14 +75,18 @@ the full rules; these are the steps.
    `baseUrl` and `artifacts` (every export artifactId of the plan's frames).
    One plan per URL: health, overflow and clipped text at every width; the
    page, each section and each asset against its Figma render and the size
-   and position of each section, card and asset at the drawn widths; hover
+   and position of each section, card and asset at the drawn widths -
+   exact, half a pixel of rounding and no tolerance; merged pages per width
+   (`data-figma-node-ids`); dynamic routes at concrete URLs; hover
    and focus; a view-transition check, last. Export whatever
    `missingReferences` names and run auditPlan again.
 10. **Run, status, fix - URL by URL.** Run each plan with the runner it wrote,
    then `action: "status"` with `auditPlanPath` and `auditReportPath`. Run
    every `visualComparisons` call and pass the results back as
    `visualResults`. Fix each finding (its class, node, file and fix hint) in
-   `workQueue` order and re-run. After `maxFixAttempts` (default 3) a finding
+   `workQueue` order and re-run. A geometry mismatch is `code-drift` (restore
+   the export's values) or `converter-bug` (repro in `.devup/converter-bugs/`,
+   reported, never retried). After `maxFixAttempts` (default 3) a finding
    is unresolved with its evidence. Runner cannot install:
    `toolingUnavailable`, and carry on.
 11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
@@ -90,8 +94,10 @@ the full rules; these are the steps.
     destructive one stays unbuilt.
 12. **Done = zero fails.** Every check and comparison passes at the drawn
     widths and health and overflow pass at every width, or each remaining
-    finding is unresolved with evidence. Also: every URL implemented, `bun run
-    build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
+    finding is a filed converter bug or unresolved with evidence. Also: every
+    URL implemented, the production build free of `data-figma-node-id` (the
+    strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
+    nothing), `bun run build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
     per changed app, `bun test` (on Windows `bun test` and `cargo test`),
     `devup_ui_validate` without errors, site completeness filled.
 13. **Final report.** End with status's `finalReport` and `summary`: URL x
@@ -101,4 +107,5 @@ the full rules; these are the steps.
 
 Hard rules: visually verify every screen, section and asset at every drawn
 width; never stop to wait, reorder the work; done = zero fails, or listed as
-unresolved with evidence.
+unresolved with evidence; layout is exact, a mismatch is drift or a
+converter bug.

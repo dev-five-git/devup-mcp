@@ -254,7 +254,14 @@ Visually verify every screen, section and asset at every drawn width.
 health, overflow and clipped text at every width; the page, each section and
 each asset against its Figma render, and the size and position of each
 section, card and asset, at the drawn widths; hover, focus and a view
-transition, ordered by code. `status` classifies each failure (runtime-error,
+transition, ordered by code. Layout is exact; a mismatch is drift or a
+converter bug: geometry allows only half a pixel of rounding, and a
+mismatch is `code-drift` when the code no longer writes what the export
+recorded in `.devup/exports/`, or `converter-bug` when it does - reported
+with a repro in `.devup/converter-bugs/`, never retried or tuned silently.
+Merged pages are found per width through `data-figma-node-ids`, dynamic
+routes at concrete URLs, and production builds strip the ids unless
+`DEVUP_AUDIT=1`. `status` classifies each failure (runtime-error,
 overflow, layout-position, layout-size, asset-mismatch, section-visual,
 page-visual, interaction, view-transition) with its node, file and fix hint.
 Never stop to wait; reorder the work: a decision after confirm goes to

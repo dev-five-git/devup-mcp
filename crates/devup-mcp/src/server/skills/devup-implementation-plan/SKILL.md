@@ -263,7 +263,21 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    page health (no page error, console error, error-boundary text, overflow
    or clipped text), and at the drawn widths the page against its
    referencePng, every section and asset against its own Figma render, and
-   the size and position of every section, card and asset. Hover and focus
+   the size and position of every section, card and asset - **exactly**.
+   Layout is converted statically, so at a drawn width it is either right or
+   wrong: only half a pixel of rounding is allowed (Chromium measures in
+   1/64 px, unsnapped at deviceScaleFactor 1, and Figma's fractional values
+   are written rounded), and no tolerance can be set. The frames' fonts are
+   loaded first, so text boxes are exact too; a missing font is an
+   environment error. Between the drawn widths there is no design, so only
+   health, overflow, containment, clipped text and the nav are checked. A
+   page merged from one frame per width is found per width through
+   `data-figma-node-ids` (`"1440:12:34 390:56:78"`), and an element a width
+   does not draw is checked hidden there. A dynamic route (`[slug]`, `[id]`,
+   catch-all) is audited at concrete URLs: its `generateStaticParams`
+   (literal params, or the local data file it maps), else the links the
+   audited pages hold into it (run once, then auditPlan again), else a sample
+   from its Figma detail frame, recorded as an assumption - up to ten. Hover and focus
    sweep every link and button; one view-transition check follows a link to
    the next URL - placed last by code, so check order cannot break a run.
    `missingReferences` lists every referencePng, native render or frame
@@ -285,16 +299,25 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    | --- | --- | --- |
    | `runtime-error` | the page threw, logged an error or showed an error page | read the first error; fix the component or the data state |
    | `overflow` | content wider than the viewport, or text cut off by its box | `maxW="100%"`, wrap or `minW={0}`; let the box grow |
-   | `layout-position` | a box in the wrong place, a card out of order | the parent's gap, padding, alignment and child order |
-   | `layout-size` | a box of the wrong size | fixed, fill or hug as in Figma; aspect ratio |
+   | `code-drift` | a box differs and its code no longer writes what the export wrote | restore the exported values; never hand-tune layout |
+   | `converter-bug` | a box differs and its code still equals the export | a devup-mcp defect: its repro is in `.devup/converter-bugs/<node>.json`; file it. A local override needs a comment naming that file |
+   | `layout-position` / `layout-size` | a box differs and there is no export record to compare | re-export with `projectRoot`, then the class is one of the two above |
    | `asset-mismatch` | an asset differs from its Figma render | a mask on a multi-colour SVG (use `<Image>`), the wrong file, crop or objectFit |
    | `section-visual` | a section differs from its render | the diff PNG's highlighted area: font, background, spacing |
    | `page-visual` | the page differs from its frame | fix sections first; then page background and section spacing |
    | `interaction` | hover or focus changes nothing | the role's recipe from the defaults, and `_focusVisible` |
    | `view-transition` | no transition ran on the navigation | `<ViewTransition>` around routed content, framework `Link` |
 
-   Fix every finding and re-run the URL, in the `workQueue` order. Anti-
-   aliasing does not fail: comparisons allow 3% changed pixels for a page or
+   Layout is exact; a mismatch is drift or a converter bug. Every export into
+   the project records what it wrote per node in `.devup/exports/`, and
+   status compares the element's code with it: a missing or changed exported
+   prop, or a layout prop the export did not write, is drift; extra behaviour
+   (handlers, hover styles, links) is not. A converter bug is reported in
+   `converterBugs` and the final report and never retried - a deterministic
+   result does not change.
+
+   Fix every finding and re-run the URL, in the `workQueue` order. Pixels are
+   not layout: anti-aliasing does not fail, comparisons allow 3% changed pixels for a page or
    section and 5% for an asset, and `.devup/screen-plan.config.json`
    `visualThresholds` tunes them (`page`, `section`, `asset`, or `nodes`
    keyed by node id for one asset) - raise one only for edge noise you have
@@ -310,8 +333,8 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    project) stays unbuilt and is listed in the report.
 11. **Done means zero fails.** A URL is done when every check and comparison
    passes at its drawn widths and health and overflow pass at every width -
-   or when each remaining finding is listed as unresolved with its evidence.
-   Before reporting done, also:
+   or when each remaining finding is a converter bug with its repro filed, or
+   listed as unresolved with its evidence. Before reporting done, also:
 
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
@@ -321,10 +344,16 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
      test` also runs `cargo tarpaulin` afterwards, which does not work on
      Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
+   - the production build carries no audit ids: each app's vite.config uses
+     the `vite-plugin-strip-figma-node-ids.mjs` auditPlan put beside it
+     (`plugins: [stripFigmaNodeIds(), vinext()]`), and after `bun run build`
+     `grep -rl data-figma-node-id dist` finds nothing. The audit itself runs
+     against `bun run dev` or an audit build, `DEVUP_AUDIT=1 bun run build`;
    - the site completeness block is filled.
 12. **Finish with the final report.** End your reply with status's
-   `finalReport`: the URL x width table (health, geometry, page, section,
-   asset, interaction, screenshot, diffs), the unresolved findings with their
+   `finalReport`: the URL x width table (health, geometry, drift / converter
+   bugs, page, section, asset, interaction, screenshot, diffs), the converter
+   bugs with their repro files, the unresolved findings with their
    evidence, the pending decisions and how each was taken, the defaults, the
    design fixes requested, the excluded frames, the assumptions and the
    dependencies line - and its one-line `summary`. Report every `fail`,
@@ -335,6 +364,7 @@ Hard rules, after confirm:
 - Visually verify every screen, section and asset at every drawn width.
 - Never stop to wait; reorder the work.
 - Done = zero fails, or listed as unresolved with evidence.
+- Layout is exact; a mismatch is drift or a converter bug, never tuned.
 
 ## What the questions mean
 
@@ -400,12 +430,15 @@ evidence and replaces the question it would otherwise take:
 - `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
   forbids it, and `viewTransitions: false` opts out of view transitions.
-- `figmaNodeIds: false` stops exports from writing `data-figma-node-id` on
-  the page, section, card and asset elements. The audit finds them by it, so
-  keep it on; it is an inert attribute, and Next's
-  `compiler.reactRemoveProperties: { properties: ["^data-figma-node-id$"] }`
-  drops it from a production build.
+- `figmaNodeIds: false` stops exports from writing `data-figma-node-id(s)`
+  on the page, section, card and asset elements. The audit finds them by
+  it, so keep it on. Production builds drop them through the Vite plugin
+  auditPlan writes beside vite.config (`vite build` strips them unless
+  `DEVUP_AUDIT=1`); on the `next` CLI use `compiler.reactRemoveProperties:
+  process.env.DEVUP_AUDIT === '1' ? false : { properties:
+  ['^data-figma-node-ids?$'] }`.
 - `maxFixAttempts` (default 3) is how many fix-and-rerun rounds a finding gets
   before it is unresolved.
+- Geometry has no tolerance to configure; it is exact.
 - `visualThresholds` sets the changed-pixel ratio the comparisons allow:
   `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.

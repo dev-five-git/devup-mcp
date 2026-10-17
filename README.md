@@ -1077,7 +1077,22 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 - `status`에 `auditPlanPath`·`auditReportPath`를 주면 모든 실패를 분류합니다: `runtime-error`, `overflow`, `layout-position`, `layout-size`, `asset-mismatch`(멀티컬러 SVG에 mask, 잘못된 파일, crop/objectFit 순으로 원인 제시), `section-visual`, `page-visual`, `interaction`, `view-transition` — 각각 Figma 노드, 코드 파일, 구체적인 수정 힌트를 담습니다. 반환된 `visualComparisons` 호출(`threshold`·`diffPath` 포함)을 돌리고 결과를 `visualResults`로 넘깁니다. 안티앨리어싱은 실패가 아닙니다: 바뀐 픽셀 비율 허용치가 페이지·섹션 3%, 에셋 5%이고, 설정 `visualThresholds`(`page`, `section`, `asset`, 노드별 `nodes`)로 조정합니다.
 - 같은 finding은 새 실행마다 한 번만 시도로 셉니다. `maxFixAttempts`(설정, 기본 3)번 고치고도 실패하면 스크린샷·diff 경로와 함께 `unresolved`로 기록하고 작업 큐에서 뺍니다. `workQueue`는 URL마다 build → audit → fix → compare 순이고 막힌 일은 뒤로 갑니다.
 - 확정 뒤 생긴 결정은 `action: "defer"`(`decision: {id, about, question, options, recommended, destructive}`)로 남기고 계속 일합니다. 마지막에 `assume`(`about`: 결정 id)으로 추천안을 택하고, 파괴적인 결정은 만들지 않은 채 보고서에 남습니다. 실행기를 설치할 수 없으면 `toolingUnavailable`로 그 URL의 audit를 inconclusive로 두고 계속합니다.
-- `status`의 `finalReport`: URL × 폭 표(health, geometry, page, section, asset, interaction, 스크린샷, diff), unresolved finding과 증거, 처리된 보류 결정, 가정, 디자인 수정 요청, 제외, 의존성 줄.
+- `status`의 `finalReport`: URL × 폭 표(health, geometry, drift / converter bugs, page, section, asset, interaction, 스크린샷, diff), converter bug와 repro 파일, unresolved finding과 증거, 처리된 보류 결정, 가정, 디자인 수정 요청, 제외, 의존성 줄.
+
+#### 레이아웃은 정확히 맞아야 한다
+
+Figma 프레임은 정적으로 변환되므로, 그려진 폭에서 크기·위치·padding·gap은 "대충 맞는가"가 아니라 맞거나 틀리거나입니다. 그래서 `bounds` 검사에는 설정 가능한 허용치가 없고 반올림 0.5px만 허용합니다(Chromium의 getBoundingClientRect는 1/64px LayoutUnit을 DPR 1에서 픽셀에 맞추지 않고 돌려주고, Figma의 소수 px는 변환기가 반올림해 씁니다). 계획된 폰트가 먼저 로드되므로 텍스트 박스도 정확해야 하며, 폰트가 없으면 레이아웃 실패가 아니라 환경 오류입니다. 이미지·픽셀 비교만 안티앨리어싱 임계값(페이지·섹션 3%, 에셋 5%)을 유지합니다. 그려진 폭 사이에는 디자인이 없으므로 health, 넘침, 포함, 잘린 텍스트, 내비만 봅니다.
+
+불일치는 승인하지 않고 원인으로 분류합니다. `projectRoot`가 있는 export는 노드마다 쓴 내용을 `.devup/exports/<노드>.json`에 기록하고, `status`가 실패한 요소의 코드를 그 기록과 비교합니다.
+
+- `code-drift`: export가 쓴 속성이 빠졌거나 바뀌었거나, export가 쓰지 않은 레이아웃 속성이 더해졌습니다(핸들러·hover 스타일·링크 추가는 drift가 아닙니다). 해법은 export 값 복원이며, 레이아웃을 손으로 조정하지 않습니다.
+- `converter-bug`: 코드가 export 그대로인데 브라우저 박스가 Figma와 다릅니다. devup-mcp 결함이므로 재현 정보(file key, node id, Figma 박스, DOM 박스, 생성된 props, sourceMap 항목)를 `.devup/converter-bugs/<노드>.json`에 쓰고 `converterBugs`와 최종 보고서에 남깁니다. 결정적인 결과라 재시도하지 않으며 `maxFixAttempts`도 쓰지 않습니다. 사이트를 마치려고 로컬 override를 둘 수는 있지만 repro 파일을 가리키는 주석이 있어야 합니다.
+
+폭마다 프레임이 따로 있는 페이지를 `responsiveTsx`로 합치면 각 요소가 `data-figma-node-id`(가장 넓은 폭의 노드)와 `data-figma-node-ids="1440:12:34 390:56:78"`(그려진 폭마다 `폭:노드`, 공백 구분, `[data-figma-node-ids~="390:56:78"]`로 선택)를 가집니다. audit 계획은 폭마다 그 id로 섹션·카드·에셋을 찾고, 어떤 폭에서 그리지 않은 요소는 그 폭에서 숨겨져 있는지(`hidden` 검사) 확인합니다.
+
+동적 라우트(`[slug]`, `[id]`, catch-all)는 `notAudited`로 넘기지 않고 실제 URL로 검사합니다: 라우트의 `generateStaticParams`(리터럴, 또는 읽는 로컬 데이터 파일) → 이미 검사한 페이지의 `a[href]`(실행기가 페이지마다 모으고 다음 `auditPlan`이 사용) → 매핑된 Figma 상세 프레임의 제목으로 만든 샘플(가정으로 기록) 순서이며, 10개 이하면 전부 검사합니다. 셋 다 없을 때만 이유와 함께 `notAudited`입니다.
+
+`data-figma-node-id(s)`는 프로덕션에 남지 않습니다. vinext와 devup-ui Vite 플러그인에는 속성을 지우는 옵션이 없어서, `auditPlan`이 각 앱의 vite.config 옆에 작은 Vite 플러그인(`vite-plugin-strip-figma-node-ids.mjs`)을 둡니다. `enforce: 'pre'`, `apply`가 `vite build`일 때만이며 `DEVUP_AUDIT=1`이면 남깁니다. Rolldown은 transform 훅 뒤에 TSX/JSX를 변환하므로 이 단계에서는 속성이 그대로 JSX 텍스트입니다. `plugins: [stripFigmaNodeIds(), vinext()]`로 연결하고, audit는 dev 서버나 `DEVUP_AUDIT=1 bun run build`로 돌리며, 제출 체크리스트는 빌드 출력에서 `grep -rl data-figma-node-id dist`가 아무것도 찾지 않아야 통과합니다. `next` CLI에서는 `compiler.reactRemoveProperties`를 씁니다.
 
 최신 스택이 기본입니다: Next App Router를 vinext(Vite)로 실행하고, bun workspaces(`apps/*`), devup-ui, oxlint(eslint-plugin-devup), 최신 버전. `vinext` 의존성·`vinext` 스크립트·vinext를 import하는 `vite.config`가 있으면 `next` 의존성이 없어도 App Router 앱으로 보고, `devup_project_context`의 ui/routes가 앱별 `frameworks`를 알려 줍니다. 구현 전에는 묻지 않고 저장소 루트에서 `bunx @dependency-check-updates/cli -d -u --rm`(-d: 루트 아래 모든 manifest, -u: 복구 가능한 일괄 적용, --rm: 각 manifest 옆의 lockfile·설치 디렉터리 삭제 — Cargo.lock·target/ 포함) → `bun install` → build·lint·typecheck를 하고, 라이브러리 API는 기억이 아니라 현재 문서를 봅니다. 결과는 `assume`의 `dependencyUpdate`로 남기고 `status`에 dependencies 줄로 나옵니다. 앱이 없으면 `dev-five-git/service-template`에서 시작하고(이름·구성만 질문), `next` CLI 프로젝트에는 "Migrate to vinext (Recommended) / Keep next"를 한 번 묻습니다. 설정 파일의 `framework`·`updateDependencies: false`로 미리 답할 수 있습니다.
 

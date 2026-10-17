@@ -37,20 +37,24 @@ and the devup-implementation-plan skill for its rules:
 9. `devup_screen_plan` auditPlan with baseUrl and every export artifactId:
    one audit plan per URL - health and overflow at every width; page,
    sections and assets against their Figma renders, and their size and
-   position, at the drawn widths; hover, focus; a view-transition check last.
+   position exactly (0.5px rounding, no tolerance), at the drawn widths;
+   merged pages per width; dynamic routes at concrete URLs; hover, focus; a
+   view-transition check last.
    Export what missingReferences names and run auditPlan again.
 10. URL by URL: run the plan (a `devup_runtime_audit` plan, with the runner
     auditPlan wrote), `devup_screen_plan` status with auditPlanPath
     and auditReportPath, run every visualComparisons call and pass the
     results as visualResults, fix each finding by its class and fix hint in
-    workQueue order, re-run. After maxFixAttempts (default 3) a finding is
-    unresolved with its evidence. No runner: toolingUnavailable, carry on.
+    workQueue order, re-run. A geometry mismatch is code-drift (restore the
+    export) or converter-bug (repro filed, never retried). After
+    maxFixAttempts (default 3) a finding is unresolved with its evidence. No runner: toolingUnavailable, carry on.
 11. Never stop to wait: a decision mid-run goes to `devup_screen_plan` defer
     with the recommended option; take it with assume at the end (a
     destructive one stays unbuilt).
 12. Done = zero fails at the drawn widths and no health or overflow fail at
-    any width, or listed as unresolved with evidence. Also every URL
-    implemented, `bun run build`, `bun run lint`, `bunx oxlint
+    any width, or a filed converter bug, or listed as unresolved with
+    evidence. Also every URL implemented, no data-figma-node-id in the
+    production build (strip plugin in vite.config, grep the output), `bun run build`, `bun run lint`, `bunx oxlint
     --deny-warnings`, `bun tsc --noEmit` in each changed app and `bun test`
     pass (`bun run test` adds cargo tarpaulin, which does not work on
     Windows), devup_ui_validate has no errors, site completeness filled.
