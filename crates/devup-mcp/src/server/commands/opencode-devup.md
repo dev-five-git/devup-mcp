@@ -34,14 +34,24 @@ and the devup-implementation-plan skill for its rules:
    transitions by the plan's mechanism, metadata with openGraph, lang, alt
    text, image sizes, a not-found page. Validate with `devup_ui_validate`
    and projectRoot. Record anything new with `devup_screen_plan` assume.
-9. `devup_runtime_audit` plan at 1440, 1100, 858 and 390 with one
-   view-transition check (follow a link between two routes), run it, ingest.
-   A failed view-transition check is a bug to fix.
-10. `devup_screen_plan` status with the audit plan and report.
-11. Pass the submission checklist: every URL implemented, `bun run build`,
-    `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit` in each
-    changed app and `bun test` pass (`bun run test` adds cargo tarpaulin,
-    which does not work on Windows), devup_ui_validate has no errors, the audit shows no page
-    error or overflow at any width, site completeness filled. Fix and re-run
-    until it holds; do not stop to ask.
-12. Finish with the status markdownTable and summary.
+9. `devup_screen_plan` auditPlan with baseUrl and every export artifactId:
+   one audit plan per URL - health and overflow at every width; page,
+   sections and assets against their Figma renders, and their size and
+   position, at the drawn widths; hover, focus; a view-transition check last.
+   Export what missingReferences names and run auditPlan again.
+10. URL by URL: run the plan (a `devup_runtime_audit` plan, with the runner
+    auditPlan wrote), `devup_screen_plan` status with auditPlanPath
+    and auditReportPath, run every visualComparisons call and pass the
+    results as visualResults, fix each finding by its class and fix hint in
+    workQueue order, re-run. After maxFixAttempts (default 3) a finding is
+    unresolved with its evidence. No runner: toolingUnavailable, carry on.
+11. Never stop to wait: a decision mid-run goes to `devup_screen_plan` defer
+    with the recommended option; take it with assume at the end (a
+    destructive one stays unbuilt).
+12. Done = zero fails at the drawn widths and no health or overflow fail at
+    any width, or listed as unresolved with evidence. Also every URL
+    implemented, `bun run build`, `bun run lint`, `bunx oxlint
+    --deny-warnings`, `bun tsc --noEmit` in each changed app and `bun test`
+    pass (`bun run test` adds cargo tarpaulin, which does not work on
+    Windows), devup_ui_validate has no errors, site completeness filled.
+13. Finish with the status finalReport and summary.

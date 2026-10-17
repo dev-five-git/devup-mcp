@@ -215,7 +215,7 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
         "devup_project_context",
         "devup_screen_plan",
         "devup_runtime_audit",
-        "markdownTable",
+        "finalReport",
     ] {
         assert!(text.contains(step), "{step} missing from the command");
     }

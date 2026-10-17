@@ -87,9 +87,11 @@ So the order is fixed, and none of it is optional.
   the console), its routes (sign-in, dashboard) and the frames' own names
   (Home, About, 회사소개 vs Admin, 관리자, 회원관리, 대시보드). When the
   evidence points one way it takes that app without asking and records why in
-  `defaults`; a file with both maps each screen to its app (the route table's
-  `app` column) and asks only about screens of unclear side; only frames that
-  say nothing either way are asked once, recommending the public app.
+  `defaults`. The bias is the public app unless there is clear admin
+  evidence: a file with both maps admin screens to the console and every other
+  screen to the public app (the route table's `app` column), and frames that
+  say nothing either way go to the public app too. Only when no app looks like
+  the public site is the app asked.
 - **Never invent a route.** A route comes from an existing page built from the
   frame, a nav link already bound to an href, an explicit `navigationTargets`
   entry, the project's `routeAliases`, or the user's answer. A route inferred
@@ -168,10 +170,10 @@ navigate.
   devup-ui `viewTransitionName` prop, a per-record name on `<ViewTransition
   name>` (devup-ui extracts style props at build time, so a runtime name
   cannot be a style prop).
-- **Verify it, do not doubt it.** The runtime audit plan gets one
-  `view-transition` check: on a screen with a link to another route, `{"kind":
-  "view-transition", "subject": <that link>}`. The executor follows the link
-  and passes only when a view transition ran (`document.startViewTransition`
+- **Verify it, do not doubt it.** auditPlan gives each URL one
+  `view-transition` check following its link to the next URL, placed after
+  every other check (the executor also returns to the URL afterwards). It
+  passes only when a view transition ran (`document.startViewTransition`
   called, or a cross-document `pagereveal` carrying one). A failure is a bug to
   fix and re-run, not an assumption. `experimental.viewTransition` goes into
   the next config only if that check fails without it (vinext's own example
@@ -252,16 +254,64 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
    it is never built, and no assumption changes that.
-7. **Run the runtime audit.** `devup_runtime_audit` `plan` with every confirmed
-   URL as a screen (`routePath`) at the default widths (1440, 1100, 858, 390),
-   each with a `no-horizontal-overflow` check, and one `view-transition` check
-   following a link between two routes; run the executor in the project, then
-   `ingest` the report.
-8. **Read the status.** Call `devup_screen_plan` with `action: "status"`,
-   `projectRoot`, `auditPlanPath` and `auditReportPath`. A width without an
-   audit item is `not-run`, never `pass`.
-9. **Pass the submission checklist.** Before reporting done, every item
-   holds - fix and re-run until it does, without stopping to ask:
+7. **Plan the audit.** `devup_screen_plan` `action: "auditPlan"` with
+   `projectRoot`, `baseUrl` (default `http://localhost:3000`) and `artifacts`:
+   every `devup_figma_export` artifactId you hold for the plan's frames. It
+   writes one runtime-audit plan per URL under `.devup/runtime-audit/<slug>/`
+   and the runner once under `.devup/runtime-audit/runner/`. Each plan checks,
+   at every width plus each drawn width (its viewport as tall as the frame):
+   page health (no page error, console error, error-boundary text, overflow
+   or clipped text), and at the drawn widths the page against its
+   referencePng, every section and asset against its own Figma render, and
+   the size and position of every section, card and asset. Hover and focus
+   sweep every link and button; one view-transition check follows a link to
+   the next URL - placed last by code, so check order cannot break a run.
+   `missingReferences` lists every referencePng, native render or frame
+   export it lacks, with the export call that makes it: make them and run
+   auditPlan again. Nothing is skipped silently.
+8. **Run it, URL by URL.** In the runner, `npm ci`, `npx playwright install
+   chromium`, then `node run.mjs --plan <planPath> --out <reportDirectory>`
+   with the app running. If the runner cannot be installed, call status with
+   `auditPlanPath` and `toolingUnavailable: "<why>"`: that URL's audit is
+   inconclusive and the rest of the work goes on.
+9. **Read the status, fix, re-run.** `devup_screen_plan` `action: "status"`
+   with `auditPlanPath` and `auditReportPath`. Run every `visualComparisons`
+   call (`devup_visual_compare`, each with its `threshold` and `diffPath`)
+   and pass the results back as `visualResults` (`id`, `verdict`,
+   `changedRatio`, `diffPath`). Every failure comes back as a finding with
+   its class, Figma node, code file and fix hint:
+
+   | class | what failed | first step |
+   | --- | --- | --- |
+   | `runtime-error` | the page threw, logged an error or showed an error page | read the first error; fix the component or the data state |
+   | `overflow` | content wider than the viewport, or text cut off by its box | `maxW="100%"`, wrap or `minW={0}`; let the box grow |
+   | `layout-position` | a box in the wrong place, a card out of order | the parent's gap, padding, alignment and child order |
+   | `layout-size` | a box of the wrong size | fixed, fill or hug as in Figma; aspect ratio |
+   | `asset-mismatch` | an asset differs from its Figma render | a mask on a multi-colour SVG (use `<Image>`), the wrong file, crop or objectFit |
+   | `section-visual` | a section differs from its render | the diff PNG's highlighted area: font, background, spacing |
+   | `page-visual` | the page differs from its frame | fix sections first; then page background and section spacing |
+   | `interaction` | hover or focus changes nothing | the role's recipe from the defaults, and `_focusVisible` |
+   | `view-transition` | no transition ran on the navigation | `<ViewTransition>` around routed content, framework `Link` |
+
+   Fix every finding and re-run the URL, in the `workQueue` order. Anti-
+   aliasing does not fail: comparisons allow 3% changed pixels for a page or
+   section and 5% for an asset, and `.devup/screen-plan.config.json`
+   `visualThresholds` tunes them (`page`, `section`, `asset`, or `nodes`
+   keyed by node id for one asset) - raise one only for edge noise you have
+   looked at in its diff, never to pass a wrong shape. After
+   `maxFixAttempts` (default 3) fix-and-rerun rounds a finding is recorded as
+   `unresolved` with its screenshot and diff, and leaves the queue.
+10. **Never stop to wait; reorder the work.** A decision the work needs after
+   confirm goes to `action: "defer"` (`decision: {id, about, question,
+   options, recommended, destructive}`). Keep working: items it blocks move to
+   the back of their URL's queue. When everything else is done, take each one
+   with `assume` (`about`: the decision id, `decision`: the recommended
+   option). A destructive one (deleting, overwriting, reaching outside the
+   project) stays unbuilt and is listed in the report.
+11. **Done means zero fails.** A URL is done when every check and comparison
+   passes at its drawn widths and health and overflow pass at every width -
+   or when each remaining finding is listed as unresolved with its evidence.
+   Before reporting done, also:
 
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
@@ -271,21 +321,20 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
      test` also runs `cargo tarpaulin` afterwards, which does not work on
      Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
-   - the runtime audit at every width shows no page error and no horizontal
-     overflow, and its view-transition check passes;
-   - the site completeness block is filled;
-   - the final table `URL | Figma screen | file | status | widths verified |
-     screenshots` is there, with the assumptions, the design fixes requested and
-     the excluded frames.
-10. **Finish with the table.** End your reply with the `markdownTable` from
-   status - `URL | Figma screen | file | status | widths verified |
-   screenshots`, followed by the site completeness block, the defaults filled
-   in, the design fixes requested, the excluded frames and the assumptions
-   made during implementation - and
-   its one-line `summary`, such as
-   `7 URLs: 5 implemented, 3 verified at all widths, /about overflows at 390`.
-   Report every `fail`, `not-run` and assumption as what it is. Do not call the
-   work done while a URL is not implemented or a width fails.
+   - the site completeness block is filled.
+12. **Finish with the final report.** End your reply with status's
+   `finalReport`: the URL x width table (health, geometry, page, section,
+   asset, interaction, screenshot, diffs), the unresolved findings with their
+   evidence, the pending decisions and how each was taken, the defaults, the
+   design fixes requested, the excluded frames, the assumptions and the
+   dependencies line - and its one-line `summary`. Report every `fail`,
+   `not-run`, unresolved finding and assumption as what it is.
+
+Hard rules, after confirm:
+
+- Visually verify every screen, section and asset at every drawn width.
+- Never stop to wait; reorder the work.
+- Done = zero fails, or listed as unresolved with evidence.
 
 ## What the questions mean
 
@@ -330,7 +379,9 @@ evidence and replaces the question it would otherwise take:
   "siteUrl": "https://prime.example",
   "motion": "none",
   "framework": "vinext",
-  "updateDependencies": true
+  "updateDependencies": true,
+  "maxFixAttempts": 3,
+  "visualThresholds": { "asset": 0.05 }
 }
 ```
 
@@ -349,3 +400,12 @@ evidence and replaces the question it would otherwise take:
 - `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
   forbids it, and `viewTransitions: false` opts out of view transitions.
+- `figmaNodeIds: false` stops exports from writing `data-figma-node-id` on
+  the page, section, card and asset elements. The audit finds them by it, so
+  keep it on; it is an inert attribute, and Next's
+  `compiler.reactRemoveProperties: { properties: ["^data-figma-node-id$"] }`
+  drops it from a production build.
+- `maxFixAttempts` (default 3) is how many fix-and-rerun rounds a finding gets
+  before it is unresolved.
+- `visualThresholds` sets the changed-pixel ratio the comparisons allow:
+  `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.

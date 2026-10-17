@@ -40,7 +40,7 @@ pub const INSTRUCTIONS: &str = concat!(
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
     "2c. Building pages or a site from Figma (a Section, several frames): follow skill ",
-    "devup-implementation-plan even without /devup - devup_screen_plan first, linked scope, all questions up front.\n",
+    "devup-implementation-plan even without /devup - devup_screen_plan first, all questions up front, then never wait; audit every width (rule 16).\n",
     "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
     "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );
@@ -246,6 +246,20 @@ at the repository root, then `bun install`, build, lint and typecheck, and
 checks current docs before using a library API - API knowledge from memory is
 assumed stale. A new project starts from `dev-five-git/service-template`; one
 on the `next` CLI is asked once whether to migrate.
+
+## 16. Visual verification of everything, full autonomy
+
+Visually verify every screen, section and asset at every drawn width.
+`devup_screen_plan` `auditPlan` writes one runtime-audit plan per URL: page
+health, overflow and clipped text at every width; the page, each section and
+each asset against its Figma render, and the size and position of each
+section, card and asset, at the drawn widths; hover, focus and a view
+transition, ordered by code. `status` classifies each failure (runtime-error,
+overflow, layout-position, layout-size, asset-mismatch, section-visual,
+page-visual, interaction, view-transition) with its node, file and fix hint.
+Never stop to wait; reorder the work: a decision after confirm goes to
+`defer` and is taken with `assume` at the end. Done = zero fails, or listed as
+unresolved with evidence after `maxFixAttempts`.
 "#;
 
 #[cfg(test)]

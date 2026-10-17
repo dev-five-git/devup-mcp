@@ -30,8 +30,8 @@ the full rules; these are the steps.
    tokens the code must use) and `scope: "routes"` (the pages that exist, and
    `frameworks`: which app runs on vinext or next). No app yet: the plan
    starts from `dev-five-git/service-template`. With several apps the plan
-   picks the one the frames are for by meaning - the public site for
-   marketing screens, `apps/admin` only for admin screens.
+   picks the one the frames are for by meaning - the public site unless the
+   frames clearly say admin.
 4. **Screen plan.** `devup_screen_plan` with `action: "draft"`, `projectRoot`,
    the link, the notes and `extraQuestions` - every question you would
    otherwise have to guess at any point in the job (form target, contact
@@ -71,30 +71,34 @@ the full rules; these are the steps.
    `devup_ui_validate` with `projectRoot` on what you wrote. Anything new:
    take the recommended or most conservative option and record it with
    `action: "assume"`.
-9. **Runtime audit.** `devup_runtime_audit` `plan` with every confirmed URL at
-   1440, 1100, 858 and 390 and one `view-transition` check (follow a link
-   between two routes; it fails when no transition ran - a bug to fix), run
-   the executor in the project, then `ingest`.
-10. **Status.** `devup_screen_plan` with `action: "status"`, `auditPlanPath`
-   and `auditReportPath`.
-11. **Submission checklist.** Before reporting done, every item holds - fix
-    and re-run until it does, without stopping to ask:
+9. **Audit plan.** `devup_screen_plan` with `action: "auditPlan"`,
+   `baseUrl` and `artifacts` (every export artifactId of the plan's frames).
+   One plan per URL: health, overflow and clipped text at every width; the
+   page, each section and each asset against its Figma render and the size
+   and position of each section, card and asset at the drawn widths; hover
+   and focus; a view-transition check, last. Export whatever
+   `missingReferences` names and run auditPlan again.
+10. **Run, status, fix - URL by URL.** Run each plan with the runner it wrote,
+   then `action: "status"` with `auditPlanPath` and `auditReportPath`. Run
+   every `visualComparisons` call and pass the results back as
+   `visualResults`. Fix each finding (its class, node, file and fix hint) in
+   `workQueue` order and re-run. After `maxFixAttempts` (default 3) a finding
+   is unresolved with its evidence. Runner cannot install:
+   `toolingUnavailable`, and carry on.
+11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
+    recommended option, keep working, take it with `assume` at the end; a
+    destructive one stays unbuilt.
+12. **Done = zero fails.** Every check and comparison passes at the drawn
+    widths and health and overflow pass at every width, or each remaining
+    finding is unresolved with evidence. Also: every URL implemented, `bun run
+    build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
+    per changed app, `bun test` (on Windows `bun test` and `cargo test`),
+    `devup_ui_validate` without errors, site completeness filled.
+13. **Final report.** End with status's `finalReport` and `summary`: URL x
+    width (health, geometry, page, section, asset, interaction, screenshot,
+    diffs), unresolved findings with evidence, pending decisions taken,
+    assumptions, design fixes, exclusions, defaults and the dependencies line.
 
-    - every confirmed URL is implemented;
-    - the build passes: `bun run build` (`vinext build` for every app);
-    - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt
-      and check, then oxlint), `bunx oxlint --deny-warnings`, and `bun tsc
-      --noEmit` inside each app you changed (TS 7); `bun test` passes. `bun run
-      test` also runs `cargo tarpaulin` afterwards, which does not work on
-      Windows - there, run `bun test` and `cargo test`;
-    - `devup_ui_validate` reports no errors;
-    - the runtime audit at every width shows no page error and no horizontal
-      overflow, and its view-transition check passes;
-    - the site completeness block is filled;
-    - the final table `URL | Figma screen | file | status | widths verified |
-      screenshots` is there, with the assumptions, the design fixes requested and
-      the excluded frames.
-12. **Final table.** End with the status `markdownTable` and `summary`: URL |
-    Figma screen | file | status | widths verified | screenshots, then site
-    completeness, design fixes requested, excluded frames, the defaults filled
-    in and every assumption.
+Hard rules: visually verify every screen, section and asset at every drawn
+width; never stop to wait, reorder the work; done = zero fails, or listed as
+unresolved with evidence.
