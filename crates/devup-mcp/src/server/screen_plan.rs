@@ -308,6 +308,27 @@ pub(super) struct PlanConfig {
     /// false opts the project out of view transitions.
     #[serde(default)]
     pub view_transitions: Option<bool>,
+    /// false stops exports into this project from writing
+    /// data-figma-node-id on the page, section and asset elements.
+    #[serde(default)]
+    pub figma_node_ids: Option<bool>,
+    /// How many fix-and-rerun rounds one audit finding gets before it is
+    /// recorded as unresolved with its evidence; default 3.
+    #[serde(default)]
+    pub max_fix_attempts: Option<u32>,
+}
+
+/// Whether exports into this project mark their elements with
+/// data-figma-node-id: on unless the project config says false. An
+/// unreadable config leaves it on; draft reports the config error.
+pub(super) fn node_ids_enabled(project_root: &str) -> bool {
+    !matches!(
+        read_config(project_root),
+        Ok(Some(PlanConfig {
+            figma_node_ids: Some(false),
+            ..
+        }))
+    )
 }
 
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {

@@ -29,7 +29,9 @@ const SCHEMA_VERSION: u64 = 1;
 const MAX_VIEWPORTS: usize = 8;
 const MAX_SCREENS: usize = 60;
 const MAX_STEPS: usize = 20;
-const MAX_CHECKS: usize = 40;
+// A full audit names a bounds, capture and health check per section and
+// asset, so a screen carries far more than a hand-written plan would.
+const MAX_CHECKS: usize = 200;
 const MAX_TIMEOUT_MS: u64 = 120_000;
 const MAX_VIEWPORT_SIDE: u32 = 4096;
 const MAX_TEXT: usize = 300;
@@ -213,8 +215,21 @@ pub struct CheckInput {
     /// a view transition ran (document.startViewTransition, or a
     /// cross-document pagereveal transition). It navigates away, so the
     /// executor runs it after the screen's other checks and screenshot; the
-    /// next screen should start from its own routePath.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition"]))]
+    /// next screen should start from its own routePath. The plan writer
+    /// moves it after the screen's other checks and the executor returns to
+    /// the screen's URL after it, so order in the plan cannot break a run.
+    /// page-health: no error page text ("This page couldn't load",
+    /// "Application error", ...), page error, console error or failed
+    /// navigation while the screen was open.
+    /// bounds: subject's size and position relative to container's top-left,
+    /// in CSS px, against `expected` (the Figma geometry) within tolerancePx.
+    /// no-clipped-text: no text inside subject (or the page) is cut off by an
+    /// overflow-hidden box; ellipsis and line clamp are intended and pass.
+    /// interaction: hovering or keyboard-focusing subject (`state`) changes
+    /// something visible; without a subject, every visible link and button.
+    /// capture: screenshot subject's element box for devup_visual_compare
+    /// against `reference`; ingest turns it into a ready call.
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -241,6 +256,47 @@ pub struct CheckInput {
     /// intermediate widths are never interpolated or inferred from screenshots.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub figma_dimensions: Vec<DimensionReferenceInput>,
+    /// bounds: the expected box relative to container, in CSS px.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected: Option<BoundsInput>,
+    /// interaction: hover or focus (keyboard, so :focus-visible applies).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("enum" = ["hover", "focus"]))]
+    pub state: Option<String>,
+    /// Only at these viewport widths; empty means every width. A bounds or
+    /// capture check holds Figma geometry, which exists only where the frame
+    /// was drawn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widths: Vec<u32>,
+    /// The Figma node this check is about, so a failure names it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    /// capture: what the element screenshot is compared with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<CaptureReferenceInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct BoundsInput {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// A native-node PNG of the same Figma node, captured by devup_figma_export
+/// (assetCaptures, renderMode node, format png, scale 1).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct CaptureReferenceInput {
+    /// section: a top-level child of the frame. asset: an image or icon.
+    #[schemars(extend("enum" = ["section", "asset"]))]
+    pub scope: String,
+    pub artifact_id: String,
+    pub asset_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -269,6 +325,21 @@ pub struct ReadinessInput {
 pub struct FigmaAnchorInput {
     pub node_id: String,
     pub drawn_widths: Vec<u32>,
+    /// The frame drawn at each width when a page has one per width, with
+    /// the devup_figma_export artifact holding its referencePng. Ingest puts
+    /// that artifactId in the page comparison it returns.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frames: Vec<FrameReferenceInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct FrameReferenceInput {
+    pub width: u32,
+    pub node_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_id: Option<String>,
 }
 
 fn invalid(message: impl Into<String>) -> DevupError {
@@ -527,8 +598,53 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         Ok(())
     };
     match check.kind.as_str() {
-        "no-horizontal-overflow" => needs(false, false)?,
+        "no-horizontal-overflow" | "page-health" => needs(false, false)?,
         "visible" | "view-transition" => needs(true, false)?,
+        "no-clipped-text" => {
+            if check.container.is_some() {
+                return Err(invalid("A no-clipped-text check takes no container."));
+            }
+        }
+        "bounds" => {
+            needs(true, true)?;
+            let Some(expected) = &check.expected else {
+                return Err(invalid(
+                    "A bounds check needs expected {x, y, width, height}.",
+                ));
+            };
+            if [expected.x, expected.y, expected.width, expected.height]
+                .iter()
+                .any(|value| !value.is_finite() || value.abs() > 100_000.0)
+                || expected.width < 0.0
+                || expected.height < 0.0
+            {
+                return Err(invalid(
+                    "bounds expected values must be finite px, width and height nonnegative.",
+                ));
+            }
+        }
+        "interaction" => {
+            // Without a subject it sweeps every visible link and button.
+            if check.container.is_some() {
+                return Err(invalid("An interaction check takes no container."));
+            }
+            if !matches!(check.state.as_deref(), Some("hover" | "focus")) {
+                return Err(invalid("An interaction check needs state hover or focus."));
+            }
+        }
+        "capture" => {
+            needs(true, false)?;
+            let Some(reference) = &check.reference else {
+                return Err(invalid(
+                    "A capture check needs reference {scope, artifactId, assetId}.",
+                ));
+            };
+            if !matches!(reference.scope.as_str(), "section" | "asset") {
+                return Err(invalid("capture reference.scope must be section or asset."));
+            }
+            bounded_text("reference.artifactId", &reference.artifact_id)?;
+            bounded_text("reference.assetId", &reference.asset_id)?;
+        }
         "dimensions" => {
             needs(true, false)?;
             if check.tolerance_px.is_none()
@@ -550,6 +666,18 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
             }
         }
         other => return Err(invalid(format!("Unknown check kind {other}."))),
+    }
+    for (field, present, kind) in [
+        ("expected", check.expected.is_some(), "bounds"),
+        ("state", check.state.is_some(), "interaction"),
+        ("reference", check.reference.is_some(), "capture"),
+    ] {
+        if present && check.kind != kind {
+            return Err(invalid(format!("{field} is only valid for {kind} checks.")));
+        }
+    }
+    if let Some(node_id) = &check.node_id {
+        bounded_text("checks[].nodeId", node_id)?;
     }
     if check.kind != "dimensions" && !check.figma_dimensions.is_empty() {
         return Err(invalid(
@@ -675,15 +803,28 @@ async fn dimension_references(input: &PlanInput, artifacts: &ArtifactStore) -> V
 }
 
 pub(crate) async fn create_plan(
-    input: PlanInput,
+    mut input: PlanInput,
     policy: &OutputPolicy,
     output_path: Option<&str>,
     template_path: Option<&str>,
     artifacts: &ArtifactStore,
 ) -> Result<Value, DevupError> {
+    order_checks(&mut input);
     validate_plan(&input)?;
     let references = dimension_references(&input, artifacts).await;
     write_plan(input, policy, output_path, template_path, references)
+}
+
+/// A view-transition check clicks away from its screen, so every one moves
+/// behind the screen's other checks, keeping their order otherwise. The
+/// executor also returns to the screen's URL after it; together a plan
+/// cannot measure the wrong page whatever order it was written in.
+pub(crate) fn order_checks(input: &mut PlanInput) {
+    for screen in &mut input.screens {
+        screen
+            .checks
+            .sort_by_key(|check| check.kind == "view-transition");
+    }
 }
 
 fn write_plan(
@@ -1889,6 +2030,71 @@ mod tests {
             "{}",
             error.message
         );
+    }
+
+    #[test]
+    fn the_new_check_kinds_take_what_they_measure() {
+        let ok = |check: Value| {
+            let mut plan = plan_input();
+            plan.screens[0]
+                .checks
+                .push(serde_json::from_value(check).unwrap());
+            validate_plan(&plan).map_err(|error| error.message)
+        };
+        let node = |id: &str| json!({"css": format!("[data-figma-node-id=\"{id}\"]")});
+        assert!(ok(json!({"kind": "page-health"})).is_ok());
+        assert!(ok(json!({"kind": "no-clipped-text"})).is_ok());
+        assert!(ok(json!({"kind": "interaction", "state": "hover"})).is_ok());
+        assert!(
+            ok(
+                json!({"kind": "bounds", "subject": node("1:2"), "container": node("1:1"),
+            "expected": {"x": 0, "y": 0, "width": 10, "height": 10}, "widths": [1440]})
+            )
+            .is_ok()
+        );
+        assert!(
+            ok(json!({"kind": "capture", "subject": node("1:2"),
+            "reference": {"scope": "asset", "artifactId": "a", "assetId": "b"}}))
+            .is_ok()
+        );
+        assert!(
+            ok(json!({"kind": "bounds", "subject": node("1:2"), "container": node("1:1")}))
+                .unwrap_err()
+                .contains("expected")
+        );
+        assert!(
+            ok(json!({"kind": "interaction"}))
+                .unwrap_err()
+                .contains("hover or focus")
+        );
+        assert!(
+            ok(json!({"kind": "capture", "subject": node("1:2")}))
+                .unwrap_err()
+                .contains("reference")
+        );
+        assert!(
+            ok(json!({"kind": "visible", "subject": node("1:2"), "state": "hover"}))
+                .unwrap_err()
+                .contains("only valid for interaction")
+        );
+    }
+
+    #[test]
+    fn view_transition_checks_move_behind_the_rest_of_their_screen() {
+        let mut plan = plan_input();
+        plan.screens[0].checks = serde_json::from_value(json!([
+            {"kind": "view-transition", "subject": {"testId": "go"}, "label": "vt"},
+            {"kind": "page-health", "label": "health"},
+            {"kind": "no-horizontal-overflow", "label": "overflow"},
+        ]))
+        .unwrap();
+        order_checks(&mut plan);
+        let labels = plan.screens[0]
+            .checks
+            .iter()
+            .map(|check| check.label.clone().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["health", "overflow", "vt"]);
     }
 
     #[test]

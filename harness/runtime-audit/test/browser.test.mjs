@@ -256,3 +256,60 @@ test('a view-transition check sees same-document and cross-document transitions,
     await rm(out, { recursive: true, force: true });
   }
 });
+
+test('page health, bounds, clipped text, interaction states and captures in a real browser', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-kinds-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const node = (id) => ({ css: `[data-figma-node-id="${id}"]` });
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-kinds',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1200, height: 800, deviceScaleFactor: 1 }, { width: 800, height: 800, deviceScaleFactor: 1 }],
+        screens: [
+          { id: 'layout', routePath: '/layout.html', checks: [
+            { kind: 'page-health', label: 'health' },
+            { kind: 'bounds', label: 'card 1', subject: node('1:3'), container: node('1:2'), expected: { x: 20, y: 20, width: 160, height: 100 }, tolerancePx: 2 },
+            { kind: 'bounds', label: 'card 2', subject: node('1:4'), container: node('1:2'), expected: { x: 200, y: 20, width: 160, height: 100 }, tolerancePx: 2 },
+            { kind: 'no-clipped-text', label: 'text', subject: node('1:6') },
+            { kind: 'interaction', label: 'cta hover', state: 'hover', subject: { role: 'button', name: 'Send' } },
+            { kind: 'interaction', label: 'cta focus', state: 'focus', subject: { role: 'button', name: 'Send' } },
+            { kind: 'interaction', label: 'flat hover', state: 'hover', subject: { role: 'link', name: 'Plain link' } },
+            { kind: 'capture', label: 'icon', subject: node('1:5'), widths: [1200] },
+            { kind: 'interaction', label: 'sweep', state: 'hover' },
+          ] },
+          { id: 'broken', routePath: '/broken.html', checks: [{ kind: 'page-health', label: 'health' }] },
+        ],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const [wide, narrow] = report.runs;
+    const statuses = (screen) => Object.fromEntries(screen.checks.map((item) => [item.label, item.status]));
+    assert.deepEqual(statuses(wide.screens[0]), {
+      health: 'pass', 'card 1': 'pass', 'card 2': 'fail', text: 'fail',
+      'cta hover': 'pass', 'cta focus': 'pass', 'flat hover': 'fail', icon: 'pass', sweep: 'fail',
+    }, JSON.stringify(wide.screens[0].checks, null, 2));
+    const card = wide.screens[0].checks.find((item) => item.label === 'card 2');
+    assert.match(card.reason, /^position: /);
+    const sweep = wide.screens[0].checks.find((item) => item.label === 'sweep');
+    assert.match(sweep.reason, /nothing on 1 of 2: <a> "Plain link"/);
+    const icon = wide.screens[0].checks.find((item) => item.label === 'icon');
+    assert.ok(icon.screenshot.path.endsWith('-c7.png'));
+    assert.ok(!narrow.screens[0].checks.some((item) => item.label === 'icon'), 'a capture runs only at its widths');
+    assert.equal(statuses(wide.screens[1]).health, 'fail');
+    assert.match(wide.screens[1].checks[0].reason, /couldn't load/);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});

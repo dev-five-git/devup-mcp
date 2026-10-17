@@ -512,6 +512,10 @@ pub struct VisualCompareInput {
     /// Include the red diff PNG using the standard binary delivery limits.
     #[serde(default)]
     pub include_diff: bool,
+    /// Also write the diff PNG to this path under an allowed root, as the
+    /// evidence an audit finding cites.
+    #[serde(default)]
+    pub diff_path: Option<String>,
     #[serde(default = "default_delivery")]
     #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
     pub delivery: String,

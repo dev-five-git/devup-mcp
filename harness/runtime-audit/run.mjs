@@ -15,7 +15,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { evaluateCheck, evaluateDimensions, evaluateViewTransition, summarize } from './checks.mjs';
+import {
+  ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateCheck, evaluateClippedText, evaluateDimensions,
+  evaluateInteraction, evaluatePageHealth, evaluateViewTransition, summarize,
+} from './checks.mjs';
 
 const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
@@ -170,6 +173,79 @@ async function observeViewTransition(page, check, timeout) {
   return { subjectCount, supported, navigated, calls, from, to: new URL(page.url()).pathname };
 }
 
+// Text an element cuts off itself: overflow hidden or clipped past its box,
+// not an intended ellipsis or line clamp.
+async function clippedText(page, subject) {
+  const scope = subject ? locate(page, subject) : page.locator('body');
+  if ((await scope.count()) !== 1) return { clipped: [] };
+  return scope.evaluate((root) => {
+    const clipped = [];
+    for (const element of [root, ...root.querySelectorAll('*')]) {
+      if (clipped.length >= 10) break;
+      const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ');
+      if (!own) continue;
+      const style = getComputedStyle(element);
+      if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
+      const clips = (value) => value === 'hidden' || value === 'clip';
+      const wide = clips(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
+      const tall = clips(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+      if (wide || tall) clipped.push({ text: own.slice(0, 60), tag: element.tagName.toLowerCase() });
+    }
+    return { clipped };
+  });
+}
+
+async function stateStyles(locator) {
+  return locator.evaluate((element, properties) => {
+    const style = getComputedStyle(element);
+    return Object.fromEntries(properties.map((property) => [property, style[property]]));
+  }, STATE_PROPERTIES);
+}
+
+// Hover moves the mouse over the subject; focus sets keyboard modality first
+// so :focus-visible applies, as it does for a keyboard user. Both wait out
+// the shared transition before reading the styles.
+async function enterState(page, target, state, timeout) {
+  const before = await stateStyles(target);
+  if (state === 'focus') {
+    await page.keyboard.press('Shift');
+    await target.focus({ timeout });
+  } else {
+    await target.hover({ timeout });
+  }
+  await page.waitForTimeout(450);
+  const after = await stateStyles(target);
+  if (state === 'focus') await target.evaluate((element) => element.blur());
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(state === 'focus' ? 0 : 300);
+  return { before, after };
+}
+
+async function observeInteraction(page, check, timeout) {
+  if (!check.subject) {
+    const all = page.locator('a[href], button, [role="button"]');
+    const items = [];
+    const count = Math.min(await all.count(), 40);
+    for (let index = 0; index < count; index += 1) {
+      const target = all.nth(index);
+      if (!(await target.isVisible())) continue;
+      const box = await target.boundingBox();
+      if (!box || box.width === 0 || box.height === 0) continue;
+      const described = await target.evaluate((element) => ({
+        tag: element.tagName.toLowerCase(),
+        name: (element.getAttribute('aria-label') || element.textContent || '').trim().slice(0, 40),
+      }));
+      const states = await enterState(page, target, check.state, timeout).catch(() => null);
+      if (states) items.push({ ...described, ...states });
+    }
+    return { items };
+  }
+  const target = locate(page, check.subject);
+  const subjectCount = await target.count();
+  if (subjectCount !== 1) return { subjectCount };
+  return { subjectCount, ...(await enterState(page, target, check.state, timeout)) };
+}
+
 async function pageMetrics(page) {
   return page.evaluate(() => {
     const viewportWidth = window.innerWidth;
@@ -181,6 +257,19 @@ async function pageMetrics(page) {
       if (element.checkVisibility && !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
+      // Content inside a horizontal scroll container (a carousel) scrolls
+      // there; it is not page overflow. The container itself still counts.
+      let scroller = element.parentElement;
+      let inScroller = false;
+      while (scroller && scroller !== document.body) {
+        const overflowX = getComputedStyle(scroller).overflowX;
+        if (overflowX === 'auto' || overflowX === 'scroll') {
+          inScroller = true;
+          break;
+        }
+        scroller = scroller.parentElement;
+      }
+      if (inScroller) continue;
       const right = rect.right + window.scrollX;
       if (right > maxRight) {
         maxRight = right;
@@ -275,6 +364,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
     for (const screen of plan.screens) {
       const record = { id: screen.id, status: 'completed', checks: [] };
       run.screens.push(record);
+      const errorsAtStart = environmentErrors.length;
       const notMeasured = (status, reason) => {
         record.checks = screen.checks.map((check, index) => ({ index, kind: check.kind, label: check.label, status, reason, measured: {} }));
       };
@@ -326,11 +416,45 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
         // A view-transition check navigates away, so it runs after every
         // other check and the screenshot have seen this screen.
         if (check.kind === 'view-transition') continue;
+        if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
+        const item = { index, kind: check.kind, label: check.label };
+        if (check.kind === 'page-health') {
+          const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
+          const errors = environmentErrors
+            .slice(errorsAtStart)
+            .filter((error) => ['page-error', 'console-error', 'navigation-failed'].includes(error.kind));
+          record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.includes(needle)), errors }) });
+          continue;
+        }
+        if (check.kind === 'no-clipped-text') {
+          record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
+          continue;
+        }
+        if (check.kind === 'interaction') {
+          const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
+          record.checks.push({ ...item, ...(observed.error
+            ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
+            : evaluateInteraction(check, observed)) });
+          continue;
+        }
+        if (check.kind === 'capture') {
+          const target = locate(page, check.subject);
+          const count = await target.count();
+          if (count !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: count === 0 ? 'subject matched no element' : `subject matched ${count} elements; a check needs exactly one`, measured: {} });
+            continue;
+          }
+          const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-c${index}.png`;
+          const bytes = await target.screenshot({ animations: 'disabled', caret: 'hide' });
+          await writeFile(join(out, shot), bytes);
+          record.checks.push({ ...item, status: 'pass', reason: 'captured for the server to compare with its Figma render', measured: {}, screenshot: { path: shot, sha256: sha256(bytes), bytes: bytes.length } });
+          continue;
+        }
         const subject = await measureBox(page, check.subject, check.measure);
         const container = await measureBox(page, check.container);
         const result = subject.error
           ? { status: 'inconclusive', reason: subject.error, measured: {} }
-          : (check.kind === 'dimensions' ? evaluateDimensions : evaluateCheck)(check, {
+          : (check.kind === 'dimensions' ? evaluateDimensions : check.kind === 'bounds' ? evaluateBounds : evaluateCheck)(check, {
               page: metrics,
               subject: subject.box,
               subjectCount: subject.count,
@@ -351,6 +475,8 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
       for (const [index, check] of screen.checks.entries()) {
         if (check.kind !== 'view-transition') continue;
+        if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
+        const returnTo = page.url();
         const observed = await observeViewTransition(page, check, stepTimeout).catch((error) => ({
           subjectCount: 1, supported: true, navigated: false, calls: 0, error: String(error?.message ?? error),
         }));
@@ -358,6 +484,12 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
           ? { status: 'inconclusive', reason: `the subject could not be followed: ${observed.error.split('\n')[0]}`, measured: {} }
           : evaluateViewTransition(observed);
         record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+        // Back to where the check started, so a following screen reached by
+        // steps starts from this screen whatever order the plan has.
+        if (page.url() !== returnTo) {
+          await page.goto(returnTo, { waitUntil: 'load', timeout: stepTimeout }).catch(() => {});
+          await waitReady(page, plan, stepTimeout).catch(() => {});
+        }
       }
       record.checks.sort((a, b) => a.index - b.index);
     }

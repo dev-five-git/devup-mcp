@@ -4,6 +4,7 @@ mod component;
 mod evidence;
 mod image;
 mod layout;
+pub mod node_ids;
 mod property_derivations;
 pub(crate) use property_derivations::property_derivations;
 pub mod responsive;

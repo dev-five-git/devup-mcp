@@ -221,3 +221,52 @@ async fn an_export_confirms_a_project_that_already_has_the_token() -> anyhow::Re
     assert_eq!(tsx["ok"], true, "{tsx}");
     Ok(())
 }
+
+/// An export into a project marks the elements the runtime audit finds by
+/// Figma node; the project config turns it off, and an export with no
+/// project never writes it, so plugin-parity output stays byte-equal.
+#[tokio::test]
+async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-node-ids-{}", std::process::id()));
+    fs::create_dir_all(root.join(".devup"))?;
+    fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
+    let marked = r#"data-figma-node-id="3879:35481""#;
+    let result =
+        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy()}))
+            .await?;
+    assert!(
+        result["tsx"].as_str().unwrap_or_default().contains(marked),
+        "{}",
+        result["tsx"]
+    );
+    assert_eq!(
+        result["figmaNodeIds"]["root"], "3879:35481",
+        "{}",
+        result["figmaNodeIds"]
+    );
+
+    fs::write(
+        root.join(".devup/screen-plan.config.json"),
+        r#"{"figmaNodeIds": false}"#,
+    )?;
+    let result =
+        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy()}))
+            .await?;
+    assert!(
+        !result["tsx"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("data-figma-node-id")
+    );
+    assert!(result.get("figmaNodeIds").is_none());
+
+    let result = export(json!({"url": URL, "outputs": ["tsx"]})).await?;
+    assert!(
+        !result["tsx"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("data-figma-node-id")
+    );
+    let _ = fs::remove_dir_all(&root);
+    Ok(())
+}

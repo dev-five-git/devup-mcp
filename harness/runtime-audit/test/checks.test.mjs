@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluateCheck, evaluateDimensions, evaluateViewTransition, summarize } from '../checks.mjs';
+import {
+  STATE_PROPERTIES, evaluateBounds, evaluateCheck, evaluateClippedText, evaluateDimensions, evaluateInteraction,
+  evaluatePageHealth, evaluateViewTransition, summarize,
+} from '../checks.mjs';
 import { validateDimensionsPlan } from '../run.mjs';
 
 const page = { viewportWidth: 360, scrollWidth: 360, maxRight: 340, overflowHidden: false };
@@ -87,4 +90,46 @@ test('a view-transition check passes only when following the link ran one', () =
   assert.equal(evaluateViewTransition({ ...observed, navigated: false }).status, 'inconclusive');
   assert.equal(evaluateViewTransition({ ...observed, supported: false }).status, 'inconclusive');
   assert.equal(evaluateViewTransition({ subjectCount: 0 }).status, 'inconclusive');
+});
+
+test('page health fails on an error page, a page error or a console error', () => {
+  assert.equal(evaluatePageHealth({ errorTexts: [], errors: [] }).status, 'pass');
+  const broken = evaluatePageHealth({ errorTexts: ["This page couldn't load"], errors: [{ kind: 'page-error', message: 'boom\nstack' }] });
+  assert.equal(broken.status, 'fail');
+  assert.match(broken.reason, /couldn't load.*page-error: boom$/);
+});
+
+test('bounds judge position and size relative to the container', () => {
+  const container = box(100, 50, 600, 400);
+  const check = { kind: 'bounds', expected: { x: 20, y: 20, width: 160, height: 100 }, tolerancePx: 2 };
+  const at = (x, y, width, height) => ({ subjectCount: 1, containerCount: 1, subject: box(100 + x, 50 + y, width, height), container });
+  assert.equal(evaluateBounds(check, at(21, 19, 160, 100)).status, 'pass');
+  const moved = evaluateBounds(check, at(20, 80, 160, 100));
+  assert.equal(moved.status, 'fail');
+  assert.match(moved.reason, /^position: y off by 60px/);
+  assert.match(evaluateBounds(check, at(20, 20, 300, 100)).reason, /^size: width off by 140px/);
+  assert.equal(evaluateBounds(check, { ...at(0, 0, 1, 1), containerCount: 0 }).status, 'inconclusive');
+});
+
+test('clipped text fails; nothing clipped passes', () => {
+  assert.equal(evaluateClippedText({ clipped: [] }).status, 'pass');
+  assert.equal(evaluateClippedText({ clipped: [{ text: 'Long', tag: 'p' }] }).status, 'fail');
+});
+
+test('an interaction state passes only when something visible changes', () => {
+  const before = Object.fromEntries(STATE_PROPERTIES.map((property) => [property, 'a']));
+  assert.equal(evaluateInteraction({ state: 'hover' }, { subjectCount: 1, before, after: { ...before, color: 'b' } }).status, 'pass');
+  assert.equal(evaluateInteraction({ state: 'hover' }, { subjectCount: 1, before, after: before }).status, 'fail');
+});
+
+test('an interaction sweep fails on the links and buttons that change nothing', () => {
+  const before = Object.fromEntries(STATE_PROPERTIES.map((property) => [property, 'a']));
+  const items = [
+    { tag: 'a', name: 'Home', before, after: { ...before, color: 'b' } },
+    { tag: 'button', name: 'Send', before, after: before },
+  ];
+  const result = evaluateInteraction({ state: 'hover' }, { items });
+  assert.equal(result.status, 'fail');
+  assert.match(result.reason, /1 of 2: <button> "Send"/);
+  assert.equal(evaluateInteraction({ state: 'focus' }, { items: [items[0]] }).status, 'pass');
 });

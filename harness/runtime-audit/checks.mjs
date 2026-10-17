@@ -141,6 +141,113 @@ export function evaluateDimensions(check, measured, reference) {
   };
 }
 
+
+/** Text that only an error page shows. */
+export const ERROR_PAGE_TEXT = [
+  "This page couldn't load",
+  'This page couldn’t load',
+  'Application error',
+  'Unhandled Runtime Error',
+  'Internal Server Error',
+  'Something went wrong',
+];
+
+/**
+ * A page is healthy when it rendered without an error page, without uncaught
+ * or console errors and without a failed navigation since it was opened.
+ *
+ * @param {object} observed  { errorTexts, errors }
+ */
+export function evaluatePageHealth(observed) {
+  const problems = [
+    ...observed.errorTexts.map((text) => `the page shows "${text}"`),
+    ...observed.errors.map((error) => `${error.kind}: ${String(error.message).split('\n')[0]}`),
+  ];
+  return problems.length === 0
+    ? { status: 'pass', reason: 'no error page, page error, console error or failed navigation', measured: {} }
+    : { status: 'fail', reason: problems.slice(0, 5).join('; '), measured: { problems } };
+}
+
+/**
+ * Size and position of the subject relative to its container, against the
+ * Figma frame's own geometry (expected: { x, y, width, height } in CSS px,
+ * relative to the container's top-left).
+ */
+export function evaluateBounds(check, measured) {
+  const tolerance = check.tolerancePx ?? 2;
+  const subjectProblem = missing('subject', measured.subjectCount);
+  if (subjectProblem) return { status: 'inconclusive', reason: subjectProblem, measured: {} };
+  const containerProblem = missing('container', measured.containerCount);
+  if (containerProblem) return { status: 'inconclusive', reason: containerProblem, measured: {} };
+  const { subject, container } = measured;
+  const actual = {
+    x: subject.x - container.x,
+    y: subject.y - container.y,
+    width: subject.width,
+    height: subject.height,
+  };
+  const expected = check.expected;
+  const off = (key) => actual[key] - expected[key];
+  const position = ['x', 'y'].filter((key) => Math.abs(off(key)) > tolerance);
+  const size = ['width', 'height'].filter((key) => Math.abs(off(key)) > tolerance);
+  const evidence = { actual: rounded(actual), expected, tolerancePx: tolerance };
+  if (position.length === 0 && size.length === 0) {
+    return { status: 'pass', reason: 'size and position within tolerance', measured: evidence };
+  }
+  const parts = [
+    ...position.map((key) => `${key} off by ${round(off(key))}px`),
+    ...size.map((key) => `${key} off by ${round(off(key))}px`),
+  ];
+  return {
+    status: 'fail',
+    reason: `${position.length ? 'position' : 'size'}: ${parts.join(', ')}`,
+    measured: { ...evidence, positionOff: position, sizeOff: size },
+  };
+}
+
+/** Text cut off by its own box: clipped overflow, not an intended ellipsis or line clamp. */
+export function evaluateClippedText(observed) {
+  return observed.clipped.length === 0
+    ? { status: 'pass', reason: 'no text is cut off by its box', measured: {} }
+    : {
+        status: 'fail',
+        reason: `text is cut off: ${observed.clipped.slice(0, 3).map((item) => `"${item.text}" in <${item.tag}>`).join(', ')}`,
+        measured: { clipped: observed.clipped },
+      };
+}
+
+/** Computed style properties a hover or focus state changes. */
+export const STATE_PROPERTIES = [
+  'color', 'backgroundColor', 'borderColor', 'boxShadow', 'outlineStyle', 'outlineWidth',
+  'outlineColor', 'textDecorationLine', 'transform', 'opacity',
+];
+
+/**
+ * A hover or focus-visible state must change something visible. Without a
+ * subject the check swept every visible link and button: observed.items
+ * holds each one, and any that changes nothing fails the check.
+ */
+export function evaluateInteraction(check, observed) {
+  if (Array.isArray(observed.items)) {
+    const changes = (item) => STATE_PROPERTIES.some((property) => item.before[property] !== item.after[property]);
+    const flat = observed.items.filter((item) => !changes(item));
+    if (observed.items.length === 0) return { status: 'pass', reason: 'no links or buttons to check', measured: { checked: 0 } };
+    return flat.length === 0
+      ? { status: 'pass', reason: `${check.state} changes all ${observed.items.length} links and buttons`, measured: { checked: observed.items.length } }
+      : {
+          status: 'fail',
+          reason: `${check.state} changes nothing on ${flat.length} of ${observed.items.length}: ${flat.slice(0, 5).map((item) => `<${item.tag}> "${item.name}"`).join(', ')}`,
+          measured: { checked: observed.items.length, unchanged: flat.map((item) => ({ tag: item.tag, name: item.name })) },
+        };
+  }
+  const subjectProblem = missing('subject', observed.subjectCount);
+  if (subjectProblem) return { status: 'inconclusive', reason: subjectProblem, measured: {} };
+  const changed = STATE_PROPERTIES.filter((property) => observed.before[property] !== observed.after[property]);
+  return changed.length > 0
+    ? { status: 'pass', reason: `${check.state} changes ${changed.join(', ')}`, measured: { changed } }
+    : { status: 'fail', reason: `${check.state} changes nothing visible`, measured: { before: observed.before } };
+}
+
 /** Counts recomputed from items, never taken from a declaration. */
 /**
  * A view-transition check: following the subject link from one route to
