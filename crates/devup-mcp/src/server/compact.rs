@@ -192,6 +192,71 @@ pub fn outline(summary: &Value, options: &ResponseSelection) -> Value {
         "scanTruncated":summary["scanTruncated"],"missingCapturedNodes":summary["missingCapturedNodes"],"evidenceLimit":summary["evidenceLimit"]})
 }
 
+/// The values `path` reaches from `root`, each with the node or asset id it
+/// belongs to when one is in reach. A field step over an array maps across
+/// its items.
+fn walk<'a>(root: &'a Value, path: &str) -> Result<Vec<(&'a Value, Option<String>)>, DevupError> {
+    let mut values = vec![(root, None::<String>)];
+    for step in parse(path)? {
+        values = match step {
+            Step::Field(key) => values
+                .into_iter()
+                .flat_map(|(v, id)| {
+                    if let Some(items) = v.as_array() {
+                        items
+                            .iter()
+                            .filter_map(|v| {
+                                v.get(&key).map(|field| {
+                                    (
+                                        field,
+                                        v.get("nodeId")
+                                            .or_else(|| v.get("id"))
+                                            .and_then(Value::as_str)
+                                            .map(str::to_owned)
+                                            .or_else(|| id.clone()),
+                                    )
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        v.get(&key).map(|field| (field, id)).into_iter().collect()
+                    }
+                })
+                .collect(),
+            Step::Index(index) => values
+                .into_iter()
+                .filter_map(|(v, id)| {
+                    v.get(index).map(|item| {
+                        (
+                            item,
+                            item.get("nodeId")
+                                .or_else(|| item.get("id"))
+                                .and_then(Value::as_str)
+                                .map(str::to_owned)
+                                .or(id),
+                        )
+                    })
+                })
+                .collect(),
+            Step::Exact(key, value) => values
+                .into_iter()
+                .flat_map(|(v, _)| v.as_array().into_iter().flatten())
+                .filter(|v| v.get(&key).and_then(Value::as_str) == Some(value.as_str()))
+                .map(|v| {
+                    (
+                        v,
+                        v.get("nodeId")
+                            .or_else(|| v.get("id"))
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                    )
+                })
+                .collect(),
+        };
+    }
+    Ok(values)
+}
+
 pub fn select(
     result: &mut serde_json::Map<String, Value>,
     summary: &Value,
@@ -205,64 +270,7 @@ pub fn select(
     root["nodes"] = summary["nodes"].clone();
     let mut selections = Vec::new();
     for path in options.response_fields.iter().chain(options.path.iter()) {
-        let mut values = vec![(&root, None::<String>)];
-        for step in parse(path)? {
-            values = match step {
-                Step::Field(key) => values
-                    .into_iter()
-                    .flat_map(|(v, id)| {
-                        if let Some(items) = v.as_array() {
-                            items
-                                .iter()
-                                .filter_map(|v| {
-                                    v.get(&key).map(|field| {
-                                        (
-                                            field,
-                                            v.get("nodeId")
-                                                .or_else(|| v.get("id"))
-                                                .and_then(Value::as_str)
-                                                .map(str::to_owned)
-                                                .or_else(|| id.clone()),
-                                        )
-                                    })
-                                })
-                                .collect::<Vec<_>>()
-                        } else {
-                            v.get(&key).map(|field| (field, id)).into_iter().collect()
-                        }
-                    })
-                    .collect(),
-                Step::Index(index) => values
-                    .into_iter()
-                    .filter_map(|(v, id)| {
-                        v.get(index).map(|item| {
-                            (
-                                item,
-                                item.get("nodeId")
-                                    .or_else(|| item.get("id"))
-                                    .and_then(Value::as_str)
-                                    .map(str::to_owned)
-                                    .or(id),
-                            )
-                        })
-                    })
-                    .collect(),
-                Step::Exact(key, value) => values
-                    .into_iter()
-                    .flat_map(|(v, _)| v.as_array().into_iter().flatten())
-                    .filter(|v| v.get(&key).and_then(Value::as_str) == Some(value.as_str()))
-                    .map(|v| {
-                        (
-                            v,
-                            v.get("nodeId")
-                                .or_else(|| v.get("id"))
-                                .and_then(Value::as_str)
-                                .map(str::to_owned),
-                        )
-                    })
-                    .collect(),
-            };
-        }
+        let values = walk(&root, path)?;
         let count = values.len();
         let end = count.min(
             options
@@ -365,6 +373,46 @@ pub fn select(
         "application/json",
         serde_json::to_vec(&details).map_err(|_| invalid())?,
     )))
+}
+
+/// A job poll's `responseFields`: the selected paths of the poll's own reply,
+/// plus the job's progress, instead of the whole reply again. The same path
+/// grammar and the same 64 KiB ceiling as an export's selection.
+pub fn pick(reply: &Value, options: &ResponseSelection) -> Result<Value, DevupError> {
+    options.validate()?;
+    let mut selections = Vec::new();
+    for path in options.response_fields.iter().chain(options.path.iter()) {
+        let values = walk(reply, path)?;
+        let count = values.len();
+        let end = count.min(
+            options
+                .response_offset
+                .saturating_add(options.response_limit),
+        );
+        let values = values
+            .into_iter()
+            .skip(options.response_offset)
+            .take(options.response_limit)
+            .map(|(value, _)| value.clone())
+            .collect::<Vec<_>>();
+        selections.push(json!({"path":path,"values":values,"matched":count,
+            "offset":options.response_offset,"nextOffset":(end < count).then_some(end),
+            "state":if count == 0 {"not-found"} else {"selected"},"truncated":end < count}));
+    }
+    let job = &reply["exportJob"];
+    let picked = json!({"status":reply["status"],"selections":selections,
+        "exportJob":{"jobId":job["jobId"],"state":job["state"],"stage":job["stage"],
+            "assetProgress":job["assetProgress"],"nextAction":job["nextAction"],
+            "nextActionReason":job["nextActionReason"]},
+        "selectionScope":"Selected from this poll's reply. Omit responseFields to read the whole reply."});
+    if serde_json::to_vec(&picked).unwrap_or_default().len() > 65_536 {
+        return Err(DevupError::new(
+            ErrorCode::DevupFigmaResponseTooLarge,
+            "Selected data exceeds 65536 bytes. Select a narrower field or lower responseLimit; a scalar is never silently truncated.",
+            false,
+        ));
+    }
+    Ok(picked)
 }
 
 /// Standalone outlines keep the small data body inline and move unrelated
