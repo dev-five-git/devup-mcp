@@ -905,6 +905,7 @@ fn ingest_references(
     let mut environment_invalid = false;
     let mut visual_comparisons = Vec::new();
     let mut dimension_rows = Vec::new();
+    let mut screen_rows = Vec::new();
     for viewport in &plan.viewports {
         let matching_runs = report["runs"]
             .as_array()
@@ -965,6 +966,7 @@ fn ingest_references(
                     .iter()
                     .find(|candidate| candidate["id"] == screen.id.as_str())
             });
+            let mut outcomes = Vec::new();
             for (index, check) in screen.checks.iter().enumerate() {
                 if reported.is_some_and(|s| {
                     s["checks"]
@@ -1027,10 +1029,29 @@ fn ingest_references(
                         "measured": dimension.as_ref().map(|row| &row["domCssPx"]).or_else(|| item.map(|item| &item["measured"])),
                     }));
                 }
+                outcomes.push((
+                    status,
+                    check.kind.as_str(),
+                    dimension
+                        .as_ref()
+                        .map(|row| &row["reason"])
+                        .or_else(|| item.map(|item| &item["reason"]))
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                ));
                 if let Some(row) = dimension {
                     dimension_rows.push(row);
                 }
             }
+            screen_rows.push(screen_row(
+                screen,
+                viewport,
+                run.is_some(),
+                reported,
+                &environment_errors,
+                &outcomes,
+            ));
             let Some(shot) = reported
                 .map(|screen| &screen["screenshot"])
                 .filter(|shot| shot.is_object())
@@ -1134,6 +1155,7 @@ fn ingest_references(
         "runs": runs,
         "figmaReferences": figma,
         "visualComparisons": visual_comparisons,
+        "screenTable": screen_rows,
         "widthTable": plan.viewports.iter().map(|viewport| json!({
             "width": viewport.width, "height": viewport.height,
             "deviceScaleFactor": viewport.device_scale_factor,
@@ -1160,6 +1182,95 @@ fn ingest_references(
             "notJudged": "Whether the screens look right to a person. Layout checks measure the relations the plan names and nothing else.",
         },
     }))
+}
+
+/// One screen at one width, folded from its checks, its own record and the
+/// environment errors the run could pin on it. This is the row a person reads
+/// to learn whether `/about` works at 390; `failures` and `runs` say the same
+/// things but spread across three lists.
+///
+/// A page error is attributed only when its message names this screen's route
+/// (`navigation-failed` does). An uncaught script error carries no route, so
+/// it leaves every screen at that width inconclusive rather than failing the
+/// one that may not have thrown it.
+fn screen_row(
+    screen: &ScreenInput,
+    viewport: &ViewportInput,
+    run_reported: bool,
+    reported: Option<&Value>,
+    environment_errors: &[Value],
+    outcomes: &[(&str, &str, String)],
+) -> Value {
+    let message = |error: &Value| error["message"].as_str().unwrap_or_default().to_owned();
+    let own_navigation = environment_errors
+        .iter()
+        .filter(|error| {
+            error["kind"] == "navigation-failed"
+                && screen.route_path.as_deref().is_some_and(|route| {
+                    error["message"]
+                        .as_str()
+                        .is_some_and(|text| text.starts_with(&format!("{route}:")))
+                })
+        })
+        .map(|error| format!("page error: {}", message(error)))
+        .collect::<Vec<_>>();
+    let unattributed = environment_errors
+        .iter()
+        .filter(|error| error["kind"] == "page-error")
+        .map(|error| format!("page error during this width's run: {}", message(error)))
+        .collect::<Vec<_>>();
+    let failed_checks = outcomes
+        .iter()
+        .filter(|(status, _, _)| *status == "fail")
+        .map(|(_, kind, reason)| match *kind {
+            "no-horizontal-overflow" => format!("horizontal overflow: {reason}"),
+            kind => format!("{kind}: {reason}"),
+        })
+        .collect::<Vec<_>>();
+    let record_status = reported.and_then(|screen| screen["status"].as_str());
+    let record_reason = reported
+        .and_then(|screen| screen["reason"].as_str())
+        .unwrap_or_default();
+    let (status, reasons) = if !run_reported || reported.is_none() {
+        (
+            "not-run",
+            vec!["no report item for this screen at this width".to_owned()],
+        )
+    } else if !own_navigation.is_empty() {
+        ("fail", own_navigation)
+    } else if record_status == Some("failed") {
+        ("fail", vec![format!("screen not reached: {record_reason}")])
+    } else if !failed_checks.is_empty() {
+        ("fail", failed_checks)
+    } else if record_status == Some("skipped") {
+        ("not-run", vec![format!("skipped: {record_reason}")])
+    } else if !unattributed.is_empty() {
+        ("inconclusive", unattributed)
+    } else if outcomes.is_empty() {
+        (
+            "inconclusive",
+            vec!["reached, but the plan names no checks for this screen".to_owned()],
+        )
+    } else if outcomes.iter().all(|(status, _, _)| *status == "pass") {
+        ("pass", Vec::new())
+    } else {
+        (
+            "inconclusive",
+            outcomes
+                .iter()
+                .filter(|(status, _, _)| *status != "pass")
+                .map(|(status, kind, reason)| format!("{kind} {status}: {reason}"))
+                .collect(),
+        )
+    };
+    json!({
+        "screen": screen.id,
+        "routePath": screen.route_path,
+        "width": viewport.width,
+        "status": status,
+        "reasons": reasons,
+        "screenshot": reported.and_then(|screen| screen["screenshot"]["path"].as_str()),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1833,6 +1944,75 @@ mod tests {
             result["figmaReferences"][0]["layoutChecksOnlyAt"],
             json!([1200])
         );
+        drop(policy);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// The screen table is what `devup_screen_plan status` reads: one row per
+    /// screen and width, a failed overflow check named as overflow, a failed
+    /// navigation pinned on its own route, and a width with no run not-run.
+    #[test]
+    fn the_screen_table_folds_checks_and_page_errors_per_width() {
+        let (dir, policy) = root();
+        let (id, plan_file) = write_plan(&dir, &policy);
+        let mut report = report_for(&dir, &plan_file, &id, "pass", 800);
+        report["runs"][0]["screens"][0]["checks"][0]["status"] = json!("fail");
+        report["runs"][0]["screens"][0]["checks"][0]["reason"] = json!("content reaches 412px");
+        report["runs"][1]["environmentErrors"] =
+            json!([{"kind": "navigation-failed", "message": "/today: HTTP 500"}]);
+        std::fs::write(
+            dir.join("report.json"),
+            serde_json::to_vec(&report).unwrap(),
+        )
+        .unwrap();
+        let result = ingest(
+            &policy,
+            &dir.join("plan.json").to_string_lossy(),
+            &dir.join("report.json").to_string_lossy(),
+        )
+        .unwrap();
+        let row = |screen: &str, width: u32| {
+            result["screenTable"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["screen"] == screen && row["width"] == width)
+                .cloned()
+                .unwrap()
+        };
+        assert_eq!(row("today", 360)["status"], "fail");
+        assert_eq!(
+            row("today", 360)["reasons"][0],
+            "horizontal overflow: content reaches 412px"
+        );
+        assert_eq!(row("today", 1200)["status"], "fail");
+        assert_eq!(
+            row("today", 1200)["reasons"][0],
+            "page error: /today: HTTP 500"
+        );
+        assert_eq!(row("next", 360)["status"], "pass");
+        assert_eq!(row("next", 360)["screenshot"], "360-next.png");
+
+        report["runs"].as_array_mut().unwrap().truncate(1);
+        std::fs::write(
+            dir.join("report.json"),
+            serde_json::to_vec(&report).unwrap(),
+        )
+        .unwrap();
+        let result = ingest(
+            &policy,
+            &dir.join("plan.json").to_string_lossy(),
+            &dir.join("report.json").to_string_lossy(),
+        )
+        .unwrap();
+        let missing = result["screenTable"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["width"] == 1200)
+            .collect::<Vec<_>>();
+        assert_eq!(missing.len(), 2);
+        assert!(missing.iter().all(|row| row["status"] == "not-run"));
         drop(policy);
         std::fs::remove_dir_all(dir).unwrap();
     }
