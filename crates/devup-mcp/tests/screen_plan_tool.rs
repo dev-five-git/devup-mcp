@@ -72,6 +72,14 @@ fn project(name: &str) -> std::path::PathBuf {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("src/app/about")).unwrap();
     std::fs::write(dir.join("package.json"), "{}").unwrap();
+    // The site questions are answered by the project's config here, so this
+    // flow is about screens; site_plan_tool covers them.
+    std::fs::create_dir_all(dir.join(".devup")).unwrap();
+    std::fs::write(
+        dir.join(".devup/screen-plan.config.json"),
+        "{\"favicon\": \"app/icon.svg\", \"ogImage\": \"public/og.png\", \"siteName\": \"Prime\", \"siteUrl\": \"https://example.com\", \"motion\": \"none\"}",
+    )
+    .unwrap();
     std::fs::write(
         dir.join("src/app/page.tsx"),
         "export default function Page() { return <main />; }",
@@ -204,7 +212,7 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
     assert!(!failed, "{status}");
     assert_eq!(
         status["summary"],
-        "3 URLs: 2 implemented, 0 verified at all widths; no runtime audit report, so every width is not-run"
+        "3 URLs: 2 implemented, 0 verified at all widths; no runtime audit report, so every width is not-run; site completeness: 3 missing"
     );
     std::fs::remove_dir_all(root).ok();
     Ok(())
@@ -230,6 +238,48 @@ async fn a_single_component_export_is_not_gated() -> anyhow::Result<()> {
             .contains("this test does not reach Figma"),
         "{result}"
     );
+    std::fs::remove_dir_all(root).ok();
+    Ok(())
+}
+
+fn rules(result: &Value) -> Vec<String> {
+    result["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|finding| finding["rule"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+/// A site that feels alive needs feedback on what can be clicked, metadata
+/// on every page and an icon: devup_ui_validate names each one missing.
+#[tokio::test]
+async fn validate_warns_on_bare_controls_missing_metadata_and_no_icon() -> anyhow::Result<()> {
+    let root = project("validate");
+    let root_text = root.to_string_lossy().into_owned();
+    let (_, single) = call(
+        &root,
+        "devup_ui_validate",
+        json!({"projectRoot": root_text,
+            "tsx": "export function Cta() { return <Box as=\"button\" onClick={go}>Go</Box>; }"}),
+    )
+    .await?;
+    let found = rules(&single);
+    assert!(found.contains(&"interactive-states".to_owned()), "{single}");
+    assert!(found.contains(&"app-icon".to_owned()), "{single}");
+
+    let (_, bundle) = call(
+        &root,
+        "devup_ui_validate",
+        json!({"files": [
+            {"path": "src/app/about/page.tsx", "content": "export default function Page() { return <main />; }"},
+            {"path": "src/components/Nav.tsx", "content": "export function Nav() { return <Box as=\"a\" href=\"/x\" _hover={{ opacity: 0.8 }}>X</Box>; }"}
+        ]}),
+    )
+    .await?;
+    let found = rules(&bundle);
+    assert!(found.contains(&"page-metadata".to_owned()), "{bundle}");
+    assert!(found.contains(&"hover-transition".to_owned()), "{bundle}");
     std::fs::remove_dir_all(root).ok();
     Ok(())
 }

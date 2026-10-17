@@ -71,12 +71,30 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 10447,
-          "sha256": "debd22d8b37812ce7d9c89196695d67607017c597f46e86b6237685fbd06c2fc"
+          "bytes": 13075,
+          "sha256": "b97e4933a1ec6b0d79e316dedd4731096f87f030dbf7881b75505687899b633c"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
       "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan"
+    },
+    {
+      "name": "devup",
+      "origin": "own",
+      "title": "/devup: build pages or a site from Figma",
+      "description": "The explicit entry point: /devup [figma url] [notes] runs the whole devup-mcp workflow - connection, skills, project context, screen plan with every question up front, implementation with interaction states and metadata, runtime audit, and the final URL x width table.",
+      "usedFor": "An MCP server cannot start a skill or a slash command itself. Claude Code offers this skill as /devup, and devup_skills install writes an OpenCode command beside it, so the user has one word to type that starts everything in the right order.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devup",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 3309,
+          "sha256": "e9088b6b44fc9a537816b157cd516586fabbd30659077ebe4c570dda6a0a9aef"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup"
     },
     {
       "name": "changepacks",

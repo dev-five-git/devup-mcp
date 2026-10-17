@@ -27,8 +27,8 @@ pub const GUIDE_MIME_TYPE: &str = "text/markdown";
 /// The original rule numbering is preserved in [`GUIDE`] - it skipped 9 - so a
 /// reader comparing the two can see nothing was dropped in the move.
 pub const INSTRUCTIONS: &str = concat!(
-    "Build identity: identify deployments by server.commit/buildId, not version alone; ",
-    "server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs. ",
+    "Build identity: identify deployments by server.commit/buildId, not version alone. ",
+    "Reconnect the MCP server if the expected build differs. ",
     "server.updateAvailable reports whether a newer release exists; state \"unknown\" means the check is disabled, ",
     "not yet run, or could not reach the network, and it never blocks a call.\n",
     "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n",
@@ -39,8 +39,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "run devup_ui_validate and report wired/tested counts before functional completion.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
-    "2c. Several pages: devup_screen_plan first; only the linked scope, never trash/archive; ask all its questions ",
-    "before implementing, never after confirm (skill devup-implementation-plan).\n",
+    "2c. Building pages or a site from Figma (a Section, several frames): follow skill ",
+    "devup-implementation-plan even without /devup - devup_screen_plan first, linked scope, all questions up front.\n",
     "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
     "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );

@@ -15,6 +15,7 @@ impl Fixture {
         std::fs::create_dir_all(&root).unwrap();
         let fixture = Self(dunce::canonicalize(&root).unwrap());
         fixture.write("package.json", "{}");
+        fixture.write(CONFIG_FILE, SITE_CONFIG);
         fixture.write(
             "src/app/layout.tsx",
             "import { Header } from '../components/Header';\nexport default function RootLayout({ children }) { return <html><body><Header />{children}</body></html>; }",
@@ -79,9 +80,26 @@ fn evidence() -> ProjectEvidence {
         )],
         layout_parts: vec!["Header".into()],
         app_dir: "src/app".into(),
+        // The site questions are pre-answered here so each test below is
+        // about its own questions; `site_*` tests start from bare evidence.
+        config: answered_site(),
         ..ProjectEvidence::default()
     }
 }
+
+fn answered_site() -> PlanConfig {
+    PlanConfig {
+        favicon: Some("app/icon.svg".into()),
+        og_image: Some("public/og.png".into()),
+        site_name: Some("Prime".into()),
+        site_url: Some("https://example.com".into()),
+        motion: Some("none".into()),
+        ..PlanConfig::default()
+    }
+}
+
+/// The site config the fixtures write, matching [`answered_site`].
+const SITE_CONFIG: &str = "{\"favicon\": \"app/icon.svg\", \"ogImage\": \"public/og.png\", \"siteName\": \"Prime\", \"siteUrl\": \"https://example.com\", \"motion\": \"none\"}";
 
 fn sectioned(node_id: &str, name: &str, width: f64, section: &str) -> PlanScreenInput {
     PlanScreenInput {
@@ -458,7 +476,7 @@ fn project_config_counts_as_evidence_and_suppresses_its_questions() {
         modal_keywords: Some(vec!["sheet".into()]),
         route_aliases: BTreeMap::from([("요금제".to_owned(), "/pricing".to_owned())]),
         width_grouping: Some("responsive".into()),
-        ..PlanConfig::default()
+        ..answered_site()
     };
     let plan = draft_plan(
         &[
@@ -621,9 +639,12 @@ fn status_marks_widths_without_an_audit_item_not_run() {
     assert_eq!(rows[0]["widths"][0]["result"], "pass");
     assert_eq!(rows[0]["widths"][1]["result"], "not-run");
     assert_eq!(rows[1]["widths"][1]["result"], "fail");
-    assert_eq!(
-        report["summary"],
-        "2 URLs: 1 implemented, 0 verified at all widths, /about overflows at 390"
+    assert!(
+        text(&report["summary"]).starts_with(
+            "2 URLs: 1 implemented, 0 verified at all widths, /about overflows at 390"
+        ),
+        "{}",
+        report["summary"]
     );
     assert_eq!(report["states"][0]["hostUrl"], "/");
     assert!(text(&report["markdownTable"]).contains("1440x900@1-main.png"));
@@ -891,7 +912,7 @@ async fn assumptions_are_recorded_after_confirm_and_reported_by_status() {
         report["assumptions"][0]["decision"],
         "Not built: outside the confirmed screen plan."
     );
-    assert!(text(&report["summary"]).ends_with("; 1 assumption made during implementation"));
+    assert!(text(&report["summary"]).contains("; 1 assumption made during implementation"));
     assert!(text(&report["markdownTable"]).contains("- 13:9: Not built"));
     let markdown = std::fs::read_to_string(fixture.0.join(".devup/screen-plan.md")).unwrap();
     assert!(markdown.contains("Assumptions made during implementation:"));
@@ -914,7 +935,7 @@ async fn an_invalid_config_is_refused_rather_than_ignored() {
     assert!(error.message.contains("widthGrouping"));
     fixture.write(
         CONFIG_FILE,
-        r#"{"routeAliases": {"메인": "/"}, "widthGrouping": "ask"}"#,
+        r#"{"routeAliases": {"메인": "/"}, "widthGrouping": "ask", "siteName": "Prime"}"#,
     );
     let evidence = project_evidence(fixture.root()).await.unwrap();
     assert_eq!(evidence.config_file.as_deref(), Some(CONFIG_FILE));
@@ -1022,6 +1043,7 @@ fn trash_and_archive_frames_are_excluded_and_asked_about_once() {
 fn the_config_can_change_and_override_the_exclusion_words() {
     let mut evidence = evidence();
     evidence.config.exclude_keywords = Some(vec!["legacy".into()]);
+    evidence.config.include_keywords = None;
     evidence.config.include_keywords = Some(vec!["test drive".into()]);
     let plan = draft_plan(
         &[
@@ -1176,4 +1198,229 @@ async fn the_gate_refuses_an_excluded_frame_even_with_an_assumption() {
     };
     assert_eq!(response["status"], "refused");
     assert!(text(&response["refused"][0]["reason"]).starts_with("excluded"));
+}
+
+fn bare_site() -> ProjectEvidence {
+    ProjectEvidence {
+        config: PlanConfig::default(),
+        ..evidence()
+    }
+}
+
+fn labels(question: &Value) -> Vec<&str> {
+    array(&question["options"])
+        .iter()
+        .map(|option| text(&option["label"]))
+        .collect()
+}
+
+/// The favicon and share image are files only the user can pick, so they
+/// are asked - with the candidates the project and the linked Figma scope
+/// actually hold, and never a generated one.
+#[test]
+fn site_files_are_asked_with_evidence_backed_candidates() {
+    let mut evidence = bare_site();
+    evidence.icon_files = vec!["src/app/icon.svg".into()];
+    evidence.package_name = Some("prime-web".into());
+    let plan = draft_plan_with(
+        &[
+            screen("30:3", "Home", 1440.0),
+            screen("30:2", "OG image", 1200.0),
+        ],
+        &[PlanAssetInput {
+            node_id: "30:1".into(),
+            name: "Logo".into(),
+            ..PlanAssetInput::default()
+        }],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let favicon = find(&plan, "site:favicon");
+    assert_eq!(
+        labels(favicon),
+        [
+            "Use src/app/icon.svg (Recommended)",
+            "Export \"Logo\" (30:1) as SVG",
+            "I will provide a file",
+            "Leave it for later"
+        ]
+    );
+    assert!(text(&favicon["options"][2]["description"]).contains("Nothing is generated or drawn"));
+    let og = find(&plan, "site:og");
+    assert_eq!(
+        labels(og)[..2],
+        [
+            "Export \"OG image\" (30:2) as PNG (Recommended)",
+            "Use the top of \"Home\" (30:3)"
+        ]
+    );
+    // A frame named like a share image is an asset, not a page.
+    assert_eq!(array(&plan["screens"]).len(), 1);
+    assert_eq!(
+        labels(find(&plan, "site:name"))[0],
+        "prime-web (Recommended)"
+    );
+    assert_eq!(labels(find(&plan, "site:motion"))[0], "None (Recommended)");
+    assert!(!question_ids(&plan).contains(&"site:analytics".to_owned()));
+    let defaults = array(&plan["defaults"])
+        .iter()
+        .map(|default| text(&default["item"]))
+        .collect::<Vec<_>>();
+    for item in [
+        "interaction-states",
+        "transition",
+        "reduced-motion",
+        "metadata",
+        "lang",
+        "alt-text",
+        "not-found",
+        "image-dimensions",
+    ] {
+        assert!(defaults.contains(&item), "{item} missing from {defaults:?}");
+    }
+    assert_eq!(plan["site"]["favicon"]["state"], "asked");
+    assert_rounds_cover(&plan);
+}
+
+#[test]
+fn the_config_and_the_project_pre_answer_the_site_questions() {
+    let plan = draft_plan(
+        &[screen("31:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert!(
+        !question_ids(&plan).iter().any(|id| id.starts_with("site:")),
+        "{:?}",
+        question_ids(&plan)
+    );
+    assert_eq!(plan["site"]["siteName"]["state"], "config");
+
+    let mut found = bare_site();
+    found.site_name = Some((
+        "Prime".into(),
+        "title template in src/app/layout.tsx".into(),
+    ));
+    found.site_url = Some((
+        "https://prime.example".into(),
+        "NEXT_PUBLIC_SITE_URL in .env".into(),
+    ));
+    found.analytics = vec!["@vercel/analytics in package.json".into()];
+    let plan = draft_plan(
+        &[screen("31:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &found,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let ids = question_ids(&plan);
+    assert!(
+        !ids.contains(&"site:name".to_owned()) && !ids.contains(&"site:url".to_owned()),
+        "{ids:?}"
+    );
+    assert_eq!(
+        plan["site"]["siteUrl"]["evidence"],
+        "NEXT_PUBLIC_SITE_URL in .env"
+    );
+    let analytics = find(&plan, "site:analytics");
+    assert!(text(&analytics["question"]).contains("@vercel/analytics"));
+}
+
+#[tokio::test]
+async fn project_evidence_reads_the_site_facts() {
+    let fixture = Fixture::new();
+    fixture.write("public/favicon.ico", "ico");
+    fixture.write(
+        ".env",
+        "NEXT_PUBLIC_SITE_URL=https://prime.example\nNEXT_PUBLIC_GA_ID=G-1\n",
+    );
+    fixture.write(
+        "src/app/layout.tsx",
+        "export const metadata = { title: { template: '%s | Prime' } };\nexport default function RootLayout({ children }) { return <html lang=\"ko\"><body>{children}</body></html>; }",
+    );
+    let evidence = project_evidence(fixture.root()).await.unwrap();
+    assert_eq!(evidence.icon_files, ["public/favicon.ico"]);
+    assert_eq!(
+        evidence.site_url.as_ref().unwrap().0,
+        "https://prime.example"
+    );
+    assert_eq!(evidence.site_name.as_ref().unwrap().0, "Prime");
+    assert_eq!(evidence.lang.as_ref().unwrap().0, "ko");
+    assert!(
+        evidence
+            .analytics
+            .iter()
+            .any(|sign| sign.contains("NEXT_PUBLIC_GA_ID"))
+    );
+    assert!(evidence.not_found.is_none());
+}
+
+/// Status says, per item, whether it is filled, decided but not in place,
+/// or missing - read from the files as they are now.
+#[tokio::test]
+async fn status_reports_site_completeness() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &[screen("32:1", "Company", 1440.0)]).await;
+    confirm_input.answers = answers(&[("heuristics", "Accept all (Recommended)")]);
+    confirm(&confirm_input, &fixture.policy()).unwrap();
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let evidence = project_evidence(fixture.root()).await.unwrap();
+    let report = status_report(&plan, &evidence, None);
+    let item = |name: &str| {
+        array(&report["siteCompleteness"])
+            .iter()
+            .find(|item| item["item"] == name)
+            .cloned()
+            .unwrap_or_else(|| panic!("{name} missing: {}", report["siteCompleteness"]))
+    };
+    assert_eq!(item("favicon")["state"], "asked-and-answered");
+    assert_eq!(item("metadata /company")["state"], "missing");
+    // The fixture header has two bare links.
+    assert_eq!(item("hover-focus")["state"], "missing");
+    assert_eq!(
+        item("hover-focus")["detail"],
+        "0 of 2 interactive elements have hover or focus states"
+    );
+    assert_eq!(item("site-name")["state"], "filled");
+    let table = text(&report["markdownTable"]);
+    assert!(table.contains("Site completeness:"), "{table}");
+    assert!(
+        table.contains("Filled in by default (no question):"),
+        "{table}"
+    );
+
+    fixture.write("src/app/icon.svg", "<svg/>");
+    fixture.write(
+        "src/app/company/page.tsx",
+        "export const metadata = { title: 'Company' };\nexport default function Page() { return <main />; }",
+    );
+    let evidence = project_evidence(fixture.root()).await.unwrap();
+    let report = status_report(&plan, &evidence, None);
+    let states = array(&report["siteCompleteness"])
+        .iter()
+        .map(|item| {
+            (
+                text(&item["item"]).to_owned(),
+                text(&item["state"]).to_owned(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(states["favicon"], "filled");
+    assert_eq!(states["metadata /company"], "filled");
+}
+
+#[test]
+fn a_missing_app_icon_is_a_warning() {
+    let fixture = Fixture::new();
+    let finding = missing_app_icon(fixture.root()).expect("the fixture app has no icon");
+    assert_eq!(finding.rule, "app-icon");
+    fixture.write("src/app/favicon.ico", "ico");
+    assert!(missing_app_icon(fixture.root()).is_none());
 }

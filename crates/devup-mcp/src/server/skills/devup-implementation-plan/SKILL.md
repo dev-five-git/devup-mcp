@@ -12,8 +12,11 @@ description: |
   - Given a Figma Section link, or several frames, for a Next App Router project
   - Asked what was built from a design, where it lives, or whether it works
 
+  Start it even when nobody typed /devup: a request to build pages or a site
+  from Figma is the trigger. /devup only makes it explicit.
+
   Trigger keywords: implement this design, Figma to pages, build the site,
-  screens, routes, URL, screen plan, devup_screen_plan
+  screens, routes, URL, screen plan, devup_screen_plan, /devup
 ---
 
 # Screen plan first, confirm once, then implement
@@ -74,6 +77,42 @@ So the order is fixed, and none of it is optional.
   `proposedRoute: null` with `routeEvidence: "UNVERIFIED"` stays null until the
   user answers.
 
+## Site completeness
+
+A site built only from what Figma draws feels dead: no hover, no focus, no
+transitions, no metadata, no icon. The plan splits what that takes in two.
+
+**Filled in by you, without a question** - draft lists these as `defaults`,
+and the final report repeats them:
+
+- interaction states on every link, button, linked card, tab and input:
+  `_hover`, `_focusVisible` (a visible focus ring), `_active`, `_disabled`
+  where it applies, `cursor="pointer"`. Use the Figma hover/pressed/focus
+  variants when they exist; otherwise a small, consistent fallback built only
+  from existing theme tokens (a darker or lighter shade, an underline, a slight
+  lift or shadow). Never invent a colour; with no suitable token, record an
+  assumption;
+- one shared `transition` of about 0.2s ease on the properties that change,
+  defined once (a token or shared constant), not per element;
+- `_motionReduce` so `prefers-reduced-motion` gets no transform or animation;
+- root `metadata` (title template, description, `metadataBase` when the URL is
+  known) and per-page `title`, `description` and `openGraph` from the page's
+  Figma heading and lead text - the devfive-frontend SEO rule; `lang` on
+  `<html>`;
+- `alt` from the layer name or text, width and height on every image, and a
+  `not-found` page when there is none.
+
+**Asked, in the same up-front rounds** - only what needs a file or a fact:
+the favicon and the share image (offered from existing files and Figma logo
+or og nodes in scope; never generate or draw one), the site name and
+production URL when the project does not say, analytics when the project
+shows signs of it, and motion beyond hover ("None" unless the design shows
+motion).
+
+**Verified** - `devup_ui_validate` with `projectRoot` warns on interactive
+elements with no `_hover`/`_focusVisible`, pages without metadata and an app
+without an icon; `status` reports site completeness item by item.
+
 ## Steps
 
 1. **List the screens.** If you only have a Section link, `devup_figma_explore`
@@ -89,7 +128,7 @@ So the order is fixed, and none of it is optional.
    (Figma screen, widths, proposed route, evidence, existing file, shared
    parts, open decisions), the `heuristics` list and the `excluded` list, then
    ask the questions - the flat list in one call, or the rounds back to back -
-   exactly as returned. Do not reword the options; the labels are what confirm
+   exactly as returned, the site questions included. Do not reword the options; the labels are what confirm
    reads.
 4. **Confirm.** Call `devup_screen_plan` with `action: "confirm"`, the
    `planId`, and `answers` keyed by question id (the chosen label, with or
@@ -99,7 +138,9 @@ So the order is fixed, and none of it is optional.
 5. **Implement URL by URL, without asking.** For each confirmed route, call
    `devup_figma_export` with `projectRoot` and that screen's `frameIds`. With
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
-   a different one. Screens confirmed as a state of another page are built
+   a different one. Add the plan's `defaults` (states, transition, reduced
+   motion, metadata, lang, alt, image sizes, not-found) as you go, and run
+   `devup_ui_validate` with `projectRoot` on what you wrote. Screens confirmed as a state of another page are built
    inside that page. An export of a frame the confirmed plan does not place
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
@@ -113,8 +154,9 @@ So the order is fixed, and none of it is optional.
    audit item is `not-run`, never `pass`.
 8. **Finish with the table.** End your reply with the `markdownTable` from
    status - `URL | Figma screen | file | status | widths verified |
-   screenshots`, followed by the design fixes requested, the excluded frames
-   and the assumptions made during implementation - and
+   screenshots`, followed by the site completeness block, the defaults filled
+   in, the design fixes requested, the excluded frames and the assumptions
+   made during implementation - and
    its one-line `summary`, such as
    `7 URLs: 5 implemented, 3 verified at all widths, /about overflows at 390`.
    Report every `fail`, `not-run` and assumption as what it is. Do not call the
@@ -156,7 +198,12 @@ evidence and replaces the question it would otherwise take:
   "routeAliases": { "메인": "/", "회사소개": "/company" },
   "widthGrouping": "responsive",
   "excludeKeywords": ["trash", "archive", "legacy"],
-  "includeKeywords": ["test drive"]
+  "includeKeywords": ["test drive"],
+  "favicon": "app/icon.svg",
+  "ogImage": "public/og.png",
+  "siteName": "Prime",
+  "siteUrl": "https://prime.example",
+  "motion": "none"
 }
 ```
 
@@ -170,3 +217,5 @@ evidence and replaces the question it would otherwise take:
   deprecated/사용안함/미사용, backup/백업, draft/WIP/작업중, test/테스트,
   sandbox, playground, copy/사본).
 - `includeKeywords` forces names containing them back in.
+- `favicon`, `ogImage` (a path, or `figma:<nodeId>`), `siteName`, `siteUrl`
+  and `motion` (`none` | `reveal`) pre-answer the site questions.

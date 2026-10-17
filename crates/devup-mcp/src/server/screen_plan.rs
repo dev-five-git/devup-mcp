@@ -145,6 +145,10 @@ pub struct ScreenPlanInput {
     #[serde(default)]
     #[schemars(range(min = 1, max = 50))]
     pub max_questions_per_round: Option<usize>,
+    /// draft: Figma nodes that may be the favicon or share image (a logo, a
+    /// frame named og or share), beside the screens.
+    #[serde(default)]
+    pub assets: Vec<PlanAssetInput>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -182,6 +186,19 @@ pub(super) struct PlanConfig {
     /// Names containing one of these are never excluded by keyword.
     #[serde(default)]
     pub include_keywords: Option<Vec<String>>,
+    /// Pre-answers for the site questions: the favicon and share image (a
+    /// path, or figma:<nodeId>), the site name, its production URL, and
+    /// motion beyond hover (none | reveal).
+    #[serde(default)]
+    pub favicon: Option<String>,
+    #[serde(default)]
+    pub og_image: Option<String>,
+    #[serde(default)]
+    pub site_name: Option<String>,
+    #[serde(default)]
+    pub site_url: Option<String>,
+    #[serde(default)]
+    pub motion: Option<String>,
 }
 
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
@@ -325,6 +342,19 @@ pub(super) struct ProjectEvidence {
     pub config: PlanConfig,
     /// The config file, when one was read.
     pub config_file: Option<String>,
+    /// The project root the relative paths here are under.
+    pub root: PathBuf,
+    /// Route pages and the components they render, relative to `root`.
+    pub sources: Vec<String>,
+    pub icon_files: Vec<String>,
+    pub og_files: Vec<String>,
+    /// (value, where it was found).
+    pub site_name: Option<(String, String)>,
+    pub site_url: Option<(String, String)>,
+    pub package_name: Option<String>,
+    pub analytics: Vec<String>,
+    pub not_found: Option<String>,
+    pub lang: Option<(String, String)>,
 }
 
 /// The `data-figma-node-id="..."` values in one source file.
@@ -357,7 +387,9 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
         config: config.unwrap_or_default(),
         ..ProjectEvidence::default()
     };
+    evidence.root = PathBuf::from(project_root);
     if inventory["found"] != true {
+        read_site_facts(&PathBuf::from(project_root), &mut evidence);
         evidence.inventory_note = Some(
             "No App Router source was found; every route is unverified until pages exist or navigationTargets name them."
                 .into(),
@@ -370,6 +402,7 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
         );
     }
     let root = PathBuf::from(text(&inventory["projectRoot"]));
+    evidence.root = root.clone();
     let mut sources = BTreeSet::new();
     let mut owner = BTreeMap::<String, BTreeSet<String>>::new();
     for route in array(&inventory["routes"]) {
@@ -457,6 +490,13 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
             }
         }
     }
+    evidence.sources = sources
+        .iter()
+        .filter(|path| !path.is_empty())
+        .take(MAX_SCANNED_SOURCES)
+        .cloned()
+        .collect();
+    read_site_facts(&root, &mut evidence);
     Ok(evidence)
 }
 
@@ -1050,6 +1090,590 @@ fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
     found
 }
 
+/// Layer names that mark a Figma node as the site's logo or icon, and as its
+/// share image. Frames named like this are site assets, not pages.
+const LOGO_WORDS: &[&str] = &[
+    "logo",
+    "symbol",
+    "favicon",
+    "appicon",
+    "로고",
+    "심볼",
+    "파비콘",
+];
+/// Narrow on purpose: a bare "share" or "thumbnail" names real UI - a share
+/// sheet, a video thumbnail - and those are screens.
+const OG_WORDS: &[&str] = &[
+    "og",
+    "opengraph",
+    "open graph",
+    "share image",
+    "share card",
+    "social image",
+    "공유 이미지",
+    "대표 이미지",
+];
+/// Package names that say a project already measures or verifies something.
+const ANALYTICS_PACKAGES: &[&str] = &[
+    "@vercel/analytics",
+    "@next/third-parties",
+    "react-ga4",
+    "react-gtm-module",
+    "@amplitude/analytics-browser",
+    "mixpanel-browser",
+    "posthog-js",
+];
+const ANALYTICS_ENV: &[&str] = &[
+    "GA_",
+    "GTM",
+    "GOOGLE_ANALYTICS",
+    "GOOGLE_SITE_VERIFICATION",
+    "NAVER_SITE_VERIFICATION",
+];
+
+fn asset_kind(name: &str) -> Option<&'static str> {
+    if LOGO_WORDS.iter().any(|word| keyword_in(name, word)) || keyword_in(name, "app icon") {
+        Some("logo")
+    } else if OG_WORDS.iter().any(|word| keyword_in(name, word)) {
+        Some("og")
+    } else {
+        None
+    }
+}
+
+/// A Figma node that may become the favicon or the share image.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct PlanAssetInput {
+    pub node_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub width: Option<f64>,
+    #[serde(default)]
+    pub height: Option<f64>,
+}
+
+/// Files under `directory` (relative to `root`) whose names start with one of
+/// `prefixes`, as relative paths.
+fn files_named(root: &Path, directory: &str, prefixes: &[&str]) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(join_relative(root, directory)) else {
+        return Vec::new();
+    };
+    let mut found = entries
+        .flatten()
+        .filter(|entry| entry.path().is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| {
+            let lowered = name.to_lowercase();
+            prefixes.iter().any(|prefix| lowered.starts_with(prefix))
+        })
+        .map(|name| format!("{directory}/{name}"))
+        .collect::<Vec<_>>();
+    found.sort();
+    found
+}
+
+fn join_relative(root: &Path, relative: &str) -> PathBuf {
+    relative
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .fold(root.to_path_buf(), |path, part| path.join(part))
+}
+
+fn read_small(path: &Path) -> Option<String> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if metadata.len() > MAX_SOURCE_BYTES {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
+}
+
+/// The quoted value after `marker` in `source`, e.g. the URL in
+/// `metadataBase: new URL("...")`.
+fn quoted_after(source: &str, marker: &str) -> Option<String> {
+    let rest = &source[source.find(marker)? + marker.len()..];
+    let quote_at = rest.find(['"', '\'', '`'])?;
+    let quote = rest[quote_at..].chars().next()?;
+    let value = &rest[quote_at + 1..];
+    let end = value.find(quote)?;
+    Some(value[..end].to_owned()).filter(|value| !value.is_empty())
+}
+
+/// What the project already says about the site as a whole: its icon, share
+/// image, name, URL, analytics, language and not-found page.
+fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
+    let app = evidence.app_dir.clone();
+    evidence.icon_files = [
+        files_named(root, &app, &["icon.", "favicon.", "apple-icon."]),
+        files_named(root, "public", &["favicon", "icon.", "apple-touch-icon"]),
+    ]
+    .concat();
+    evidence.og_files = [
+        files_named(root, &app, &["opengraph-image.", "twitter-image."]),
+        files_named(root, "public", &["og", "share", "opengraph"]),
+    ]
+    .concat();
+    evidence.not_found = ["tsx", "jsx", "js"]
+        .iter()
+        .map(|ext| format!("{app}/not-found.{ext}"))
+        .find(|path| join_relative(root, path).is_file());
+    for ext in ["tsx", "jsx", "js"] {
+        let layout = format!("{app}/layout.{ext}");
+        let Some(source) = read_small(&join_relative(root, &layout)) else {
+            continue;
+        };
+        evidence.lang = quoted_after(&source, "<html lang=").map(|lang| (lang, layout.clone()));
+        if let Some(url) = quoted_after(&source, "metadataBase: new URL(") {
+            evidence.site_url = Some((url, format!("metadataBase in {layout}")));
+        }
+        if let Some(template) = quoted_after(&source, "template:")
+            && let Some((_, name)) = template.split_once("%s")
+        {
+            let name = name.trim_matches(|c: char| c.is_whitespace() || "|-·:".contains(c));
+            if !name.is_empty() {
+                evidence.site_name = Some((name.to_owned(), format!("title template in {layout}")));
+            }
+        }
+        if source.contains("googletagmanager") || source.contains("gtag(") {
+            evidence.analytics.push(format!("a Google tag in {layout}"));
+        }
+    }
+    for file in [".env", ".env.local", ".env.production"] {
+        let Some(source) = read_small(&root.join(file)) else {
+            continue;
+        };
+        for line in source.lines() {
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            let key = key.trim();
+            let value = value.trim().trim_matches(['"', '\'']);
+            if evidence.site_url.is_none()
+                && matches!(
+                    key,
+                    "NEXT_PUBLIC_SITE_URL" | "SITE_URL" | "NEXT_PUBLIC_BASE_URL"
+                )
+                && (value.starts_with("http://") || value.starts_with("https://"))
+            {
+                evidence.site_url = Some((value.to_owned(), format!("{key} in {file}")));
+            }
+            if evidence.site_name.is_none()
+                && matches!(key, "NEXT_PUBLIC_SITE_NAME" | "SITE_NAME")
+                && !value.is_empty()
+            {
+                evidence.site_name = Some((value.to_owned(), format!("{key} in {file}")));
+            }
+            if ANALYTICS_ENV.iter().any(|prefix| key.contains(prefix)) {
+                evidence.analytics.push(format!("{key} in {file}"));
+            }
+        }
+    }
+    if let Some(package) = read_small(&root.join("package.json"))
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    {
+        evidence.package_name = package["name"].as_str().map(str::to_owned);
+        for section in ["dependencies", "devDependencies"] {
+            for name in ANALYTICS_PACKAGES {
+                if package[section].get(*name).is_some() {
+                    evidence.analytics.push(format!("{name} in package.json"));
+                }
+            }
+        }
+    }
+}
+
+/// What the agent fills in by itself, without a question. Recorded in the
+/// plan's `defaults` and the final report, so nothing it added is a surprise.
+fn site_defaults(evidence: &ProjectEvidence, screens: &[PlanScreenInput]) -> Vec<Value> {
+    let lang = evidence.lang.clone().unwrap_or_else(|| {
+        let korean = screens
+            .iter()
+            .any(|screen| screen.name.chars().any(|c| ('가'..='힣').contains(&c)));
+        if korean {
+            (
+                "ko".into(),
+                "Korean text in the design's layer names".into(),
+            )
+        } else {
+            (
+                "en".into(),
+                "no Korean text in the design's layer names".into(),
+            )
+        }
+    });
+    let mut defaults = vec![
+        json!({"item": "interaction-states",
+            "decision": "Every link, button, linked card, tab and input gets _hover, _focusVisible (a visible focus ring), _active, _disabled where it applies, and cursor=\"pointer\". Figma hover/pressed/focus variants are used when they exist; otherwise a small consistent fallback from existing theme tokens only - a darker or lighter shade, an underline, a slight lift or shadow. No new colours: with no suitable token, record an assumption.",
+            "evidence": "devfive-frontend critical-rules 4 (interactive states); devup-ui pseudo-selectors"}),
+        json!({"item": "transition",
+            "decision": "One shared transition of about 0.2s ease on the properties that change (colour, background, border, shadow, transform), defined once as a token or shared constant and not per element.",
+            "evidence": "devfive-frontend critical-rules 4 (transition all 0.2s ease)"}),
+        json!({"item": "reduced-motion",
+            "decision": "_motionReduce removes transforms and transitions (or one globalCss rule does), so prefers-reduced-motion gets no movement.",
+            "evidence": "devup-ui _motionReduce"}),
+        json!({"item": "metadata",
+            "decision": "Root layout metadata with a title template, description and metadataBase when the site URL is known; every page exports title, description and openGraph taken from its Figma heading and lead text.",
+            "evidence": "devfive-frontend critical-rules 2 (SEO metadata with openGraph)"}),
+        json!({"item": "lang", "decision": format!("<html lang=\"{}\">", lang.0), "evidence": lang.1}),
+        json!({"item": "alt-text", "decision": "alt text from the Figma layer name or its text content on every image.",
+            "evidence": "devfive-frontend critical-rules 3 (image alt required)"}),
+        json!({"item": "image-dimensions", "decision": "width and height on every image, so nothing shifts as it loads.",
+            "evidence": "no layout shift"}),
+    ];
+    defaults.push(match &evidence.not_found {
+        Some(path) => {
+            json!({"item": "not-found", "decision": format!("Keep {path}."), "evidence": path})
+        }
+        None => json!({"item": "not-found",
+            "decision": format!("Add {}/not-found.tsx in the site's own style.", evidence.app_dir),
+            "evidence": "no not-found page in the project"}),
+    });
+    defaults
+}
+
+/// One site fact that needs a file or a fact only the user has.
+fn site_question(
+    field: &str,
+    id: &str,
+    header: &str,
+    prompt: String,
+    choices: Vec<Choice>,
+) -> Value {
+    let mut asked = question(id.into(), header.into(), prompt, choices, "site");
+    asked["field"] = json!(field);
+    asked
+}
+
+/// The site-level questions and the state of each fact, asked in the same
+/// up-front rounds as everything else. Never asked when the project already
+/// says it, or the project config pre-answers it.
+fn site_questions(
+    evidence: &ProjectEvidence,
+    assets: &[(String, String, &'static str)],
+    cover: Option<(&str, &str)>,
+) -> (Value, Vec<Value>) {
+    let config = &evidence.config;
+    let mut site = serde_json::Map::new();
+    let mut questions = Vec::new();
+    let mut file_question = |field: &str,
+                             id: &str,
+                             header: &str,
+                             what: &str,
+                             files: &[String],
+                             kind: &'static str| {
+        let mut choices = Vec::new();
+        for file in files.iter().take(2) {
+            choices.push(choice(
+                format!("Use {file}"),
+                "Already in the project.",
+                json!({field: {"source": "file", "path": file}}),
+            ));
+        }
+        let (format, target) = if kind == "logo" {
+            ("svg", format!("{}/icon.svg", evidence.app_dir))
+        } else {
+            ("png", format!("{}/opengraph-image.png", evidence.app_dir))
+        };
+        for (node, name, _) in assets.iter().filter(|(_, _, found)| *found == kind).take(2) {
+            choices.push(choice(
+                format!("Export \"{}\" ({node}) as {}", truncate(name, 30), format.to_uppercase()),
+                format!("A Figma node in the linked scope; exported with devup_figma_export assetRequests (format {format}) to {target}."),
+                json!({field: {"source": "figma", "nodeId": node, "format": format, "path": target}}),
+            ));
+        }
+        if kind == "og"
+            && let Some((node, name)) = cover
+        {
+            choices.push(choice(
+                format!("Use the top of \"{}\" ({node})", truncate(name, 24)),
+                format!("Export the first screen as PNG and crop it to 1200x630 for {target}."),
+                json!({field: {"source": "figma-cover", "nodeId": node, "format": "png", "path": target}}),
+            ));
+        }
+        choices.truncate(MAX_OPTIONS - 2);
+        choices.push(choice(
+            "I will provide a file",
+            "Answer with its path, e.g. public/favicon.ico. Nothing is generated or drawn.",
+            json!({field: {"source": "provide"}}),
+        ));
+        choices.push(choice(
+            "Leave it for later",
+            "Not added now; status reports it missing.",
+            json!({field: {"source": "later"}}),
+        ));
+        let evidence_text =
+            if files.is_empty() && !assets.iter().any(|(_, _, found)| *found == kind) {
+                "Nothing in the project or the linked Figma scope looks like one.".to_owned()
+            } else {
+                "The options come from the project's files and the linked Figma scope.".to_owned()
+            };
+        questions.push(site_question(
+            field,
+            id,
+            header,
+            format!("Which file should be the site's {what}? {evidence_text}"),
+            choices,
+        ));
+    };
+    match &config.favicon {
+        Some(value) => {
+            site.insert(
+                "favicon".into(),
+                json!({"state": "config", "value": value, "evidence": CONFIG_FILE}),
+            );
+        }
+        None => {
+            site.insert(
+                "favicon".into(),
+                json!({"state": "asked", "question": "site:favicon", "found": evidence.icon_files}),
+            );
+            file_question(
+                "favicon",
+                "site:favicon",
+                "Favicon / app icon",
+                "favicon and app icon",
+                &evidence.icon_files,
+                "logo",
+            );
+        }
+    }
+    match &config.og_image {
+        Some(value) => {
+            site.insert(
+                "ogImage".into(),
+                json!({"state": "config", "value": value, "evidence": CONFIG_FILE}),
+            );
+        }
+        None => {
+            site.insert(
+                "ogImage".into(),
+                json!({"state": "asked", "question": "site:og", "found": evidence.og_files}),
+            );
+            file_question(
+                "ogImage",
+                "site:og",
+                "Share (OG) image",
+                "share image (Open Graph)",
+                &evidence.og_files,
+                "og",
+            );
+        }
+    }
+    match (&config.site_name, &evidence.site_name) {
+        (Some(value), _) => {
+            site.insert(
+                "siteName".into(),
+                json!({"state": "config", "value": value, "evidence": CONFIG_FILE}),
+            );
+        }
+        (None, Some((value, from))) => {
+            site.insert(
+                "siteName".into(),
+                json!({"state": "found", "value": value, "evidence": from}),
+            );
+        }
+        (None, None) => {
+            site.insert(
+                "siteName".into(),
+                json!({"state": "asked", "question": "site:name"}),
+            );
+            let mut choices = Vec::new();
+            if let Some(package) = &evidence.package_name {
+                choices.push(choice(
+                    package.as_str(),
+                    "The package.json name; it may not be the name people see.",
+                    json!({"siteName": {"source": "package", "value": package}}),
+                ));
+            }
+            choices.push(choice(
+                "Use the main page's heading",
+                "Taken from the first page's heading text in Figma while building.",
+                json!({"siteName": {"source": "heading"}}),
+            ));
+            choices.push(choice(
+                "Leave it for later",
+                "Titles go without a site suffix until it is known.",
+                json!({"siteName": {"source": "later"}}),
+            ));
+            questions.push(site_question(
+                "siteName",
+                "site:name",
+                "Site name",
+                "What is the site's name, for the title template (\"Page | Name\")? It is not in the project's metadata or environment. A custom answer is the name itself.".into(),
+                choices,
+            ));
+        }
+    }
+    match (&config.site_url, &evidence.site_url) {
+        (Some(value), _) => {
+            site.insert(
+                "siteUrl".into(),
+                json!({"state": "config", "value": value, "evidence": CONFIG_FILE}),
+            );
+        }
+        (None, Some((value, from))) => {
+            site.insert(
+                "siteUrl".into(),
+                json!({"state": "found", "value": value, "evidence": from}),
+            );
+        }
+        (None, None) => {
+            site.insert(
+                "siteUrl".into(),
+                json!({"state": "asked", "question": "site:url"}),
+            );
+            questions.push(site_question(
+                "siteUrl",
+                "site:url",
+                "Production URL",
+                "What is the production URL, for metadataBase and absolute share links? It is not in the project's metadata or .env files. A custom answer is the URL itself.".into(),
+                vec![
+                    choice(
+                        "No production URL yet",
+                        "metadataBase is left out; share images use relative URLs until it is set.",
+                        json!({"siteUrl": {"source": "none"}}),
+                    ),
+                    choice(
+                        "Read it from NEXT_PUBLIC_SITE_URL",
+                        "metadataBase comes from that environment variable, set per deployment.",
+                        json!({"siteUrl": {"source": "env", "name": "NEXT_PUBLIC_SITE_URL"}}),
+                    ),
+                ],
+            ));
+        }
+    }
+    if !evidence.analytics.is_empty() {
+        site.insert(
+            "analytics".into(),
+            json!({"state": "asked", "question": "site:analytics", "found": evidence.analytics}),
+        );
+        questions.push(site_question(
+            "analytics",
+            "site:analytics",
+            "Analytics / verification",
+            format!(
+                "The project shows analytics or verification setup: {}. Wire it into the new root layout?",
+                evidence.analytics.join(", ")
+            ),
+            vec![
+                choice("Keep the existing setup", "Carried into the new layout as it is configured.", json!({"analytics": {"source": "keep"}})),
+                choice("Leave it out", "The new layout has no analytics or verification tags.", json!({"analytics": {"source": "none"}})),
+            ],
+        ));
+    } else {
+        site.insert("analytics".into(), json!({"state": "not-needed", "evidence": "no analytics or verification signs in the project"}));
+    }
+    match &config.motion {
+        Some(value) => {
+            site.insert(
+                "motion".into(),
+                json!({"state": "config", "value": value, "evidence": CONFIG_FILE}),
+            );
+        }
+        None => {
+            site.insert(
+                "motion".into(),
+                json!({"state": "asked", "question": "site:motion"}),
+            );
+            questions.push(site_question(
+                "motion",
+                "site:motion",
+                "Motion beyond hover",
+                "Beyond hover and focus transitions, should sections animate? Nothing in the plan shows designed motion.".into(),
+                vec![
+                    choice("None", "Recommended unless the design shows motion; hover and focus transitions are still added.", json!({"motion": {"source": "none"}})),
+                    choice("Subtle reveal on scroll", "Sections fade and slide in once as they enter; off under prefers-reduced-motion.", json!({"motion": {"source": "reveal"}})),
+                ],
+            ));
+        }
+    }
+    (Value::Object(site), questions)
+}
+
+/// The site completeness block of `status`: each item filled, asked and
+/// answered, or missing, read from the files as they are now.
+fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
+    let site = &plan["site"];
+    let decided = |field: &str| {
+        let entry = &site[field];
+        let source = entry["answer"][field]["source"]
+            .as_str()
+            .or_else(|| entry["answer"]["source"].as_str());
+        entry["state"] == "config" || (entry["state"] == "answered" && source != Some("later"))
+    };
+    let file_item = |item: &str, field: &str, files: &[String]| {
+        if !files.is_empty() {
+            json!({"item": item, "state": "filled", "detail": files.join(", ")})
+        } else if decided(field) {
+            json!({"item": item, "state": "asked-and-answered", "detail": "decided, but no file is in place yet"})
+        } else {
+            json!({"item": item, "state": "missing", "detail": "no file, and no answer that provides one"})
+        }
+    };
+    let mut items = vec![
+        file_item("favicon", "favicon", &evidence.icon_files),
+        file_item("og-image", "ogImage", &evidence.og_files),
+    ];
+    for row in array(&plan["routes"])
+        .iter()
+        .filter(|row| row["implementation"] == "page")
+    {
+        let url = text(&row["url"]);
+        let page = evidence
+            .routes
+            .iter()
+            .find(|(pattern, _)| pattern == url)
+            .map(|(_, page)| page.clone());
+        let state = match &page {
+            Some(page) => match read_small(&join_relative(&evidence.root, page)) {
+                Some(source)
+                    if devup_mcp_devup_ui::ui_validate::site::exports_metadata(&source) =>
+                {
+                    "filled"
+                }
+                _ => "missing",
+            },
+            None => "missing",
+        };
+        items.push(json!({"item": format!("metadata {url}"), "state": state,
+            "detail": page.unwrap_or_else(|| "page not implemented".into())}));
+    }
+    let mut interactive = 0;
+    let mut with_states = 0;
+    let mut motion = false;
+    let mut reduced = false;
+    for relative in &evidence.sources {
+        let Some(source) = read_small(&join_relative(&evidence.root, relative)) else {
+            continue;
+        };
+        let coverage =
+            devup_mcp_devup_ui::ui_validate::site::interaction_coverage(relative, &source);
+        interactive += coverage.interactive;
+        with_states += coverage.with_states;
+        motion |= source.contains("transition")
+            || source.contains("transform")
+            || source.contains("animation");
+        reduced |= source.contains("_motionReduce") || source.contains("prefers-reduced-motion");
+    }
+    items.push(json!({"item": "hover-focus",
+        "state": if interactive == 0 { "not-applicable" } else if with_states == interactive { "filled" } else { "missing" },
+        "detail": format!("{with_states} of {interactive} interactive elements have hover or focus states")}));
+    items.push(json!({"item": "reduced-motion",
+        "state": if reduced { "filled" } else if motion { "missing" } else { "not-applicable" },
+        "detail": if reduced { "prefers-reduced-motion is handled" } else if motion { "transitions or transforms with no prefers-reduced-motion handling" } else { "no motion in the sources" }}));
+    for (item, field) in [("site-name", "siteName"), ("site-url", "siteUrl")] {
+        let entry = &site[field];
+        let state = match entry["state"].as_str() {
+            Some("found" | "config") => "filled",
+            Some("answered") if decided(field) => "asked-and-answered",
+            _ => "missing",
+        };
+        items.push(json!({"item": item, "state": state, "detail": entry.get("value").or(entry.get("answer")).cloned()}));
+    }
+    items
+}
+
 /// Names that mark a page, section or frame as not for implementation. Words
 /// in ASCII match whole words; the rest match anywhere in the name.
 const EXCLUDE_WORDS: &[&str] = &[
@@ -1350,8 +1974,22 @@ const REVIEW: &str = "Review individually";
 
 /// Builds the draft plan. Pure: every input is passed in, so the rules are
 /// tested without Figma or a project on disk.
+#[cfg(test)]
 pub(super) fn draft_plan(
     screens: &[PlanScreenInput],
+    targets: &BTreeMap<String, String>,
+    evidence: &ProjectEvidence,
+    source: Value,
+    notes: Option<&str>,
+) -> Result<Value, DevupError> {
+    draft_plan_with(screens, &[], targets, evidence, source, notes)
+}
+
+/// [`draft_plan`] with Figma nodes that may become the favicon or share
+/// image.
+pub(super) fn draft_plan_with(
+    screens: &[PlanScreenInput],
+    assets: &[PlanAssetInput],
     targets: &BTreeMap<String, String>,
     evidence: &ProjectEvidence,
     source: Value,
@@ -1539,6 +2177,34 @@ pub(super) fn draft_plan(
                 "reason": reason})
         })
         .collect::<Vec<_>>();
+    // A frame named like a logo or a share image is a site asset, not a page.
+    let mut site_assets = assets
+        .iter()
+        .filter_map(|asset| {
+            asset_kind(&asset.name).map(|kind| (asset.node_id.clone(), asset.name.clone(), kind))
+        })
+        .collect::<Vec<_>>();
+    kept.retain(|screen| match asset_kind(&screen.name) {
+        Some(kind) => {
+            site_assets.push((screen.node_id.clone(), screen.name.clone(), kind));
+            false
+        }
+        None => true,
+    });
+    let defaults = site_defaults(evidence, &kept);
+    let cover = kept
+        .first()
+        .map(|screen| (screen.node_id.clone(), screen.name.clone()));
+    let (site, site_asked) = site_questions(
+        evidence,
+        &site_assets,
+        cover
+            .as_ref()
+            .map(|(node, name)| (node.as_str(), name.as_str())),
+    );
+    for asked in site_asked {
+        questions.push(with_when(asked, &base_when));
+    }
     let mut drafts = group_screens(&kept, &evidence.config);
     for draft in &mut drafts {
         draft.extra_when.extend(base_when.iter().cloned());
@@ -2333,6 +2999,9 @@ pub(super) fn draft_plan(
         "heuristics": heuristics,
         "excluded": excluded_rows,
         "outOfScope": out_of_scope,
+        "site": site,
+        "defaults": defaults,
+        "siteAssets": site_assets.iter().map(|(node, name, kind)| json!({"nodeId": node, "name": name, "kind": kind})).collect::<Vec<_>>(),
         "questions": body["questions"],
         "answers": {},
         "routes": [],
@@ -2451,16 +3120,30 @@ fn require_root(input: &ScreenPlanInput) -> Result<&str, DevupError> {
 }
 
 /// `draft`: plan the given screens against the project and write both files.
+#[cfg(test)]
 pub(super) async fn draft(
     input: &ScreenPlanInput,
     screens: &[PlanScreenInput],
     source: Value,
     policy: &OutputPolicy,
 ) -> Result<Value, DevupError> {
+    draft_with(input, screens, &input.assets, source, policy).await
+}
+
+/// [`draft`] with the Figma asset candidates an explore found beside the
+/// screens.
+pub(super) async fn draft_with(
+    input: &ScreenPlanInput,
+    screens: &[PlanScreenInput],
+    assets: &[PlanAssetInput],
+    source: Value,
+    policy: &OutputPolicy,
+) -> Result<Value, DevupError> {
     let root = require_root(input)?;
     let evidence = project_evidence(root).await?;
-    let mut plan = draft_plan(
+    let mut plan = draft_plan_with(
         screens,
+        assets,
         &input.navigation_targets,
         &evidence,
         source,
@@ -2495,6 +3178,8 @@ pub(super) async fn draft(
         "questionCount": questions.len(),
         "askInstruction": ASK_INSTRUCTION,
         "maxQuestionsPerRound": per_round,
+        "site": plan["site"],
+        "defaults": plan["defaults"],
         "heuristics": plan["heuristics"],
         "excluded": plan["excluded"],
         "outOfScope": plan["outOfScope"],
@@ -2577,6 +3262,34 @@ fn resolve_answer(
             json!({"link": normalize_route(label)}),
             Some(label.to_owned()),
         )),
+        // A custom site answer is the file, name or URL itself.
+        "site" => {
+            let field = text(&question["field"]);
+            match field {
+                "favicon" | "ogImage" => Ok((
+                    json!({field: {"source": "provide", "path": label}}),
+                    Some(label.to_owned()),
+                )),
+                "siteName" => Ok((
+                    json!({field: {"source": "answer", "value": label}}),
+                    Some(label.to_owned()),
+                )),
+                "siteUrl" if label.starts_with("https://") || label.starts_with("http://") => Ok((
+                    json!({field: {"source": "answer", "value": label}}),
+                    Some(label.to_owned()),
+                )),
+                "siteUrl" => Err(invalid(format!(
+                    "{id}: a custom answer must be an http(s) URL, not {label:?}."
+                ))),
+                _ => Ok((
+                    array(&question["resolve"])
+                        .first()
+                        .map(|option| option["action"].clone())
+                        .unwrap_or(Value::Null),
+                    Some(label.to_owned()),
+                )),
+            }
+        }
         _ => Ok((
             array(&question["resolve"])
                 .first()
@@ -2880,6 +3593,16 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             .map(|(id, action)| (id.clone(), action["layout"].clone()))
             .collect::<BTreeMap<_, _>>()
     );
+    for asked in questions
+        .iter()
+        .filter(|asked| text(&asked["id"]).starts_with("site:"))
+    {
+        let field = text(&asked["field"]).to_owned();
+        if let Some(action) = actions.get(text(&asked["id"])) {
+            plan["site"][&field]["state"] = json!("answered");
+            plan["site"][&field]["answer"] = action[&field].clone();
+        }
+    }
     plan["routes"] = json!(routes);
     plan["excluded"] = json!(excluded);
     plan["designFixes"] = json!(design_fixes);
@@ -2896,6 +3619,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "markdownTable": route_markdown(&routes),
         "excluded": excluded,
         "designFixes": design_fixes,
+        "site": plan["site"],
+        "defaults": plan["defaults"],
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
@@ -3343,6 +4068,23 @@ pub(super) fn status_report(
             cell(&json!(shots)),
         ));
     }
+    let completeness = site_completeness(plan, evidence);
+    let incomplete = completeness
+        .iter()
+        .filter(|item| item["state"] == "missing")
+        .count();
+    if incomplete > 0 {
+        summary.push_str(&format!("; site completeness: {incomplete} missing"));
+    }
+    table.push_str("\nSite completeness:\n");
+    for item in &completeness {
+        table.push_str(&format!(
+            "- {}: {} ({})\n",
+            text(&item["item"]),
+            text(&item["state"]),
+            cell(&item["detail"])
+        ));
+    }
     table.push_str(&trailing_lists(plan));
     json!({
         "status": "confirmed",
@@ -3354,6 +4096,8 @@ pub(super) fn status_report(
         "audit": audit.map(|audit| json!({"verdict": audit["verdict"], "planId": audit["planId"], "reason": audit["reason"]})),
         "markdownTable": table,
         "assumptions": assumptions,
+        "siteCompleteness": completeness,
+        "defaults": plan["defaults"],
         "designFixes": design_fixes,
         "excluded": excluded,
         "inventoryNote": evidence.inventory_note,
@@ -3366,6 +4110,17 @@ pub(super) fn status_report(
 /// file and `status`, so the two never disagree about what was not built.
 fn trailing_lists(plan: &Value) -> String {
     let mut out = String::new();
+    let defaults = array(&plan["defaults"]);
+    if !defaults.is_empty() {
+        out.push_str("\nFilled in by default (no question):\n");
+        for default in defaults {
+            out.push_str(&format!(
+                "- {}: {}\n",
+                text(&default["item"]),
+                text(&default["decision"])
+            ));
+        }
+    }
     let fixes = array(&plan["designFixes"]);
     if !fixes.is_empty() {
         out.push_str("\nDesign fixes requested (not built):\n");
@@ -3404,6 +4159,36 @@ fn trailing_lists(plan: &Value) -> String {
         }
     }
     out
+}
+
+/// `app-icon` for `devup_ui_validate` with a projectRoot: an App Router app
+/// with no icon or favicon. Read from disk here because the devup-ui checks
+/// open no file.
+pub(super) fn missing_app_icon(
+    project_root: &str,
+) -> Option<devup_mcp_devup_ui::ui_validate::Violation> {
+    let root = Path::new(project_root);
+    let app = ["src/app", "app"]
+        .into_iter()
+        .find(|app| join_relative(root, app).is_dir())?;
+    let mut evidence = ProjectEvidence {
+        app_dir: app.to_owned(),
+        ..ProjectEvidence::default()
+    };
+    read_site_facts(root, &mut evidence);
+    if !evidence.icon_files.is_empty() {
+        return None;
+    }
+    let mut context = serde_json::Map::new();
+    context.insert("appDir".into(), json!(app));
+    Some(devup_mcp_devup_ui::ui_validate::Violation {
+        rule: "app-icon",
+        severity: devup_mcp_devup_ui::ui_validate::Severity::Warning,
+        byte_range: [0, 0],
+        context,
+        message: format!("{app} has no icon.* or favicon, and public/ has no favicon either, so the browser tab shows a blank icon."),
+        suggestion: Some("Add app/icon.svg (or favicon.ico) from a file the user provides or a Figma logo node exported as SVG; devup_screen_plan asks which. Never draw one.".into()),
+    })
 }
 
 /// What the export gate decided.
