@@ -137,7 +137,10 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
     assert_eq!(written.len(), carried, "{installed}");
     for entry in written {
         assert_eq!(entry["source"], "embedded");
-        if entry["name"] != "devfive-frontend" {
+        // Skills authored in this repository have no upstream to fetch from.
+        if !["devfive-frontend", "devup-implementation-plan", "devup"]
+            .contains(&entry["name"].as_str().unwrap())
+        {
             assert!(
                 entry["reason"]
                     .as_str()
@@ -195,6 +198,41 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
     );
 
     assert_eq!(after["installedCount"], carried);
+
+    // The same install writes /devup: an unidentified client gets the skill
+    // in .claude/skills, which Claude Code offers as /devup, and the
+    // OpenCode command beside the .opencode/skill copy.
+    assert_eq!(
+        installed["commands"][0]["state"], "installed",
+        "{installed}"
+    );
+    let command = Path::new(installed["commands"][0]["path"].as_str().unwrap());
+    let text = std::fs::read_to_string(command)?;
+    for step in [
+        "$ARGUMENTS",
+        "devup_figma_auth",
+        "devup_skills",
+        "devup_project_context",
+        "devup_screen_plan",
+        "devup_runtime_audit",
+        "finalReport",
+    ] {
+        assert!(text.contains(step), "{step} missing from the command");
+    }
+    assert_eq!(after["command"]["installed"], true, "{}", after["command"]);
+    assert_eq!(after["command"]["invocation"], "/devup [figma url] [notes]");
+    let runtimes = after["command"]["perRuntime"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| {
+            (
+                entry["runtime"].as_str().unwrap(),
+                entry["installed"].as_bool().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(runtimes, [("claude-code", true), ("opencode", true)]);
     assert_eq!(
         after["missingCount"], external,
         "the external skills remain"

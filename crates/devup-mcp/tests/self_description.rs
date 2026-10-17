@@ -41,9 +41,10 @@ async fn initialize_instructions_are_small_and_name_the_guide() -> anyhow::Resul
         .expect("the server still publishes instructions");
 
     // The ceiling moved once, for the connection order: it has to be read
-    // before the first Figma call, not fetched after the wrong one.
+    // before the first Figma call, not fetched after the wrong one. It moved
+    // again for the screen plan, which has to come before the first page.
     assert!(
-        instructions.len() < 1_400,
+        instructions.len() < 1_500,
         "instructions are {} bytes; every client pays this on every session",
         instructions.len()
     );

@@ -282,7 +282,12 @@ pub(super) async fn compare(
             "WebP actuals require a native PNG asset reference (artifactId plus assetId). Page/card screenshots and their environment checks continue to require PNG.",
         ));
     }
-    let include_diff = input.include_diff;
+    let diff_target = input
+        .diff_path
+        .as_deref()
+        .map(|path| policy.resolve(path))
+        .transpose()?;
+    let include_diff = input.include_diff || diff_target.is_some();
     let reference_hash = hash(&reference);
     let (report, diff) = tokio::task::spawn_blocking(move || {
         let actual = if webp_actual {
@@ -362,6 +367,14 @@ pub(super) async fn compare(
     if asset_comparison {
         result["canvasFidelity"] = json!("unverified-outside-reference-node-subtree");
     }
+    if let (Some(target), Some(bytes)) = (diff_target, diff.as_ref()) {
+        let display = target.display_path().display().to_string();
+        let mut transaction = super::output::OutputTransaction::new();
+        transaction.stage("diff", target, bytes)?;
+        transaction.commit()?;
+        result["diffPath"] = json!(display);
+    }
+    let diff = diff.filter(|_| input.include_diff);
     if let Some(bytes) = diff {
         result["diffPng"] = json!({"mimeType":"image/png","dataBase64":STANDARD.encode(&bytes)});
         let outputs = vec![ProjectedOutput::binary("diff.png", "image/png", bytes)];
@@ -668,6 +681,23 @@ mod tests {
             .unwrap();
         assert_eq!(r["verdict"], "fail");
         assert_eq!(r["visual"]["changedRatio"], 1.0);
+        assert!(r.get("diffPath").is_none());
+    }
+    #[tokio::test]
+    async fn a_diff_path_writes_the_diff_png_as_evidence() {
+        let f = fixture();
+        f.png("actual.png", BLACK);
+        let mut i = input();
+        i["threshold"] = json!(0.005);
+        i["diffPath"] = json!(f.0.join("evidence/diff.png"));
+        let r = run(i, &f.policy(), &ArtifactStore::default())
+            .await
+            .unwrap();
+        assert_eq!(r["verdict"], "fail");
+        let written = r["diffPath"].as_str().unwrap();
+        assert!(written.ends_with("diff.png"), "{r}");
+        assert!(f.0.join("evidence/diff.png").exists());
+        assert!(r.get("diffPng").is_none(), "includeDiff was not asked for");
     }
     #[tokio::test]
     async fn out_of_root_actual_rejected() {

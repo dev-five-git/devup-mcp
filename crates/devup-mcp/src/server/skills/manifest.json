@@ -33,18 +33,18 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 23164,
-          "sha256": "e86558e78bbd7259e0fe2d281a087c42e84da7795f6b4316ae2bc73d8422508a"
+          "bytes": 24217,
+          "sha256": "8607c0b4816702f2f1634d8a1638a94bf69a1fad7a665325c375d632d3ab360f"
         },
         {
           "path": "references/critical-rules.md",
-          "bytes": 56896,
-          "sha256": "068b0e51d7044c8a83049346b30da529d21e1175ab363b25e4b7ceb359087465"
+          "bytes": 57175,
+          "sha256": "3b7694f5db108407e0b4e3736cc3018b4c72951596eb1e4feab3123a3a4d3549"
         },
         {
           "path": "references/anti-patterns.md",
-          "bytes": 11958,
-          "sha256": "a9952bde6b7652bfeab3cea3160402a14c3793df919b837fc4783091ef56740f"
+          "bytes": 12017,
+          "sha256": "d25adca53b74a5119b5f6e3d4d66f78c02c0771e76b2361a441c1d3a0ec5865a"
         },
         {
           "path": "references/common-patterns.md",
@@ -59,6 +59,42 @@
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",
       "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend"
+    },
+    {
+      "name": "devup-implementation-plan",
+      "origin": "own",
+      "title": "Screen plan first, confirm once, then implement",
+      "description": "The order a Figma design becomes pages in: list the screens, draft a screen-to-URL plan with devup_screen_plan, stay inside the linked scope and out of trash/archive/draft areas, ask every question before any work (cross-section ambiguities included, with a fix-the-Figma option), confirm, implement URL by URL without asking anything more (recording assumptions instead), run the runtime audit, and finish with a URL x width status table.",
+      "usedFor": "Without it an agent handed a Figma Section picks URLs itself and writes pages straight away, so nobody can tell afterwards which screen became which URL or whether each one works at every width. It also keeps the questions in structured rounds asked up front, instead of a trickle of prose confirmations - or a question hours into the work while nobody is at the keyboard.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devup-implementation-plan",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 28331,
+          "sha256": "fae99ff40f20aab49ad5b5a96d9ef33ec1ba686a60b19ebfb8e7b621c243f571"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan"
+    },
+    {
+      "name": "devup",
+      "origin": "own",
+      "title": "/devup: build pages or a site from Figma",
+      "description": "The explicit entry point: /devup [figma url] [notes] runs the whole devup-mcp workflow - connection, skills, project context, screen plan with every question up front, implementation with interaction states and metadata, runtime audit, and the final URL x width table.",
+      "usedFor": "An MCP server cannot start a skill or a slash command itself. Claude Code offers this skill as /devup, and devup_skills install writes an OpenCode command beside it, so the user has one word to type that starts everything in the right order.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devup",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 7046,
+          "sha256": "1ccbb15e362ceae19ab821cc0d5820f6441a562d0cbeb07688cdb606a078d753"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup"
     },
     {
       "name": "changepacks",

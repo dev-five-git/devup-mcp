@@ -82,6 +82,12 @@ pub fn validate_bundle(
         let mut report = validate_source(&file.content, theme, strict, source_type(&file.path));
         if !report.violations.iter().any(|v| v.rule == "invalid-syntax") {
             report.violations.extend(structural(file, boundary));
+            report
+                .violations
+                .extend(super::site::interaction_findings(&file.path, &file.content));
+            report
+                .violations
+                .extend(super::site::metadata_finding(&file.path, &file.content));
         }
         for finding in &mut report.violations {
             finding

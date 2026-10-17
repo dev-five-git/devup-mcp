@@ -1462,6 +1462,61 @@ fn projection_failure(
         "retryable":error.retryable,"details":details})
 }
 
+/// Marks the page root, its top-level children (the sections), their
+/// children and every asset with `data-figma-node-id`, so the runtime audit captures a section
+/// or an asset by the node it came from. Only for exports into a project
+/// (`projectRoot`); `.devup/screen-plan.config.json` `figmaNodeIds: false`
+/// turns it off.
+fn annotate_node_ids(
+    output: &mut devup_mcp_devup_ui::codegen::CodegenOutput,
+    snapshot: &devup_mcp_figma::Snapshot,
+    root_id: &str,
+) -> Value {
+    let sections = snapshot
+        .nodes
+        .get(root_id)
+        .map(|node| {
+            node.typed_view()
+                .child_ids()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    // A section's own children (the cards of a card row) too, so their
+    // order and position are checked against the frame.
+    let parts = sections
+        .iter()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .flat_map(|node| {
+            node.typed_view()
+                .child_ids()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let assets = output
+        .source_map
+        .entries
+        .iter()
+        .filter(|entry| entry.asset_id.is_some())
+        .filter_map(|entry| entry.node_id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let wanted = std::iter::once(root_id.to_owned())
+        .chain(sections.iter().cloned())
+        .chain(parts.iter().cloned())
+        .chain(assets.iter().cloned())
+        .collect();
+    let written = devup_mcp_devup_ui::codegen::node_ids::annotate_node_ids(output, &wanted);
+    json!({
+        "attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE,
+        "root": written.iter().any(|id| id == root_id).then_some(root_id),
+        "sections": sections.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
+        "parts": parts.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
+        "assets": assets.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
+        "note": "Inert data attributes the runtime audit locates sections and assets by. Keep them; to drop them from a production build use Next's compiler.reactRemoveProperties {properties: [\"^data-figma-node-id$\"]}, or set figmaNodeIds false in .devup/screen-plan.config.json and re-export.",
+    })
+}
+
 fn generate_collected_component(
     payload: &CollectedPayload,
     node_id: &str,
@@ -1516,6 +1571,10 @@ pub(super) async fn complete_operation(
     output_policy: &OutputPolicy,
     artifact_store: &ArtifactStore,
 ) -> Result<Value, DevupError> {
+    let project_root = match &operation {
+        PendingOperation::Export { theme_options, .. } => theme_options.project_root.clone(),
+        _ => None,
+    };
     let mut response = project_operation(
         operation,
         payload,
@@ -1530,6 +1589,23 @@ pub(super) async fn complete_operation(
         .filter(|source| source.is_object())
     {
         attach_bridge_source(source, payload);
+    }
+    // What this export wrote for each marked node, so the audit can tell
+    // code drift from a converter bug later.
+    if let Some(root) = project_root.as_deref()
+        && response.get("figmaNodeIds").is_some()
+    {
+        let root_node = payload.target.node_id.clone().unwrap_or_default();
+        match super::export_record::write(
+            output_policy,
+            root,
+            &payload.target.file_key,
+            &root_node,
+            &response,
+        ) {
+            Ok(path) => response["exportRecord"] = json!(path),
+            Err(error) => response["exportRecordError"] = json!(error.message),
+        }
     }
     Ok(response)
 }
@@ -2527,7 +2603,7 @@ async fn project_operation(
             if outputs
                 .iter()
                 .any(|output| output == "tsx" || output == "responsiveTsx")
-                && let Some(merged) = merge_breakpoints(
+                && let Some(mut merged) = merge_breakpoints(
                     &responsive_snapshot,
                     &CodegenOptions {
                         asset_policies: asset_policies.clone(),
@@ -2576,6 +2652,21 @@ async fn project_operation(
                         "responsiveTsx",
                         "Two frames occupy the same breakpoint slot. Request tsx separately, or select one frame per breakpoint slot.",
                     ));
+                }
+                if let Some(root) = theme_options.project_root.as_deref()
+                    && super::screen_plan::node_ids_enabled(root)
+                {
+                    let written =
+                        devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut merged);
+                    let ids = result.entry("figmaNodeIds").or_insert_with(|| {
+                        json!({"attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE})
+                    });
+                    ids["perWidthAttribute"] =
+                        json!(devup_mcp_devup_ui::codegen::node_ids::NODE_IDS_ATTRIBUTE);
+                    ids["responsive"] = json!(written);
+                    ids["responsiveFormat"] = json!(
+                        "data-figma-node-id is the node at the widest width the element is shown at; data-figma-node-ids lists \"<width>:<nodeId>\" for every drawn width it is shown at, widest first, space-separated, so [data-figma-node-ids~=\"390:56:78\"] selects it at one width. hiddenAt lists the drawn widths it is hidden at."
+                    );
                 }
                 let module = merged.module(&name);
                 // The responsive tree builder does not run the ordinary
@@ -2744,6 +2835,12 @@ async fn project_operation(
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
                 generated_output_target = "tsx";
+                if let Some(root) = theme_options.project_root.as_deref()
+                    && super::screen_plan::node_ids_enabled(root)
+                {
+                    let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
+                    result.insert("figmaNodeIds".to_owned(), annotated);
+                }
                 tsx_source_map = Some(output.source_map.clone());
                 if keep_tsx && output_paths.contains_key("tsx") {
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());

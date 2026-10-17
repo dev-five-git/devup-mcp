@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
+Figma 쪽 5개, 프로젝트 쪽 7개, 스킬 1개, 모두 13개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -19,6 +19,7 @@ Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
 - `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
 - `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
 - `devup_runtime_audit`: 생성한 화면을 여러 viewport 폭에서 재 볼 **브라우저 실행 계획**을 검증해 쓰고(`plan`), 소비자 프로젝트의 실행기(`harness/runtime-audit`)가 쓴 보고서를 그 계획에 묶어 검증합니다(`ingest`). **서버는 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 계획은 선언형 데이터뿐이고, 계획 id와 파일 해시에 묶이지 않은 보고서는 거절하며 모든 개수를 항목에서 다시 셉니다
+- `devup_screen_plan`: 페이지를 쓰기 **전에** Figma 화면마다 어느 URL이 될지 계획하고(`draft`), 열린 결정을 구현 전에 질문 라운드로 연달아 모두 물은 뒤 확정하고(`confirm`), 확정된 계획을 실제 라우트와 runtime audit 보고서에 대조해 URL × 폭 표로 보고(`status`). 라우트는 근거(그 프레임으로 만든 기존 페이지, 기존 href에 묶인 nav 라벨, `navigationTargets`, 프로젝트 설정)로만 제안하고, 레이어 이름으로 추정한 것은 `name-match`로 드러내 묻고, 나머지는 `UNVERIFIED` 질문이 됩니다. 확정 뒤에는 묻지 않고 가정(`assume`)으로 기록하며, `auditPlan`으로 URL마다 페이지·섹션·에셋·위치·상태를 모두 검증하는 audit 계획을 쓰고 `defer`로 결정을 미뤄 두고 멈추지 않습니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -1047,6 +1048,58 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다.
 
+### `devup_screen_plan` — 화면 계획 먼저, 확인은 한 번, 구현은 그 다음
+
+"이 디자인을 구현해줘"를 받은 에이전트가 곧바로 페이지를 쓰면, 어느 Figma 화면이 어느 URL이 됐는지 사용자는 끝내 모릅니다. 그래서 순서를 고정합니다.
+
+1. `draft` — Section/frame 링크(또는 브리지 선택, 또는 앞선 `devup_figma_explore`의 `screens`)와 `projectRoot`를 받아, 이름이 같은 프레임을 그룹으로 모으고(한 페이지인지 여러 페이지인지는 그룹마다 묻되, 같은 Section 안의 여러 폭이면 "One responsive page", 다른 Section이면 "Separate pages"를 추천), 화면마다 `proposedRoute`·`routeEvidence`·`existingFile`·`sharedParts`·`openDecisions`를 담은 `.devup/screen-plan.json`과 같은 내용의 `.devup/screen-plan.md`를 씁니다. 근거 없는 라우트는 `proposedRoute: null`, `routeEvidence: "UNVERIFIED"`이고 질문이 됩니다. 응답의 `questions`는 질문 도구(OpenCode `question`, Claude Code `AskUserQuestion`)에 그대로 넣는 모양 — `id`, 30자 이하 `header`, `question`, 추천을 맨 앞에 두고 " (Recommended)"를 붙인 `options[{label, description}]`, `multiple` — 이고, 한 번에 최대 4개씩 나눈 `questionRounds`와 `askInstruction`이 함께 옵니다. 라운드는 구현 전에 연달아 모두 묻습니다. `when`이 붙은 질문(예: "Separate pages"를 고른 그룹의 프레임별 라우트, "Review individually"를 고른 이름 추정 항목)은 그 답일 때만 묻습니다. 레이어 이름으로 추정한 라우트는 "Accept all (Recommended)" / "Review individually" 한 질문으로 묶어 확인합니다.
+2. `confirm` — 해당하는 질문 id별 답을 **한 번에** 받습니다. 하나라도 빠지면 빠진 id를 이름으로 대며 거절하고, 아무것도 바꾸지 않습니다. 확정 뒤 구현 중에는 사용자에게 아무것도 묻지 않습니다. 새로 생긴 결정은 추천안이나 가장 보수적인 선택을 따르고 `assume`으로 계획의 `assumptions`에 남기며, `status`와 최종 보고에 함께 나옵니다.
+3. `status` — 확정된 계획을 `devup_project_context scope:"routes"`의 실제 페이지와, 선택적으로 `devup_runtime_audit`의 plan/report에 대조합니다. URL마다 구현 여부와 폭별 `pass`·`fail`(가로 넘침, 페이지 오류 등 이유)·`not-run`을 내고, 요약 한 줄(`7 URLs: 5 implemented, 3 verified at all widths, /about overflows at 390`)과 `URL | Figma screen | file | status | widths verified | screenshots` 표를 줍니다. audit 항목이 없는 폭은 `not-run`이지 `pass`가 아닙니다.
+
+`devup_figma_export`는 `projectRoot`가 있고 페이지를 쓰는 호출(`pageScaffold` write, `app/` 아래 `outputPaths`, `outputPaths`가 있는 여러 프레임·`allScreens`)인데 그 프레임을 덮는 확정 계획이 없으면 쓰지 않고 `status: "plan_required"`와 `devup_screen_plan draft`로 가는 `nextAction`을 돌려줍니다. 컴포넌트 하나, 쓰지 않는 미리보기는 막지 않습니다. 확정 계획이 있으면 `pageScaffold.route`는 계획에서 가져오고, 다른 라우트를 넘기면 `routeMismatch`로 거절합니다. 전체 흐름은 `devup_skills`로 설치하는 `devup-implementation-plan` 스킬에 있습니다.
+
+디자이너마다 이름 짓는 방식이 달라서, 프로젝트는 선택적으로 `.devup/screen-plan.config.json`에 `modalKeywords`(모달로 볼 레이어 이름 단어, 기본 목록을 대체), `routeAliases`(레이어 이름 → 라우트), `widthGrouping`(한 Section 안의 여러 폭: `responsive` | `separate` | `ask`, 기본 `ask`), `excludeKeywords`(구현 대상이 아닌 영역을 표시하는 단어, 기본 목록을 대체), `includeKeywords`(이 단어가 든 이름은 제외하지 않음)를 둘 수 있습니다. 있는 항목은 근거로 쓰이고 그에 해당하는 질문을 대신합니다.
+
+범위는 링크가 가리킨 노드 아래로만 한정합니다. 파일 전체나 다른 페이지로 넓히지 않고(`outOfScope`에 기록), 이름이 휴지통/trash, 아카이브/archive, 구버전/old, 사용안함/deprecated, 백업/backup, 작업중/draft/WIP, 테스트/test, sandbox, playground, 사본/copy인 페이지·Section·프레임과 숨겨진 프레임은 짓지 않습니다. 제외한 것은 `excluded`에 이유와 함께 남기고 `.md`와 확인 질문("These N were excluded ... Accept the exclusions (Recommended) / Review individually")에 보여 줍니다. 링크 자체가 그런 영역 안을 가리키면 제외하지 않고 한 번 묻습니다.
+
+같은 이름의 프레임이 서로 다른 Section에 있으면(PC/Mobile처럼 기기 이름 Section 포함) 서버가 정하지 않습니다. Section 이름·프레임 이름·폭·nodeId와 관련 있어 보이는 이유를 적은 질문으로 "Separate pages: the sections are different pages", "One responsive page: the sections only split by device"(모든 Section 이름이 기기 이름일 때만 추천), "The Figma structure is wrong: I will fix it" 중에서 묻습니다. 한 화면이 여러 Section에 나뉜 경우, Section 밖에 홀로 있는 프레임, 한 Section 안의 같은 이름·같은 폭 중복도 같은 "고치겠다" 선택지로 묻습니다. 고치겠다고 한 프레임은 짓지 않고 `status`와 최종 보고의 "Design fixes requested"에 옮기거나 이름을 바꿀 프레임과 Section을 정확히 적습니다. 에이전트는 기다리지 않고 나머지를 계속합니다. export gate는 제외되었거나 디자인 수정 대상인 프레임의 페이지 쓰기를 가정(`assume`)이 있어도 거절합니다.
+
+사이트 완성도: Figma가 그린 것만으로 만든 사이트는 hover·focus·전환·metadata·아이콘이 없어 "죽어" 보입니다. 그래서 계획은 둘로 나눕니다. **에이전트가 묻지 않고 채우는 것**(`defaults`에 기록, 최종 보고에 표시): 모든 링크·버튼·카드·탭·입력의 `_hover`·`_focusVisible`·`_active`·`_disabled`·`cursor`(Figma 상태 variant 우선, 없으면 기존 테마 토큰으로만 만든 작은 대체 — 새 색은 만들지 않음), 한 번만 정의한 약 0.2s `transition`, `_motionReduce`, 루트·페이지별 `metadata`(openGraph 포함, devfive-frontend 규칙), `<html lang>`, alt, 이미지 크기, not-found 페이지. **같은 사전 질문 라운드에서 묻는 것**: 파비콘·공유(OG) 이미지(기존 파일, 범위 안의 Figma 로고/og 노드, 직접 제공 중에서 — 직접 그리거나 생성하지 않음), 프로젝트에 없을 때만 사이트 이름·운영 URL, 흔적이 있을 때만 분석/인증 태그, hover 이상의 모션("None" 추천). `.devup/screen-plan.config.json`의 `favicon`·`ogImage`·`siteName`·`siteUrl`·`motion`으로 미리 답할 수 있습니다. `status`는 파비콘, URL별 metadata, OG 이미지, hover/focus 적용 비율, reduced-motion을 filled / asked-and-answered / missing으로 보고하고, `devup_ui_validate`는 상태 없는 상호작용 요소(`interactive-states`), transition 없는 `_hover`(`hover-transition`), metadata 없는 page/layout(`page-metadata`), projectRoot에 아이콘이 없는 앱(`app-icon`)을 알립니다.
+
+상호작용은 역할별 레시피로 채웁니다(버튼·보조 버튼·텍스트 링크·링크 카드·내비/탭·아이콘 버튼·입력·아코디언·모바일 메뉴마다 hover, pressed, focus 링, 현재 페이지(`aria-current`), 펼침(`aria-expanded`), disabled, loading). 절제가 규칙입니다: Figma 상태 variant 우선, 기존 토큰만, 상태당 속성 2개 이하, 150–250ms 한 번 정의, bounce·무한 애니메이션 금지, 이동 4px·scale 0.97–1.05 이내, `_motionReduce`에서 모두 끔, 상호작용 없는 요소는 hover 없음. 페이지 전환(View Transitions)은 항상 켭니다: 의존성 업데이트가 먼저 돌아 항상 최신 Next·React이므로 버전을 보지 않고 `import { ViewTransition } from 'react'`를 각 `page.tsx`에 씁니다(짧은 cross-fade, reduced-motion에서 끔). 설정 파일의 `viewTransitions: false`나, `updateDependencies: false`로 React 19.3 미만에 머문 경우에만 건너뜁니다. 동작은 의심하지 않고 검증합니다: runtime audit의 `view-transition` 검사가 링크를 따라가 `document.startViewTransition` 호출(또는 cross-document `pagereveal`)을 확인하고, 실패는 고칠 버그입니다. 저장소에 앱이 여럿이면 이름 순서가 아니라 의미로 고릅니다: 마케팅 화면은 공개 사이트(`apps/front`), "Admin - 회원관리" 같은 화면은 `apps/admin`, 섞인 파일은 화면마다 앱을 정합니다(route 표의 `app` 열). 기준은 "관리자라는 분명한 근거가 없으면 공개 사이트"라서, 단서 없는 화면도 공개 사이트로 가고 공개 사이트로 보이는 앱이 하나도 없을 때만 묻습니다. 에이전트 자신의 질문은 `extraQuestions`로 같은 사전 라운드에 넣고, 끝은 제출 체크리스트(모든 URL 구현, build·lint·typecheck 통과, validate 오류 없음, 아래 audit의 실패 0, 사이트 완성도 채움, 최종 보고서)입니다.
+
+#### 모든 것을 시각으로 검증하고, 멈추지 않는다
+
+규칙은 셋입니다: **모든 화면·섹션·에셋을 그려진 모든 폭에서 시각으로 검증한다**, **기다리느라 멈추지 않고 작업 순서를 바꾼다**, **완료 = 실패 0, 아니면 증거와 함께 unresolved로 남긴다**.
+
+- `devup_screen_plan` `action: "auditPlan"`(확정 뒤)은 확정된 URL마다 runtime audit 계획을 `.devup/runtime-audit/<slug>/plan.json`에 쓰고 실행기를 `.devup/runtime-audit/runner/`에 한 번 씁니다. `artifacts`에 그 계획 프레임들의 `devup_figma_export` artifactId를 모두 넘깁니다. 폭은 그려진 폭(뷰포트 높이 = 프레임 높이) + 1440/1100/858/390입니다. 모든 폭에서 page health(페이지 오류·콘솔 오류·"This page couldn't load"/"Application error" 텍스트 없음), 가로 넘침, 잘린 텍스트, 내비 잘림을 보고, 그려진 폭에서는 페이지 전체를 referencePng와, 프레임의 최상위 자식(섹션)과 에셋을 각자의 native-node 렌더와 비교하고, 섹션·카드·에셋의 크기와 **위치**(`bounds` 검사; 카드 순서가 틀리면 실패)를 봅니다. 링크·버튼 전체의 hover/focus와 다음 URL로의 view-transition 검사도 들어가며, view-transition은 코드가 맨 뒤로 보내고 실행기가 끝나면 원래 URL로 돌아옵니다. 빠진 referencePng·렌더·프레임은 `missingReferences`에 만드는 export 호출과 함께 나옵니다 — 조용히 건너뛰지 않습니다.
+- 섹션·카드·에셋은 `data-figma-node-id`로 찾습니다. `projectRoot`가 있는 export는 페이지 루트, 섹션, 그 자식, 에셋에 이 속성을 씁니다(projectRoot 없는 export는 플러그인과 같은 출력 그대로). 끄려면 설정 `figmaNodeIds: false`, 프로덕션에서 빼려면 Next의 `compiler.reactRemoveProperties: { properties: ["^data-figma-node-id$"] }`.
+- `status`에 `auditPlanPath`·`auditReportPath`를 주면 모든 실패를 분류합니다: `runtime-error`, `overflow`, `layout-position`, `layout-size`, `asset-mismatch`(멀티컬러 SVG에 mask, 잘못된 파일, crop/objectFit 순으로 원인 제시), `section-visual`, `page-visual`, `interaction`, `view-transition` — 각각 Figma 노드, 코드 파일, 구체적인 수정 힌트를 담습니다. 반환된 `visualComparisons` 호출(`threshold`·`diffPath` 포함)을 돌리고 결과를 `visualResults`로 넘깁니다. 안티앨리어싱은 실패가 아닙니다: 바뀐 픽셀 비율 허용치가 페이지·섹션 3%, 에셋 5%이고, 설정 `visualThresholds`(`page`, `section`, `asset`, 노드별 `nodes`)로 조정합니다.
+- 같은 finding은 새 실행마다 한 번만 시도로 셉니다. `maxFixAttempts`(설정, 기본 3)번 고치고도 실패하면 스크린샷·diff 경로와 함께 `unresolved`로 기록하고 작업 큐에서 뺍니다. `workQueue`는 URL마다 build → audit → fix → compare 순이고 막힌 일은 뒤로 갑니다.
+- 확정 뒤 생긴 결정은 `action: "defer"`(`decision: {id, about, question, options, recommended, destructive}`)로 남기고 계속 일합니다. 마지막에 `assume`(`about`: 결정 id)으로 추천안을 택하고, 파괴적인 결정은 만들지 않은 채 보고서에 남습니다. 실행기를 설치할 수 없으면 `toolingUnavailable`로 그 URL의 audit를 inconclusive로 두고 계속합니다.
+- `status`의 `finalReport`: URL × 폭 표(health, geometry, drift / converter bugs, page, section, asset, interaction, 스크린샷, diff), converter bug와 repro 파일, unresolved finding과 증거, 처리된 보류 결정, 가정, 디자인 수정 요청, 제외, 의존성 줄.
+
+#### 레이아웃은 정확히 맞아야 한다
+
+Figma 프레임은 정적으로 변환되므로, 그려진 폭에서 크기·위치·padding·gap은 "대충 맞는가"가 아니라 맞거나 틀리거나입니다. 그래서 `bounds` 검사에는 설정 가능한 허용치가 없고 반올림 0.5px만 허용합니다(Chromium의 getBoundingClientRect는 1/64px LayoutUnit을 DPR 1에서 픽셀에 맞추지 않고 돌려주고, Figma의 소수 px는 변환기가 반올림해 씁니다). 계획된 폰트가 먼저 로드되므로 텍스트 박스도 정확해야 하며, 폰트가 없으면 레이아웃 실패가 아니라 환경 오류입니다. 이미지·픽셀 비교만 안티앨리어싱 임계값(페이지·섹션 3%, 에셋 5%)을 유지합니다. 그려진 폭 사이에는 디자인이 없으므로 health, 넘침, 포함, 잘린 텍스트, 내비만 봅니다.
+
+불일치는 승인하지 않고 원인으로 분류합니다. `projectRoot`가 있는 export는 노드마다 쓴 내용을 `.devup/exports/<노드>.json`에 기록하고, `status`가 실패한 요소의 코드를 그 기록과 비교합니다.
+
+- `code-drift`: export가 쓴 속성이 빠졌거나 바뀌었거나, export가 쓰지 않은 레이아웃 속성이 더해졌습니다(핸들러·hover 스타일·링크 추가는 drift가 아닙니다). 해법은 export 값 복원이며, 레이아웃을 손으로 조정하지 않습니다.
+- `converter-bug`: 코드가 export 그대로인데 브라우저 박스가 Figma와 다릅니다. devup-mcp 결함이므로 재현 정보(file key, node id, Figma 박스, DOM 박스, 생성된 props, sourceMap 항목)를 `.devup/converter-bugs/<노드>.json`에 쓰고 `converterBugs`와 최종 보고서에 남깁니다. 결정적인 결과라 재시도하지 않으며 `maxFixAttempts`도 쓰지 않습니다. 사이트를 마치려고 로컬 override를 둘 수는 있지만 repro 파일을 가리키는 주석이 있어야 합니다.
+
+폭마다 프레임이 따로 있는 페이지를 `responsiveTsx`로 합치면 각 요소가 `data-figma-node-id`(가장 넓은 폭의 노드)와 `data-figma-node-ids="1440:12:34 390:56:78"`(그려진 폭마다 `폭:노드`, 공백 구분, `[data-figma-node-ids~="390:56:78"]`로 선택)를 가집니다. audit 계획은 폭마다 그 id로 섹션·카드·에셋을 찾고, 어떤 폭에서 그리지 않은 요소는 그 폭에서 숨겨져 있는지(`hidden` 검사) 확인합니다.
+
+동적 라우트(`[slug]`, `[id]`, catch-all)는 `notAudited`로 넘기지 않고 실제 URL로 검사합니다: 라우트의 `generateStaticParams`(리터럴, 또는 읽는 로컬 데이터 파일) → 이미 검사한 페이지의 `a[href]`(실행기가 페이지마다 모으고 다음 `auditPlan`이 사용) → 매핑된 Figma 상세 프레임의 제목으로 만든 샘플(가정으로 기록) 순서이며, 10개 이하면 전부 검사합니다. 셋 다 없을 때만 이유와 함께 `notAudited`입니다.
+
+`data-figma-node-id(s)`는 프로덕션에 남지 않습니다. vinext와 devup-ui Vite 플러그인에는 속성을 지우는 옵션이 없어서, `auditPlan`이 각 앱의 vite.config 옆에 작은 Vite 플러그인(`vite-plugin-strip-figma-node-ids.mjs`)을 둡니다. `enforce: 'pre'`, `apply`가 `vite build`일 때만이며 `DEVUP_AUDIT=1`이면 남깁니다. Rolldown은 transform 훅 뒤에 TSX/JSX를 변환하므로 이 단계에서는 속성이 그대로 JSX 텍스트입니다. `plugins: [stripFigmaNodeIds(), vinext()]`로 연결하고, audit는 dev 서버나 `DEVUP_AUDIT=1 bun run build`로 돌리며, 제출 체크리스트는 빌드 출력에서 `grep -rl data-figma-node-id dist`가 아무것도 찾지 않아야 통과합니다. `next` CLI에서는 `compiler.reactRemoveProperties`를 씁니다.
+
+최신 스택이 기본입니다: Next App Router를 vinext(Vite)로 실행하고, bun workspaces(`apps/*`), devup-ui, oxlint(eslint-plugin-devup), 최신 버전. `vinext` 의존성·`vinext` 스크립트·vinext를 import하는 `vite.config`가 있으면 `next` 의존성이 없어도 App Router 앱으로 보고, `devup_project_context`의 ui/routes가 앱별 `frameworks`를 알려 줍니다. 구현 전에는 묻지 않고 저장소 루트에서 `bunx @dependency-check-updates/cli -d -u --rm`(-d: 루트 아래 모든 manifest, -u: 복구 가능한 일괄 적용, --rm: 각 manifest 옆의 lockfile·설치 디렉터리 삭제 — Cargo.lock·target/ 포함) → `bun install` → build·lint·typecheck를 하고, 라이브러리 API는 기억이 아니라 현재 문서를 봅니다. 결과는 `assume`의 `dependencyUpdate`로 남기고 `status`에 dependencies 줄로 나옵니다. 앱이 없으면 `dev-five-git/service-template`에서 시작하고(이름·구성만 질문), `next` CLI 프로젝트에는 "Migrate to vinext (Recommended) / Keep next"를 한 번 묻습니다. 설정 파일의 `framework`·`updateDependencies: false`로 미리 답할 수 있습니다.
+
+명시적 시작점 `/devup [figma url] [notes]`: `devup_skills install`이 `devup` 스킬을 다른 스킬과 함께 쓰고(Claude Code는 프로젝트 스킬을 같은 이름의 슬래시 명령으로 제공하므로 `.claude/skills/devup/SKILL.md`가 곧 `/devup`), OpenCode에는 `.opencode/command/devup.md`도 씁니다. 명령 위치가 검증되지 않은 다른 런타임은 지원하지 않는다고 보고합니다. `devup_skills status`의 `command`가 설치 여부를 알려 줍니다. `/devup` 없이도 Figma로 페이지나 사이트를 만들어 달라는 요청이면 같은 흐름을 시작합니다.
+
+질문 도구에 호출당 개수 제한이 없으면(OpenCode `question`) 평평한 `questions` 목록을 한 번에 묻고, 제한이 있으면(Claude Code `AskUserQuestion`: 4) `maxQuestionsPerRound`(기본 4)로 나눈 `questionRounds`를 연달아 묻습니다.
+
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
@@ -1116,7 +1169,7 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 
 `overflowDirection`은 캡처 manifest에 포함됩니다. `NONE`은 명시적 비스크롤, JSON `null`은 수집 시 원본 속성이 없음, 키 부재는 이전 수집기의 미수집, `fieldErrors.overflowDirection`은 읽기 실패입니다. 세로/가로/양방향 스크롤은 각각 `overflowY="auto"`/`overflowX="auto"`/`overflow="auto"`로 생성합니다. `clipsContent=true`는 스크롤을 취소하지 않으며, 한 축 스크롤에서는 다른 축을 clip합니다. ABSOLUTE FIXED 높이는 파생 padding이 있어도 명시적 높이로 보존합니다. FILL/HUG를 px로 고정하지 않습니다.
 
-일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
+일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 `exportJob`을 가리키는 호환 참조이며 본문을 반복하지 않습니다). `jobId`로 상태를 조회하고(자산 행은 assetId·status·byteLength·sha256·fileState 위주로 간결하게 반환되며, 전체 행은 조회에 `responseFields:["exportJob.assets"]`를 붙여 선택합니다) paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
 
 artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `issued-by-another-process`(다른 devup-mcp 프로세스가 발급한 id — 재시작 전의 서버나 다른 세션의 서버), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. artifactId의 앞 6바이트가 발급한 프로세스의 표식이라 디스크에 아무것도 쓰지 않고 구분하며, id는 그대로 43자입니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
 

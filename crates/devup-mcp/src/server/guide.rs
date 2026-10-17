@@ -27,8 +27,8 @@ pub const GUIDE_MIME_TYPE: &str = "text/markdown";
 /// The original rule numbering is preserved in [`GUIDE`] - it skipped 9 - so a
 /// reader comparing the two can see nothing was dropped in the move.
 pub const INSTRUCTIONS: &str = concat!(
-    "Build identity: identify deployments by server.commit/buildId, not version alone; ",
-    "server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs. ",
+    "Build identity: identify deployments by server.commit/buildId, not version alone. ",
+    "Reconnect the MCP server if the expected build differs. ",
     "server.updateAvailable reports whether a newer release exists; state \"unknown\" means the check is disabled, ",
     "not yet run, or could not reach the network, and it never blocks a call.\n",
     "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n",
@@ -39,6 +39,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "run devup_ui_validate and report wired/tested counts before functional completion.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
+    "2c. Building pages or a site from Figma (a Section, several frames): follow skill ",
+    "devup-implementation-plan even without /devup - devup_screen_plan first, all questions up front, then never wait; audit every width (rule 16).\n",
     "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
     "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );
@@ -153,6 +155,12 @@ A `maskImage` or `Image` src is built from the layer name. Rename the file to
 fit the project. If the asset varies per usage, lift it into a prop instead of
 hardcoding it.
 
+`maskImage` + `bg` is emitted only for an icon painted in one flat colour; a
+multi-colour icon (gradient, several colours, an image) stays `<Image src>`.
+Never turn an `<Image>` icon into a mask or recolour it by hand: a mask keeps
+only the shape and fills it with one colour. `devup_ui_validate` with
+`projectRoot` warns `multicolor-mask` when one does.
+
 ## 11. A referenced asset must actually exist
 
 A fixed asset such as an icon must be exported, never referenced by a path that
@@ -190,7 +198,9 @@ assetManifest/imageAudit and `asset-css-map.json`, schedules sorted batches of a
 most six and retains hidden, missing-source, failed and limit dispositions.
 Use assetPublicRoot for written `.webp` files and mapped code, or resources for
 reusable bytes. Custom assetRequests remain separate. Poll exportJob; resume
-paused work or cancel with jobAction. Accepted results/checkpoints live in this
+paused work or cancel with jobAction. Polls return compact asset rows; add
+`responseFields` (e.g. `exportJob.assets`) to a poll for full rows. `assetJob`
+only references `exportJob`. Accepted results/checkpoints live in this
 server process for the reported retention period. Scheduling is bounded to4096
 sources and128 MiB retained asset bytes; remaining IDs carry explicit failures
 and can be retried in smaller scopes. Read completeness and failures before use.
@@ -212,6 +222,51 @@ widths is checked in the consumer project: `devup_runtime_audit` writes the
 plan and verifies the report, and never runs the browser itself. Its ingest
 returns a ready `devup_visual_compare` call for each screenshot taken at a
 drawn width.
+
+## 14. Interactions by role, restrained
+
+Hover plus a transition is not a finished interaction. Each interactive
+element gets its role's recipe - button, link, card, nav item, icon button,
+input, disclosure - with pressed, focus, current-page, expanded, disabled and
+loading states where they apply, and view transitions between pages - always
+on, and proved by the runtime audit's view-transition check. Restraint is a rule, not a taste: at
+most two properties per state, 150-250ms, existing tokens only, scale 0.97 to
+1.05, nothing infinite, everything off under `_motionReduce`. The table is in
+the devup-implementation-plan skill; `devup_screen_plan` records it in
+`defaults` and `devup_ui_validate` reports both too little and too much.
+
+## 15. The latest stack, and vinext
+
+DevFive builds on Next App Router run by vinext on Vite, in bun workspaces,
+on the latest versions. An app with a `vinext` dependency, `vinext` scripts or
+a `vite.config` importing vinext is an App Router app with no `next`
+dependency; `devup_project_context` reports `frameworks` per app. Before
+implementing, the workflow runs `bunx @dependency-check-updates/cli -d -u --rm`
+at the repository root, then `bun install`, build, lint and typecheck, and
+checks current docs before using a library API - API knowledge from memory is
+assumed stale. A new project starts from `dev-five-git/service-template`; one
+on the `next` CLI is asked once whether to migrate.
+
+## 16. Visual verification of everything, full autonomy
+
+Visually verify every screen, section and asset at every drawn width.
+`devup_screen_plan` `auditPlan` writes one runtime-audit plan per URL: page
+health, overflow and clipped text at every width; the page, each section and
+each asset against its Figma render, and the size and position of each
+section, card and asset, at the drawn widths; hover, focus and a view
+transition, ordered by code. Layout is exact; a mismatch is drift or a
+converter bug: geometry allows only half a pixel of rounding, and a
+mismatch is `code-drift` when the code no longer writes what the export
+recorded in `.devup/exports/`, or `converter-bug` when it does - reported
+with a repro in `.devup/converter-bugs/`, never retried or tuned silently.
+Merged pages are found per width through `data-figma-node-ids`, dynamic
+routes at concrete URLs, and production builds strip the ids unless
+`DEVUP_AUDIT=1`. `status` classifies each failure (runtime-error,
+overflow, layout-position, layout-size, asset-mismatch, section-visual,
+page-visual, interaction, view-transition) with its node, file and fix hint.
+Never stop to wait; reorder the work: a decision after confirm goes to
+`defer` and is taken with `assume` at the end. Done = zero fails, or listed as
+unresolved with evidence after `maxFixAttempts`.
 "#;
 
 #[cfg(test)]
@@ -245,10 +300,13 @@ mod tests {
     /// The ceiling moved once, for rule 1a: the connection order has to be
     /// read before the first Figma call, because an agent that met a plugin
     /// attached and a `disconnected` direct path asked its user to log in.
+    /// It moved again for rule 2c: the screen plan has to come before the
+    /// first page is written, and an agent that has not read the guide yet
+    /// is exactly the one that writes pages straight away.
     #[test]
     fn instructions_are_far_smaller_than_the_guidance_they_point_at() {
         assert!(
-            INSTRUCTIONS.len() < 1_400,
+            INSTRUCTIONS.len() < 1_500,
             "instructions grew back to {} bytes; the per-session cost is the thing being fixed",
             INSTRUCTIONS.len()
         );

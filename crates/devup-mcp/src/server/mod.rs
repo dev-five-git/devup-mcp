@@ -1,16 +1,20 @@
 pub mod artifacts;
 mod asset_jobs;
+mod audit_plan;
 mod call_cache;
 mod compact;
 pub mod delivery;
 mod design_drift;
 mod diagnostics;
+mod export_record;
 mod feature_trace;
 #[cfg(test)]
 mod feedback_interactions_tests;
 mod field_select;
+mod framework;
 mod guide;
 mod interactions;
+mod mask_guard;
 mod measurement;
 mod navigation;
 pub mod operation;
@@ -25,6 +29,7 @@ pub mod resources;
 mod result_contract;
 mod review;
 mod runtime_audit;
+mod screen_plan;
 mod screenshot_observations;
 mod section_checklist;
 pub mod self_update;
@@ -831,6 +836,134 @@ impl DevupServer {
     }
 
     /// Both paths to Figma as they stand right now.
+    /// `devup_figma_explore` without the tool envelope, so `devup_screen_plan`
+    /// lists screens through the same read rather than a second one.
+    async fn explore(&self, input: FigmaExploreInput) -> Result<Value, DevupError> {
+        if let Some(hints) = &input.screenshot_observations {
+            hints.validate()?;
+        }
+        let target = self
+            .bind_to_bridge(
+                parse_link(input.url.as_deref())?,
+                Unnamed::Selection,
+                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit,"screenshotObservations":input.screenshot_observations } }),
+            )
+            .await
+            ?;
+        target.node_id.as_ref().ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "Exploring neighboring Figma screens requires a node-id.",
+                false,
+            )
+        })?;
+        if !(1..=MATCH_CEILING).contains(&input.limit) {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "The explore limit must be between 1 and 100 inclusive.",
+                false,
+            ));
+        }
+        let requested_target = target.clone();
+        let mut request = CollectionRequest::new(target, CollectionScope::Node);
+        request.resource_scope = ResourceScope::None;
+        request.explore = Some(ExploreReadOptions {
+            // Fixed, not derived from `limit`. Derived, it made `limit` two
+            // things at once - how many screens come back, and how much of the
+            // page the collection script is allowed to walk - and the second
+            // one is why limit 33 could answer with fewer screens than limit
+            // 30. Asking for the script's own ceiling every time also means
+            // one anchor's projection can be reused for a neighbour's, since
+            // every explore of a file now reads the same amount.
+            projection_limit: EXPLORE_PROJECTION_LIMIT,
+            text_preview_limit: if input.include_text_preview
+                || input.screenshot_observations.is_some()
+            {
+                160
+            } else {
+                0
+            },
+        });
+        let result = self
+            .start_operation(
+                PendingOperation::Explore {
+                    // The projection ranks up to the ceiling and `limit` cuts
+                    // the ranked list afterwards, in `apply_explore_limit`, so
+                    // that what was found and what was returned are both known
+                    // and can be reported apart.
+                    limit: MATCH_CEILING,
+                    target: requested_target,
+                },
+                request,
+                input.refresh,
+            )
+            .await?;
+        let mut result = result;
+        screenshot_observations::rank(&mut result, input.screenshot_observations.as_ref());
+        Ok(apply_explore_limit(result, input.limit))
+    }
+
+    /// The screens `devup_screen_plan draft` plans: the caller's list from an
+    /// earlier explore, or one explore of the linked Section or selection.
+    async fn plan_screens(
+        &self,
+        input: &screen_plan::ScreenPlanInput,
+    ) -> Result<(Vec<screen_plan::PlanScreenInput>, Value), DevupError> {
+        if !input.screens.is_empty() {
+            return Ok((
+                input.screens.clone(),
+                json!({"from": "caller", "url": input.url,
+                    "nodeId": input.url.as_deref().and_then(|url| FigmaTarget::parse(url).ok()).and_then(|target| target.node_id)}),
+            ));
+        }
+        let explored = self
+            .explore(FigmaExploreInput {
+                screenshot_observations: None,
+                url: input.url.clone(),
+                limit: MATCH_CEILING,
+                include_text_preview: false,
+                refresh: input.refresh,
+            })
+            .await?;
+        let candidates = explored["candidates"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let screens_only = candidates
+            .iter()
+            .any(|candidate| candidate["node"]["kind"] == "screen");
+        let screens = candidates
+            .iter()
+            .map(|candidate| &candidate["node"])
+            .filter(|node| !screens_only || node["kind"] == "screen")
+            .filter_map(screen_plan::screen_from_explore)
+            .collect();
+        // Nodes beside the screens - a logo, a frame named og - are the
+        // favicon and share image candidates the site questions offer.
+        let assets = candidates
+            .iter()
+            .map(|candidate| &candidate["node"])
+            .filter(|node| screens_only && node["kind"] != "screen")
+            .filter_map(|node| {
+                Some(json!({"nodeId": node["nodeId"].as_str()?, "name": node["name"].as_str()?}))
+            })
+            .collect::<Vec<_>>();
+        Ok((
+            screens,
+            json!({
+                "assetCandidates": assets,
+                "from": "devup_figma_explore",
+                "url": input.url,
+                "nodeId": explored["anchor"]["nodeId"],
+                "anchorName": explored["anchor"]["name"],
+                "anchorBreadcrumb": explored["anchor"]["breadcrumb"],
+                "targetKind": explored["targetKind"],
+                "fileKey": explored["source"]["fileKey"],
+                "truncation": explored["truncation"],
+            }),
+        ))
+    }
+
     async fn connection_report(&self) -> Result<Value, DevupError> {
         let status = self.services.auth.status().await?;
         let direct = self.services.auth.direct_path_snapshot().await?;
@@ -1555,73 +1688,14 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<FigmaExploreInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        if let Some(hints) = &input.screenshot_observations {
-            hints.validate().map_err(to_mcp_error)?;
-        }
-        let target = self
-            .bind_to_bridge(
-                parse_link(input.url.as_deref()).map_err(to_mcp_error)?,
-                Unnamed::Selection,
-                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit,"screenshotObservations":input.screenshot_observations } }),
-            )
+        self.explore(input)
             .await
-            .map_err(to_mcp_error)?;
-        target.node_id.as_ref().ok_or_else(|| {
-            to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaNodeNotFound,
-                "Exploring neighboring Figma screens requires a node-id.",
-                false,
-            ))
-        })?;
-        if !(1..=MATCH_CEILING).contains(&input.limit) {
-            return Err(to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaResponseTooLarge,
-                "The explore limit must be between 1 and 100 inclusive.",
-                false,
-            )));
-        }
-        let requested_target = target.clone();
-        let mut request = CollectionRequest::new(target, CollectionScope::Node);
-        request.resource_scope = ResourceScope::None;
-        request.explore = Some(ExploreReadOptions {
-            // Fixed, not derived from `limit`. Derived, it made `limit` two
-            // things at once - how many screens come back, and how much of the
-            // page the collection script is allowed to walk - and the second
-            // one is why limit 33 could answer with fewer screens than limit
-            // 30. Asking for the script's own ceiling every time also means
-            // one anchor's projection can be reused for a neighbour's, since
-            // every explore of a file now reads the same amount.
-            projection_limit: EXPLORE_PROJECTION_LIMIT,
-            text_preview_limit: if input.include_text_preview
-                || input.screenshot_observations.is_some()
-            {
-                160
-            } else {
-                0
-            },
-        });
-        let result = self
-            .start_operation(
-                PendingOperation::Explore {
-                    // The projection ranks up to the ceiling and `limit` cuts
-                    // the ranked list afterwards, in `apply_explore_limit`, so
-                    // that what was found and what was returned are both known
-                    // and can be reported apart.
-                    limit: MATCH_CEILING,
-                    target: requested_target,
-                },
-                request,
-                input.refresh,
-            )
-            .await
-            .map_err(to_mcp_error)?;
-        let mut result = result;
-        screenshot_observations::rank(&mut result, input.screenshot_observations.as_ref());
-        Ok(tool_result(apply_explore_limit(result, input.limit)))
+            .map(tool_result)
+            .map_err(to_mcp_error)
     }
 
     #[tool(
-        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Polls return compact asset rows (status, bytes, sha256, fileState); responseFields on a poll selects from its reply, e.g. exportJob.assets for full rows; assetJob only references exportJob. Generated code uses maskImage only for single-colour icons; multi-colour icons stay <Image>. Never convert an <Image> icon to a mask or recolour it by hand. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. Asked to build pages or a site from Figma, follow the devup-implementation-plan workflow (/devup) even if not asked: it plans the URLs, updates dependencies to the latest, and adds interaction states, transitions and metadata; App Router apps may run on vinext with no next dependency. Building pages: with projectRoot, a page write (pageScaffold write, outputPaths under app/, or several frames with outputPaths) needs a confirmed devup_screen_plan and otherwise answers plan_required; pageScaffold then takes its route from the plan. Ask the plan's questions up front only; after confirm never ask the user, record assumptions instead. Excluded and design-fix frames are refused (skill devup-implementation-plan). \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
@@ -1644,6 +1718,49 @@ impl DevupServer {
             for output in ["assetManifest", "imageAudit"] {
                 if !input.outputs.iter().any(|o| o == output) {
                     input.outputs.push(output.into());
+                }
+            }
+        }
+        // Before anything is validated or collected: a page write without a
+        // confirmed screen plan is answered with the plan to make, and a
+        // pageScaffold route comes from the plan when one covers the frame.
+        if workflow.job_id.is_none()
+            && let Some(project_root) = input.project_root.clone()
+        {
+            let mut frames = input.frame_ids.clone();
+            if frames.is_empty() {
+                let node = match (&input.url, &input.artifact_id) {
+                    (Some(url), _) => FigmaTarget::parse(url).ok().and_then(|t| t.node_id),
+                    (None, Some(id)) => self
+                        .artifacts
+                        .get(id)
+                        .await
+                        .and_then(|artifact| artifact.payload.target.node_id.clone()),
+                    _ => None,
+                };
+                frames.extend(node);
+            }
+            let request = screen_plan::ExportRequest {
+                project_root: &project_root,
+                url: input.url.as_deref(),
+                frames,
+                all_screens: input.all_screens,
+                scaffold_write: input.page_scaffold.as_ref().is_some_and(|s| s.write),
+                scaffold_route: input.page_scaffold.as_ref().map(|s| s.route.as_str()),
+                output_paths: input
+                    .output_paths
+                    .iter()
+                    .filter(|(key, _)| !key.ends_with("pageScaffold"))
+                    .map(|(_, path)| path.as_str())
+                    .collect(),
+            };
+            match screen_plan::export_gate(&request).map_err(to_mcp_error)? {
+                screen_plan::Gate::Open => {}
+                screen_plan::Gate::Blocked(response) => return Ok(tool_result(response)),
+                screen_plan::Gate::Route(route) => {
+                    if let Some(scaffold) = input.page_scaffold.as_mut() {
+                        scaffold.route = route;
+                    }
                 }
             }
         }
@@ -1696,21 +1813,29 @@ impl DevupServer {
             // their TSX. Checking it only on the synchronous returns left
             // every real export unchecked.
             let project_root = input.project_root.clone();
-            return job
-                .wait_briefly()
+            // responseFields on a poll selects from this reply; without them
+            // the reply carries compact per-asset rows.
+            let selection = &input.response_selection;
+            selection.validate().map_err(to_mcp_error)?;
+            let result = job
+                .wait_briefly(selection.active())
                 .await
-                .map(|result| {
-                    tool_result(with_project_checks(
-                        result,
-                        project_root.as_deref(),
-                        &skills::Lookup::new(
-                            project_root.as_deref(),
-                            self.output_policy.primary_root(),
-                            self.client_name(),
-                        ),
-                    ))
-                })
-                .map_err(to_mcp_error);
+                .map_err(to_mcp_error)?;
+            let result = with_project_checks(
+                result,
+                project_root.as_deref(),
+                &skills::Lookup::new(
+                    project_root.as_deref(),
+                    self.output_policy.primary_root(),
+                    self.client_name(),
+                ),
+            );
+            if selection.active() {
+                return compact::pick(&result, selection)
+                    .map(tool_result)
+                    .map_err(to_mcp_error);
+            }
+            return Ok(tool_result(result));
         }
         if workflow.job_action.is_some() {
             return Err(to_mcp_error(DevupError::new(
@@ -2187,7 +2312,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | routes | all) — read-only, no session cache, never guesses. UI/routes are opt-in and excluded from all. Routes inventories Next App Router pages with package authority and scan limits. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | routes | all) — read-only, no session cache, never guesses. UI/routes are opt-in and excluded from all. Routes inventories Next App Router pages with package authority and scan limits; ui and routes add `frameworks`, which app runs on vinext (a vinext dependency or scripts, or a vite.config importing vinext - no next dependency needed) or next, across bun workspaces. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(
@@ -2214,8 +2339,8 @@ impl DevupServer {
 
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
-                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. `themeNotes` summarizes each encountered empty token category once. \
-                       Navigation rules also report unmapped action candidates/accessibility warnings, missing static App Router href errors when projectRoot inventory is complete, and literal active-state info. Dynamic hrefs/custom routing and incomplete bundles remain unverified. Optional renderedHtml reports captured anchor counts separately from source coverage; neither proves runtime behavior. `checkedTokens` counts references and `availableTokenCount` counts definitions; they are not a ratio.",
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. With projectRoot, a maskImage whose public SVG paints more than one colour warns `multicolor-mask` (use <Image src>). `themeNotes` summarizes each encountered empty token category once. \
+                       Site completeness: an interactive element (as=a/button, Link, button, onClick) with no _hover or _focusVisible is a warning (interactive-states), one with no focus style is a warning (focus-style), too much motion - over 400ms, scale above 1.05, infinite - is a warning (too-much-motion), an icon-only button without aria-label is a warning (icon-button-label); a button with no _active, a _hover with no transition, motion with no _motionReduce and a nav link with no aria-current are info (button-active, hover-transition, motion-reduce, nav-current); a page or layout with no metadata export is a warning (page-metadata, files mode), and with projectRoot an app with no icon or favicon is a warning (app-icon). Navigation rules also report unmapped action candidates/accessibility warnings, missing static App Router href errors when projectRoot inventory is complete, and literal active-state info. Dynamic hrefs/custom routing and incomplete bundles remain unverified. Optional renderedHtml reports captured anchor counts separately from source coverage; neither proves runtime behavior. `checkedTokens` counts references and `availableTokenCount` counts definitions; they are not a ratio.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_ui_validate(
@@ -2258,6 +2383,29 @@ impl DevupServer {
                 input.strict,
             )
         };
+        // Site completeness, for code checked against a project: feedback on
+        // every interactive element (bundle mode checks it per file), and an
+        // icon for the app.
+        if let Some(root) = input.project_root.as_deref() {
+            if input.files.is_none() {
+                report.violations.extend(
+                    devup_mcp_devup_ui::ui_validate::site::interaction_findings(
+                        input.source_name.as_deref().unwrap_or("input.tsx"),
+                        &input.tsx,
+                    ),
+                );
+            }
+            report
+                .violations
+                .extend(screen_plan::missing_app_icon(root));
+            if input.strict
+                && report.violations.iter().any(|finding| {
+                    finding.severity == devup_mcp_devup_ui::ui_validate::Severity::Warning
+                })
+            {
+                report.ok = false;
+            }
+        }
         if input.asset_policies.len() > 4096 {
             return Err(invalid("assetPolicies exceeds 4096 entries.".into()));
         }
@@ -2271,7 +2419,7 @@ impl DevupServer {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_else(|| vec![("", input.tsx.as_str())]);
-        for (name, tsx) in sources {
+        for &(name, tsx) in &sources {
             for diagnostic in
                 devup_mcp_devup_ui::codegen::validate_asset_effects(tsx, &input.asset_policies)
             {
@@ -2288,6 +2436,12 @@ impl DevupServer {
                 }
             }
         }
+        // A mask flattens its SVG to one colour, which only the file shows.
+        let masks = mask_guard::violations(&sources, input.project_root.as_deref());
+        if input.strict && !masks.is_empty() {
+            report.ok = false;
+        }
+        report.violations.extend(masks);
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three
@@ -2431,7 +2585,7 @@ impl DevupServer {
 
     #[tool(
         description = "Plan, then verify, a browser run of generated screens at several viewport widths that the consumer project executes (action: plan | ingest). This server never launches a browser or runs a command. \
-                       Optional templatePath transactionally writes the fixed Playwright runner and package files alongside outputPath. Dimension checks bind explicit Figma artifactId/nodeId references to CSS logical DOM sizes at viewports (default 1440/1100/858/390); width tables disclose missing references and report tolerance exceedances only, never multiplying zoom or DPR. plan validates a declarative plan - baseUrl and allowedOrigins, viewports, screens by routePath or by steps that find elements by role and accessible name, testId or text, and geometry checks (no-horizontal-overflow, contained, aligned, spans, visible) - gives it a content id, and writes it under an allowed root with outputPath. Unknown fields, shell strings, other origins and URLs carrying credentials are refused. \
+                       Optional templatePath transactionally writes the fixed Playwright runner and package files alongside outputPath. Dimension checks bind explicit Figma artifactId/nodeId references to CSS logical DOM sizes at viewports (default 1440/1100/858/390); width tables disclose missing references and report tolerance exceedances only, never multiplying zoom or DPR. plan validates a declarative plan - baseUrl and allowedOrigins, viewports, screens by routePath or by steps that find elements by role and accessible name, testId or text, and geometry checks (no-horizontal-overflow, contained, aligned, spans, visible, hidden, and bounds - size and position against the Figma frame, exact up to 0.5px of rounding) plus page-health, no-clipped-text, interaction, capture and view-transition (follow a link and confirm a view transition ran) - gives it a content id, and writes it under an allowed root with outputPath. Unknown fields, shell strings, other origins and URLs carrying credentials are refused. \
                        The consumer runs harness/runtime-audit against it in fresh isolated browser contexts. ingest reads the plan and the report.json it wrote, rejects a report not bound to that plan by id and file hash, recomputes every count from the items, verifies each screenshot's SHA-256, length and decoded width, and separates what it verified from what the executor only declared. A missing item is not-run, never a pass; a viewport with an environment error makes the verdict inconclusive. A visual original exists only at the widths a screen's Figma frame was drawn at.",
         output_schema = permissive_object_output_schema()
     )]
@@ -2478,6 +2632,46 @@ impl DevupServer {
         .map_err(to_mcp_error)?;
         Ok(tool_result(result))
     }
+    #[tool(
+        description = "Plan which Figma screen becomes which URL before any page is written, confirm it up front, then report it URL by width (action: draft | confirm | status | assume | auditPlan | defer). draft reads the linked Section or frame (or the Bridge selection, or `screens` from an earlier devup_figma_explore) and proposes a route only from evidence: an existing page built from the frame, a nav link label bound to an existing href, a navigationTargets entry, or .devup/screen-plan.config.json (modalKeywords, routeAliases, widthGrouping). A route inferred from a layer name is routeEvidence name-match and is put to the user; with no evidence it is UNVERIFIED and asked. Only frames under the link are candidates, never the rest of the file; frames in trash, archive, draft, copy or hidden areas are excluded and listed (excludeKeywords/includeKeywords in the config). Frames sharing a name in one section are asked about per group; the same name in different sections, a screen split across sections, a frame outside any section and duplicates each get an explicit question with a \"the Figma structure is wrong\" option whose frames are reported, never built. It writes .devup/screen-plan.json and .md and returns `questionRounds`: questions already shaped for your question tool (id, header <= 30 chars, question, options[{label, description}] recommended first, multiple, custom answers allowed), at most maxQuestionsPerRound (default 4) per round. Ask everything now: a question tool with no cap (`question` in OpenCode) takes the flat `questions` list in one call; one with a cap (`AskUserQuestion` in Claude Code) takes the rounds in consecutive calls with no other work in between, skipping a question whose `when` was not met; never ask in prose and never implement before confirm. confirm takes every applicable answer keyed by question id and refuses the call, naming the missing ids. After confirm, never ask the user: take the recommended or most conservative option and record it with assume. status compares the confirmed plan with the routes on disk and an optional devup_runtime_audit plan/report: per URL, implemented yes/no and per-width pass, fail with reason, or not-run - a width without an audit item is never pass - plus every assumption. draft also lists the stack defaults - Next App Router on vinext, a new project from dev-five-git/service-template, and the dependency update `bunx @dependency-check-updates/cli -d -u --rm` before implementing - and asks once whether a next-CLI app migrates to vinext; with several workspace apps it picks the app by meaning (the public app unless the frames clearly say admin, per screen in a mixed file) and asks only when no app looks like the public site; then the site defaults it fills in without asking (an interaction recipe per element role, restrained; one shared transition; reduced motion; view transitions always on (React's ViewTransition; skipped only when the project config opts out), verified by a runtime-audit view-transition check; metadata, lang, alt text, not-found) and asks only what needs a file or a fact: favicon and share image (from existing files or Figma logo/og nodes, never generated), site name and URL when the project does not say, analytics when the project shows it, and scroll reveal; `extraQuestions` adds the agent's own questions to the same rounds so nothing is asked after confirm; .devup/screen-plan.config.json may pre-answer them (favicon, ogImage, siteName, siteUrl, motion). status adds site completeness: favicon, metadata per URL, share image, hover/focus coverage and reduced motion as filled, asked-and-answered or missing. auditPlan writes one devup_runtime_audit plan per confirmed URL from the export artifacts: page health, overflow and clipped text at every width; the page, each section and each asset against its Figma render (devup_visual_compare calls returned by status) and the size and position of each section, card and asset at the drawn widths, exactly (half a pixel of rounding, no tolerance); merged pages found per width through data-figma-node-ids; dynamic routes at concrete URLs from generateStaticParams, the site's links or the detail frame; hover and focus; a view-transition check placed last; a Vite plugin beside each app's vite.config that strips the ids from production builds unless DEVUP_AUDIT=1; missing referencePngs and renders are listed with the export call that makes them. status then classifies every failure (runtime-error, overflow, code-drift or converter-bug for geometry - compared with the export record each export writes to .devup/exports, a converter bug written as a repro to .devup/converter-bugs and never retried - layout-position, layout-size, asset-mismatch, section-visual, page-visual, interaction, view-transition) with its Figma node, code file and fix hint, folds visualResults in, marks a finding unresolved with its evidence after maxFixAttempts (config, default 3), and returns a workQueue per URL and the finalReport. defer records a decision met after confirm as pending with its recommended option so the work never waits; assume takes it at the end, and a destructive one stays unbuilt. Done = zero fails, or listed as unresolved with evidence. The devup-implementation-plan skill (devup_skills) carries the whole workflow; /devup starts it.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_screen_plan(
+        &self,
+        Parameters(input): Parameters<screen_plan::ScreenPlanInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = match input.action.as_str() {
+            "draft" => {
+                let (screens, source) = self.plan_screens(&input).await.map_err(to_mcp_error)?;
+                let mut assets = input.assets.clone();
+                assets.extend(
+                    source["assetCandidates"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|asset| serde_json::from_value(asset.clone()).ok()),
+                );
+                screen_plan::draft_with(&input, &screens, &assets, source, &self.output_policy)
+                    .await
+            }
+            "confirm" => screen_plan::confirm(&input, &self.output_policy),
+            "assume" => screen_plan::assume(&input, &self.output_policy),
+            "status" => screen_plan::status(&input, &self.output_policy, &self.artifacts).await,
+            "auditPlan" => {
+                screen_plan::audit_plan(&input, &self.output_policy, &self.artifacts).await
+            }
+            "defer" => screen_plan::defer(&input, &self.output_policy),
+            other => Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                format!(
+                    "action must be draft, confirm, status, assume, auditPlan or defer, not {other}."
+                ),
+                false,
+            )),
+        }
+        .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
 }
 
 /// Adds what `devup_ui_validate` checked beyond its rules, kept apart from
@@ -2515,6 +2709,9 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
     let mut rules = devup_mcp_devup_ui::ui_validate::rule_names()
         .into_iter()
         .collect::<Vec<_>>();
+    if input.project_root.is_some() {
+        rules.push(mask_guard::RULE);
+    }
     if input.files.is_some() {
         rules.extend([
             "file-placement",
@@ -2672,9 +2869,17 @@ fn skill_gap<'a>(
     if missing.is_empty() && outdated.is_empty() {
         return None;
     }
+    // The same install writes /devup, the one word that starts the whole
+    // workflow; say so where the agent is already being told to install.
+    let command = skills::command_state(lookup);
     Some(json!({
         "missing": missing,
         "outdated": outdated,
+        "command": if command["installed"] == true { Value::Null } else { json!({
+            "invocation": command["invocation"],
+            "supported": command["supported"],
+            "how": command["how"],
+        }) },
         "why": why,
         "how": "Call devup_skills with action \"install\" and this same projectRoot, then load \
                 the skills the way your runtime loads a project skill. Before writing the code, \

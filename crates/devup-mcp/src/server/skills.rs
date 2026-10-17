@@ -27,7 +27,8 @@
 //! each one pins the commit it copied and `scripts/refresh-skills.mjs` is how
 //! that copy is moved forward.
 //!
-//! `own` skills are written here, in this repository - devfive-frontend. There
+//! `own` skills are written here, in this repository - devfive-frontend,
+//! devup-implementation-plan and devup. There
 //! is no upstream to vendor from and nothing for the refresh script to compare
 //! against, so they pin no commit; this repository's own history is their
 //! provenance. They are otherwise installed exactly like an embedded skill,
@@ -135,6 +136,17 @@ const EMBEDDED: &[(&str, Documents)] = &[
                 include_str!("skills/devfive-frontend/references/theme-colors.md"),
             ),
         ],
+    ),
+    (
+        "devup-implementation-plan",
+        &[(
+            "SKILL.md",
+            include_str!("skills/devup-implementation-plan/SKILL.md"),
+        )],
+    ),
+    (
+        "devup",
+        &[("SKILL.md", include_str!("skills/devup/SKILL.md"))],
     ),
     (
         "changepacks",
@@ -1159,6 +1171,137 @@ impl Skill {
     }
 }
 
+/// The explicit entry point: `/devup [figma url] [notes]`.
+///
+/// An MCP server cannot start a skill or a slash command itself, so the user
+/// gets one to type. Claude Code turns every project skill into a slash
+/// command of the same name, so the `devup` skill installed with the others
+/// already is `/devup` there. OpenCode keeps slash commands in their own
+/// directory, so it gets a command file as well. Every other runtime is
+/// reported unsupported rather than given a path nobody verified.
+pub const COMMAND_NAME: &str = "devup";
+pub const COMMAND_INVOCATION: &str = "/devup [figma url] [notes]";
+/// Marks a command file devup-mcp wrote, so a later install may rewrite it
+/// and leaves anyone else's alone.
+const COMMAND_MARKER: &str = "<!-- devup-mcp:command devup";
+const OPENCODE_COMMAND: &str = include_str!("commands/opencode-devup.md");
+const OPENCODE_COMMAND_ROOT: &str = ".opencode/command";
+const OPENCODE_USER_COMMAND_ROOT: &str = ".config/opencode/command";
+
+/// Whether an install writes the OpenCode command: when OpenCode is the
+/// client, or when the skills go to its skill root. `roots` are the install's
+/// roots as chosen before anything was staged - staging creates directories,
+/// and asking again afterwards sees only the first of them.
+fn writes_opencode_command(lookup: &Lookup, roots: &[PathBuf]) -> bool {
+    lookup.runtime == Runtime::Opencode
+        || roots
+            .iter()
+            .any(|root| root.ends_with(Path::new(".opencode").join("skill")))
+}
+
+fn opencode_command_paths(lookup: &Lookup) -> Vec<PathBuf> {
+    let file = format!("{COMMAND_NAME}.md");
+    let mut paths = vec![join_root(&lookup.project, OPENCODE_COMMAND_ROOT).join(&file)];
+    if let Some(home) = &lookup.home {
+        paths.push(join_root(home, OPENCODE_USER_COMMAND_ROOT).join(&file));
+    }
+    paths
+}
+
+/// Whether `/devup` is installed for the detected runtime, and where.
+pub fn command_state(lookup: &Lookup) -> serde_json::Value {
+    let claude = || {
+        let paths = Lookup {
+            runtime: Runtime::ClaudeCode,
+            ..lookup.clone()
+        }
+        .installed_paths(COMMAND_NAME);
+        serde_json::json!({
+            "runtime": "claude-code",
+            "via": "skill",
+            "installed": !paths.is_empty(),
+            "paths": paths.iter().map(|path| path.display().to_string()).collect::<Vec<_>>(),
+            "how": "Claude Code offers every project skill as a slash command of the same name; the devup skill is /devup.",
+        })
+    };
+    let opencode = || {
+        let found = opencode_command_paths(lookup)
+            .into_iter()
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        serde_json::json!({
+            "runtime": "opencode",
+            "via": "command",
+            "installed": !found.is_empty(),
+            "paths": found.iter().map(|path| path.display().to_string()).collect::<Vec<_>>(),
+            "writesTo": join_root(&lookup.project, OPENCODE_COMMAND_ROOT).join(format!("{COMMAND_NAME}.md")).display().to_string(),
+            "how": "OpenCode reads slash commands from .opencode/command/*.md.",
+        })
+    };
+    let per_runtime = match lookup.runtime {
+        Runtime::ClaudeCode => vec![claude()],
+        Runtime::Opencode => vec![opencode()],
+        Runtime::Unknown => vec![claude(), opencode()],
+        _ => Vec::new(),
+    };
+    let supported = !per_runtime.is_empty();
+    let installed = per_runtime.iter().any(|entry| entry["installed"] == true);
+    serde_json::json!({
+        "name": COMMAND_NAME,
+        "invocation": COMMAND_INVOCATION,
+        "runtime": lookup.runtime.as_str(),
+        "supported": supported,
+        "installed": installed,
+        "perRuntime": per_runtime,
+        "how": if !supported {
+            format!(
+                "devup-mcp writes no slash command for {}: no command location for it is verified. The devup skill is installed with the others and loads by its description, and the server's instructions start the workflow on a request to build pages.",
+                lookup.runtime.as_str()
+            )
+        } else if installed {
+            "Type /devup with a Figma link and notes to start the whole workflow.".to_owned()
+        } else {
+            "Call devup_skills with action \"install\"; it writes /devup with the skills.".to_owned()
+        },
+    })
+}
+
+/// Stages the OpenCode command file when this install writes one. A file
+/// devup-mcp did not write is left alone and reported.
+fn stage_commands(
+    policy: &super::output::OutputPolicy,
+    transaction: &mut super::output::OutputTransaction,
+    lookup: &Lookup,
+    roots: &[PathBuf],
+) -> Result<Vec<serde_json::Value>, devup_mcp_figma::DevupError> {
+    if !writes_opencode_command(lookup, roots) {
+        return Ok(Vec::new());
+    }
+    let path = join_root(&lookup.project, OPENCODE_COMMAND_ROOT).join(format!("{COMMAND_NAME}.md"));
+    let existing = std::fs::read_to_string(&path).ok();
+    let state = match existing.as_deref() {
+        Some(text) if text == OPENCODE_COMMAND => "alreadyPresent",
+        Some(text) if !text.contains(COMMAND_MARKER) => "leftAlone",
+        Some(_) => "refreshed",
+        None => "installed",
+    };
+    if matches!(state, "installed" | "refreshed") {
+        let target = policy.resolve(&path.display().to_string())?;
+        transaction.stage(
+            "command:opencode:devup",
+            target,
+            OPENCODE_COMMAND.as_bytes(),
+        )?;
+    }
+    Ok(vec![serde_json::json!({
+        "name": COMMAND_NAME,
+        "runtime": "opencode",
+        "path": path.display().to_string(),
+        "state": state,
+        "invocation": COMMAND_INVOCATION,
+    })])
+}
+
 /// What every caller of `devup_skills` gets back: the gap, per skill.
 ///
 /// The shape is deliberately the same for `status` and after `install`, so the
@@ -1298,6 +1441,7 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
                          Installing again rewrites devup-mcp's own copies and leaves a `foreign` \
                          one - a document with no devup-mcp provenance note - alone.",
         "skills": entries,
+        "command": command_state(lookup),
         "machineWide": machine_wide(lookup),
         "how": "These are the conventions for the code devup-mcp emits and reads. Install the \
                 missing ones, then let your own skill loader surface them - an installed skill \
@@ -1549,9 +1693,11 @@ async fn install_with(
         )
         .await?;
     }
+    let commands = stage_commands(policy, &mut transaction, lookup, &roots)?;
     transaction.commit()?;
 
     Ok(serde_json::json!({
+        "commands": commands,
         "installed": written,
         "refreshed": refreshed,
         "alreadyPresent": already,
@@ -1671,6 +1817,52 @@ mod fetch_tests;
 mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
+
+    /// /devup per runtime: Claude Code gets it as the devup skill, OpenCode as
+    /// a command file, and a runtime with no verified command location is
+    /// told so instead of given a guessed path.
+    #[tokio::test]
+    async fn the_devup_command_is_written_where_the_runtime_reads_commands() {
+        let project = scratch("devup-command");
+        let policy = super::super::output::OutputPolicy::from_roots(vec![project.clone()]).unwrap();
+        let opencode = Lookup::project_only(project.clone(), Runtime::Opencode);
+        let report = install(&policy, &opencode, &["devup".to_owned()])
+            .await
+            .unwrap();
+        assert_eq!(report["commands"][0]["state"], "installed", "{report}");
+        let command = project.join(".opencode").join("command").join("devup.md");
+        assert!(command.is_file());
+        assert_eq!(command_state(&opencode)["installed"], true);
+        let again = install(&policy, &opencode, &["devup".to_owned()])
+            .await
+            .unwrap();
+        assert_eq!(again["commands"][0]["state"], "alreadyPresent");
+
+        let claude = Lookup::project_only(project.clone(), Runtime::ClaudeCode);
+        assert_eq!(command_state(&claude)["installed"], false);
+        let report = install(&policy, &claude, &["devup".to_owned()])
+            .await
+            .unwrap();
+        assert!(
+            report["commands"].as_array().unwrap().is_empty(),
+            "{report}"
+        );
+        let state = command_state(&claude);
+        assert_eq!(state["installed"], true, "{state}");
+        assert_eq!(state["perRuntime"][0]["via"], "skill");
+
+        let codex = Lookup::project_only(project.clone(), Runtime::Codex);
+        let state = command_state(&codex);
+        assert_eq!(state["supported"], false);
+        assert!(
+            state["how"]
+                .as_str()
+                .unwrap()
+                .contains("no command location")
+        );
+        drop(policy);
+        std::fs::remove_dir_all(project).unwrap();
+    }
 
     #[tokio::test]
     async fn an_own_install_reports_the_binary_as_its_source() {

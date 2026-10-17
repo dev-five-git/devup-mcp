@@ -130,7 +130,16 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
         }
         for (items, requested) in [
             (&value["assetManifest"]["assets"], false),
-            (&value["assetJob"]["assets"], true),
+            // `assetJob` is only a reference to `exportJob` now; batches saved
+            // before that still carry the rows under the old name.
+            (
+                if value["exportJob"]["assets"].is_array() {
+                    &value["exportJob"]["assets"]
+                } else {
+                    &value["assetJob"]["assets"]
+                },
+                true,
+            ),
         ] {
             for item in items.as_array().into_iter().flatten() {
                 let Some(id) = item["assetId"].as_str() else {

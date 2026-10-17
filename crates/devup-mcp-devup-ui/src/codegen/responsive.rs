@@ -1326,6 +1326,20 @@ pub struct MergedScreen {
     pub verified: bool,
     /// Where a width and the module part company, when they do.
     pub gaps: Vec<Value>,
+    /// Each opening element of `tsx`, in document order: the node every
+    /// drawn width made it from, and the widths it is drawn hidden at.
+    pub elements: Vec<MergedElement>,
+}
+
+/// One merged element and where it came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MergedElement {
+    /// Inside another element's text (a `<br />`), not a node of its own.
+    pub in_text: bool,
+    /// (frame width, node id) for each width that draws it, widest first.
+    pub ids: Vec<(u32, String)>,
+    /// The drawn widths it is present but hidden at.
+    pub hidden_at: Vec<u32>,
 }
 
 /// Everything `project_tree` can name. Anything else the merged tree mentions
@@ -1400,6 +1414,7 @@ pub fn merge_breakpoints(
     let mut by_slot: BySlot<Tree> = std::array::from_fn(|_| None);
     let mut roots: BySlot<String> = std::array::from_fn(|_| None);
     let mut precedence: Precedence = [usize::MAX; SLOTS];
+    let mut slot_widths: BySlot<u32> = [None; SLOTS];
     let mut slots = Vec::new();
     for (position, breakpoint) in found.iter().enumerate() {
         let Some(node) = snapshot.nodes.get(&breakpoint.node_id) else {
@@ -1422,6 +1437,14 @@ pub fn merge_breakpoints(
             by_slot[slot] = Some(tree);
             roots[slot] = Some(breakpoint.node_id.clone());
             precedence[slot] = position;
+            #[expect(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "a frame is a small positive number of pixels wide"
+            )]
+            {
+                slot_widths[slot] = Some(width.max(0.0).round() as u32);
+            }
         }
     }
     slots.sort_unstable();
@@ -1433,7 +1456,9 @@ pub fn merge_breakpoints(
     collect_components(&tree, &mut components);
     let tsx = render_merged(&tree, 2);
     let (contract, gaps) = verify_merge(snapshot, options, &roots, &tree, &tsx);
+    let elements = merged_elements(&tree, &slot_widths);
     Ok(Some(MergedScreen {
+        elements,
         verified: gaps.is_empty() && contract.iter().all(|entry| entry["verified"] == true),
         tsx,
         components,
@@ -1442,6 +1467,46 @@ pub fn merge_breakpoints(
         contract,
         gaps,
     }))
+}
+
+/// Where each element of the merged module came from, in the order
+/// `render_merged` writes the opening elements.
+fn merged_elements(tree: &Tree, slot_widths: &BySlot<u32>) -> Vec<MergedElement> {
+    let mut placed = Vec::new();
+    place(tree, None, [true; SLOTS], &mut placed);
+    placed
+        .iter()
+        .map(|placed| {
+            if placed.in_text {
+                return MergedElement {
+                    in_text: true,
+                    ids: Vec::new(),
+                    hidden_at: Vec::new(),
+                };
+            }
+            let mut ids = Vec::new();
+            let mut hidden_at = Vec::new();
+            for (slot, width) in slot_widths.iter().enumerate() {
+                let Some(width) = width else {
+                    continue;
+                };
+                match placed.tree.slots.get(slot).cloned().flatten() {
+                    Some((node, _)) if placed.shown[slot] => ids.push((*width, node)),
+                    _ if !placed.shown[slot] => hidden_at.push(*width),
+                    // Shown with no node of its own at that width: nothing
+                    // in that frame to compare it with.
+                    _ => {}
+                }
+            }
+            ids.sort_by_key(|(width, _)| std::cmp::Reverse(*width));
+            hidden_at.sort_by_key(|width| std::cmp::Reverse(*width));
+            MergedElement {
+                in_text: false,
+                ids,
+                hidden_at,
+            }
+        })
+        .collect()
 }
 
 /// One opening element of the merged module, in document order.

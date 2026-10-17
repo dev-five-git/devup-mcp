@@ -654,11 +654,11 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         .expect("structured compatibility summary");
     let summaries = structured["resources"].as_array().unwrap();
     assert_eq!(
-        result.structured_content.as_ref().unwrap()["assetJob"]["assets"][0]["status"],
+        result.structured_content.as_ref().unwrap()["exportJob"]["assets"][0]["status"],
         "exported"
     );
     assert_eq!(
-        result.structured_content.as_ref().unwrap()["assetJob"]["assets"][0]["fileState"],
+        result.structured_content.as_ref().unwrap()["exportJob"]["assets"][0]["fileState"],
         "written"
     );
     assert_eq!(
@@ -1240,14 +1240,14 @@ async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
     let mut paused = call(&client, "devup_figma_export", args.clone()).await?;
     if timeout_first {
         assert_eq!(paused["assetJob"]["state"], "running");
-        let timeout_ms = paused["assetJob"]["calls"]
+        let timeout_ms = paused["exportJob"]["calls"]
             .as_array()
             .unwrap()
             .last()
             .unwrap()["timeoutMs"]
             .as_u64()
             .unwrap();
-        assert!(timeout_ms >= paused["assetJob"]["assetTimeoutMs"].as_u64().unwrap());
+        assert!(timeout_ms >= paused["exportJob"]["assetTimeoutMs"].as_u64().unwrap());
         tokio::time::advance(std::time::Duration::from_millis(timeout_ms + 1000)).await;
         paused = call(
             &client,
@@ -1258,11 +1258,25 @@ async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
     }
     assert_eq!(paused["assetJob"]["state"], "paused", "{paused}");
     let id = paused["assetJob"]["jobId"].as_str().unwrap();
-    assert_eq!(paused["assetJob"]["assets"][0]["status"], "exported");
+    assert_eq!(paused["exportJob"]["assets"][0]["status"], "exported");
     assert_eq!(
-        paused["assetJob"]["assets"][0]["fileState"],
+        paused["exportJob"]["assets"][0]["fileState"],
         "not-requested"
     );
+    // Polls answer compact rows, and the alias no longer repeats the job.
+    assert!(paused["exportJob"]["assets"][0].get("renderInfo").is_none());
+    assert_eq!(paused["assetJob"]["aliasOf"], "exportJob");
+    // responseFields on a poll answers only what it selected.
+    let picked = call(
+        &client,
+        "devup_figma_export",
+        json!({"jobId":id,"responseFields":["exportJob.assets.renderInfo"]}),
+    )
+    .await?;
+    assert_eq!(picked["selections"][0]["matched"], 1, "{picked}");
+    assert!(picked["selections"][0]["values"][0].is_object());
+    assert_eq!(picked["exportJob"]["state"], "paused");
+    assert!(picked.get("assetJob").is_none(), "{picked}");
     let recovered = call(&client, "devup_figma_export", args).await?;
     assert_eq!(recovered["assetJob"]["jobId"], id);
     let resumed = call(
@@ -1474,7 +1488,7 @@ async fn r3_cancelled_client_recovers_retained_asset_job() -> anyhow::Result<()>
     let id = &recovered["assetJob"]["jobId"];
     assert!(id.is_string());
     assert_eq!(upstream.snapshots.load(Ordering::SeqCst), 1);
-    let timeout_ms = recovered["assetJob"]["calls"]
+    let timeout_ms = recovered["exportJob"]["calls"]
         .as_array()
         .unwrap()
         .last()
@@ -1523,7 +1537,7 @@ async fn r3_distinct_resource_jobs_keep_both_manifests_readable() -> anyhow::Res
     for value in [first, second] {
         assert_eq!(value["assetJob"]["state"], "complete");
         assert!(
-            value["assetJob"]["assets"]
+            value["exportJob"]["assets"]
                 .as_array()
                 .unwrap()
                 .iter()

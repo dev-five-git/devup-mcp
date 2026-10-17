@@ -219,3 +219,137 @@ test('dimensions across 1440/1100/858/390 retain CSS pixels at DPR 2 and filter 
     await rm(out, { recursive: true, force: true });
   }
 });
+
+test('a view-transition check sees same-document and cross-document transitions, and their absence', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-vt-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const check = { kind: 'view-transition', label: 'next', subject: { testId: 'go' } };
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-vt',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1200, height: 800, deviceScaleFactor: 1 }],
+        screens: [
+          { id: 'same', routePath: '/transition.html', checks: [{ kind: 'no-horizontal-overflow', label: 'page' }, check] },
+          { id: 'cross', routePath: '/crossdoc.html', checks: [check] },
+          { id: 'plain', routePath: '/plain.html', checks: [check] },
+        ],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const [same, cross, plain] = report.runs[0].screens;
+    assert.deepEqual(same.checks.map((item) => [item.index, item.status]), [[0, 'pass'], [1, 'pass']], JSON.stringify(same, null, 2));
+    assert.equal(cross.checks[0].status, 'pass', JSON.stringify(cross, null, 2));
+    assert.equal(plain.checks[0].status, 'fail', JSON.stringify(plain, null, 2));
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
+test('page health, bounds, clipped text, interaction states and captures in a real browser', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-kinds-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const node = (id) => ({ css: `[data-figma-node-id="${id}"]` });
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-kinds',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1200, height: 800, deviceScaleFactor: 1 }, { width: 800, height: 800, deviceScaleFactor: 1 }],
+        screens: [
+          { id: 'layout', routePath: '/layout.html', checks: [
+            { kind: 'page-health', label: 'health' },
+            { kind: 'bounds', label: 'card 1', subject: node('1:3'), container: node('1:2'), expected: { x: 20, y: 20, width: 160, height: 100 } },
+            { kind: 'bounds', label: 'card 2', subject: node('1:4'), container: node('1:2'), expected: { x: 200, y: 20, width: 160, height: 100 } },
+            { kind: 'no-clipped-text', label: 'text', subject: node('1:6') },
+            { kind: 'interaction', label: 'cta hover', state: 'hover', subject: { role: 'button', name: 'Send' } },
+            { kind: 'interaction', label: 'cta focus', state: 'focus', subject: { role: 'button', name: 'Send' } },
+            { kind: 'interaction', label: 'flat hover', state: 'hover', subject: { role: 'link', name: 'Plain link' } },
+            { kind: 'capture', label: 'icon', subject: node('1:5'), widths: [1200] },
+            { kind: 'interaction', label: 'sweep', state: 'hover' },
+          ] },
+          { id: 'broken', routePath: '/broken.html', checks: [{ kind: 'page-health', label: 'health' }] },
+        ],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const [wide, narrow] = report.runs;
+    const statuses = (screen) => Object.fromEntries(screen.checks.map((item) => [item.label, item.status]));
+    assert.deepEqual(statuses(wide.screens[0]), {
+      health: 'pass', 'card 1': 'pass', 'card 2': 'fail', text: 'fail',
+      'cta hover': 'pass', 'cta focus': 'pass', 'flat hover': 'fail', icon: 'pass', sweep: 'fail',
+    }, JSON.stringify(wide.screens[0].checks, null, 2));
+    const card = wide.screens[0].checks.find((item) => item.label === 'card 2');
+    assert.match(card.reason, /^position: /);
+    const sweep = wide.screens[0].checks.find((item) => item.label === 'sweep');
+    assert.match(sweep.reason, /nothing on 1 of 2: <a> "Plain link"/);
+    const icon = wide.screens[0].checks.find((item) => item.label === 'icon');
+    assert.ok(icon.screenshot.path.endsWith('-c7.png'));
+    assert.ok(!narrow.screens[0].checks.some((item) => item.label === 'icon'), 'a capture runs only at its widths');
+    assert.equal(statuses(wide.screens[1]).health, 'fail');
+    assert.match(wide.screens[1].checks[0].reason, /couldn't load/);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
+test('a page merged from two width frames is found by its per-width node ids', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-merged-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const at = (width, id) => ({ css: `[data-figma-node-id="${id}"], [data-figma-node-ids~="${width}:${id}"]` });
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-merged',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1440, height: 800, deviceScaleFactor: 1 }, { width: 390, height: 800, deviceScaleFactor: 1 }],
+        screens: [{ id: 'merged', routePath: '/merged.html', checks: [
+          { kind: 'bounds', label: 'hero 1440', subject: at(1440, 'd:2'), container: at(1440, 'd:1'), expected: { x: 0, y: 0, width: 1440, height: 400 }, widths: [1440] },
+          { kind: 'bounds', label: 'hero 390', subject: at(390, 'm:2'), container: at(390, 'm:1'), expected: { x: 0, y: 0, width: 390, height: 300 }, widths: [390] },
+          { kind: 'visible', label: 'promo 1440', subject: at(1440, 'd:3'), widths: [1440] },
+          { kind: 'hidden', label: 'promo 390', subject: { css: '[data-figma-node-id="d:3"]' }, widths: [390] },
+        ] }],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const results = report.runs.flatMap((run) => run.screens[0].checks.map((item) => [item.label, item.status, item.reason]));
+    assert.deepEqual(results.map(([label, status]) => [label, status]), [
+      ['hero 1440', 'pass'], ['promo 1440', 'pass'], ['hero 390', 'pass'], ['promo 390', 'pass'],
+    ], JSON.stringify(results));
+    assert.ok(!results.some(([, , reason]) => /matched no element/.test(reason)), 'no missing nodes');
+    assert.ok(report.runs[0].screens[0].links.includes('/plain.html'), JSON.stringify(report.runs[0].screens[0].links));
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});

@@ -970,8 +970,10 @@ async fn bundle_page_helper_is_not_judged_as_the_page() -> anyhow::Result<()> {
 /// itself a violation — for a component used by exactly one route.
 #[tokio::test]
 async fn a_single_use_route_helper_is_not_pushed_into_shared_components() -> anyhow::Result<()> {
+    // The metadata export keeps `ok` about this rule alone: a page without
+    // one is its own warning (`page-metadata`).
     let output = structural(
-        "function PageContent(){return <div/>}\nexport default function NoticePage(){return <PageContent/>}",
+        "export const metadata = { title: 'Notice' };\nfunction PageContent(){return <div/>}\nexport default function NoticePage(){return <PageContent/>}",
         "src/app/notice/page.tsx",
     )
     .await?;

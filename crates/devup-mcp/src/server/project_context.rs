@@ -255,9 +255,14 @@ pub async fn run(
         "theme" => Ok(theme_scope(&root, filter)),
         "api" => Ok(api_scope(&root, filter)),
         "db" => Ok(db_scope(&root, filter)),
-        "ui" => Ok(ui::run(&root, filter)),
+        "ui" => {
+            let mut inventory = ui::run(&root, filter);
+            inventory["frameworks"] = super::framework::report(&root);
+            Ok(inventory)
+        }
         "routes" => {
             let mut inventory = ui::run(&root, filter);
+            inventory["frameworks"] = super::framework::report(&root);
             inventory.as_object_mut().unwrap().remove("components");
             inventory["scope"] = json!("routes");
             Ok(inventory)

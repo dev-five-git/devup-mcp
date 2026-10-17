@@ -13,7 +13,10 @@ use std::{
 // Object-form false schema keeps strict option parsing compatible with MCP clients.
 #[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
 pub struct PageScaffoldOptions {
-    /// Caller-supplied App Router route, e.g. /settings/profile or / for the root page.
+    /// App Router route, e.g. /settings/profile or / for the root page. Omit
+    /// it when a confirmed devup_screen_plan covers the frame: the plan's
+    /// route is used, and a different one is refused as a mismatch.
+    #[serde(default)]
     pub route: String,
     /// Preview by default, including assets and other outputPaths in this call.
     #[serde(default)]
