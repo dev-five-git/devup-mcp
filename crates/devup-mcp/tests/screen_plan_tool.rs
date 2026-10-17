@@ -212,7 +212,7 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
     assert!(!failed, "{status}");
     assert_eq!(
         status["summary"],
-        "3 URLs: 2 implemented, 0 verified at all widths; no runtime audit report, so every width is not-run; site completeness: 3 missing"
+        "3 URLs: 2 implemented, 0 verified at all widths; no runtime audit report, so every width is not-run; site completeness: 4 missing"
     );
     std::fs::remove_dir_all(root).ok();
     Ok(())

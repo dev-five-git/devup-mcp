@@ -139,6 +139,10 @@ pub struct ScreenPlanInput {
     /// assume: what was decided during implementation without asking.
     #[serde(default)]
     pub assumptions: Vec<AssumptionInput>,
+    /// assume: the outcome of the dependency step. Each pin is also recorded
+    /// as an assumption.
+    #[serde(default)]
+    pub dependency_update: Option<DependencyUpdateInput>,
     /// draft: how many questions one question-tool call takes; default 4
     /// (Claude Code AskUserQuestion). A tool with no cap asks the flat
     /// `questions` list in one call instead.
@@ -238,6 +242,27 @@ pub struct AssumptionInput {
     pub reason: Option<String>,
 }
 
+/// The outcome of the dependency step, recorded once it ran.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct DependencyUpdateInput {
+    /// How many packages the update bumped.
+    pub bumped: usize,
+    /// Packages held back because no code fix exists, with the reason.
+    #[serde(default)]
+    pub pins: Vec<PinInput>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct PinInput {
+    pub package: String,
+    pub version: String,
+    pub reason: String,
+}
+
 /// `.devup/screen-plan.config.json`: how this project's designers name
 /// things. Each entry present counts as evidence and replaces the question
 /// it would otherwise take.
@@ -274,6 +299,12 @@ pub(super) struct PlanConfig {
     pub site_url: Option<String>,
     #[serde(default)]
     pub motion: Option<String>,
+    /// false for a project that forbids the dependency update step.
+    #[serde(default)]
+    pub update_dependencies: Option<bool>,
+    /// vinext | next: pre-answers the migrate-to-vinext question.
+    #[serde(default)]
+    pub framework: Option<String>,
 }
 
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
@@ -292,6 +323,14 @@ fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
     {
         return Err(invalid(format!(
             "{}: widthGrouping must be responsive, separate or ask, not {mode:?}.",
+            path.display()
+        )));
+    }
+    if let Some(framework) = config.framework.as_deref()
+        && !matches!(framework, "vinext" | "next")
+    {
+        return Err(invalid(format!(
+            "{}: framework must be vinext or next, not {framework:?}.",
             path.display()
         )));
     }
@@ -435,6 +474,45 @@ pub(super) struct ProjectEvidence {
     pub react_version: Option<(String, String)>,
     /// Page-transition and animation libraries the project depends on.
     pub motion_libraries: Vec<String>,
+    pub vinext_version: Option<(String, String)>,
+    /// react-dom and react-server-dom-webpack, which a vinext app pins to
+    /// the React it runs while `react` itself may say only `^19`.
+    pub react_peers: Vec<(String, String)>,
+    /// Every app the project holds, and what runs each.
+    pub apps: Vec<super::framework::App>,
+    /// The app this plan builds, relative to the root (`.` for the root).
+    /// `None` with several apps: which one is asked.
+    pub target_app: Option<super::framework::App>,
+}
+
+impl ProjectEvidence {
+    /// The target app's directory, or `.`.
+    fn app_root(&self) -> &str {
+        self.target_app.as_ref().map_or(".", |app| app.dir.as_str())
+    }
+
+    /// The target app's framework, or `unknown`.
+    fn framework(&self) -> &'static str {
+        self.target_app
+            .as_ref()
+            .map_or("unknown", |app| app.framework)
+    }
+}
+
+/// Picks the app a plan builds and points `app_dir` at its App Router.
+fn choose_app(root: &Path, evidence: &mut ProjectEvidence) {
+    evidence.apps = super::framework::detect(root);
+    evidence.target_app = match evidence.apps.as_slice() {
+        [only] => Some(only.clone()),
+        apps => apps.iter().find(|app| app.dir == ".").cloned(),
+    };
+    let first = evidence
+        .target_app
+        .clone()
+        .or_else(|| evidence.apps.first().cloned());
+    if let Some(app) = first {
+        evidence.app_dir = app.path(app.app_router.as_deref().unwrap_or("src/app"));
+    }
 }
 
 /// The `data-figma-node-id="..."` values in one source file.
@@ -469,6 +547,7 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
     };
     evidence.root = PathBuf::from(project_root);
     if inventory["found"] != true {
+        choose_app(&PathBuf::from(project_root), &mut evidence);
         read_site_facts(&PathBuf::from(project_root), &mut evidence);
         evidence.inventory_note = Some(
             "No App Router source was found; every route is unverified until pages exist or navigationTargets name them."
@@ -514,6 +593,7 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
     {
         evidence.app_dir = "app".into();
     }
+    choose_app(&root, &mut evidence);
     for component in array(&inventory["components"]) {
         sources.insert(text(&component["path"]).to_owned());
         let in_layout = array(&component["importedBy"]).iter().any(|site| {
@@ -1292,14 +1372,20 @@ fn quoted_after(source: &str, marker: &str) -> Option<String> {
 /// image, name, URL, analytics, language and not-found page.
 fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
     let app = evidence.app_dir.clone();
+    let app_root = evidence.app_root().to_owned();
+    let public = if app_root == "." {
+        "public".to_owned()
+    } else {
+        format!("{app_root}/public")
+    };
     evidence.icon_files = [
         files_named(root, &app, &["icon.", "favicon.", "apple-icon."]),
-        files_named(root, "public", &["favicon", "icon.", "apple-touch-icon"]),
+        files_named(root, &public, &["favicon", "icon.", "apple-touch-icon"]),
     ]
     .concat();
     evidence.og_files = [
         files_named(root, &app, &["opengraph-image.", "twitter-image."]),
-        files_named(root, "public", &["og", "share", "opengraph"]),
+        files_named(root, &public, &["og", "share", "opengraph"]),
     ]
     .concat();
     evidence.not_found = ["tsx", "jsx", "js"]
@@ -1328,25 +1414,37 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
         }
     }
     // The lockfile says what is installed, which a range in package.json
-    // does not.
-    if let Some(lock) = read_small_up_to(&root.join("package-lock.json"), 8 * 1024 * 1024)
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-    {
-        for (name, slot) in [
-            ("next", &mut evidence.next_version),
-            ("react", &mut evidence.react_version),
-        ] {
-            if let Some(version) =
-                lock["packages"][format!("node_modules/{name}")]["version"].as_str()
-            {
-                *slot = Some((version.to_owned(), "package-lock.json".into()));
-            }
+    // does not. bun.lock first: bun is DevFive's package manager.
+    let bun_lock = read_small_up_to(&root.join("bun.lock"), 16 * 1024 * 1024);
+    let npm_lock = read_small_up_to(&root.join("package-lock.json"), 16 * 1024 * 1024)
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    for (name, slot) in [
+        ("next", &mut evidence.next_version),
+        ("react", &mut evidence.react_version),
+        ("vinext", &mut evidence.vinext_version),
+    ] {
+        if let Some(version) = bun_lock.as_deref().and_then(|lock| bun_locked(lock, name)) {
+            *slot = Some((version, "bun.lock".into()));
+        } else if let Some(version) = npm_lock
+            .as_ref()
+            .and_then(|lock| lock["packages"][format!("node_modules/{name}")]["version"].as_str())
+        {
+            *slot = Some((version.to_owned(), "package-lock.json".into()));
         }
     }
-    for file in [".env", ".env.local", ".env.production"] {
-        let Some(source) = read_small(&root.join(file)) else {
+    let env_dirs = if app_root == "." {
+        vec![".".to_owned()]
+    } else {
+        vec![app_root.clone(), ".".to_owned()]
+    };
+    for file in env_dirs.iter().flat_map(|dir| {
+        [".env", ".env.local", ".env.production"]
+            .map(|name| join_relative(&PathBuf::from(dir), name))
+    }) {
+        let Some(source) = read_small(&root.join(&file)) else {
             continue;
         };
+        let file = file.display().to_string().replace('\\', "/");
         for line in source.lines() {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
@@ -1373,19 +1471,43 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
             }
         }
     }
-    if let Some(package) = read_small(&root.join("package.json"))
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    // The app's own package.json first: in a workspace the root one holds
+    // tooling, the app's holds its framework and React.
+    for manifest in env_dirs
+        .iter()
+        .map(|dir| join_relative(root, dir).join("package.json"))
     {
-        evidence.package_name = package["name"].as_str().map(str::to_owned);
+        let Some(package) =
+            read_small(&manifest).and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        else {
+            continue;
+        };
+        let shown = manifest
+            .strip_prefix(root)
+            .unwrap_or(&manifest)
+            .display()
+            .to_string()
+            .replace('\\', "/");
+        if evidence.package_name.is_none() {
+            evidence.package_name = package["name"].as_str().map(str::to_owned);
+        }
         for section in ["dependencies", "devDependencies"] {
             for (name, slot) in [
                 ("next", &mut evidence.next_version),
                 ("react", &mut evidence.react_version),
+                ("vinext", &mut evidence.vinext_version),
             ] {
                 if slot.is_none()
                     && let Some(version) = package[section][name].as_str()
                 {
-                    *slot = Some((version.to_owned(), format!("package.json {section}")));
+                    *slot = Some((version.to_owned(), format!("{shown} {section}")));
+                }
+            }
+            for peer in ["react-dom", "react-server-dom-webpack"] {
+                if let Some(version) = package[section][peer].as_str() {
+                    evidence
+                        .react_peers
+                        .push((version.to_owned(), format!("{peer} in {shown} {section}")));
                 }
             }
             for name in MOTION_LIBRARIES {
@@ -1399,11 +1521,21 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
         for section in ["dependencies", "devDependencies"] {
             for name in ANALYTICS_PACKAGES {
                 if package[section].get(*name).is_some() {
-                    evidence.analytics.push(format!("{name} in package.json"));
+                    evidence.analytics.push(format!("{name} in {shown}"));
                 }
             }
         }
     }
+}
+
+/// The version bun.lock resolved a package to: its entry reads
+/// `"react": ["react@19.3.0", ...]`.
+fn bun_locked(lock: &str, name: &str) -> Option<String> {
+    let marker = format!("\"{name}\": [\"{name}@");
+    let start = lock.find(&marker)? + marker.len();
+    let end = lock[start..].find('"')? + start;
+    Some(lock[start..end].to_owned())
+        .filter(|version| version.starts_with(|c: char| c.is_ascii_digit()))
 }
 
 /// Libraries that already animate page changes. With one present, adding
@@ -1483,12 +1615,238 @@ fn version_triple(value: &str) -> Option<(u64, u64, u64)> {
     ))
 }
 
-/// The view-transition default: which mechanism this project's Next.js and
+/// The dependency step every job starts with, word for word as the skills
+/// give it. `-d` scans every manifest under the root recursively (that is how
+/// workspace apps are reached), `-u` applies the updates as one recoverable
+/// batch, and `--rm` removes the lockfiles and installed directories next to
+/// each manifest - for a Cargo.toml too, which means Cargo.lock and target/ -
+/// so the next install resolves everything fresh.
+pub(super) const UPDATE_STEP: &str = "bunx @dependency-check-updates/cli -d -u --rm";
+
+/// The documents the view-transition decision rests on. Read when it was
+/// written; the decision names them so a reader can check them again.
+///
+/// - https://nextjs.org/docs/app/guides/view-transitions - App Router, no
+///   config, `import { ViewTransition } from 'react'`, React 19.3.
+/// - https://react.dev/reference/react/ViewTransition - the component.
+/// - https://vinext.dev/compatibility - Next.js's own
+///   app-dir/view-transitions e2e suite passes under vinext (App Router).
+/// - <https://github.com/cloudflare/vinext/blob/main/examples/app-router-playground/app/view-transitions/_ui/transitions.tsx>:
+///   vinext's own example imports `ViewTransition` from 'react' and sets
+///   `experimental.viewTransition: true` in its next config.
+/// - <https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts>:
+///   `vinext check` still labels that import "partial (passthrough fallback,
+///   won't animate)" whatever the React version; the runtime audit is where
+///   that is settled.
+/// - https://github.com/cloudflare/vinext#readme - peer dependency react ^19.3.1.
+const VIEW_TRANSITION_DOCS: &[&str] = &[
+    "https://nextjs.org/docs/app/guides/view-transitions",
+    "https://react.dev/reference/react/ViewTransition",
+    "https://vinext.dev/compatibility",
+    "https://github.com/cloudflare/vinext/blob/main/examples/app-router-playground/app/view-transitions/_ui/transitions.tsx",
+    "https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts",
+];
+
+fn vinext_transition(evidence: &ProjectEvidence, common: &str, why: String) -> Value {
+    json!({"item": "view-transitions", "mechanism": "react-view-transition (vinext)",
+        "decision": format!("import {{ ViewTransition }} from 'react', wrapping each page's content in its page.tsx, with experimental: {{ viewTransition: true }} in vinext({{ nextConfig }}) as vinext's own example does; {common}. vinext check still labels this import partial (a passthrough shim), so the runtime audit confirms the cross-fade animates in Chromium; if it does not, pages still navigate normally - record that as an assumption."),
+        "evidence": why, "app": evidence.app_root(), "docs": VIEW_TRANSITION_DOCS})
+}
+
+/// The view-transition default for the latest stack: vinext with React
+/// 19.3+, decided from the versions installed after the dependency update -
+/// status decides again from what is installed then. The `next` CLI path is
+/// a fallback for existing projects that do not run on vinext.
+fn view_transition_default(evidence: &ProjectEvidence) -> Value {
+    let common = "a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion; browsers without support navigate normally";
+    if is_new_project(evidence) {
+        return vinext_transition(
+            evidence,
+            common,
+            "new project from dev-five-git/service-template, which runs vinext 1.0 with React 19.3 - after the update step, newer".into(),
+        );
+    }
+    let migrating = evidence.config.framework.as_deref() == Some("vinext");
+    if evidence.framework() != "vinext" && !migrating {
+        let mut fallback = next_cli_view_transition(evidence);
+        fallback["docs"] = json!(VIEW_TRANSITION_DOCS);
+        return fallback;
+    }
+    let version = |slot: &Option<(String, String)>| {
+        slot.as_ref()
+            .map_or(("not installed".to_owned(), None), |(text, _)| {
+                (text.clone(), version_triple(text))
+            })
+    };
+    // The highest React the app declares: `react` may be a bare `^19` while
+    // react-dom and react-server-dom-webpack pin the release it runs.
+    let (react_text, react) = std::iter::once(version(&evidence.react_version))
+        .chain(
+            evidence
+                .react_peers
+                .iter()
+                .map(|(text, _)| (text.clone(), version_triple(text))),
+        )
+        .max_by_key(|(_, triple)| *triple)
+        .unwrap_or(("not installed".to_owned(), None));
+    let (vinext_text, vinext) = version(&evidence.vinext_version);
+    if react.is_some_and(|react| react >= (19, 3, 0))
+        && vinext.is_some_and(|vinext| vinext >= (1, 0, 0))
+    {
+        return vinext_transition(
+            evidence,
+            common,
+            format!(
+                "vinext {vinext_text} with react {react_text}: React 19.3 exports ViewTransition, and Next's view-transitions suite passes under vinext"
+            ),
+        );
+    }
+    json!({"item": "view-transitions", "mechanism": "skipped",
+        "decision": "No view transitions yet: the update step brings vinext and React up, and status decides again from the installed versions.".to_owned(),
+        "evidence": format!("vinext {vinext_text} with react {react_text}: needs vinext 1.0+ and React 19.3+"),
+        "docs": VIEW_TRANSITION_DOCS})
+}
+
+/// No app, no routes and no framework: a project still to be created.
+fn is_new_project(evidence: &ProjectEvidence) -> bool {
+    evidence.apps.is_empty()
+        && evidence.routes.is_empty()
+        && evidence.next_version.is_none()
+        && evidence.vinext_version.is_none()
+}
+
+/// The defaults that come before any page: start from the template when there
+/// is no app, which framework runs the app, and the dependency update.
+fn stack_defaults(evidence: &ProjectEvidence) -> Vec<Value> {
+    let mut defaults = Vec::new();
+    if is_new_project(evidence) {
+        defaults.push(json!({"item": "project-start",
+            "decision": format!("Start from dev-five-git/service-template - bun workspaces apps/*, vinext, devup-ui, oxlint via eslint-plugin-devup, TS 7 - keeping its structure and AGENTS.md conventions, then run the dependency step ({UPDATE_STEP})."),
+            "evidence": "no app, route or framework in the project"}));
+    } else if let Some(app) = &evidence.target_app {
+        defaults.push(
+            json!({"item": "framework", "decision": format!("{} runs {}", app.dir, app.framework),
+            "evidence": app.evidence}),
+        );
+    }
+    defaults.push(if evidence.config.update_dependencies == Some(false) {
+        json!({"item": "dependencies", "mechanism": "skipped",
+            "decision": "Dependencies are not updated: the project config forbids it.",
+            "evidence": format!("updateDependencies: false in {CONFIG_FILE}")})
+    } else {
+        json!({"item": "dependencies", "mechanism": "update",
+            "decision": format!("Before implementing, at the repository root: {UPDATE_STEP} (-d scans every manifest below the root, so workspace apps are included; -u applies the updates as one recoverable batch; --rm removes the lockfiles and installed directories next to each manifest - Cargo.lock and target/ too - so everything resolves fresh), then bun install, build, lint and typecheck. Fix code to new APIs; pin back only when no fix exists, and record the pin as an assumption. Record the outcome with devup_screen_plan assume (dependencyUpdate)."),
+            "evidence": "DevFive works on the latest versions; API knowledge from memory is assumed stale"})
+    });
+    defaults
+}
+
+/// The questions about the stack itself: which app, migrating off the
+/// `next` CLI, and for a new project its name and parts.
+fn stack_questions(evidence: &ProjectEvidence) -> Vec<Value> {
+    let mut questions = Vec::new();
+    if evidence.target_app.is_none() && evidence.apps.len() > 1 {
+        let choices = evidence
+            .apps
+            .iter()
+            .take(MAX_OPTIONS)
+            .map(|app| {
+                choice(
+                    app.dir.as_str(),
+                    format!("{} app; {}", app.framework, app.evidence.join("; ")),
+                    json!({"app": {"dir": app.dir, "appDir": app.path(app.app_router.as_deref().unwrap_or("src/app"))}}),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut asked = question(
+            "site:app".into(),
+            "Which app".into(),
+            format!(
+                "This repository has {} apps ({}). Which one does this design build? A custom answer is its directory.",
+                evidence.apps.len(),
+                evidence
+                    .apps
+                    .iter()
+                    .map(|app| app.dir.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            choices,
+            "site",
+        );
+        asked["field"] = json!("app");
+        questions.push(asked);
+    }
+    if evidence.framework() == "next" && evidence.config.framework.is_none() {
+        let app = evidence.target_app.as_ref();
+        let mut asked = question(
+            "site:framework".into(),
+            "Framework".into(),
+            format!(
+                "{} runs on the next CLI ({}). DevFive's default is vinext, which runs the same App Router on Vite. Migrate it, or keep next?",
+                app.map_or(".", |app| app.dir.as_str()),
+                app.map(|app| app.evidence.join("; ")).unwrap_or_default()
+            ),
+            vec![
+                choice(
+                    "Migrate to vinext",
+                    "vite.config.ts with vinext() and the devup-ui Vite plugin, vinext dev/build/start scripts, no next.config; the code and routes stay the App Router. Done before implementing, then the dependency step.",
+                    json!({"framework": {"source": "vinext"}}),
+                ),
+                choice(
+                    "Keep next",
+                    "Stay on the next CLI; view transitions follow its version.",
+                    json!({"framework": {"source": "next"}}),
+                ),
+            ],
+            "site",
+        );
+        asked["field"] = json!("framework");
+        questions.push(asked);
+    }
+    if is_new_project(evidence) {
+        let mut name = question(
+            "site:app-name".into(),
+            "App name".into(),
+            "The project starts from dev-five-git/service-template. What is the app called? A custom answer is the name.".into(),
+            vec![
+                choice("front", "The template's own app name (apps/front).", json!({"appName": {"source": "template", "value": "front"}})),
+                choice("Use the site name", "Named after the site name asked with the other site facts.", json!({"appName": {"source": "site-name"}})),
+            ],
+            "site",
+        );
+        name["field"] = json!("appName");
+        questions.push(name);
+        let mut parts = question(
+            "site:parts".into(),
+            "Template parts".into(),
+            "Which parts of the template does this project keep?".into(),
+            vec![
+                choice(
+                    "Front only",
+                    "apps/front alone; admin and the Rust API are removed.",
+                    json!({"parts": {"source": "front"}}),
+                ),
+                choice(
+                    "Front + admin + API",
+                    "apps/front, apps/admin and apis/api, as the template ships them.",
+                    json!({"parts": {"source": "all"}}),
+                ),
+            ],
+            "site",
+        );
+        parts["field"] = json!("parts");
+        questions.push(parts);
+    }
+    questions
+}
+
+/// The `next` CLI fallback: which mechanism this project's Next.js and
 /// React support, or why there is none. Decided from the versions the
 /// project declares, against the current Next.js view-transitions guide
 /// (App Router, `import { ViewTransition } from 'react'`, React 19.3) and the
 /// Next 15 `experimental.viewTransition` flag that preceded it.
-fn view_transition_default(evidence: &ProjectEvidence) -> Value {
+fn next_cli_view_transition(evidence: &ProjectEvidence) -> Value {
     let item = |mechanism: &str, decision: String, why: String| json!({"item": "view-transitions", "mechanism": mechanism, "decision": decision, "evidence": why});
     let common = "a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion; browsers without support navigate normally";
     let Some((next_text, next_from)) = &evidence.next_version else {
@@ -1965,11 +2323,9 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
     items.push(json!({"item": "reduced-motion",
         "state": if reduced { "filled" } else if motion { "missing" } else { "not-applicable" },
         "detail": if reduced { "prefers-reduced-motion is handled" } else if motion { "transitions or transforms with no prefers-reduced-motion handling" } else { "no motion in the sources" }}));
-    let planned = array(&plan["defaults"])
-        .iter()
-        .find(|default| default["item"] == "view-transitions")
-        .cloned()
-        .unwrap_or(Value::Null);
+    // Decided again from what is installed now: the plan was drafted before
+    // the dependency update, and the update is what makes it possible.
+    let planned = view_transition_default(evidence);
     let mechanism = text(&planned["mechanism"]).to_owned();
     let declined = plan["site"]["viewTransitions"]["answer"]["source"] == "keep-library";
     items.push(match mechanism.as_str() {
@@ -1981,6 +2337,24 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
             "detail": format!("enabled ({mechanism})")}),
         _ => json!({"item": "view-transitions", "state": "missing",
             "detail": format!("planned ({mechanism}) but not in the sources yet")}),
+    });
+    let skipped_update = array(&plan["defaults"])
+        .iter()
+        .any(|default| default["item"] == "dependencies" && default["mechanism"] == "skipped");
+    let record = &plan["dependencies"];
+    items.push(if skipped_update {
+        json!({"item": "dependencies", "state": "not-applicable", "detail": format!("not updated: updateDependencies is false in {CONFIG_FILE}")})
+    } else if record.is_object() {
+        let pins = array(&record["pins"])
+            .iter()
+            .map(|pin| format!("{}@{} ({})", text(&pin["package"]), text(&pin["version"]), text(&pin["reason"])))
+            .collect::<Vec<_>>();
+        json!({"item": "dependencies", "state": "filled",
+            "detail": format!("updated {}: {} packages bumped, {}", text(&record["updatedAt"]), record["bumped"],
+                if pins.is_empty() { "no pins".to_owned() } else { format!("pinned {}", pins.join(", ")) })})
+    } else {
+        json!({"item": "dependencies", "state": "missing",
+            "detail": format!("not updated yet: run {UPDATE_STEP}, then record it with assume (dependencyUpdate)")})
     });
     for (item, field) in [("site-name", "siteName"), ("site-url", "siteUrl")] {
         let entry = &site[field];
@@ -2515,7 +2889,10 @@ pub(super) fn draft_plan_with(
     for asked in extra_questions(extra)? {
         questions.push(with_when(asked, &base_when));
     }
-    let defaults = site_defaults(evidence, &kept);
+    for asked in stack_questions(evidence) {
+        questions.push(with_when(asked, &base_when));
+    }
+    let defaults = [stack_defaults(evidence), site_defaults(evidence, &kept)].concat();
     let cover = kept
         .first()
         .map(|screen| (screen.node_id.clone(), screen.name.clone()));
@@ -3325,6 +3702,8 @@ pub(super) fn draft_plan_with(
         "outOfScope": out_of_scope,
         "site": site,
         "defaults": defaults,
+        "apps": evidence.apps.iter().map(super::framework::App::json).collect::<Vec<_>>(),
+        "targetApp": evidence.target_app.as_ref().map(super::framework::App::json),
         "siteAssets": site_assets.iter().map(|(node, name, kind)| json!({"nodeId": node, "name": name, "kind": kind})).collect::<Vec<_>>(),
         "questions": body["questions"],
         "answers": {},
@@ -3603,8 +3982,12 @@ fn resolve_answer(
                     json!({field: {"source": "provide", "path": label}}),
                     Some(label.to_owned()),
                 )),
-                "siteName" => Ok((
+                "siteName" | "appName" => Ok((
                     json!({field: {"source": "answer", "value": label}}),
+                    Some(label.to_owned()),
+                )),
+                "app" => Ok((
+                    json!({field: {"dir": label, "appDir": format!("{}/src/app", label.trim_end_matches('/'))}}),
                     Some(label.to_owned()),
                 )),
                 "siteUrl" if label.starts_with("https://") || label.starts_with("http://") => Ok((
@@ -3745,7 +4128,12 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 .is_some_and(|action| action["designFix"] == true)
         })
     };
-    let app_dir = text(&plan["appDir"]).to_owned();
+    let app_dir = actions
+        .get("site:app")
+        .and_then(|action| action["app"]["appDir"].as_str())
+        .unwrap_or(text(&plan["appDir"]))
+        .to_owned();
+    plan["appDir"] = json!(app_dir);
     let mut routes = Vec::new();
     let mut screen_routes = BTreeMap::new();
     let screens = array(&plan["screens"]).to_vec();
@@ -3981,11 +4369,25 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
             "Assumptions belong to implementation, after confirm. Before confirm, put the decision to the user in the question rounds instead.",
         ));
     }
-    if input.assumptions.is_empty() {
-        return Err(invalid("action assume needs assumptions."));
+    if input.assumptions.is_empty() && input.dependency_update.is_none() {
+        return Err(invalid(
+            "action assume needs assumptions or dependencyUpdate.",
+        ));
     }
     let recorded_at = now();
+    if let Some(update) = &input.dependency_update {
+        plan["dependencies"] = json!({"updatedAt": recorded_at, "bumped": update.bumped,
+            "pins": update.pins, "command": UPDATE_STEP});
+    }
     let mut list = array(&plan["assumptions"]).to_vec();
+    for pin in input
+        .dependency_update
+        .iter()
+        .flat_map(|update| &update.pins)
+    {
+        list.push(json!({"about": format!("dependency {}", pin.package),
+            "decision": format!("pinned to {}", pin.version), "reason": pin.reason, "recordedAt": recorded_at}));
+    }
     for assumption in &input.assumptions {
         if assumption.about.trim().is_empty() || assumption.decision.trim().is_empty() {
             return Err(invalid("Every assumption needs about and decision."));
@@ -4022,6 +4424,7 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         "stillNotBuilt": blocked.iter().map(|id| json!({"frame": id,
             "why": "Excluded or sent back for a design fix; an assumption cannot build it, and the export gate refuses it."})).collect::<Vec<_>>(),
         "assumptions": plan["assumptions"],
+        "dependencies": plan["dependencies"],
         "writtenTo": written,
         "how": "Keep implementing. Every assumption appears in status and must be in your final report.",
     }))

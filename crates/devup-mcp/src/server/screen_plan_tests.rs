@@ -1662,3 +1662,215 @@ async fn extra_questions_are_asked_up_front_and_answered_at_confirm() {
     .unwrap_err();
     assert!(error.message.contains("header"), "{}", error.message);
 }
+
+fn template_fixture() -> Fixture {
+    let fixture = Fixture::new();
+    for stale in ["package.json", "src"] {
+        let path = fixture.0.join(stale);
+        if path.is_dir() {
+            std::fs::remove_dir_all(&path).unwrap();
+        } else {
+            std::fs::remove_file(&path).ok();
+        }
+    }
+    crate::server::framework::tests::service_template(&fixture.0);
+    fixture
+}
+
+fn default_item(plan: &Value, item: &str) -> Value {
+    array(&plan["defaults"])
+        .iter()
+        .find(|default| default["item"] == item)
+        .cloned()
+        .unwrap_or_else(|| panic!("no {item} default: {}", plan["defaults"]))
+}
+
+async fn plan_for(root: &str) -> (ProjectEvidence, Value) {
+    let evidence = project_evidence(root).await.unwrap();
+    let plan = draft_plan(
+        &[screen("50:1", "Home", 1440.0)],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    (evidence, plan)
+}
+
+/// service-template: bun workspaces, vinext + React 19.3, no next
+/// dependency. Its front app is an App Router app with view transitions
+/// enabled, and the repository root, holding two apps, asks which one.
+#[tokio::test]
+async fn a_service_template_project_is_vinext_with_view_transitions_enabled() {
+    let fixture = template_fixture();
+    let front = fixture.0.join("apps").join("front");
+    let (evidence, plan) = plan_for(front.to_str().unwrap()).await;
+    assert_eq!(evidence.framework(), "vinext");
+    let chosen = default_item(&plan, "view-transitions");
+    assert_eq!(
+        chosen["mechanism"], "react-view-transition (vinext)",
+        "{chosen}"
+    );
+    assert!(
+        text(&chosen["evidence"]).contains("react-dom 19.3.0")
+            || text(&chosen["evidence"]).contains("19.3.0"),
+        "{chosen}"
+    );
+    assert!(
+        array(&chosen["docs"])
+            .iter()
+            .any(|url| text(url).contains("vinext"))
+    );
+    assert!(!question_ids(&plan).contains(&"site:framework".to_owned()));
+
+    let (evidence, plan) = plan_for(fixture.root()).await;
+    assert_eq!(evidence.apps.len(), 2);
+    assert!(evidence.target_app.is_none());
+    let which = find(&plan, "site:app");
+    assert_eq!(
+        labels(which)[..2],
+        ["apps/admin (Recommended)", "apps/front"]
+    );
+
+    let routes = super::super::project_context::run("routes", Some(fixture.root()), None)
+        .await
+        .unwrap();
+    let apps = array(&routes["frameworks"]["apps"])
+        .iter()
+        .map(|app| {
+            (
+                text(&app["dir"]).to_owned(),
+                text(&app["framework"]).to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        apps,
+        [
+            ("apps/admin".to_owned(), "next".to_owned()),
+            ("apps/front".to_owned(), "vinext".to_owned())
+        ]
+    );
+}
+
+/// An existing project on the next CLI is asked once whether to migrate,
+/// never migrated silently; the config can answer for it.
+#[tokio::test]
+async fn a_next_cli_project_is_asked_once_about_vinext() {
+    let fixture = with_package(
+        r#"{"dependencies": {"next": "16.1.0", "react": "19.3.0"}}"#,
+        None,
+    );
+    let (_, plan) = plan_for(fixture.root()).await;
+    let asked = find(&plan, "site:framework");
+    assert_eq!(first_label(asked), "Migrate to vinext (Recommended)");
+    assert!(text(&asked["question"]).contains("next 16.1.0"));
+    assert_eq!(
+        default_item(&plan, "view-transitions")["mechanism"],
+        "react-view-transition"
+    );
+
+    fixture.write(
+        CONFIG_FILE,
+        r#"{"framework": "next", "favicon": "app/icon.svg", "ogImage": "public/og.png", "siteName": "Prime", "siteUrl": "https://example.com", "motion": "none"}"#,
+    );
+    let (_, plan) = plan_for(fixture.root()).await;
+    assert!(!question_ids(&plan).contains(&"site:framework".to_owned()));
+}
+
+/// No app yet: start from the template without asking, ask only its name
+/// and parts.
+#[tokio::test]
+async fn a_new_project_starts_from_the_template() {
+    let root = std::env::temp_dir().join(format!("screen-plan-new-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (_, plan) = plan_for(root.to_str().unwrap()).await;
+    assert!(
+        text(&default_item(&plan, "project-start")["decision"])
+            .contains("dev-five-git/service-template")
+    );
+    assert_eq!(
+        default_item(&plan, "view-transitions")["mechanism"],
+        "react-view-transition (vinext)"
+    );
+    let ids = question_ids(&plan);
+    assert!(
+        ids.contains(&"site:app-name".to_owned()) && ids.contains(&"site:parts".to_owned()),
+        "{ids:?}"
+    );
+    assert_eq!(
+        first_label(find(&plan, "site:parts")),
+        "Front only (Recommended)"
+    );
+    std::fs::remove_dir_all(root).ok();
+}
+
+#[tokio::test]
+async fn the_dependency_step_is_a_default_and_its_outcome_is_reported() {
+    let fixture = Fixture::new();
+    let (_, plan) = plan_for(fixture.root()).await;
+    let step = default_item(&plan, "dependencies");
+    assert!(text(&step["decision"]).contains("bunx @dependency-check-updates/cli -d -u --rm"));
+    assert!(text(&step["decision"]).contains("Cargo.lock and target/"));
+
+    let mut confirm_input = drafted(&fixture, &[screen("51:1", "Pricing", 1440.0)]).await;
+    confirm_input.answers = answers(&[("route:51:1", "/pricing (Recommended)")]);
+    confirm(&confirm_input, &fixture.policy()).unwrap();
+    let report = status_report(
+        &read_plan(fixture.root()).unwrap().unwrap(),
+        &evidence(),
+        None,
+    );
+    let line = array(&report["siteCompleteness"])
+        .iter()
+        .find(|item| item["item"] == "dependencies")
+        .cloned()
+        .unwrap();
+    assert_eq!(line["state"], "missing");
+
+    let mut record = input(&fixture, "assume");
+    record.dependency_update = Some(DependencyUpdateInput {
+        bumped: 14,
+        pins: vec![PinInput {
+            package: "oxlint".into(),
+            version: "1.86.0".into(),
+            reason: "eslint-plugin-devup does not load on 1.87 yet".into(),
+        }],
+    });
+    let recorded = assume(&record, &fixture.policy()).unwrap();
+    assert_eq!(recorded["assumptions"][0]["about"], "dependency oxlint");
+    let report = status_report(
+        &read_plan(fixture.root()).unwrap().unwrap(),
+        &evidence(),
+        None,
+    );
+    let line = array(&report["siteCompleteness"])
+        .iter()
+        .find(|item| item["item"] == "dependencies")
+        .cloned()
+        .unwrap();
+    assert_eq!(line["state"], "filled");
+    assert!(
+        text(&line["detail"]).contains("14 packages bumped, pinned oxlint@1.86.0"),
+        "{line}"
+    );
+
+    fixture.write(CONFIG_FILE, r#"{"updateDependencies": false, "favicon": "app/icon.svg", "ogImage": "public/og.png", "siteName": "Prime", "siteUrl": "https://example.com", "motion": "none"}"#);
+    let (_, plan) = plan_for(fixture.root()).await;
+    assert_eq!(default_item(&plan, "dependencies")["mechanism"], "skipped");
+}
+
+#[test]
+fn bun_lock_versions_are_read() {
+    let lock = r#"{
+  "packages": {
+    "react": ["react@19.3.1", "", {}, "sha512-x"],
+    "vinext": ["vinext@1.0.2", "", {}, "sha512-y"],
+  }
+}"#;
+    assert_eq!(bun_locked(lock, "react").as_deref(), Some("19.3.1"));
+    assert_eq!(bun_locked(lock, "vinext").as_deref(), Some("1.0.2"));
+    assert_eq!(bun_locked(lock, "next"), None);
+}
