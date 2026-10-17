@@ -172,3 +172,50 @@ test('a request outside allowedOrigins is blocked and recorded as an environment
     await rm(out, { recursive: true, force: true });
   }
 });
+
+test('dimensions across 1440/1100/858/390 retain CSS pixels at DPR 2 and filter tolerances', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-dimensions-'));
+  const widths = [1440, 1100, 858, 390];
+  try {
+    const mappings = widths.map((viewportWidth) => ({ viewportWidth, artifactId: 'synthetic-acquisition', nodeId: `target-${viewportWidth}` }));
+    const checks = [
+      { kind: 'dimensions', label: 'within tolerance', subject: { testId: 'target' }, tolerancePx: 0.5, figmaDimensions: mappings },
+      { kind: 'dimensions', label: 'exceeds tolerance', subject: { testId: 'target' }, tolerancePx: 0.49, figmaDimensions: mappings },
+      { kind: 'dimensions', label: 'missing element', subject: { testId: 'absent' }, tolerancePx: 1, figmaDimensions: mappings },
+      { kind: 'dimensions', label: 'no intermediate reference', subject: { testId: 'target' }, tolerancePx: 1, figmaDimensions: [mappings[0]] },
+    ];
+    const planPath = join(out, 'plan.json');
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'synthetic-dimensions',
+      plan: { baseUrl, allowedOrigins: [baseUrl], viewports: widths.map((width) => ({ width, height: 240, deviceScaleFactor: 2 })),
+        screens: [{ id: 'dimensions', routePath: '/dimensions.html', checks }] },
+      // Synthetic acquired snapshots for executor testing; ingest independently rechecks these.
+      dimensionReferences: checks.flatMap((check, index) => check.figmaDimensions.map((r) => ({
+        ...r, screen: 'dimensions', check: index, status: 'acquired', width: r.viewportWidth / 2 - 20.5, height: 80,
+      }))),
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 2 });
+    assert.equal(report.status, 'completed');
+    const table = [];
+    for (const run of report.runs) {
+      assert.deepEqual(run.environmentErrors, []);
+      const screen = run.screens[0];
+      assert.deepEqual(screen.checks.map((c) => c.status), ['pass', 'fail', 'inconclusive', run.viewport.width === 1440 ? 'pass' : 'inconclusive']);
+      assert.equal(screen.checks[0].measured.subject.width, run.viewport.width / 2 - 20);
+      assert.equal(screen.checks[0].measured.units, 'css-px');
+      const png = await readFile(join(out, screen.screenshot.path));
+      assert.equal(png.readUInt32BE(16), run.viewport.width * 2, 'DPR changes screenshot pixels only');
+      table.push({ width: run.viewport.width, figmaWidth: run.viewport.width / 2 - 20.5,
+        domWidth: screen.checks[0].measured.subject.width, delta: screen.checks[0].deltaPx.width,
+        exceedances: screen.checks.filter((c) => c.status === 'fail').length });
+    }
+    assert.deepEqual(table.map((r) => r.exceedances), [1, 1, 1, 1]);
+    assert.deepEqual(report.summary, { pass: 5, fail: 4, inconclusive: 7, skipped: 0 });
+    console.log(JSON.stringify({ dimensionTable: table }));
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});

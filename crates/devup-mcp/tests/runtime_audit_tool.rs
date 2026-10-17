@@ -151,3 +151,89 @@ async fn a_plan_is_written_and_a_report_bound_to_it_is_ingested() -> anyhow::Res
     std::fs::remove_dir_all(&root)?;
     Ok(())
 }
+
+#[tokio::test]
+async fn consumer_template_is_allowlisted_and_missing_acquisitions_never_pass() -> anyhow::Result<()>
+{
+    let root = std::env::temp_dir().join(format!("devup-runtime-template-{}", std::process::id()));
+    std::fs::create_dir_all(&root)?;
+    let root = dunce::canonicalize(root)?;
+    let widths = [1440, 1100, 858, 390];
+    let plan = json!({
+        "baseUrl": "http://127.0.0.1:4173", "allowedOrigins": ["http://127.0.0.1:4173"],
+        "viewports": widths.iter().map(|width| json!({"width": width, "height": 100, "deviceScaleFactor": 2})).collect::<Vec<_>>(),
+        "screens": [{"id": "fixture", "routePath": "/", "checks": [{"kind": "dimensions",
+            "subject": {"testId": "target"}, "tolerancePx": 0.5,
+            "figmaDimensions": widths.iter().map(|width| json!({"viewportWidth": width, "artifactId": "missing", "nodeId": "target"})).collect::<Vec<_>>()
+        }]}]
+    });
+    let (failed, planned) = call(
+        &root,
+        json!({"action": "plan", "plan": plan,
+        "outputPath": "plan.json", "templatePath": "consumer-audit"}),
+    )
+    .await?;
+    assert!(!failed, "{planned}");
+    assert_eq!(planned["template"]["executed"], false);
+    assert_eq!(planned["dimensionReferences"][0]["status"], "unverified");
+    assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 4);
+    let runner = std::fs::read_to_string(root.join("consumer-audit/run.mjs"))?;
+    assert!(runner.contains("runPlan"));
+    let manifest: Value =
+        serde_json::from_slice(&std::fs::read(root.join("consumer-audit/package.json"))?)?;
+    assert_eq!(manifest["dependencies"]["playwright"], "1.63.0");
+
+    let plan_bytes = std::fs::read(root.join("plan.json"))?;
+    let runs = widths.iter().map(|width| {
+        let bytes = png(width * 2, 200);
+        let name = format!("{width}.png");
+        std::fs::write(root.join(&name), &bytes).unwrap();
+        json!({"viewport": {"width": width, "height": 100, "deviceScaleFactor": 2}, "environmentErrors": [],
+            "screens": [{"id": "fixture", "status": "completed", "checks": [{"index": 0, "status": "pass", "measured": {
+                "units": "css-px", "subjectCount": 1, "subjectVisible": true,
+                "subject": {"width": 100, "height": 80}}}],
+                "screenshot": {"path": name, "sha256": sha256(&bytes), "bytes": bytes.len()}}]})
+    }).collect::<Vec<_>>();
+    let mut report = json!({"schemaVersion": 1, "kind": "devup-runtime-audit-report", "planId": planned["planId"],
+        "planSha256": sha256(&plan_bytes), "status": "completed", "runs": runs});
+    std::fs::write(root.join("report.json"), serde_json::to_vec(&report)?)?;
+    let (failed, ingested) = call(
+        &root,
+        json!({"action": "ingest", "planPath": "plan.json", "reportPath": "report.json"}),
+    )
+    .await?;
+    assert!(!failed, "{ingested}");
+    assert_eq!(ingested["verdict"], "inconclusive");
+    assert_eq!(ingested["summary"]["inconclusive"], 4);
+    assert_eq!(ingested["widthTable"].as_array().unwrap().len(), 4);
+    assert_eq!(ingested["toleranceExceedances"], json!([]));
+
+    report["planSha256"] = json!("edited");
+    std::fs::write(root.join("report.json"), serde_json::to_vec(&report)?)?;
+    let (_, refused) = call(
+        &root,
+        json!({"action": "ingest", "planPath": "plan.json", "reportPath": "report.json"}),
+    )
+    .await?;
+    assert_eq!(refused["reason"], "plan-file-differs");
+    for request in [
+        json!({"action": "plan", "plan": plan, "outputPath": "other.json", "templatePath": "../outside"}),
+        json!({"action": "plan", "plan": plan, "templatePath": "unbound"}),
+        json!({"action": "plan", "plan": plan, "outputPath": "other.json", "command": "node run.mjs"}),
+    ] {
+        assert!(call(&root, request).await?.0);
+        assert!(!root.join("other.json").exists());
+    }
+    let mut invalid = plan;
+    invalid["screens"][0]["checks"][0]["tolerancePx"] = json!(-1);
+    assert!(
+        call(
+            &root,
+            json!({"action": "plan", "plan": invalid, "outputPath": "other.json"})
+        )
+        .await?
+        .0
+    );
+    std::fs::remove_dir_all(root)?;
+    Ok(())
+}

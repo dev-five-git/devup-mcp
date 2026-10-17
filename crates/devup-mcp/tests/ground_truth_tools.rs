@@ -580,3 +580,21 @@ async fn ui_validate_double_effect_uses_actual_baked_asset_evidence() -> anyhow:
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn ui_validate_blur_only_and_double_effect_warnings_are_complementary() -> anyhow::Result<()>
+{
+    let result=call_tool("devup_ui_validate",json!({"tsx":"<Box filter='blur(6px)'><Image src='/images/art.webp' filter='blur(3px)' /></Box>","strict":true,"assetPolicies":{"art":{"renderMode":"node","assetPath":"/images/art.webp","effectsBaked":true}}})).await?.structured_content.unwrap();
+    for rule in ["blur-only-image", "double-effect"] {
+        assert!(
+            result["violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["rule"] == rule),
+            "{result}"
+        );
+    }
+    assert_eq!(result["ok"], false);
+    Ok(())
+}

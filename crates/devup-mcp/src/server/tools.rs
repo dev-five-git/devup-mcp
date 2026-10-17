@@ -54,6 +54,13 @@ pub struct AuthInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExportInput {
+    /// Caller-declared observations from an independently inspected screenshot.
+    /// Used only to rank actual explore candidates when selection is empty;
+    /// no screenshot pixels are received or interpreted by this server.
+    #[serde(default)]
+    pub screenshot_observations: Option<super::screenshot_observations::ScreenshotObservations>,
+    #[serde(flatten)]
+    pub response_selection: super::compact::ResponseSelection,
     /// web-ready-images acquires every in-scope IMAGE full source as WebP q85,
     /// capped at display width*2 without upscaling, with asset-css-map.json and
     /// CSS effects, in sorted scheduled batches of at most six.
@@ -188,6 +195,30 @@ pub struct FigmaExportInput {
     pub width_policy: Option<WidthPolicyInput>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct FigmaMeasureInput {
+    #[serde(default)]
+    pub url: Option<String>,
+    /// Explicit 1..100 distinct node IDs. Instance descendant IDs are supported.
+    #[schemars(extend("minItems" = 1, "maxItems" = 100))]
+    pub node_ids: Vec<String>,
+    /// Optional caller-declared screenshot pixel dimensions of this measured node.
+    /// A uniform scale is calibrated from actual node dimensions; UI DPR is not used.
+    #[serde(default)]
+    pub calibration: Option<MeasureCalibration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct MeasureCalibration {
+    pub node_id: String,
+    pub screen_width_px: f64,
+    pub screen_height_px: f64,
+}
+
 fn default_devup_json_mode() -> String {
     "full".into()
 }
@@ -279,6 +310,8 @@ pub struct FigmaSearchInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExploreInput {
+    #[serde(default)]
+    pub screenshot_observations: Option<super::screenshot_observations::ScreenshotObservations>,
     /// The Figma link of the anchor node. Optional while exactly one Devup
     /// Bridge plugin is attached: omitted, the node selected in Figma.
     #[serde(default)]

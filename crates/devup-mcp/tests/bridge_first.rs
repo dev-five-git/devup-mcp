@@ -156,6 +156,24 @@ fn script_answer(script: &str) -> Result<Value, &'static str> {
         "extra": {}, "fieldErrors": {}
     });
     match script {
+        "explore" => {
+            let mut frame = frame_node();
+            frame["fields"]["x"] = json!(0);
+            frame["fields"]["y"] = json!(0);
+            frame["fields"]["height"] = json!(600);
+            frame["fields"]["textPreview"] = json!("Featured catalog");
+            let mut page = page;
+            page["fields"]["x"] = json!(0);
+            page["fields"]["y"] = json!(0);
+            page["fields"]["width"] = json!(2000);
+            page["fields"]["height"] = json!(1000);
+            Ok(
+                json!({"fileKey":"","version":null,"rootIds":["0:1"],"nodes":[page,frame],"diagnostics":[]}),
+            )
+        }
+        "bridgeContext" => Ok(
+            json!({"kind":"devup-bridge-context","currentPage":{"id":"0:1","name":"Page 1"},"selection":[{"id":"1:2","name":"Synthetic Frame","type":"FRAME"}],"selectionCount":1,"observedAt":1}),
+        ),
         "pageCatalog" => Ok(json!({
             "fileKey": "", "version": null, "rootIds": ["0:1"], "nodes": [page], "diagnostics": []
         })),
@@ -189,7 +207,16 @@ fn serve(mut socket: Socket) -> Arc<Mutex<Vec<Value>>> {
     tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = socket.next().await {
             let job: Value = serde_json::from_str(&text).expect("a job is JSON");
-            let answer = match script_answer(job["script"].as_str().unwrap_or_default()) {
+            let data = if job["script"] == "measureNodes" {
+                Ok(
+                    json!({"kind":"devup-measure","schemaVersion":1,"coordinateSpace":"figma-logical",
+                    "nodes":job["params"]["rootIds"].as_array().unwrap().iter().map(|id|json!({"nodeId":id,"status":"measured","width":167,"height":94,
+                        "padding":{"top":8,"right":8,"bottom":8,"left":8},"gap":12,"layoutMode":"HORIZONTAL","align":{"primary":"CENTER","counter":"MIN"}})).collect::<Vec<_>>()}),
+                )
+            } else {
+                script_answer(job["script"].as_str().unwrap_or_default())
+            };
+            let answer = match data {
                 Ok(data) => {
                     json!({ "kind": "devup-result", "requestId": job["requestId"], "data": data })
                 }
@@ -208,6 +235,133 @@ fn serve(mut socket: Socket) -> Arc<Mutex<Vec<Value>>> {
         }
     });
     jobs
+}
+
+fn serve_with_context(mut socket: Socket, context: Option<Value>) -> Arc<Mutex<Vec<Value>>> {
+    let jobs = Arc::new(Mutex::new(Vec::new()));
+    let log = jobs.clone();
+    tokio::spawn(async move {
+        while let Some(Ok(Message::Text(text))) = socket.next().await {
+            let job: Value = serde_json::from_str(&text).unwrap();
+            let data = if job["script"] == "bridgeContext" {
+                context.clone().ok_or("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
+            } else {
+                script_answer(job["script"].as_str().unwrap_or_default())
+            };
+            let answer = match data {
+                Ok(data) => json!({"kind":"devup-result","requestId":job["requestId"],"data":data}),
+                Err(error) => {
+                    json!({"kind":"devup-result","requestId":job["requestId"],"error":error})
+                }
+            };
+            log.lock().await.push(job);
+            if socket
+                .send(Message::Text(answer.to_string().into()))
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+    jobs
+}
+
+#[tokio::test]
+async fn operation_refresh_overrides_stale_events_and_empty_current_never_exports_history()
+-> anyhow::Result<()> {
+    for empty in [false, true] {
+        let setup = setup();
+        let mut hello = keyless_hello("Synthetic");
+        hello["selection"] = json!([{"id":"7:8","name":"Stale","type":"FRAME"}]);
+        hello["currentPage"] = json!({"id":"0:9","name":"Stale page"});
+        let current = json!({"kind":"devup-bridge-context","currentPage":{"id":"0:1","name":"Current"},
+            "selection":if empty {json!([])} else {json!([{"id":"1:2","name":"Fresh","type":"FRAME"}])},
+            "selectionCount":if empty {0} else {1},"lastKnownSelection":[{"id":"1:2","name":"Fresh","type":"FRAME"}],"lastKnownPage":{"id":"0:1","name":"Current"},"observedAt":2});
+        let jobs = serve_with_context(attach(&setup.bridge, hello).await, Some(current));
+        let (failed, value) = call(
+            Auth::new(AuthStatus::Disconnected),
+            setup.upstream.clone(),
+            "devup_figma_export",
+            json!({"outputs":["outline"],"screenshotObservations":{"labels":["Featured catalog"],"aspectRatio":0.5333333333333333}}),
+        )
+        .await?;
+        assert_eq!(failed, empty, "{value}");
+        if empty {
+            let details = &value["error"]["details"];
+            assert_eq!(details["selectionFreshness"]["state"], "current");
+            assert_eq!(details["file"]["selectionCount"], 0);
+            assert_eq!(
+                details["selectionFreshness"]["lastKnown"]["selection"][0]["id"],
+                "7:8"
+            );
+            assert_eq!(
+                details["exploreSuggestion"]["screenshotMatch"],
+                "unverified"
+            );
+            assert_eq!(
+                details["exploreSuggestion"]["screenshotGuidance"]["source"],
+                "caller-declared-screenshot-observations"
+            );
+            assert_eq!(
+                details["exploreSuggestion"]["candidates"][0]["node"]["nodeId"],
+                "1:2"
+            );
+            assert_eq!(
+                details["exploreSuggestion"]["candidates"][0]["observationEvidence"]["visionVerified"],
+                false
+            );
+            assert!(
+                !jobs
+                    .lock()
+                    .await
+                    .iter()
+                    .any(|job| matches!(job["script"].as_str(), Some("snapshot" | "fastSnapshot")))
+            );
+        } else {
+            assert_eq!(value["outline"]["nodes"][0]["nodeId"], "1:2");
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_older_plugin_cannot_promote_last_delivered_selection_to_current() -> anyhow::Result<()>
+{
+    let setup = setup();
+    let jobs = serve_with_context(
+        attach(&setup.bridge, keyless_hello("Synthetic")).await,
+        None,
+    );
+    let (failed, value) = call(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+        "devup_figma_export",
+        json!({"outputs":["outline"]}),
+    )
+    .await?;
+    assert!(failed, "{value}");
+    assert_eq!(
+        value["error"]["details"]["selectionFreshness"]["state"],
+        "refresh-failed"
+    );
+    assert_eq!(
+        value["error"]["details"]["selectionFreshness"]["current"],
+        Value::Null
+    );
+    assert_eq!(
+        value["error"]["details"]["nextAction"]["requiredArguments"],
+        json!(["url"])
+    );
+    assert!(
+        !value["error"]["details"]["nextAction"]["arguments"]["url"]
+            .as_str()
+            .unwrap()
+            .contains("1-2")
+    );
+    assert_eq!(jobs.lock().await.len(), 1);
+    assert_eq!(setup.remote_calls.load(Ordering::SeqCst), 0);
+    Ok(())
 }
 
 /// Calls one tool and returns its structured answer, error or not, polling an
@@ -376,7 +530,11 @@ async fn an_export_without_url_reads_the_selection_through_the_bridge() -> anyho
     assert!(!jobs.is_empty());
     assert!(
         jobs.iter()
-            .filter(|job| job["script"] != "pageCatalog")
+            .filter(|job| !matches!(
+                job["script"].as_str(),
+                Some("pageCatalog" | "bridgeContext")
+            ))
+            .filter(|job| job["script"] != "bridgeContext")
             .all(|job| job["params"]["nodeId"] == "1:2"),
         "every read targets the selected frame: {jobs:?}"
     );
@@ -618,5 +776,206 @@ async fn login_with_a_plugin_attached_warns_and_still_logs_in() -> anyhow::Resul
     assert_eq!(auth.logins.load(Ordering::SeqCst), 1);
     assert!(answer["warning"].is_string(), "{answer}");
     assert_eq!(answer["activePath"], "bridge");
+    Ok(())
+}
+
+#[tokio::test]
+async fn node_measurements_are_lightweight_retained_and_cannot_be_reused_as_design_exports()
+-> anyhow::Result<()> {
+    let setup = setup();
+    let jobs = serve(attach(&setup.bridge, keyless_hello("Synthetic")).await);
+    let server = DevupServer::new(Services::new(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+    ));
+    let (a, b) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(a).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(b).await?;
+    let measured=client.call_tool(CallToolRequestParams::new("devup_figma_measure").with_arguments(json!({"nodeIds":["I1:2;3:4","1:2"],"calibration":{"nodeId":"1:2","screenWidthPx":334,"screenHeightPx":188}}).as_object().unwrap().clone())).await?;
+    assert_ne!(measured.is_error, Some(true), "{measured:?}");
+    let value = measured.structured_content.unwrap();
+    assert_eq!(value["nodes"][0]["nodeId"], "I1:2;3:4");
+    assert_eq!(value["nodes"][0]["width"], 167);
+    assert_eq!(value["source"]["fileKey"], Value::Null);
+    assert_eq!(value["cache"]["capabilities"]["kind"], "measurement");
+    assert_eq!(value["calibration"]["uniformScale"], 2.0);
+    assert!(!shows_a_routing_key(&value), "{value}");
+    let id = value["cache"]["artifactId"].as_str().unwrap();
+    let refused = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export").with_arguments(
+                json!({"artifactId":id,"outputs":["tsx"]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await?;
+    assert_eq!(refused.is_error, Some(true));
+    let planned=client.call_tool(CallToolRequestParams::new("devup_runtime_audit").with_arguments(json!({"action":"plan","plan":{"baseUrl":"http://127.0.0.1:4173","allowedOrigins":["http://127.0.0.1:4173"],"viewports":[{"width":390,"height":844}],"screens":[{"id":"page","routePath":"/","checks":[{"kind":"dimensions","subject":{"testId":"card"},"measure":"box","tolerancePx":0.5,"figmaDimensions":[{"viewportWidth":390,"artifactId":id,"nodeId":"1:2"}]}]}]}}).as_object().unwrap().clone())).await?;
+    assert_ne!(planned.is_error, Some(true), "{planned:?}");
+    assert!(
+        planned
+            .structured_content
+            .unwrap()
+            .to_string()
+            .contains("167")
+    );
+    let invalid = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_measure").with_arguments(
+                json!({"nodeIds":["1:2;alert(1)"]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await?;
+    assert_eq!(invalid.is_error, Some(true));
+    let jobs = jobs.lock().await;
+    assert_eq!(
+        jobs.iter()
+            .filter(|j| j["script"] == "measureNodes")
+            .count(),
+        1
+    );
+    assert!(
+        jobs.iter()
+            .all(|j| matches!(j["script"].as_str(), Some("measureNodes" | "bridgeContext")))
+    );
+    assert_eq!(setup.remote_calls.load(Ordering::SeqCst), 0);
+    drop(jobs);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn bounded_outline_and_path_selection_use_the_same_artifact_and_resource_evidence()
+-> anyhow::Result<()> {
+    let setup = setup();
+    let jobs = serve(attach(&setup.bridge, keyless_hello("Synthetic")).await);
+    let server = DevupServer::new(Services::new(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+    ));
+    let (a, b) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(a).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(b).await?;
+    let exported=client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"figma-bridge://current?node-id=1-2","outputs":["outline"],"responseLimit":1}).as_object().unwrap().clone())).await?;
+    assert_ne!(exported.is_error, Some(true), "{exported:?}");
+    let value = exported.structured_content.unwrap();
+    let id = value["cache"]["artifactId"].as_str().unwrap();
+    assert_eq!(value["outline"]["nodes"][0]["layout"]["width"], 320.0);
+    assert!(value.get("tsx").is_none());
+    assert_eq!(value["deliverable"]["kind"], "outline-data");
+    assert!(
+        value["selectionEvidence"]["uri"]
+            .as_str()
+            .unwrap()
+            .starts_with("devup://artifact/")
+    );
+    assert!(value.to_string().len() < 32000);
+    let reads = jobs.lock().await.len();
+    let args = json!({"artifactId":id,"outputs":["outline"],"path":"nodes[name=\"Synthetic Frame\"].layout"});
+    let selected = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export")
+                .with_arguments(args.as_object().unwrap().clone()),
+        )
+        .await?;
+    assert_ne!(selected.is_error, Some(true), "{selected:?}");
+    let selected = selected.structured_content.unwrap();
+    assert_eq!(selected["cache"]["artifactId"], id);
+    assert_eq!(selected["cache"]["cacheHit"], true);
+    assert_eq!(
+        selected["selected"]["selections"][0]["nodeIds"],
+        json!(["1:2"])
+    );
+    assert_eq!(
+        selected["selected"]["selections"][0]["values"][0]["width"],
+        320.0
+    );
+    assert_eq!(selected["deliverable"]["kind"], "selected-data");
+    assert!(
+        selected["selectionEvidence"]["uri"]
+            .as_str()
+            .unwrap()
+            .starts_with("devup://artifact/")
+    );
+    assert!(
+        selected.to_string().len() < 32000,
+        "compact response: {}",
+        selected.to_string().len()
+    );
+    let again = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export")
+                .with_arguments(args.as_object().unwrap().clone()),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(
+        again["selectionEvidence"]["uri"],
+        selected["selectionEvidence"]["uri"]
+    );
+    assert_eq!(jobs.lock().await.len(), reads, "reprojection called Figma");
+    let invalid = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export").with_arguments(
+                json!({"artifactId":id,"outputs":["outline"],"path":"nodes.filter(x)"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await?;
+    assert_eq!(invalid.is_error, Some(true));
+    assert_eq!(jobs.lock().await.len(), reads);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn measurement_batches_stay_bounded_and_keep_request_order() -> anyhow::Result<()> {
+    let setup = setup();
+    let jobs = serve(attach(&setup.bridge, keyless_hello("Synthetic")).await);
+    let ids = (1..=25).map(|n| format!("8:{n}")).collect::<Vec<_>>();
+    let (failed, result) = call(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+        "devup_figma_measure",
+        json!({"nodeIds":ids}),
+    )
+    .await?;
+    assert!(!failed, "{result}");
+    assert_eq!(
+        result["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["nodeId"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ids.iter().map(String::as_str).collect::<Vec<_>>()
+    );
+    let jobs = jobs.lock().await;
+    let reads = jobs
+        .iter()
+        .filter(|j| j["script"] == "measureNodes")
+        .collect::<Vec<_>>();
+    assert_eq!(reads.len(), 3);
+    assert!(
+        reads
+            .iter()
+            .all(|j| j["params"]["rootIds"].as_array().unwrap().len() <= 10)
+    );
     Ok(())
 }

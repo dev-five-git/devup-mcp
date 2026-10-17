@@ -14,7 +14,8 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { release } from 'node:os';
 import { join, resolve } from 'node:path';
-import { evaluateCheck, summarize } from './checks.mjs';
+import { pathToFileURL } from 'node:url';
+import { evaluateCheck, evaluateDimensions, summarize } from './checks.mjs';
 
 const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
@@ -184,7 +185,7 @@ async function checkExpectations(page, expect, timeout) {
   return null;
 }
 
-async function runViewport(browser, plan, viewport, out, deadline) {
+async function runViewport(browser, plan, viewport, out, deadline, references) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
@@ -193,6 +194,7 @@ async function runViewport(browser, plan, viewport, out, deadline) {
     hasTouch: Boolean(viewport.touch),
     locale: plan.locale ?? undefined,
     timezoneId: plan.timezone ?? undefined,
+    serviceWorkers: 'block',
   });
   const environmentErrors = [];
   const blocked = [];
@@ -280,14 +282,14 @@ async function runViewport(browser, plan, viewport, out, deadline) {
         const container = await measureBox(page, check.container);
         const result = subject.error
           ? { status: 'inconclusive', reason: subject.error, measured: {} }
-          : evaluateCheck(check, {
+          : (check.kind === 'dimensions' ? evaluateDimensions : evaluateCheck)(check, {
               page: metrics,
               subject: subject.box,
               subjectCount: subject.count,
               subjectVisible: subject.visible,
               container: container.box,
               containerCount: container.count,
-            });
+            }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
         record.checks.push({ index, kind: check.kind, label: check.label, ...result });
       }
       const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
@@ -317,6 +319,8 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
     throw new Error(`${planPath} is not a devup runtime audit plan; create one with devup_runtime_audit action plan`);
   }
   const plan = document.plan;
+  validateDimensionsPlan(plan);
+  if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new Error('maxMinutes must be finite and positive');
   const outDir = resolve(out);
   await mkdir(outDir, { recursive: true });
   const { chromium } = await import('playwright');
@@ -350,7 +354,7 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
   try {
     for (const viewport of plan.viewports) {
       if (aborted || Date.now() > deadline) break;
-      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline));
+      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? []));
     }
     const ranEverything = report.runs.length === plan.viewports.length
       && report.runs.every((run) => run.screens.every((screen) => screen.status === 'completed'));
@@ -366,7 +370,33 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
   return report;
 }
 
-if (import.meta.url === new URL(process.argv[1], 'file:').href || process.argv[1]?.endsWith('run.mjs')) {
+export function validateDimensionsPlan(plan) {
+  for (const screen of plan.screens) {
+    for (const check of screen.checks) {
+      if (check.tolerancePx != null && (!Number.isFinite(check.tolerancePx) || check.tolerancePx < 0 || check.tolerancePx > 10_000)) {
+        throw new Error('tolerancePx must be finite and in [0, 10000]');
+      }
+      if (check.kind !== 'dimensions') continue;
+      const mappings = check.figmaDimensions;
+      if (!check.subject || check.container || !Number.isFinite(check.tolerancePx)
+        || (check.measure != null && check.measure !== 'box') || !Array.isArray(mappings) || !mappings.length) {
+        throw new Error('dimensions requires subject, tolerancePx, figmaDimensions and box measurement');
+      }
+      const widths = new Set();
+      for (const reference of mappings) {
+        if (widths.has(reference.viewportWidth) || !plan.viewports.some((v) => v.width === reference.viewportWidth)
+          || typeof reference.nodeId !== 'string' || !reference.nodeId.trim()
+          || typeof reference.artifactId !== 'string' || !reference.artifactId.trim()
+          || Object.keys(reference).some((key) => !['viewportWidth', 'nodeId', 'artifactId'].includes(key))) {
+          throw new Error('dimensions references require unique planned widths and explicit artifactId/nodeId only');
+        }
+        widths.add(reference.viewportWidth);
+      }
+    }
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const report = await runPlan(parseArgs(process.argv.slice(2)));
     const { pass, fail, inconclusive, skipped } = report.summary;

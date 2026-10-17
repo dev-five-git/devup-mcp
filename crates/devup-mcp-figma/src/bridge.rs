@@ -105,6 +105,17 @@ pub struct NodeRef {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginContext {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zoom: Option<serde_json::Number>,
+    /// Pixel ratio of the plugin UI iframe, not a verified canvas capture scale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_device_pixel_ratio: Option<serde_json::Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_known_selection: Option<Vec<NodeRef>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_known_page: Option<NodeRef>,
     #[serde(default)]
     pub current_page: Option<NodeRef>,
     /// 선택한 노드의 앞부분. 플러그인이 보내는 만큼만 있고, 전체 수는
@@ -162,7 +173,7 @@ pub struct BridgeServed {
 
 impl BridgeServed {
     /// 브리지가 답한 결과면 그 출처, 아니면 `None`.
-    pub(crate) fn from_result(raw: &Value) -> Option<Self> {
+    pub fn from_result(raw: &Value) -> Option<Self> {
         serde_json::from_value(raw.get("_meta")?.get(SERVED_META_KEY)?.clone()).ok()
     }
 }
@@ -1638,6 +1649,31 @@ impl FigmaUpstream for BridgeFigmaClient {
         Some(self.state.path_snapshot(self.port).await)
     }
 
+    async fn refresh_bridge_context(&self, file_key: &str) -> Result<PluginContext, DevupError> {
+        let (data, _) = self
+            .state
+            .dispatch(file_key, "bridgeContext", json!({}))
+            .await?;
+        if data.to_string().len() > 16_384
+            || data["kind"] != "devup-bridge-context"
+            || !data["selection"].is_array()
+            || !data["selectionCount"].is_u64()
+            || !data["currentPage"]["id"].is_string()
+        {
+            return Err(unavailable(
+                "The plugin did not return a current selection context.",
+            ));
+        }
+        let context: PluginContext = serde_json::from_value(data)
+            .map_err(|_| unavailable("Invalid plugin selection context."))?;
+        if context.selection.as_ref().is_some_and(|s| {
+            s.len() > 20 || context.selection_count.is_some_and(|count| count < s.len())
+        }) {
+            return Err(unavailable("Invalid plugin selection count."));
+        }
+        Ok(context)
+    }
+
     async fn is_metered(&self, _call: &ReadToolCall) -> bool {
         false
     }
@@ -1839,6 +1875,10 @@ where
 
     async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
         self.preferred.bridge_path_snapshot().await
+    }
+
+    async fn refresh_bridge_context(&self, file_key: &str) -> Result<PluginContext, DevupError> {
+        self.preferred.refresh_bridge_context(file_key).await
     }
 
     /// 브리지가 맡는 읽기는 한도를 쓰지 않는다. 브리지만 읽을 수 있는 키는 원격으로

@@ -625,3 +625,43 @@ fn section_notes_combine_direct_text_and_descendant_annotations() {
         .expect("Section exploration");
     assert_eq!(explored.group.expect("Section group").notes, expected);
 }
+
+#[test]
+fn page_anchors_offer_only_actual_page_descendants_without_below_page_filtering() {
+    let mut snapshot = projection(false, false);
+    let mut page = raw_node(
+        "0:1",
+        "PAGE",
+        "Current page",
+        [0.0, 0.0, 2000.0, 3000.0],
+        0,
+        "",
+    );
+    page.fields
+        .insert("parentId".into(), serde_json::Value::Null);
+    snapshot.nodes.insert("0:1".into(), page);
+    let mut other = raw_node(
+        "9:9",
+        "FRAME",
+        "Other page screen",
+        [0.0, 0.0, 390.0, 844.0],
+        0,
+        "",
+    );
+    other.fields.insert("parentId".into(), json!("0:2"));
+    snapshot.nodes.insert("9:9".into(), other);
+    let target = FigmaTarget {
+        file_key: snapshot.file_key.clone(),
+        node_id: Some("0:1".into()),
+        branch_key: None,
+    };
+    let result = explore_snapshot(&snapshot, &target, &ExploreOptions { limit: 100 }).unwrap();
+    assert!(!result.candidates.is_empty());
+    assert!(result.candidates.iter().all(|c| c.node.node_id != "9:9"));
+    assert!(
+        result
+            .candidates
+            .iter()
+            .all(|c| c.selection_reasons.iter().any(|r| r == "inside-page"))
+    );
+}

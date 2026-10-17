@@ -16,6 +16,8 @@ const { SCRIPTS, pageCatalog, referencePng, referencePngChunk, usedResources } =
 /** Rust 의 `BuiltinScript::plugin_name` 이 내놓는 이름. 어긋나면 런타임에야 안다. */
 const EXPECTED = [
   'assets',
+  'bridgeContext',
+  'measureNodes',
   'explore',
   'fastSnapshot',
   'fastTheme',

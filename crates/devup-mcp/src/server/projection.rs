@@ -271,6 +271,8 @@ pub(super) fn projected_outputs_from_result(
         ("assetCssMap", "asset-css-map.json"),
         ("webReadyImages", "web-ready-images.json"),
         ("pageScaffold", "page-scaffold.json"),
+        ("outline", "outline.json"),
+        ("selected", "selected.json"),
     ] {
         if let Some(value) = result.get(field) {
             if field == "imageFillAudit" && value["assets"].as_array().is_none_or(Vec::is_empty) {
@@ -607,6 +609,9 @@ pub(super) async fn apply_delivery(
         .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
     let manifests = reservation.manifests().to_vec();
+    if let Some(details) = manifests.iter().find(|m| m.name == "compact-details.json") {
+        result["selectionEvidence"]["uri"] = json!(details.manifest_uri);
+    }
     if let Some(old_uri) = result["metadataDelivery"]["uri"]
         .as_str()
         .map(str::to_owned)
@@ -666,7 +671,15 @@ pub(super) async fn apply_delivery(
         "assetManifest",
         "pageScaffold",
         "referencePng",
+        "outline",
     ] {
+        if field == "outline"
+            && result
+                .get("deliverable")
+                .is_some_and(|d| d["kind"] == "outline-data")
+        {
+            continue;
+        }
         result.remove(field);
     }
     if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
@@ -679,7 +692,10 @@ pub(super) async fn apply_delivery(
             }
         }
     }
-    if let Some(deliverable) = result.get_mut("deliverable") {
+    if let Some(deliverable) = result
+        .get_mut("deliverable")
+        .filter(|d| d["kind"] != "selected-data" && d["kind"] != "outline-data")
+    {
         deliverable["note"] = json!(if deliverable["isFinal"] == true {
             "The final TSX deliverables are in resources. Read the linked resources to implement them."
         } else {
@@ -1326,6 +1342,7 @@ fn reuse_summary(capabilities: &super::artifacts::ArtifactCapabilities) -> Value
     match capabilities.kind {
         ArtifactKind::Design => {
             with_artifact.extend([
+                "outline",
                 "tsx",
                 "componentTsx",
                 "responsiveTsx",
@@ -1357,7 +1374,9 @@ fn reuse_summary(capabilities: &super::artifacts::ArtifactCapabilities) -> Value
             needs_url.push("design-outputs");
         }
         ArtifactKind::SectionIndex => {}
-        ArtifactKind::Search | ArtifactKind::Explore => needs_url.push("export-outputs"),
+        ArtifactKind::Measurement | ArtifactKind::Search | ArtifactKind::Explore => {
+            needs_url.push("export-outputs")
+        }
     }
     let mut reuse = json!({
         "withArtifactId": with_artifact,
@@ -1699,6 +1718,7 @@ async fn project_operation(
             mut asset_output_paths,
             mut asset_public_root,
             fields,
+            response_selection,
             delivery,
             width_policy,
         } => {
@@ -1738,6 +1758,15 @@ async fn project_operation(
             let asset_policies =
                 asset_policy::policies(&payload.snapshot, &payload.assets, asset_names_per_node);
             let selected_fields = super::field_select::expand(&fields);
+            response_selection.validate()?;
+            let compact_roots = if frame_ids.is_empty() {
+                &payload.snapshot.roots
+            } else {
+                &frame_ids
+            };
+            let node_summaries = (response_selection.active()
+                || outputs.iter().any(|o| o == "outline"))
+            .then(|| super::compact::node_summaries(&payload.snapshot, compact_roots));
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
             super::validation::validate_width_policy_nodes(
                 width_policy.as_ref(),
@@ -1821,6 +1850,13 @@ async fn project_operation(
             if let Some(previous) = &previous_design_fingerprints {
                 recovery_arguments["previousDesignFingerprints"] = json!(previous);
             }
+            for (key, value) in serde_json::to_value(&response_selection)
+                .unwrap()
+                .as_object()
+                .unwrap()
+            {
+                recovery_arguments[key] = value.clone();
+            }
             if web_ready_images {
                 recovery_arguments
                     .as_object_mut()
@@ -1845,6 +1881,10 @@ async fn project_operation(
             result.insert("completeness".to_owned(), json!(payload.completeness));
             result.insert("collection".to_owned(), json!(collection));
             result.insert("cache".to_owned(), artifact_metadata(artifact));
+            result.insert(
+                "sectionChecklist".into(),
+                super::section_checklist::checklist(payload, compact_roots),
+            );
             let mut failures = payload
                 .failures
                 .iter()
@@ -2580,6 +2620,14 @@ async fn project_operation(
                 }
                 result.insert("responsiveTsx".to_owned(), json!(module));
                 result.insert("responsiveSlots".to_owned(), json!(merged.slots));
+                result.insert(
+                    "responsiveEvidence".into(),
+                    responsive_groups::width_evidence(&responsive_snapshot),
+                );
+                result.insert(
+                    "responsiveReviewChecklist".into(),
+                    responsive_groups::review(&responsive_snapshot),
+                );
                 responsive_widths = responsive_snapshot
                     .roots
                     .iter()
@@ -3454,6 +3502,17 @@ async fn project_operation(
                 ));
             }
             result = value.as_object().expect("result object").clone();
+            if outputs.iter().any(|o| o == "outline") {
+                let outline =
+                    super::compact::outline(node_summaries.as_ref().unwrap(), &response_selection);
+                if output_paths.contains_key("outline") {
+                    pending_text_outputs.insert(
+                        "outline".into(),
+                        serde_json::to_string_pretty(&outline).unwrap(),
+                    );
+                }
+                result.insert("outline".into(), outline);
+            }
             for (name, contents) in &mut pending_text_outputs {
                 if matches!(
                     name.as_str(),
@@ -3496,6 +3555,7 @@ async fn project_operation(
                 "referencePng",
                 "imageAudit",
                 "assetCssMap",
+                "outline",
             ] {
                 if result.contains_key(field) {
                     supported_keys.push(field.to_owned());
@@ -3728,13 +3788,39 @@ async fn project_operation(
             for value in result.values_mut() {
                 attach_diagnostic_screens(value, &owners);
             }
+            let outline_only =
+                !response_selection.active() && outputs.iter().all(|o| o == "outline");
+            let compact_details = if let Some(summary) = &node_summaries {
+                let selected = if outline_only {
+                    super::compact::outline_response(&mut result, summary)
+                } else {
+                    super::compact::select(&mut result, summary, &response_selection)
+                };
+                selected.map_err(|mut error| {
+                    let mut recovery=recovery_arguments.clone();
+                    recovery.as_object_mut().unwrap().remove("path");
+                    recovery.as_object_mut().unwrap().remove("responseFields");
+                    if outputs.iter().all(|o|o=="outline") { recovery["responseLimit"]=json!(response_selection.response_limit.min(25)); }
+                    error.details=json!({"artifactId":artifact.artifact_id,"maxSelectedBytes":65536,
+                        "nextAction":{"tool":"devup_figma_export","arguments":recovery,
+                            "how":"Read original outputs as bounded resources, or select a narrower path or lower responseLimit against this same artifact. Scalar values are never silently truncated."}});
+                    error
+                })?
+            } else {
+                None
+            };
             let projected_outputs = projected_outputs_from_result(&result)?;
             let mut projected_outputs = projected_outputs;
             projected_outputs.extend(asset_resource_outputs);
+            projected_outputs.extend(compact_details);
             let mut result = Value::Object(result);
             let attachment = apply_delivery(
                 &mut result,
-                delivery,
+                if response_selection.active() || outline_only {
+                    DeliveryMode::Resource
+                } else {
+                    delivery
+                },
                 artifact_store,
                 artifact,
                 projected_outputs,
@@ -6756,6 +6842,7 @@ mod w1_regressions {
             asset_output_paths: BTreeMap::new(),
             asset_public_root: None,
             fields: vec![],
+            response_selection: Default::default(),
             delivery: DeliveryMode::Inline,
             width_policy: None,
         }

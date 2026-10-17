@@ -85,3 +85,23 @@ fn the_plugin_family_is_recognized_from_names_and_widths_alone() {
     ]));
     assert!(!breakpoint_family_is_possible(&[("desktop", 1920.0)]));
 }
+
+#[test]
+fn explicit_screen_suffixes_pair_and_ambiguous_widths_or_unrelated_names_refuse() {
+    for names in [
+        vec![("Catalog / Mobile", 390.0), ("Catalog / Desktop", 1440.0)],
+        vec![("Catalog (mobile)", 390.0), ("Catalog (desktop)", 1440.0)],
+    ] {
+        assert!(breakpoint_family_is_possible(&names));
+        assert_eq!(breakpoints(&snapshot(&names)).len(), 2);
+    }
+    for names in [
+        vec![("Catalog / Mobile", 390.0), ("Profile / Desktop", 1440.0)],
+        vec![("Catalog / Mobile", 390.0), ("Catalog / Desktop", 400.0)],
+        vec![("mobile", 390.0), ("desktop", f64::NAN)],
+        vec![("mobile", 390.0), ("mobile", 400.0), ("desktop", 1440.0)],
+    ] {
+        assert!(!breakpoint_family_is_possible(&names));
+        assert!(breakpoints(&snapshot(&names)).is_empty());
+    }
+}

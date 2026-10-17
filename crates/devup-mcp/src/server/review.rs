@@ -71,6 +71,14 @@ fn has_line_height(value: &Value) -> bool {
 }
 
 fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
+    for item in response["responsiveReviewChecklist"]["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        out.push(json!({"severity":"required","scope":scope,"code":"RESPONSIVE_PAIRING_REVIEW","what":item,
+            "how":"Confirm node correspondence at the drawn widths; review undefined intermediate widths with flex, 1fr or minmax rules before claiming responsive completion."}));
+    }
     for (field, code, what, how) in [
         (
             "widgetCandidates",
@@ -112,6 +120,11 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
 /// Add `summary` and, only when something needs review, `reviewChecklist`.
 pub(super) fn attach(result: &mut Value) {
     let mut items = vec![];
+    if result["selectionEvidence"]["requiresFullDetailRead"] == true {
+        items.push(json!({"severity":"required","scope":"response","code":"SELECTED_PROJECTION_DETAILS_RESOURCE",
+            "what":"Selection returns data only; full acquisition and projection gaps remain in a linked resource.",
+            "how":"Read selectionEvidence.uri before accepting completeness; displayed issue identities are a bounded preview."}));
+    }
     if result["metadataDelivery"]["requiresFullDetailRead"] == true {
         items.push(json!({"severity":"required","scope":"response","code":"PROJECTION_DETAILS_RESOURCE",
             "what":"Complete projection diagnostic details are delivered as a resource.",
@@ -192,6 +205,19 @@ mod tests {
         assert_eq!(
             value["reviewChecklist"][0]["code"],
             "LINE_HEIGHT_CONVERSION"
+        );
+    }
+    #[test]
+    fn selected_details_without_preview_findings_still_require_resource_review() {
+        let mut value = json!({"status":"partial","selectionEvidence":{"requiresFullDetailRead":true,"uri":"devup://artifact/synthetic/outputs/evidence/manifest"},"projectionIssues":[]});
+        attach(&mut value);
+        assert_eq!(value["summary"]["required"], 1);
+        assert!(
+            value["reviewChecklist"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["code"] == "SELECTED_PROJECTION_DETAILS_RESOURCE")
         );
     }
 }

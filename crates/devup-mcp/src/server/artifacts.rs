@@ -22,6 +22,8 @@ use super::delivery::{ProjectedOutput, RESOURCE_CHUNK_BYTES};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactRequestKey {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurement_node_ids: Option<Vec<String>>,
     file_key: String,
     node_id: Option<String>,
     branch_key: Option<String>,
@@ -50,6 +52,7 @@ impl ArtifactRequestKey {
             .sort_by_cached_key(|selection| serde_json::to_string(selection).unwrap_or_default());
         asset_selections.dedup();
         Self {
+            measurement_node_ids: None,
             file_key: request.target.file_key.clone(),
             node_id: request.target.node_id.clone(),
             branch_key: request.target.branch_key.clone(),
@@ -72,7 +75,9 @@ impl ArtifactRequestKey {
     }
 
     fn capabilities(&self) -> ArtifactCapabilities {
-        let kind = if self.search.is_some() {
+        let kind = if self.measurement_node_ids.is_some() {
+            ArtifactKind::Measurement
+        } else if self.search.is_some() {
             ArtifactKind::Search
         } else if self.explore.is_some() {
             ArtifactKind::Explore
@@ -97,6 +102,14 @@ impl ArtifactRequestKey {
             reference_png: self.reference_png,
             section_selection: self.section.clone(),
         }
+    }
+
+    pub(super) fn measurement(target: devup_mcp_figma::FigmaTarget, ids: Vec<String>) -> Self {
+        let mut request = CollectionRequest::new(target, CollectionScope::Node);
+        request.resource_scope = ResourceScope::None;
+        let mut key = Self::from_collection(&request);
+        key.measurement_node_ids = Some(ids);
+        key
     }
 
     fn can_serve_explore(&self, requested: &Self) -> bool {
@@ -143,6 +156,7 @@ impl ArtifactRequestKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ArtifactKind {
+    Measurement,
     Design,
     ThemeOnly,
     Search,
@@ -647,6 +661,10 @@ impl ArtifactStore {
                 true,
                 missing_artifact_details(&state, artifact_id),
             )
+        }).and_then(|artifact| {
+            if artifact.capabilities.kind == ArtifactKind::Measurement {
+                Err(DevupError::with_details(ErrorCode::DevupFigmaHandoffInvalid,"A measurement-only artifact cannot supply export outputs; acquire a design export by explicit URL.",false,json!({"capabilities":artifact.capabilities,"artifactId":artifact.artifact_id})))
+            } else {Ok(artifact)}
         })
     }
 
@@ -1198,6 +1216,9 @@ fn recovery_arguments(entry: &Entry) -> serde_json::Value {
         branch_key: key.branch_key.clone(),
     }
     .link(key.node_id.as_deref());
+    if let Some(ids) = &key.measurement_node_ids {
+        return json!({"url":url,"nodeIds":ids});
+    }
     let mut args = json!({"url":url,"refresh":true});
     if let Some(selection) = &entry.capabilities.section_selection {
         args["frameIds"] = json!(selection.frame_ids);

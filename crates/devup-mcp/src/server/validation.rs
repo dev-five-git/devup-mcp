@@ -43,7 +43,8 @@ pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "openapi-client",
 ];
 
-pub(crate) const EXPORT_OUTPUTS: [&str; 14] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 15] = [
+    "outline",
     "imageAudit",
     "assetCssMap",
     "tsx",
@@ -71,7 +72,8 @@ pub(super) fn validate_artifact_projection(
     let design_output_requested = outputs.iter().any(|output| {
         matches!(
             output.as_str(),
-            "tsx"
+            "outline"
+                | "tsx"
                 | "componentTsx"
                 | "responsiveTsx"
                 | "pageScaffold"
@@ -103,7 +105,7 @@ pub(super) fn validate_artifact_projection(
                     | "designChanges"
             )
         }),
-        ArtifactKind::Search | ArtifactKind::Explore => false,
+        ArtifactKind::Measurement | ArtifactKind::Search | ArtifactKind::Explore => false,
     };
     if capabilities.kind == ArtifactKind::SectionIndex && !kind_compatible {
         return Err(DevupError::with_details(

@@ -25,6 +25,7 @@ pub enum PendingOperation {
         artifact_key: ArtifactRequestKey,
     },
     Export {
+        response_selection: super::compact::ResponseSelection,
         web_ready_images: bool,
         outputs: Vec<String>,
         previous_design_fingerprints: Option<String>,

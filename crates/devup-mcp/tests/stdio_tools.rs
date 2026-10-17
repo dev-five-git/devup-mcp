@@ -171,6 +171,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_auth",
             "devup_figma_explore",
             "devup_figma_export",
+            "devup_figma_measure",
             "devup_figma_search",
             "devup_project_context",
             "devup_runtime_audit",
@@ -199,6 +200,10 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         "frameIds",
         "allScreens",
         "delivery",
+        "responseFields",
+        "path",
+        "responseLimit",
+        "responseOffset",
     ] {
         assert!(export_text.contains(field), "missing export field {field}");
     }

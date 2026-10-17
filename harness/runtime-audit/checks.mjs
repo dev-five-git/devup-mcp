@@ -116,6 +116,31 @@ export function evaluateCheck(check, measured) {
   return { status: 'inconclusive', reason: `unknown check kind ${check.kind}`, measured: {} };
 }
 
+/** Pure dimension comparison; raw CSS pixels are never multiplied by DPR. */
+export function evaluateDimensions(check, measured, reference) {
+  const tolerance = check.tolerancePx;
+  if (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 10_000) {
+    throw new Error('dimensions tolerancePx must be finite and in [0, 10000]');
+  }
+  const evidence = {
+    units: 'css-px', subjectCount: measured.subjectCount,
+    subjectVisible: measured.subjectVisible === true, subject: measured.subject ?? null,
+  };
+  const unknown = (reason) => ({ status: 'inconclusive', reason, measured: evidence });
+  const problem = missing('subject', measured.subjectCount);
+  if (problem) return unknown(problem);
+  if (!reference || reference.status !== 'acquired') return unknown('no acquired Figma logical dimensions explicitly mapped at this width');
+  if (![reference.width, reference.height, measured.subject?.width, measured.subject?.height]
+    .every((value) => Number.isFinite(value) && value >= 0)) return unknown('logical dimensions or DOM CSS geometry is invalid');
+  if (!evidence.subjectVisible) return unknown('the mapped element is hidden');
+  const delta = { width: measured.subject.width - reference.width, height: measured.subject.height - reference.height };
+  return {
+    status: Math.abs(delta.width) <= tolerance && Math.abs(delta.height) <= tolerance ? 'pass' : 'fail',
+    reason: 'DOM CSS pixels compared with acquired Figma logical dimensions',
+    measured: evidence, deltaPx: delta, tolerancePx: tolerance,
+  };
+}
+
 /** Counts recomputed from items, never taken from a declaration. */
 export function summarize(runs) {
   const summary = { pass: 0, fail: 0, inconclusive: 0, skipped: 0 };

@@ -459,6 +459,9 @@ pub fn explore_snapshot(
         if node.kind != ExploreKind::Screen {
             return false;
         }
+        if target_kind == TargetKind::Page {
+            return is_descendant_of(snapshot, &node.node_id, &anchor.node_id);
+        }
         if anchor.kind == ExploreKind::Container {
             return node.parent_id.as_deref() == Some(anchor.node_id.as_str())
                 || contains(anchor.bounds, node.bounds);
@@ -476,7 +479,9 @@ pub fn explore_snapshot(
             let overlap = horizontal_overlap(node.bounds, anchor.bounds);
             let overlap_ratio = overlap / node.bounds.width.max(1.0);
             let mut reasons = vec!["screen-like".to_owned()];
-            if anchor.kind == ExploreKind::Container {
+            if target_kind == TargetKind::Page {
+                reasons.push("inside-page".to_owned());
+            } else if anchor.kind == ExploreKind::Container {
                 reasons.push("inside-container".to_owned());
             } else {
                 reasons.push("below-anchor".to_owned());

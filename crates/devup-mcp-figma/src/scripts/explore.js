@@ -23,9 +23,10 @@ function compactName(value) {
 }
 
 const requestedAnchor = anchor;
+const requestedPage = requestedAnchor.type === "PAGE";
 let pagePeer = requestedAnchor;
 let nearestSection = requestedAnchor.type === "SECTION" ? requestedAnchor : null;
-while (pagePeer.parent && pagePeer.parent.type !== "PAGE") {
+while (!requestedPage && pagePeer.parent && pagePeer.parent.type !== "PAGE") {
   pagePeer = pagePeer.parent;
   if (!nearestSection && pagePeer.type === "SECTION") nearestSection = pagePeer;
 }
@@ -88,7 +89,7 @@ function breadcrumb(node) {
   return names.reverse();
 }
 
-const scopeAnchor = !isScreenLike(requestedAnchor) && nearestSection
+const scopeAnchor = requestedPage ? page : !isScreenLike(requestedAnchor) && nearestSection
   ? nearestSection
   : pagePeer;
 const anchorBounds = bounds(scopeAnchor) || bounds(requestedAnchor);
@@ -98,6 +99,7 @@ const eligible = pageChildren
   .map((node, pageChildIndex) => ({ node, pageChildIndex, bounds: bounds(node) }))
   .filter((entry) => entry.bounds)
   .filter((entry) => {
+    if (requestedPage) return true;
     if (entry.node.id === scopeAnchor.id) return true;
     const verticallyNear = entry.bounds.y >= anchorBounds.y - 240
       && entry.bounds.y <= anchorBounds.y + 12000;
@@ -125,7 +127,7 @@ if (!included.has(requestedAnchor.id)) {
     bounds: bounds(requestedAnchor),
   });
 }
-let requiredAncestor = requestedAnchor.parent;
+let requiredAncestor = requestedPage ? null : requestedAnchor.parent;
 while (requiredAncestor && requiredAncestor.type !== "PAGE") {
   if (!included.has(requiredAncestor.id)) {
     included.set(requiredAncestor.id, {
@@ -144,10 +146,11 @@ if ("children" in scopeAnchor) {
     }
   }
 }
-let sectionTraversalTruncated = scopeAnchor.type === "SECTION"
+const descendantScope = scopeAnchor.type === "SECTION" || requestedPage;
+let sectionTraversalTruncated = descendantScope
   && "children" in scopeAnchor
   && scopeAnchor.children.length > projectionLimit;
-if (scopeAnchor.type === "SECTION" && "children" in scopeAnchor) {
+if (descendantScope && "children" in scopeAnchor) {
   const traversalLimit = projectionLimit * 8;
   const nestedQueue = scopeAnchor.children
     .filter((node) => !isScreenLike(node))
@@ -286,9 +289,28 @@ if (JSON.stringify(output).length > MAX_PROJECTION_JSON_CHARS) {
 }
 
 // Optional previews may only consume space left by the structural projection.
+// Page fallback can collect names across the page; bound UTF-8 bytes as well
+// as the existing character budget on the metered text transport.
+function utf8Bytes(value) {
+  let count = 0;
+  for (const character of value) {
+    const point = character.codePointAt(0);
+    count += point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
+  }
+  return count;
+}
+const PAGE_TEXT_BYTES = 19 * 1024;
+if (requestedPage) {
+  while (utf8Bytes(JSON.stringify(output)) > PAGE_TEXT_BYTES && output.nodes.length > 1) {
+    output.nodes.pop();
+    pageNode.fields.projectionTruncated = true;
+  }
+  if (utf8Bytes(JSON.stringify(output)) > PAGE_TEXT_BYTES) throw new Error("DEVUP_EXPLORE_PROJECTION_TOO_LARGE");
+}
 // Count JSON escaping as well, so quotes/control characters cannot push a
 // preview over the envelope cap or evict a candidate.
 let previewBudget = MAX_PROJECTION_JSON_CHARS - JSON.stringify(output).length;
+if (requestedPage) previewBudget = Math.min(previewBudget, PAGE_TEXT_BYTES - utf8Bytes(JSON.stringify(output)));
 if (textPreviewLimit > 0 && previewBudget > 0) {
   // Each candidate takes an equal share of what is left rather than as much
   // as it wants, so the last one is funded before the first is indulged.
@@ -307,7 +329,7 @@ if (textPreviewLimit > 0 && previewBudget > 0) {
     let preview = "";
     let spent = 0;
     for (const character of textPreview(included.get(projected.id).node)) {
-      const cost = JSON.stringify(character).length - 2;
+      const cost = (requestedPage ? utf8Bytes(JSON.stringify(character)) : JSON.stringify(character).length) - 2;
       if (spent + cost > share) break;
       preview += character;
       spent += cost;
