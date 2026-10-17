@@ -35,6 +35,8 @@
 use std::collections::BTreeSet;
 #[path = "ui_validate/blur_layers.rs"]
 mod blur_layers;
+#[path = "ui_validate/site.rs"]
+pub mod site;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
