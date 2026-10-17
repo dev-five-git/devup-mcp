@@ -44,7 +44,7 @@ const SCHEMA_VERSION: u64 = 1;
 /// it from the same place, so the two cannot disagree about which plan holds.
 pub(super) const PLAN_FILE: &str = ".devup/screen-plan.json";
 const PLAN_MARKDOWN: &str = ".devup/screen-plan.md";
-pub(super) const ASK_INSTRUCTION: &str = "Ask every round in questionRounds now, before implementing, in consecutive question-tool calls with no other work in between; skip a question whose `when` was not met; never ask in prose. Then confirm. After confirm never ask the user anything: take the recommended or most conservative option and record it with action assume.";
+pub(super) const ASK_INSTRUCTION: &str = "Ask every question now, before implementing, with your question tool and never in prose. If the tool has no per-call cap (OpenCode `question`), ask the flat `questions` list in one call; each conditional question says when it applies. If it has one (Claude Code AskUserQuestion: 4), ask the questionRounds back to back in consecutive calls with no other work in between, skipping a question whose `when` was not met. Then confirm. After confirm never ask the user anything: take the recommended or most conservative option and record it with action assume.";
 /// What implementation does instead of asking. Someone may have walked away
 /// from the keyboard three hours ago; a question then stops all the work.
 pub(super) const IMPLEMENT_INSTRUCTION: &str = "Implement URL by URL without asking the user anything. devup_figma_export with projectRoot takes each page's route from this plan. Anything new: take the recommended or most conservative option, record it with devup_screen_plan action assume, and keep going. Then run devup_runtime_audit at every width and devup_screen_plan action status.";
@@ -88,6 +88,8 @@ const MODAL_WORDS: &[&str] = &[
 const DEVICE_WORDS: &[&str] = &[
     "pc", "mobile", "mo", "mob", "m", "tablet", "tab", "desktop", "web", "dt",
 ];
+/// Device words that name a whole section rather than a frame suffix.
+const SECTION_DEVICE_WORDS: &[&str] = &["phone", "모바일", "태블릿", "데스크톱", "데스크탑", "웹"];
 const ROOT_WORDS: &[&str] = &["home", "main", "index", "landing", "메인", "홈"];
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -137,6 +139,12 @@ pub struct ScreenPlanInput {
     /// assume: what was decided during implementation without asking.
     #[serde(default)]
     pub assumptions: Vec<AssumptionInput>,
+    /// draft: how many questions one question-tool call takes; default 4
+    /// (Claude Code AskUserQuestion). A tool with no cap asks the flat
+    /// `questions` list in one call instead.
+    #[serde(default)]
+    #[schemars(range(min = 1, max = 50))]
+    pub max_questions_per_round: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -163,9 +171,17 @@ pub(super) struct PlanConfig {
     /// Layer name -> route.
     #[serde(default)]
     pub route_aliases: BTreeMap<String, String>,
-    /// responsive | separate | ask (the default).
+    /// responsive | separate | ask (the default). Applies to several widths
+    /// in one section; frames in different sections are always asked.
     #[serde(default)]
     pub width_grouping: Option<String>,
+    /// Replaces the built-in words that mark pages, sections and frames as
+    /// not for implementation (trash, archive, draft, copy, ...).
+    #[serde(default)]
+    pub exclude_keywords: Option<Vec<String>>,
+    /// Names containing one of these are never excluded by keyword.
+    #[serde(default)]
+    pub include_keywords: Option<Vec<String>>,
 }
 
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
@@ -232,6 +248,19 @@ pub struct PlanScreenInput {
     /// The section's layer name, when `section` is an id.
     #[serde(default)]
     pub section_name: Option<String>,
+    /// Layer names from the page down to this frame, as devup_figma_explore
+    /// reports them. Used to keep the plan inside the linked node and out of
+    /// trash, archive and draft areas.
+    #[serde(default)]
+    pub breadcrumb: Vec<String>,
+    /// Ancestor node ids, nearest first, when known.
+    #[serde(default)]
+    pub ancestors: Vec<String>,
+    /// false when the frame is hidden in Figma.
+    #[serde(default)]
+    pub visible: Option<bool>,
+    #[serde(default)]
+    pub opacity: Option<f64>,
     /// Shared part names the caller saw in this screen, e.g. Header, Footer.
     #[serde(default)]
     pub parts: Vec<String>,
@@ -573,13 +602,41 @@ fn question(id: String, header: String, prompt: String, choices: Vec<Choice>, ki
 
 /// The questions as they go to the question tool: no resolution table.
 fn ask_shape(questions: &[Value]) -> Vec<Value> {
+    ask_shape_with(questions, questions)
+}
+
+/// As [`ask_shape`], with `all` the whole plan's questions so a conditional
+/// question can say in its own text when it applies - the flat list may be
+/// asked in one call, where the answer it depends on is not yet known.
+fn ask_shape_with(all: &[Value], questions: &[Value]) -> Vec<Value> {
     questions
         .iter()
         .map(|question| {
             let mut shaped = question.clone();
+            let conditions = array(&question["when"])
+                .iter()
+                .map(|condition| {
+                    let parent = all
+                        .iter()
+                        .find(|other| other["id"] == condition["question"])
+                        .map_or_else(
+                            || text(&condition["question"]).to_owned(),
+                            |other| text(&other["header"]).to_owned(),
+                        );
+                    format!("\"{parent}\" is \"{}\"", text(&condition["answer"]))
+                })
+                .collect::<Vec<_>>();
+            if !conditions.is_empty() {
+                shaped["question"] = json!(format!(
+                    "{} (Only if {}.)",
+                    text(&question["question"]),
+                    conditions.join(" and ")
+                ));
+            }
             if let Some(object) = shaped.as_object_mut() {
                 object.remove("resolve");
                 object.remove("kind");
+                object.remove("fix");
                 if let Some(conditions) = object.get_mut("when").and_then(Value::as_array_mut) {
                     for condition in conditions {
                         if let Some(condition) = condition.as_object_mut() {
@@ -615,10 +672,18 @@ impl Frame {
 enum Grouping {
     /// Decided: one page, from a single frame, project config, or evidence.
     Fixed(&'static str),
-    /// Asked per group; the recommendation follows the evidence.
+    /// Several widths in one section: asked, one responsive page recommended.
     Ask {
         recommend_single: bool,
         reason: String,
+    },
+    /// The same screen name in different sections. A designer usually does
+    /// that for a reason, so this is never resolved here: the question names
+    /// the sections and frames and offers to have the Figma fixed instead.
+    Sections {
+        all_device: bool,
+        sections: Vec<String>,
+        why: String,
     },
 }
 
@@ -629,6 +694,13 @@ struct DraftScreen {
     parts: Vec<String>,
     links: Vec<PlanLinkInput>,
     grouping: Grouping,
+    /// Conditions every question about this screen carries: a structure
+    /// question about it must have been answered with "keep" for any of them
+    /// to apply.
+    extra_when: Vec<Value>,
+    /// The structure questions this screen is part of, so confirm can tell
+    /// whether the user asked for a Figma fix instead.
+    structure: Vec<String>,
 }
 
 impl DraftScreen {
@@ -640,6 +712,14 @@ impl DraftScreen {
     }
     fn widths(&self) -> Vec<u32> {
         widths_of(&self.frames)
+    }
+    /// The question that decides how this screen's frames become pages.
+    fn grouping_question(&self) -> Option<String> {
+        match self.grouping {
+            Grouping::Fixed(_) => None,
+            Grouping::Ask { .. } => Some(format!("group:{}", self.id())),
+            Grouping::Sections { .. } => Some(format!("sections:{}", self.id())),
+        }
     }
 }
 
@@ -661,36 +741,57 @@ fn width_list(widths: &[u32]) -> String {
         .join("/")
 }
 
-/// Whether every section name says only which device it is for, e.g. `PC`
-/// and `Mobile`: a designer splitting one page by device, not two pages.
-fn device_sections(frames: &[Frame]) -> bool {
-    frames.iter().all(|frame| {
-        frame.section_name.as_deref().is_some_and(|name| {
-            let lowered = name.to_lowercase();
-            let words = lowered
-                .split(|c: char| !c.is_alphanumeric())
-                .filter(|word| !word.is_empty())
-                .collect::<Vec<_>>();
-            !words.is_empty()
-                && words.iter().all(|word| {
-                    DEVICE_WORDS.contains(word) || word.chars().all(|c| c.is_ascii_digit())
-                })
+/// Whether a section name says only which device it is for: `PC`,
+/// `Mobile`, `Tablet`, `모바일`.
+fn device_name(name: &str) -> bool {
+    let lowered = name.to_lowercase();
+    let words = lowered
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>();
+    !words.is_empty()
+        && words.iter().all(|word| {
+            DEVICE_WORDS.contains(word)
+                || SECTION_DEVICE_WORDS.contains(word)
+                || word.chars().all(|c| c.is_ascii_digit())
         })
-    })
+}
+
+fn section_label(frame: &Frame) -> String {
+    frame
+        .section_name
+        .clone()
+        .or_else(|| frame.section.clone())
+        .unwrap_or_else(|| "(no section)".to_owned())
+}
+
+fn describe_frames(frames: &[Frame]) -> String {
+    frames
+        .iter()
+        .map(|frame| {
+            format!(
+                "\"{}\" ({}, {}px, section {})",
+                frame.name,
+                frame.node_id,
+                frame.width.round(),
+                section_label(frame)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Frames that share a base name are candidates for one page. Whether they
-/// are one is not assumed: designers differ, so a group that could go either
-/// way is asked about on its own, with the recommendation the evidence gives.
+/// are one is not assumed:
 ///
-/// - several widths in one section that can merge into one responsive tree:
-///   one responsive page is recommended;
-/// - the same name in different sections: separate pages are recommended,
-///   unless the sections are named only for devices (`PC`, `Mobile`);
-/// - the same name at the same width in one section is several screens, not a
-///   width family, and is not grouped at all.
-///
-/// `widthGrouping` in the project config decides instead of asking.
+/// - several widths in one section that can merge into one responsive tree
+///   are asked, recommending one responsive page; `widthGrouping` in the
+///   project config decides this case instead of asking;
+/// - the same name in different sections - device-named sections included -
+///   is always asked, with the facts and a "fix the Figma" option, because
+///   that is a designer's structure and not this server's to correct;
+/// - the same name at the same width in one section is not grouped; it is
+///   flagged as a possible duplicate by [`structure_questions`].
 fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftScreen> {
     let mut order = Vec::<String>::new();
     let mut groups = BTreeMap::<String, Vec<&PlanScreenInput>>::new();
@@ -730,6 +831,8 @@ fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftS
             parts,
             links,
             grouping,
+            extra_when: Vec::new(),
+            structure: Vec::new(),
         }
     };
     let mut result = Vec::new();
@@ -750,15 +853,44 @@ fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftS
             .iter()
             .map(|screen| screen.section.as_deref())
             .collect::<BTreeSet<_>>();
-        let same_section = sections.len() == 1;
-        if same_section && !family {
+        if sections.len() > 1 {
+            let probe = make(members, Grouping::Fixed(""));
+            let mut names = Vec::<String>::new();
+            for frame in &probe.frames {
+                let label = section_label(frame);
+                if !names.contains(&label) {
+                    names.push(label);
+                }
+            }
+            let all_device = probe
+                .frames
+                .iter()
+                .all(|frame| frame.section_name.as_deref().is_some_and(device_name));
+            let mut why = vec!["the same name once widths and device words are removed".to_owned()];
+            if family {
+                why.push(format!(
+                    "their widths ({}) form a desktop-to-mobile pattern",
+                    width_list(&probe.widths())
+                ));
+            }
+            result.push(make(
+                members,
+                Grouping::Sections {
+                    all_device,
+                    sections: names,
+                    why: why.join(", and "),
+                },
+            ));
+            continue;
+        }
+        if !family {
             for member in members {
                 result.push(make(&[member], Grouping::Fixed("single-frame")));
             }
             continue;
         }
         match config.width_grouping.as_deref() {
-            Some("responsive") if family => {
+            Some("responsive") => {
                 result.push(make(members, Grouping::Fixed("config:widthGrouping")));
             }
             Some("separate") => {
@@ -766,29 +898,325 @@ fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftS
                     result.push(make(&[member], Grouping::Fixed("config:widthGrouping")));
                 }
             }
-            _ => {
-                let probe = make(members, Grouping::Fixed(""));
-                let by_device = device_sections(&probe.frames);
-                let recommend_single = family && (same_section || by_device);
-                let reason = if same_section {
-                    "drawn at several widths in one section with matching names".to_owned()
-                } else if recommend_single {
-                    "split across sections named only for devices".to_owned()
-                } else {
-                    format!("the same name in {} different sections", sections.len())
-                };
-                result.push(make(
-                    members,
-                    Grouping::Ask {
-                        recommend_single,
-                        reason,
-                    },
-                ));
-            }
+            _ => result.push(make(
+                members,
+                Grouping::Ask {
+                    recommend_single: true,
+                    reason: "drawn at several widths in one section with matching names".into(),
+                },
+            )),
         }
     }
     result
 }
+
+/// The base name without a trailing part number: `Main 1` and `Main (2)`
+/// are parts of one screen if anything is.
+fn part_key(words: &[String]) -> Option<String> {
+    let (last, rest) = words.split_last()?;
+    let numbered =
+        last.chars().all(|c| c.is_ascii_digit()) && last.parse::<u32>().is_ok_and(|n| n < 100);
+    let rest = rest
+        .iter()
+        .filter(|word| !matches!(word.as_str(), "part" | "p"))
+        .cloned()
+        .collect::<Vec<_>>();
+    (numbered && !rest.is_empty()).then(|| rest.join(" "))
+}
+
+const KEEP_SEPARATE: &str = "They are different screens";
+const KEEP_OUTSIDE: &str = "It is its own screen";
+pub(super) const FIX_FIGMA: &str = "The Figma structure is wrong: I will fix it";
+
+/// One structural oddity: the frames involved, what looks wrong, and the fix
+/// the designer would make.
+struct Oddity {
+    kind: &'static str,
+    screens: Vec<usize>,
+    facts: String,
+    keep: &'static str,
+    keep_description: String,
+    fix: String,
+}
+
+/// Figma structure that a designer may not have meant, flagged in the same
+/// batch with a "fix it" option. Nothing here decides which frame is right.
+fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
+    let mut found = Vec::new();
+    let singles = drafts
+        .iter()
+        .enumerate()
+        .filter(|(_, screen)| screen.grouping == Grouping::Fixed("single-frame"))
+        .collect::<Vec<_>>();
+    // The same name and width in one section.
+    let mut duplicates = BTreeMap::<(String, Option<String>, u32), Vec<usize>>::new();
+    for (index, screen) in &singles {
+        let frame = &screen.frames[0];
+        duplicates
+            .entry((
+                screen.words.join(" "),
+                frame.section.clone(),
+                widths_of(&screen.frames)[0],
+            ))
+            .or_default()
+            .push(*index);
+    }
+    for indices in duplicates.values().filter(|indices| indices.len() > 1) {
+        let frames = indices
+            .iter()
+            .map(|index| drafts[*index].frames[0].clone())
+            .collect::<Vec<_>>();
+        found.push(Oddity {
+            kind: "duplicate",
+            screens: indices.clone(),
+            facts: format!(
+                "{} frames share one name and one width in one section: {}.",
+                frames.len(),
+                describe_frames(&frames)
+            ),
+            keep: KEEP_SEPARATE,
+            keep_description: "Each frame is its own screen and gets its own route.".into(),
+            fix: format!(
+                "Delete the stale copy or rename the frames so each screen has one name: {}.",
+                describe_frames(&frames)
+            ),
+        });
+    }
+    // One screen split into numbered parts across sections.
+    let mut parts = BTreeMap::<String, Vec<usize>>::new();
+    for (index, screen) in drafts.iter().enumerate() {
+        if let Some(key) = part_key(&screen.words) {
+            parts.entry(key).or_default().push(index);
+        }
+    }
+    for indices in parts.values().filter(|indices| indices.len() > 1) {
+        let frames = indices
+            .iter()
+            .flat_map(|index| drafts[*index].frames.clone())
+            .collect::<Vec<_>>();
+        let sections = frames
+            .iter()
+            .map(|frame| frame.section.clone())
+            .collect::<BTreeSet<_>>();
+        if sections.len() < 2 {
+            continue;
+        }
+        found.push(Oddity {
+            kind: "split",
+            screens: indices.clone(),
+            facts: format!(
+                "These numbered frames look like parts of one screen spread across sections: {}.",
+                describe_frames(&frames)
+            ),
+            keep: KEEP_SEPARATE,
+            keep_description: "Each part is its own screen and gets its own route.".into(),
+            fix: format!(
+                "Put the parts of one screen into one frame in one section: {}.",
+                describe_frames(&frames)
+            ),
+        });
+    }
+    // A frame outside any section beside frames that are in sections.
+    let sectioned = drafts
+        .iter()
+        .flat_map(|screen| &screen.frames)
+        .filter_map(|frame| frame.section.as_ref().map(|_| section_label(frame)))
+        .collect::<BTreeSet<_>>();
+    if !sectioned.is_empty() {
+        for (index, screen) in &singles {
+            let frame = &screen.frames[0];
+            if frame.section.is_some() {
+                continue;
+            }
+            found.push(Oddity {
+                kind: "loose",
+                screens: vec![*index],
+                facts: format!(
+                    "\"{}\" ({}, {}px) sits outside any section, while the other frames are in {}.",
+                    frame.name,
+                    frame.node_id,
+                    frame.width.round(),
+                    sectioned.iter().cloned().collect::<Vec<_>>().join(", ")
+                ),
+                keep: KEEP_OUTSIDE,
+                keep_description: "Plan it as a screen of its own, outside the sections.".into(),
+                fix: format!(
+                    "Move \"{}\" ({}) into the section it belongs to, or out of this area.",
+                    frame.name, frame.node_id
+                ),
+            });
+        }
+    }
+    found
+}
+
+/// Names that mark a page, section or frame as not for implementation. Words
+/// in ASCII match whole words; the rest match anywhere in the name.
+const EXCLUDE_WORDS: &[&str] = &[
+    "trash",
+    "휴지통",
+    "archive",
+    "archived",
+    "아카이브",
+    "old",
+    "구버전",
+    "이전",
+    "deprecated",
+    "사용안함",
+    "미사용",
+    "backup",
+    "백업",
+    "draft",
+    "wip",
+    "작업중",
+    "test",
+    "테스트",
+    "sandbox",
+    "playground",
+    "copy",
+    "사본",
+];
+
+fn keyword_in(name: &str, keyword: &str) -> bool {
+    let name = name.to_lowercase();
+    let keyword = keyword.trim().to_lowercase();
+    if keyword.is_empty() {
+        return false;
+    }
+    if keyword.chars().all(|c| c.is_ascii_alphanumeric()) {
+        name.split(|c: char| !c.is_alphanumeric())
+            .any(|word| word == keyword)
+    } else {
+        name.contains(&keyword)
+    }
+}
+
+/// The first exclude keyword in any of `names`, unless an include keyword
+/// forces them in.
+fn excluded_by<'a>(names: &[(&'a str, &'a str)], config: &PlanConfig) -> Option<String> {
+    let include = config.include_keywords.as_deref().unwrap_or_default();
+    if names
+        .iter()
+        .any(|(_, name)| include.iter().any(|keyword| keyword_in(name, keyword)))
+    {
+        return None;
+    }
+    let defaults = EXCLUDE_WORDS
+        .iter()
+        .map(|word| (*word).to_owned())
+        .collect::<Vec<_>>();
+    let keywords = config.exclude_keywords.as_ref().unwrap_or(&defaults);
+    names.iter().find_map(|(place, name)| {
+        keywords
+            .iter()
+            .find(|keyword| keyword_in(name, keyword))
+            .map(|keyword| format!("{place} \"{name}\" contains \"{keyword}\""))
+    })
+}
+
+/// Why a frame is not for implementation, or `None`. The names of the
+/// linked node and its ancestors are left out: the user pointed there, which
+/// is asked once rather than excluded (see the `scope` question).
+fn exclusion_reason(
+    screen: &PlanScreenInput,
+    linked: &[String],
+    config: &PlanConfig,
+) -> Option<String> {
+    if screen.visible == Some(false) {
+        return Some("hidden in Figma".into());
+    }
+    if screen.opacity.is_some_and(|opacity| opacity <= 0.0) {
+        return Some("zero opacity in Figma".into());
+    }
+    let mut names = vec![("frame", screen.name.as_str())];
+    if let Some(section) = screen.section_name.as_deref() {
+        names.push(("section", section));
+    }
+    for ancestor in screen
+        .breadcrumb
+        .split_last()
+        .map(|(_, ancestors)| ancestors)
+        .unwrap_or_default()
+    {
+        names.push(("parent", ancestor.as_str()));
+    }
+    names.retain(|(place, name)| *place == "frame" || !linked.iter().any(|link| link == name));
+    let mut seen = BTreeSet::new();
+    names.retain(|(_, name)| seen.insert(*name));
+    excluded_by(&names, config)
+}
+
+/// One devup_figma_explore candidate node as a screen to plan. Its parent
+/// counts as its section only when the breadcrumb shows one between the page
+/// and the frame; a frame drawn straight on the page is in no section.
+pub(super) fn screen_from_explore(node: &Value) -> Option<PlanScreenInput> {
+    let breadcrumb = array(&node["breadcrumb"])
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let parent = node["parentId"].as_str().map(str::to_owned);
+    let in_section = breadcrumb.len() >= 3;
+    Some(PlanScreenInput {
+        node_id: node["nodeId"].as_str()?.to_owned(),
+        name: text(&node["name"]).to_owned(),
+        width: node["bounds"]["width"].as_f64()?,
+        height: node["bounds"]["height"].as_f64(),
+        section: parent.clone().filter(|_| in_section),
+        section_name: in_section.then(|| breadcrumb[breadcrumb.len() - 2].clone()),
+        ancestors: parent.into_iter().collect(),
+        visible: node["visible"].as_bool(),
+        opacity: node["opacity"].as_f64(),
+        breadcrumb,
+        ..PlanScreenInput::default()
+    })
+}
+
+/// Whether a frame is under the node the user linked. A frame that carries
+/// no ancestry at all came from the caller's own list and is taken as given;
+/// one whose ancestry is known and does not reach the link is never a
+/// candidate.
+pub(super) fn in_scope(
+    screen: &PlanScreenInput,
+    anchor_id: Option<&str>,
+    anchor_name: Option<&str>,
+) -> bool {
+    let Some(anchor) = anchor_id else {
+        return true;
+    };
+    if screen.node_id == anchor
+        || screen.section.as_deref() == Some(anchor)
+        || screen.ancestors.iter().any(|id| id == anchor)
+    {
+        return true;
+    }
+    let ancestor_names = screen
+        .breadcrumb
+        .split_last()
+        .map(|(_, ancestors)| ancestors)
+        .unwrap_or_default();
+    if anchor_name.is_some_and(|name| ancestor_names.iter().any(|ancestor| ancestor == name)) {
+        return true;
+    }
+    screen.section.is_none() && screen.ancestors.is_empty() && screen.breadcrumb.is_empty()
+}
+
+fn with_when(mut question: Value, conditions: &[Value]) -> Value {
+    if !conditions.is_empty() {
+        let mut all = array(&question["when"]).to_vec();
+        all.extend(conditions.iter().cloned());
+        question["when"] = json!(all);
+    }
+    question
+}
+
+const SECTIONS_SEPARATE: &str = "Separate pages: the sections are different pages";
+const SECTIONS_SINGLE: &str = "One responsive page: the sections only split by device";
+const KEEP_EXCLUDED: &str = "Keep it excluded";
+const BUILD_IT: &str = "Build it";
+const ACCEPT_EXCLUSIONS: &str = "Accept the exclusions";
+const PLAN_ANYWAY: &str = "Plan them: this is what I linked";
+const NOTHING_HERE: &str = "Nothing here is for implementation";
 
 /// One route the evidence names, what kind of evidence it is, and where.
 #[derive(Debug, Clone)]
@@ -939,7 +1367,220 @@ pub(super) fn draft_plan(
             "draft plans at most {MAX_SCREENS} screens; link one Section at a time."
         )));
     }
-    let drafts = group_screens(screens, &evidence.config);
+    // Only what the user pointed at, and never what is marked as not for
+    // implementation. Both are listed, not dropped.
+    let anchor_id = source["nodeId"].as_str();
+    let anchor_name = source["anchorName"].as_str();
+    let linked = array(&source["anchorBreadcrumb"])
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .chain(anchor_name.map(str::to_owned))
+        .collect::<Vec<_>>();
+    let mut out_of_scope = Vec::new();
+    let mut excluded = Vec::new();
+    let mut kept = Vec::new();
+    for screen in screens {
+        if !in_scope(screen, anchor_id, anchor_name) {
+            out_of_scope.push(json!({"nodeId": screen.node_id, "name": screen.name,
+                "reason": "not under the linked node; never a candidate"}));
+            continue;
+        }
+        match exclusion_reason(screen, &linked, &evidence.config) {
+            Some(reason) => excluded.push((screen, reason)),
+            None => kept.push(screen.clone()),
+        }
+    }
+    if kept.is_empty() && excluded.is_empty() {
+        return Err(invalid(
+            "No screen is under the linked node. Link the Section or frame to plan; the plan never widens past it.",
+        ));
+    }
+    let mut questions = Vec::new();
+    let mut base_when = Vec::new();
+    let linked_names = linked
+        .iter()
+        .map(|name| ("linked node", name.as_str()))
+        .collect::<Vec<_>>();
+    if let Some(reason) = excluded_by(&linked_names, &evidence.config) {
+        questions.push(question(
+            "scope".into(),
+            "Linked area: build it?".into(),
+            format!(
+                "The link you gave points inside an area whose name marks it as not for implementation: {reason}. Plan the screens under it anyway?"
+            ),
+            vec![
+                choice(
+                    PLAN_ANYWAY,
+                    "You linked this area on purpose; plan its screens.",
+                    json!({"scope": "use"}),
+                ),
+                choice(
+                    NOTHING_HERE,
+                    "Build nothing from this link.",
+                    json!({"scope": "none"}),
+                ),
+            ],
+            "scope",
+        ));
+        base_when.push(when("scope", PLAN_ANYWAY, json!({"scope": "use"})));
+    }
+    if !excluded.is_empty() {
+        let listed = excluded
+            .iter()
+            .take(8)
+            .map(|(screen, reason)| format!("\"{}\" ({}): {reason}", screen.name, screen.node_id))
+            .collect::<Vec<_>>()
+            .join("; ");
+        let more = if excluded.len() > 8 {
+            format!("; and {} more listed in the plan", excluded.len() - 8)
+        } else {
+            String::new()
+        };
+        questions.push(with_when(
+            question(
+                "exclusions".into(),
+                "Excluded areas".into(),
+                format!(
+                    "These {} frames were excluded as trash, archive, draft, copy or hidden, and will not be built: {listed}{more}. Accept the exclusions?",
+                    excluded.len()
+                ),
+                vec![
+                    choice(
+                        ACCEPT_EXCLUSIONS,
+                        "None of them is built; they stay listed in the plan.",
+                        json!({"exclusions": "accept"}),
+                    ),
+                    choice(
+                        REVIEW,
+                        "Ask about each one in the next round.",
+                        json!({"exclusions": "review"}),
+                    ),
+                ],
+                "exclusions",
+            ),
+            &base_when,
+        ));
+        let review = when("exclusions", REVIEW, json!({"exclusions": "review"}));
+        for (screen, reason) in &excluded {
+            let id = &screen.node_id;
+            let conditions = [base_when.clone(), vec![review.clone()]].concat();
+            questions.push(with_when(
+                question(
+                    format!("exclusion:{id}"),
+                    header("Excluded", &screen.name),
+                    format!(
+                        "\"{}\" ({id}) was excluded: {reason}. Keep it out of the build?",
+                        screen.name
+                    ),
+                    vec![
+                        choice(
+                            KEEP_EXCLUDED,
+                            "Not built; listed as excluded.",
+                            json!({"build": false}),
+                        ),
+                        choice(
+                            BUILD_IT,
+                            "Build it; its URL is asked next.",
+                            json!({"build": true}),
+                        ),
+                    ],
+                    "exclusion",
+                ),
+                &conditions,
+            ));
+            let screen_slug = slug(&base_words(&screen.name));
+            let mut choices = Vec::new();
+            if !screen_slug.is_empty() {
+                choices.push(choice(
+                    format!("/{screen_slug}"),
+                    "Named after the layer.",
+                    json!({"route": format!("/{screen_slug}")}),
+                ));
+            }
+            choices.push(choice(
+                SKIP,
+                "Leave it out after all.",
+                json!({"skip": true}),
+            ));
+            if choices.len() < 2 {
+                choices.push(choice(
+                    NOT_A_PAGE,
+                    "It is a section or state of another screen; it gets no URL.",
+                    json!({"notPage": true}),
+                ));
+            }
+            let built = [
+                conditions,
+                vec![when(
+                    &format!("exclusion:{id}"),
+                    BUILD_IT,
+                    json!({"build": true}),
+                )],
+            ]
+            .concat();
+            questions.push(with_when(
+                question(
+                    format!("exclusion-route:{id}"),
+                    header("Route", &screen.name),
+                    format!("Which URL should \"{}\" ({id}) be served at?", screen.name),
+                    choices,
+                    "route",
+                ),
+                &built,
+            ));
+        }
+    }
+    let excluded_rows = excluded
+        .iter()
+        .map(|(screen, reason)| {
+            json!({"nodeId": screen.node_id, "name": screen.name, "width": screen.width,
+                "section": screen.section_name.clone().or_else(|| screen.section.clone()),
+                "reason": reason})
+        })
+        .collect::<Vec<_>>();
+    let mut drafts = group_screens(&kept, &evidence.config);
+    for draft in &mut drafts {
+        draft.extra_when.extend(base_when.iter().cloned());
+    }
+    for oddity in structure_questions(&drafts) {
+        let first = drafts[oddity.screens[0]].id().to_owned();
+        let id = format!("structure:{}:{first}", oddity.kind);
+        let frames = oddity
+            .screens
+            .iter()
+            .flat_map(|index| drafts[*index].frames.iter().map(Frame::json))
+            .collect::<Vec<_>>();
+        let mut asked = question(
+            id.clone(),
+            header("Figma structure", drafts[oddity.screens[0]].name()),
+            format!(
+                "{} Is that intended, or should the Figma file be fixed? This plan does not decide which frame is right.",
+                oddity.facts
+            ),
+            vec![
+                choice(
+                    oddity.keep,
+                    oddity.keep_description.clone(),
+                    json!({"structure": "keep"}),
+                ),
+                choice(
+                    FIX_FIGMA,
+                    "These frames are not built. They are listed under Design fixes requested; everything else goes on.",
+                    json!({"designFix": true}),
+                ),
+            ],
+            "structure",
+        );
+        asked["fix"] = json!({"frames": frames, "text": oddity.fix});
+        questions.push(with_when(asked, &base_when));
+        for index in &oddity.screens {
+            drafts[*index]
+                .extra_when
+                .push(when(&id, oddity.keep, json!({"structure": "keep"})));
+            drafts[*index].structure.push(id.clone());
+        }
+    }
     let mut screen_notes = vec![Vec::new(); drafts.len()];
     let mut decided = drafts
         .iter()
@@ -1039,7 +1680,6 @@ pub(super) fn draft_plan(
         unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         unclaimed
     };
-    let mut questions = Vec::new();
     let mut rows = Vec::new();
     let mut heuristics = Vec::new();
     let mut part_screens = BTreeMap::<String, Vec<String>>::new();
@@ -1058,11 +1698,15 @@ pub(super) fn draft_plan(
         let new_route = (!screen_slug.is_empty()).then(|| format!("/{screen_slug}"));
         // Questions about this screen as one page apply only if the group is
         // one page; when that is still being asked, they carry the condition.
-        let group_id = format!("group:{id}");
-        let single_when = match &screen.grouping {
-            Grouping::Ask { .. } => vec![when(&group_id, SINGLE, json!({"group": "single"}))],
-            Grouping::Fixed(_) => Vec::new(),
+        let group_id = screen.grouping_question().unwrap_or_default();
+        let (single_label, separate_label) = match screen.grouping {
+            Grouping::Sections { .. } => (SECTIONS_SINGLE, SECTIONS_SEPARATE),
+            _ => (SINGLE, SEPARATE),
         };
+        let mut single_when = screen.extra_when.clone();
+        if !matches!(screen.grouping, Grouping::Fixed(_)) {
+            single_when.push(when(&group_id, single_label, json!({"group": "single"})));
+        }
         let push = |questions: &mut Vec<Value>, mut question: Value, extra: &[Value]| {
             let conditions = single_when.iter().chain(extra).cloned().collect::<Vec<_>>();
             if !conditions.is_empty() {
@@ -1070,54 +1714,93 @@ pub(super) fn draft_plan(
             }
             questions.push(question);
         };
-        if let Grouping::Ask {
-            recommend_single,
-            reason,
-        } = &screen.grouping
-        {
-            decisions.push("one-page-or-separate");
-            let single = choice(
-                SINGLE,
-                "One URL; the widths become devup-ui responsive arrays (responsiveTsx).",
-                json!({"group": "single"}),
-            );
-            let separate = choice(
-                SEPARATE,
-                "Each frame is its own page and gets its own route, asked next.",
-                json!({"group": "separate"}),
-            );
-            let frames = screen
-                .frames
-                .iter()
-                .map(|frame| {
+        let grouping_question = match &screen.grouping {
+            Grouping::Fixed(_) => None,
+            Grouping::Ask {
+                recommend_single,
+                reason,
+            } => {
+                let single = choice(
+                    SINGLE,
+                    "One URL; the widths become devup-ui responsive arrays (responsiveTsx).",
+                    json!({"group": "single"}),
+                );
+                let separate = choice(
+                    SEPARATE,
+                    "Each frame is its own page and gets its own route, asked next.",
+                    json!({"group": "separate"}),
+                );
+                Some(question(
+                    group_id.clone(),
+                    header("Pages", &name),
                     format!(
-                        "{} ({}, {}px{})",
-                        frame.name,
-                        frame.node_id,
-                        frame.width.round(),
-                        frame
-                            .section_name
-                            .as_deref()
-                            .or(frame.section.as_deref())
-                            .map(|section| format!(", section {section}"))
-                            .unwrap_or_default()
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("; ");
-            questions.push(question(
-                group_id.clone(),
-                header("Pages", &name),
-                format!(
-                    "These frames share the name \"{name}\" and are {reason}: {frames}. One responsive page, or separate pages? A custom answer may list one route per frame, e.g. \"/a, /b\"."
-                ),
-                if *recommend_single {
-                    vec![single, separate]
-                } else {
-                    vec![separate, single]
-                },
-                "group",
-            ));
+                        "These frames share the name \"{name}\" and are {reason}: {}. One responsive page, or separate pages? A custom answer may list one route per frame, e.g. \"/a, /b\".",
+                        describe_frames(&screen.frames)
+                    ),
+                    if *recommend_single {
+                        vec![single, separate]
+                    } else {
+                        vec![separate, single]
+                    },
+                    "group",
+                ))
+            }
+            Grouping::Sections {
+                all_device,
+                sections,
+                why,
+            } => {
+                let separate = choice(
+                    SECTIONS_SEPARATE,
+                    "Each frame is its own page; its URL is asked next.",
+                    json!({"group": "separate"}),
+                );
+                let single = choice(
+                    SECTIONS_SINGLE,
+                    if *all_device {
+                        format!(
+                            "Inferred from the section names ({}), which name only devices.",
+                            sections.join(", ")
+                        )
+                    } else {
+                        "The sections would only split one page by device.".to_owned()
+                    },
+                    json!({"group": "single"}),
+                );
+                let fix = choice(
+                    FIX_FIGMA,
+                    "These frames are not built. They are listed under Design fixes requested; everything else goes on.",
+                    json!({"designFix": true}),
+                );
+                let mut asked = question(
+                    group_id.clone(),
+                    header("Sections", &name),
+                    format!(
+                        "Frames that look like the same screen sit in different sections ({}): {}. They look related because of {why}. Which is it? A custom answer may list one route per frame, e.g. \"/a, /b\".",
+                        sections.join(", "),
+                        describe_frames(&screen.frames)
+                    ),
+                    if *all_device {
+                        vec![single, separate, fix]
+                    } else {
+                        vec![separate, single, fix]
+                    },
+                    "group",
+                );
+                asked["fix"] = json!({
+                    "frames": screen.frames.iter().map(Frame::json).collect::<Vec<_>>(),
+                    "text": format!(
+                        "Frames {} share the name \"{name}\" but sit in sections {}. Move them into one section if they are one page, or rename them if they are different pages.",
+                        describe_frames(&screen.frames),
+                        sections.join(", ")
+                    ),
+                });
+                Some(asked)
+            }
+        };
+        if let Some(asked) = grouping_question {
+            decisions.push("one-page-or-separate");
+            questions.push(with_when(asked, &screen.extra_when));
             for frame in &screen.frames {
                 let mut frame_notes = Vec::new();
                 let frame_hits = route_hits(
@@ -1177,7 +1860,7 @@ pub(super) fn draft_plan(
                         json!({"notPage": true}),
                     ));
                 }
-                let mut asked = question(
+                let asked = question(
                     format!("split-route:{}", frame.node_id),
                     header("Route", &format!("{} {}", frame.name, frame.width.round())),
                     format!(
@@ -1189,8 +1872,16 @@ pub(super) fn draft_plan(
                     choices,
                     "route",
                 );
-                asked["when"] = json!([when(&group_id, SEPARATE, json!({"group": "separate"}))]);
-                questions.push(asked);
+                let separate_when = [
+                    screen.extra_when.clone(),
+                    vec![when(
+                        &group_id,
+                        separate_label,
+                        json!({"group": "separate"}),
+                    )],
+                ]
+                .concat();
+                questions.push(with_when(asked, &separate_when));
             }
         }
         let route_evidence = match proposed {
@@ -1503,7 +2194,7 @@ pub(super) fn draft_plan(
                         json!({"link": "remove"}),
                     ));
                 }
-                questions.push(question(
+                questions.push(with_when(question(
                     format!("link:{id}:{link_index}"),
                     header("Link", &link.label),
                     format!(
@@ -1516,7 +2207,7 @@ pub(super) fn draft_plan(
                     ),
                     choices,
                     "link",
-                ));
+                ), &screen.extra_when));
             }
             links.push(json!({"label": link.label, "destinationNodeId": link.destination_node_id, "resolved": resolved}));
         }
@@ -1537,8 +2228,12 @@ pub(super) fn draft_plan(
             "kindEvidence": if modal { json!(kind_evidence) } else { Value::Null },
             "frames": screen.frames.iter().map(Frame::json).collect::<Vec<_>>(),
             "drawnWidths": widths,
+            "groupingQuestion": screen.grouping_question(),
+            "structureQuestions": screen.structure,
             "grouping": match &screen.grouping {
                 Grouping::Fixed(evidence) => json!({"mode": "decided", "evidence": evidence}),
+                Grouping::Sections { all_device, sections, why } => json!({"mode": "ask-sections", "question": group_id,
+                    "sections": sections, "allDeviceNames": all_device, "why": why}),
                 Grouping::Ask { recommend_single, reason } => json!({"mode": "ask", "question": group_id,
                     "recommended": if *recommend_single { "single" } else { "separate" }, "reason": reason}),
             },
@@ -1612,6 +2307,13 @@ pub(super) fn draft_plan(
             "layout",
         ));
     }
+    // Questions about the whole plan wait on the linked area being planned.
+    for asked in questions
+        .iter_mut()
+        .filter(|asked| asked["id"] == "heuristics" || text(&asked["id"]).starts_with("layout:"))
+    {
+        *asked = with_when(asked.clone(), &base_when);
+    }
     let body = json!({"source": source, "screens": rows, "questions": questions, "notes": notes});
     let plan_id = format!(
         "sp-{}",
@@ -1629,6 +2331,8 @@ pub(super) fn draft_plan(
         "config": evidence.config_file,
         "screens": body["screens"],
         "heuristics": heuristics,
+        "excluded": excluded_rows,
+        "outOfScope": out_of_scope,
         "questions": body["questions"],
         "answers": {},
         "routes": [],
@@ -1655,7 +2359,7 @@ fn depth(question: &Value, questions: &[Value]) -> usize {
 /// at most four questions of at most four options, every question exactly
 /// once, and a conditional question always in a later round than the one it
 /// depends on.
-pub(super) fn question_rounds(questions: &[Value]) -> Vec<Value> {
+pub(super) fn question_rounds(questions: &[Value], per_round: usize) -> Vec<Value> {
     let mut by_depth = BTreeMap::<usize, Vec<&Value>>::new();
     for question in questions {
         by_depth
@@ -1665,8 +2369,9 @@ pub(super) fn question_rounds(questions: &[Value]) -> Vec<Value> {
     }
     let mut rounds = Vec::new();
     for level in by_depth.values() {
-        for chunk in level.chunks(MAX_QUESTIONS_PER_ROUND) {
-            let shaped = ask_shape(
+        for chunk in level.chunks(per_round.max(1)) {
+            let shaped = ask_shape_with(
+                questions,
                 &chunk
                     .iter()
                     .map(|question| (*question).clone())
@@ -1761,6 +2466,13 @@ pub(super) async fn draft(
         source,
         input.notes.as_deref(),
     )?;
+    let per_round = input
+        .max_questions_per_round
+        .unwrap_or(MAX_QUESTIONS_PER_ROUND);
+    if !(1..=50).contains(&per_round) {
+        return Err(invalid("maxQuestionsPerRound must be between 1 and 50."));
+    }
+    plan["maxQuestionsPerRound"] = json!(per_round);
     plan["createdAt"] = json!(now());
     let replaced = read_plan(root)
         .ok()
@@ -1769,7 +2481,7 @@ pub(super) async fn draft(
         .map(|previous| previous["planId"].clone());
     let written = write_plan(policy, root, &plan)?;
     let questions = ask_shape(array(&plan["questions"]));
-    let rounds = question_rounds(array(&plan["questions"]));
+    let rounds = question_rounds(array(&plan["questions"]), per_round);
     let unverified = array(&plan["screens"])
         .iter()
         .filter(|screen| screen["routeEvidence"] == "UNVERIFIED")
@@ -1782,7 +2494,10 @@ pub(super) async fn draft(
         "questions": questions,
         "questionCount": questions.len(),
         "askInstruction": ASK_INSTRUCTION,
+        "maxQuestionsPerRound": per_round,
         "heuristics": plan["heuristics"],
+        "excluded": plan["excluded"],
+        "outOfScope": plan["outOfScope"],
         "config": plan["config"],
         "unverifiedRoutes": unverified,
         "inventoryNote": plan["inventoryNote"],
@@ -1872,6 +2587,13 @@ fn resolve_answer(
     }
 }
 
+fn per_round(plan: &Value) -> usize {
+    plan["maxQuestionsPerRound"]
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(MAX_QUESTIONS_PER_ROUND)
+}
+
 /// Whether a question has to be answered, given the answers before it.
 fn required(question: &Value, actions: &BTreeMap<String, Value>) -> bool {
     array(&question["when"])
@@ -1947,12 +2669,36 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             ),
             false,
             json!({"missing": missing, "unknown": unknown, "askInstruction": ASK_INSTRUCTION,
-                "questionRounds": question_rounds(&pending)}),
+                "questionRounds": question_rounds(&pending, per_round(&plan))}),
         ));
     }
     let accepted = actions
         .get("heuristics")
         .is_none_or(|action| action["heuristics"] == "accept");
+    let nothing_here = actions
+        .get("scope")
+        .is_some_and(|action| action["scope"] == "none");
+    // Every "the Figma structure is wrong" answer: its frames are not built,
+    // and the fix is reported. The work goes on without them.
+    let design_fixes = questions
+        .iter()
+        .filter(|question| {
+            actions
+                .get(text(&question["id"]))
+                .is_some_and(|action| action["designFix"] == true)
+        })
+        .map(|question| {
+            json!({"question": question["id"], "frames": question["fix"]["frames"],
+                "fix": question["fix"]["text"]})
+        })
+        .collect::<Vec<_>>();
+    let fixed = |ids: &[&str]| {
+        ids.iter().any(|id| {
+            actions
+                .get(*id)
+                .is_some_and(|action| action["designFix"] == true)
+        })
+    };
     let app_dir = text(&plan["appDir"]).to_owned();
     let mut routes = Vec::new();
     let mut screen_routes = BTreeMap::new();
@@ -1960,7 +2706,17 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     for screen in &screens {
         let id = text(&screen["id"]).to_owned();
         let frames = array(&screen["frames"]).to_vec();
-        let group = actions.get(&format!("group:{id}"));
+        let mut deciding = array(&screen["structureQuestions"])
+            .iter()
+            .map(text)
+            .collect::<Vec<_>>();
+        deciding.extend(screen["groupingQuestion"].as_str());
+        if nothing_here || fixed(&deciding) {
+            continue;
+        }
+        let group = screen["groupingQuestion"]
+            .as_str()
+            .and_then(|question| actions.get(question));
         let separate = group.is_some_and(|action| action["group"] == "separate");
         let data = actions
             .get(&format!("dynamic:{id}"))
@@ -1971,7 +2727,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             let explicit = group.and_then(|action| action["routes"].as_array());
             if explicit.is_some_and(|routes| routes.len() != frames.len()) {
                 return Err(invalid(format!(
-                    "group:{id}: list exactly one route per frame ({} frames).",
+                    "{}: list exactly one route per frame ({} frames).",
+                    text(&screen["groupingQuestion"]),
                     frames.len()
                 )));
             }
@@ -2045,6 +2802,39 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             }));
         }
     }
+    let mut excluded = Vec::new();
+    for row in array(&plan["excluded"]) {
+        let node = text(&row["nodeId"]).to_owned();
+        let built = !nothing_here
+            && actions
+                .get(&format!("exclusion:{node}"))
+                .is_some_and(|action| action["build"] == true);
+        let action = actions.get(&format!("exclusion-route:{node}"));
+        match action.and_then(|action| action["route"].as_str()) {
+            Some(route) if built => routes.push(json!({
+                "url": route, "screen": node, "name": row["name"], "nodeIds": [node],
+                "drawnWidths": [row["width"].as_f64().map(|width| width.round() as i64)],
+                "implementation": "page", "hostScreen": null,
+                "file": planned_page(route, &app_dir), "fileExists": false,
+                "collisionPolicy": null, "data": null,
+                "routeEvidence": "confirmed answer (was excluded)",
+            })),
+            _ => {
+                let mut row = row.clone();
+                row["decision"] = json!("excluded");
+                excluded.push(row);
+            }
+        }
+    }
+    if nothing_here {
+        for screen in &screens {
+            for frame in array(&screen["frames"]) {
+                excluded.push(json!({"nodeId": frame["nodeId"], "name": frame["name"], "width": frame["width"],
+                    "section": frame["sectionName"], "reason": "the linked area is not for implementation (answered)",
+                    "decision": "excluded"}));
+            }
+        }
+    }
     let mut seen = BTreeMap::<String, String>::new();
     for row in &routes {
         if let Some(url) = row["url"].as_str()
@@ -2091,6 +2881,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             .collect::<BTreeMap<_, _>>()
     );
     plan["routes"] = json!(routes);
+    plan["excluded"] = json!(excluded);
+    plan["designFixes"] = json!(design_fixes);
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
     if !plan["assumptions"].is_array() {
@@ -2102,6 +2894,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "planId": plan["planId"],
         "routes": routes,
         "markdownTable": route_markdown(&routes),
+        "excluded": excluded,
+        "designFixes": design_fixes,
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
@@ -2136,10 +2930,31 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         );
     }
     plan["assumptions"] = json!(list);
+    // An assumption never builds what the plan excluded or sent back for a
+    // design fix; the export gate refuses those frames whatever is recorded.
+    let blocked = array(&plan["excluded"])
+        .iter()
+        .map(|row| text(&row["nodeId"]).to_owned())
+        .chain(array(&plan["designFixes"]).iter().flat_map(|fix| {
+            array(&fix["frames"])
+                .iter()
+                .map(|frame| text(&frame["nodeId"]).to_owned())
+                .collect::<Vec<_>>()
+        }))
+        .filter(|id| {
+            !id.is_empty()
+                && input
+                    .assumptions
+                    .iter()
+                    .any(|assumption| assumption.about.contains(id.as_str()))
+        })
+        .collect::<BTreeSet<_>>();
     let written = write_plan(policy, root, &plan)?;
     Ok(json!({
         "status": "confirmed",
         "planId": plan["planId"],
+        "stillNotBuilt": blocked.iter().map(|id| json!({"frame": id,
+            "why": "Excluded or sent back for a design fix; an assumption cannot build it, and the export gate refuses it."})).collect::<Vec<_>>(),
         "assumptions": plan["assumptions"],
         "writtenTo": written,
         "how": "Keep implementing. Every assumption appears in status and must be in your final report.",
@@ -2253,20 +3068,10 @@ fn markdown(plan: &Value) -> String {
         out.push_str("\n## Confirmed routes\n\n");
         out.push_str(&route_markdown(routes));
     }
-    let assumptions = array(&plan["assumptions"]);
-    if !assumptions.is_empty() {
-        out.push_str("\n## Assumptions made during implementation\n\n");
-        for assumption in assumptions {
-            out.push_str(&format!(
-                "- {}: {}{}\n",
-                text(&assumption["about"]),
-                text(&assumption["decision"]),
-                assumption["reason"]
-                    .as_str()
-                    .map(|reason| format!(" ({reason})"))
-                    .unwrap_or_default()
-            ));
-        }
+    let lists = trailing_lists(plan);
+    if !lists.is_empty() {
+        out.push_str("\n## Not built, and why\n");
+        out.push_str(&lists);
     }
     out
 }
@@ -2301,7 +3106,7 @@ pub(super) async fn status(
         return Ok(json!({
             "status": "not-confirmed",
             "planId": plan["planId"],
-            "questionRounds": question_rounds(array(&plan["questions"])),
+            "questionRounds": question_rounds(array(&plan["questions"]), per_round(&plan)),
             "questions": ask_shape(array(&plan["questions"])),
             "askInstruction": ASK_INSTRUCTION,
             "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"]}, "how": ASK_INSTRUCTION},
@@ -2476,6 +3281,22 @@ pub(super) fn status_report(
             if assumptions.len() == 1 { "" } else { "s" }
         ));
     }
+    let design_fixes = array(&plan["designFixes"]);
+    if !design_fixes.is_empty() {
+        summary.push_str(&format!(
+            "; {} design fix{} requested, not built",
+            design_fixes.len(),
+            if design_fixes.len() == 1 { "" } else { "es" }
+        ));
+    }
+    let excluded = array(&plan["excluded"])
+        .iter()
+        .filter(|row| row["decision"] == "excluded")
+        .cloned()
+        .collect::<Vec<_>>();
+    if !excluded.is_empty() {
+        summary.push_str(&format!("; {} frames excluded, not built", excluded.len()));
+    }
     let mut table = String::from(
         "| URL | Figma screen | file | status | widths verified | screenshots |\n|---|---|---|---|---|---|\n",
     );
@@ -2522,6 +3343,7 @@ pub(super) fn status_report(
             cell(&json!(shots)),
         ));
     }
+    table.push_str(&trailing_lists(plan));
     json!({
         "status": "confirmed",
         "planId": plan["planId"],
@@ -2530,25 +3352,58 @@ pub(super) fn status_report(
         "states": states,
         "widths": widths,
         "audit": audit.map(|audit| json!({"verdict": audit["verdict"], "planId": audit["planId"], "reason": audit["reason"]})),
-        "markdownTable": if assumptions.is_empty() {
-            table
-        } else {
-            format!(
-                "{table}
-Assumptions made during implementation:
-{}",
-                assumptions
-                    .iter()
-                    .map(|assumption| format!("- {}: {}", text(&assumption["about"]), text(&assumption["decision"])))
-                    .collect::<Vec<_>>()
-                    .join("
-    ")
-            )
-        },
+        "markdownTable": table,
         "assumptions": assumptions,
+        "designFixes": design_fixes,
+        "excluded": excluded,
         "inventoryNote": evidence.inventory_note,
         "rule": "A width without a runtime audit item is not-run, never pass. Implemented means an App Router page exists for the URL, not that it renders.",
     })
+}
+
+/// The lists every final report ends with: design fixes requested, frames
+/// excluded, and assumptions made during implementation. Shared by the plan
+/// file and `status`, so the two never disagree about what was not built.
+fn trailing_lists(plan: &Value) -> String {
+    let mut out = String::new();
+    let fixes = array(&plan["designFixes"]);
+    if !fixes.is_empty() {
+        out.push_str("\nDesign fixes requested (not built):\n");
+        for fix in fixes {
+            out.push_str(&format!("- {}\n", text(&fix["fix"])));
+        }
+    }
+    let excluded = array(&plan["excluded"])
+        .iter()
+        .filter(|row| row["decision"] == "excluded" || row["decision"].is_null())
+        .collect::<Vec<_>>();
+    if !excluded.is_empty() {
+        out.push_str("\nExcluded (never built):\n");
+        for row in excluded {
+            out.push_str(&format!(
+                "- \"{}\" ({}): {}\n",
+                text(&row["name"]),
+                text(&row["nodeId"]),
+                text(&row["reason"])
+            ));
+        }
+    }
+    let assumptions = array(&plan["assumptions"]);
+    if !assumptions.is_empty() {
+        out.push_str("\nAssumptions made during implementation:\n");
+        for assumption in assumptions {
+            out.push_str(&format!(
+                "- {}: {}{}\n",
+                text(&assumption["about"]),
+                text(&assumption["decision"]),
+                assumption["reason"]
+                    .as_str()
+                    .map(|reason| format!(" ({reason})"))
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    out
 }
 
 /// What the export gate decided.
@@ -2631,6 +3486,37 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         }
         _ => return Ok(Gate::Open),
     };
+    // Never built, whatever else the call says: not by this export, and not
+    // by an assumption recorded during implementation.
+    let refused = request
+        .frames
+        .iter()
+        .filter_map(|frame| {
+            let excluded = array(&plan["excluded"])
+                .iter()
+                .find(|row| row["nodeId"] == frame.as_str())
+                .map(|row| format!("excluded: {}", text(&row["reason"])));
+            let fix = array(&plan["designFixes"])
+                .iter()
+                .find(|fix| {
+                    array(&fix["frames"])
+                        .iter()
+                        .any(|f| f["nodeId"] == frame.as_str())
+                })
+                .map(|fix| format!("design fix requested: {}", text(&fix["fix"])));
+            excluded
+                .or(fix)
+                .map(|reason| json!({"frame": frame, "reason": reason}))
+        })
+        .collect::<Vec<_>>();
+    if !refused.is_empty() && (gated || request.scaffold_route.is_some()) {
+        return Ok(Gate::Blocked(json!({
+            "status": "refused",
+            "written": false,
+            "refused": refused,
+            "how": "Do not build these frames and do not record an assumption to build them. They are listed in devup_screen_plan status; continue with the rest of the plan.",
+        })));
+    }
     let routes = array(&plan["routes"]);
     let row_of = |frame: &str| {
         routes

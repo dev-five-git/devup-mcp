@@ -341,7 +341,7 @@ fn every_question_has_the_question_tool_shape() {
 /// a conditional question always after the question it depends on.
 fn assert_rounds_cover(plan: &Value) {
     let questions = array(&plan["questions"]);
-    let rounds = question_rounds(questions);
+    let rounds = question_rounds(questions, MAX_QUESTIONS_PER_ROUND);
     let mut seen = Vec::new();
     let mut round_of = BTreeMap::new();
     for (index, round) in rounds.iter().enumerate() {
@@ -384,15 +384,22 @@ fn rounds_split_many_questions_into_fours() {
         .map(|index| screen(&format!("8:{index}"), &format!("Page{index}"), 1440.0))
         .collect::<Vec<_>>();
     let plan = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({}), None).unwrap();
-    let rounds = question_rounds(array(&plan["questions"]));
+    let rounds = question_rounds(array(&plan["questions"]), MAX_QUESTIONS_PER_ROUND);
     assert_eq!(rounds.len(), 3);
     assert_rounds_cover(&plan);
+    // A runtime with a larger cap gets fewer, larger rounds of the same
+    // questions; one with no cap asks the flat list.
+    let wide = question_rounds(array(&plan["questions"]), 10);
+    assert_eq!(wide.len(), 2);
+    assert_eq!(array(&wide[0]["questions"]).len(), 10);
+    assert_eq!(question_rounds(array(&plan["questions"]), 50).len(), 1);
 }
 
-/// Designers differ: the same name in two sections is recommended as two
-/// pages, and in sections named only for devices as one.
+/// Frames of one name in different sections are never resolved here: the
+/// question states the sections, frames, widths and ids, and offers a Figma
+/// fix. Separate pages are recommended unless every section names a device.
 #[test]
-fn sections_drive_the_recommendation_for_each_group() {
+fn sections_are_asked_explicitly_with_a_fix_option() {
     let plan = draft_plan(
         &[
             sectioned("9:1", "About", 1440.0, "Company"),
@@ -406,13 +413,33 @@ fn sections_drive_the_recommendation_for_each_group() {
         None,
     )
     .unwrap();
+    let company = find(&plan, "sections:9:1");
     assert_eq!(
-        first_label(find(&plan, "group:9:1")),
-        "Separate pages (Recommended)"
+        first_label(company),
+        "Separate pages: the sections are different pages (Recommended)"
     );
+    let device = find(&plan, "sections:9:3");
     assert_eq!(
-        first_label(find(&plan, "group:9:3")),
-        "One responsive page (Recommended)"
+        first_label(device),
+        "One responsive page: the sections only split by device (Recommended)"
+    );
+    let prompt = text(&device["question"]);
+    for fact in ["PC", "Mobile", "9:3", "9:4", "1440px", "390px", "Pricing"] {
+        assert!(prompt.contains(fact), "{fact} missing from {prompt}");
+    }
+    assert!(
+        text(&device["options"][0]["description"])
+            .contains("Inferred from the section names (PC, Mobile)")
+    );
+    let labels = array(&device["options"])
+        .iter()
+        .map(|option| text(&option["label"]))
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&FIX_FIGMA), "{labels:?}");
+    assert!(
+        !question_ids(&plan)
+            .iter()
+            .any(|id| id.starts_with("group:"))
     );
     let split = find(&plan, "split-route:9:2");
     assert!(
@@ -431,6 +458,7 @@ fn project_config_counts_as_evidence_and_suppresses_its_questions() {
         modal_keywords: Some(vec!["sheet".into()]),
         route_aliases: BTreeMap::from([("요금제".to_owned(), "/pricing".to_owned())]),
         width_grouping: Some("responsive".into()),
+        ..PlanConfig::default()
     };
     let plan = draft_plan(
         &[
@@ -866,7 +894,7 @@ async fn assumptions_are_recorded_after_confirm_and_reported_by_status() {
     assert!(text(&report["summary"]).ends_with("; 1 assumption made during implementation"));
     assert!(text(&report["markdownTable"]).contains("- 13:9: Not built"));
     let markdown = std::fs::read_to_string(fixture.0.join(".devup/screen-plan.md")).unwrap();
-    assert!(markdown.contains("## Assumptions made during implementation"));
+    assert!(markdown.contains("Assumptions made during implementation:"));
 
     let mut uncovered = export(&fixture, &["13:9"]);
     uncovered.scaffold_write = true;
@@ -891,4 +919,261 @@ async fn an_invalid_config_is_refused_rather_than_ignored() {
     let evidence = project_evidence(fixture.root()).await.unwrap();
     assert_eq!(evidence.config_file.as_deref(), Some(CONFIG_FILE));
     assert_eq!(evidence.config.route_aliases["메인"], "/");
+}
+
+fn in_trash(node_id: &str, name: &str, page: &str, area: &str) -> PlanScreenInput {
+    PlanScreenInput {
+        section: Some(format!("section-{area}")),
+        section_name: Some(area.into()),
+        breadcrumb: vec![page.into(), area.into(), name.into()],
+        ..screen(node_id, name, 1440.0)
+    }
+}
+
+fn page_screen(node_id: &str, name: &str, page: &str, area: &str) -> PlanScreenInput {
+    in_trash(node_id, name, page, area)
+}
+
+/// Picking the Figma fix marks the group: its frames are not built, the rest
+/// goes on, and status reports exactly what to move or rename.
+#[tokio::test]
+async fn a_requested_design_fix_is_reported_not_built() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(
+        &fixture,
+        &[
+            sectioned("14:1", "Pricing", 1440.0, "PC"),
+            sectioned("14:2", "Pricing", 390.0, "Mobile"),
+            sectioned("14:3", "Careers", 1440.0, "PC"),
+        ],
+    )
+    .await;
+    confirm_input.answers = answers(&[
+        ("sections:14:1", FIX_FIGMA),
+        ("route:14:3", "/careers (Recommended)"),
+    ]);
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let built = array(&confirmed["routes"])
+        .iter()
+        .flat_map(|row| array(&row["nodeIds"]).to_vec())
+        .collect::<Vec<_>>();
+    assert_eq!(built, [json!("14:3")]);
+    let fix = &confirmed["designFixes"][0];
+    assert_eq!(fix["question"], "sections:14:1");
+    assert_eq!(array(&fix["frames"]).len(), 2);
+    assert!(text(&fix["fix"]).contains("PC, Mobile"), "{fix}");
+
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&plan, &evidence(), None);
+    assert!(text(&report["summary"]).contains("1 design fix requested, not built"));
+    let table = text(&report["markdownTable"]);
+    assert!(
+        table.contains("Design fixes requested (not built):"),
+        "{table}"
+    );
+    assert!(table.contains("14:1") && table.contains("14:2"), "{table}");
+    let markdown = std::fs::read_to_string(fixture.0.join(".devup/screen-plan.md")).unwrap();
+    assert!(markdown.contains("Design fixes requested"), "{markdown}");
+
+    let mut fixed = export(&fixture, &["14:2"]);
+    fixed.scaffold_write = true;
+    let Gate::Blocked(response) = export_gate(&fixed).unwrap() else {
+        panic!("a frame marked for a design fix is never written");
+    };
+    assert_eq!(response["status"], "refused");
+}
+
+/// Trash, archive and copies are never built and never silently dropped.
+#[test]
+fn trash_and_archive_frames_are_excluded_and_asked_about_once() {
+    let plan = draft_plan(
+        &[
+            page_screen("15:1", "Home", "Site", "Pages"),
+            in_trash("15:2", "Home", "Site", "휴지통"),
+            in_trash("15:3", "About", "Site", "Archive"),
+            page_screen("15:4", "Home copy", "Site", "Pages"),
+        ],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({"nodeId": "page-1", "anchorName": "Site", "anchorBreadcrumb": ["Site"]}),
+        None,
+    )
+    .unwrap();
+    let excluded = array(&plan["excluded"]);
+    let ids = excluded
+        .iter()
+        .map(|row| text(&row["nodeId"]))
+        .collect::<Vec<_>>();
+    assert_eq!(ids, ["15:2", "15:3", "15:4"]);
+    assert!(text(&excluded[0]["reason"]).contains("휴지통"));
+    assert!(text(&excluded[1]["reason"]).contains("\"archive\""));
+    assert!(text(&excluded[2]["reason"]).contains("\"copy\""));
+    let question = find(&plan, "exclusions");
+    assert_eq!(first_label(question), "Accept the exclusions (Recommended)");
+    for id in ["15:2", "15:3", "15:4"] {
+        assert!(text(&question["question"]).contains(id));
+    }
+    assert_eq!(array(&plan["screens"]).len(), 1);
+    assert!(!question_ids(&plan).iter().any(|id| id == "route:15:3"));
+    assert_rounds_cover(&plan);
+}
+
+#[test]
+fn the_config_can_change_and_override_the_exclusion_words() {
+    let mut evidence = evidence();
+    evidence.config.exclude_keywords = Some(vec!["legacy".into()]);
+    evidence.config.include_keywords = Some(vec!["test drive".into()]);
+    let plan = draft_plan(
+        &[
+            page_screen("16:1", "Archive", "Site", "Pages"),
+            page_screen("16:2", "Legacy home", "Site", "Pages"),
+            page_screen("16:3", "Test drive", "Site", "Legacy"),
+        ],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let excluded = array(&plan["excluded"])
+        .iter()
+        .map(|row| text(&row["nodeId"]))
+        .collect::<Vec<_>>();
+    assert_eq!(excluded, ["16:2"]);
+}
+
+/// A link that itself points into an archive is asked once, not excluded.
+#[test]
+fn a_link_into_an_archive_is_asked_once_instead_of_excluded() {
+    let plan = draft_plan(
+        &[in_trash("17:1", "Home", "Site", "Archive")],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({"nodeId": "section-Archive", "anchorName": "Archive", "anchorBreadcrumb": ["Site", "Archive"]}),
+        None,
+    )
+    .unwrap();
+    assert!(array(&plan["excluded"]).is_empty());
+    let scope = find(&plan, "scope");
+    assert!(text(&scope["question"]).contains("Archive"));
+    assert_eq!(find(&plan, "heuristics")["when"][0]["question"], "scope");
+}
+
+/// Never wider than the link: a frame whose ancestry does not reach the
+/// linked node is not a candidate.
+#[test]
+fn frames_outside_the_linked_node_are_never_candidates() {
+    let plan = draft_plan(
+        &[
+            page_screen("18:1", "About", "Site", "Company"),
+            page_screen("18:2", "Pricing", "Site", "Sales"),
+        ],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({"nodeId": "section-Company", "anchorName": "Company", "anchorBreadcrumb": ["Site", "Company"]}),
+        None,
+    )
+    .unwrap();
+    let rows = array(&plan["screens"]);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["id"], "18:1");
+    assert_eq!(plan["outOfScope"][0]["nodeId"], "18:2");
+    assert!(!plan["questions"].to_string().contains("18:2"));
+    // Explore's own answer maps the same way: a frame straight on the page
+    // is in no section, and ancestry keeps it in or out of scope.
+    let on_page = screen_from_explore(&json!({"nodeId": "19:1", "name": "Loose", "parentId": "0:1",
+        "bounds": {"width": 1440.0, "height": 900.0}, "breadcrumb": ["Site", "Loose"], "visible": true}))
+    .unwrap();
+    assert_eq!(on_page.section, None);
+    assert!(in_scope(&on_page, Some("0:1"), Some("Site")));
+    assert!(!in_scope(
+        &on_page,
+        Some("section-Company"),
+        Some("Company")
+    ));
+    let hidden = screen_from_explore(&json!({"nodeId": "19:2", "name": "Old", "parentId": "s",
+        "bounds": {"width": 1440.0}, "breadcrumb": ["Site", "Pages", "Old"], "visible": false}))
+    .unwrap();
+    assert_eq!(hidden.section.as_deref(), Some("s"));
+    assert_eq!(
+        exclusion_reason(&hidden, &[], &PlanConfig::default()).as_deref(),
+        Some("hidden in Figma")
+    );
+}
+
+#[test]
+fn other_structural_oddities_are_flagged_with_the_same_fix_option() {
+    let plan = draft_plan(
+        &[
+            sectioned("20:1", "Notice", 1440.0, "Board"),
+            sectioned("20:2", "Notice", 1440.0, "Board"),
+            sectioned("20:3", "Guide 1", 1440.0, "Help"),
+            sectioned("20:4", "Guide 2", 1440.0, "Support"),
+            screen("20:5", "Contact", 1440.0),
+        ],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    for id in [
+        "structure:duplicate:20:1",
+        "structure:split:20:3",
+        "structure:loose:20:5",
+    ] {
+        let question = find(&plan, id);
+        let labels = array(&question["options"])
+            .iter()
+            .map(|option| text(&option["label"]))
+            .collect::<Vec<_>>();
+        assert!(labels.contains(&FIX_FIGMA), "{id}: {labels:?}");
+    }
+    // The duplicates' own route questions wait on the structure answer.
+    let route = find(&plan, "route:20:2");
+    assert!(
+        array(&route["when"])
+            .iter()
+            .any(|condition| condition["question"] == "structure:duplicate:20:1"),
+        "{route}"
+    );
+    assert_rounds_cover(&plan);
+}
+
+#[tokio::test]
+async fn the_gate_refuses_an_excluded_frame_even_with_an_assumption() {
+    let fixture = Fixture::new();
+    let plan = draft(
+        &input(&fixture, "draft"),
+        &[
+            page_screen("21:1", "Pricing", "Site", "Pages"),
+            in_trash("21:2", "Pricing", "Site", "Trash"),
+        ],
+        json!({}),
+        &fixture.policy(),
+    )
+    .await
+    .unwrap();
+    let mut confirm_input = input(&fixture, "confirm");
+    confirm_input.plan_id = plan["planId"].as_str().map(str::to_owned);
+    confirm_input.answers = answers(&[
+        ("route:21:1", "/pricing (Recommended)"),
+        ("exclusions", "Accept the exclusions (Recommended)"),
+    ]);
+    confirm(&confirm_input, &fixture.policy()).unwrap();
+    let mut assume_input = input(&fixture, "assume");
+    assume_input.assumptions = vec![AssumptionInput {
+        about: "21:2".into(),
+        decision: "Build it as /pricing-old".into(),
+        reason: None,
+    }];
+    let recorded = assume(&assume_input, &fixture.policy()).unwrap();
+    assert_eq!(recorded["stillNotBuilt"][0]["frame"], "21:2");
+    let mut excluded = export(&fixture, &["21:2"]);
+    excluded.scaffold_write = true;
+    let Gate::Blocked(response) = export_gate(&excluded).unwrap() else {
+        panic!("an excluded frame is never written");
+    };
+    assert_eq!(response["status"], "refused");
+    assert!(text(&response["refused"][0]["reason"]).starts_with("excluded"));
 }
