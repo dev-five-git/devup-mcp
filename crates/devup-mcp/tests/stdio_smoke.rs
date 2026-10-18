@@ -83,7 +83,7 @@ async fn fresh_binary_initializes_lists_tools_and_reports_auth_status() -> anyho
     assert!(names.contains(&"devup_runtime_audit"));
     assert!(names.contains(&"devup_figma_measure"));
     assert!(names.contains(&"devup_screen_plan"));
-    assert_eq!(names.len(), 13);
+    assert_eq!(names.len(), 14);
 
     send(
         &mut stdin,

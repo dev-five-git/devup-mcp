@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor"
+  },
+  "note": "Add project intake, evidence-backed ERD/model generation and supervisor work-unit DAG/briefs; /devup starts project intake before its Figma branch.",
+  "date": "2026-10-18T00:00:00+09:00"
+}

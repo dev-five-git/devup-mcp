@@ -21,6 +21,7 @@ pub mod operation;
 pub mod output;
 mod pacing;
 mod project_context;
+mod project_plan;
 mod project_root;
 mod projection;
 mod quality;
@@ -2630,6 +2631,19 @@ impl DevupServer {
             _ => return Err(invalid("action must be plan or ingest.")),
         }
         .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+    #[tool(
+        description = "Project intake and supervisor: intake | draft | confirm | status | assume | defer | split. Read Jira/epic children, Figma and devup_project_context all scopes first; pass source-labelled evidence. intake always asks work type, optional sources, goal and parts through the runtime question tool. draft records feature-specific rounds and ERD; confirm requires all answers and the Figma screen plan when applicable, writes vespertide models/*.json transactionally. split creates work units with a dependency DAG and .devup/units/<id>.md briefs, one per Jira issue or feature/layer. Workers escalate to supervisor by default (unitQuestions: supervisor|worker). After confirm never wait: defer recommendations and continue, assume at the end. status reports ERD Mermaid, unit DAG/states and decisions; unitUpdates record supervisor verification. State: .devup/project-plan.json. Follow /devup skill for backend commands, latest-first dependencies, exact layout/visual audits, orchestration and zero-drift completion.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_project_plan(
+        &self,
+        Parameters(input): Parameters<project_plan::ProjectPlanInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = project_plan::run(&input, &self.output_policy)
+            .await
+            .map_err(to_mcp_error)?;
         Ok(tool_result(result))
     }
     #[tool(

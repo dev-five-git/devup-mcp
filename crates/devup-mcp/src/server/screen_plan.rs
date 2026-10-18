@@ -236,7 +236,7 @@ pub struct ExtraOptionInput {
 
 /// The agent's own questions in the plan's shape, or why one cannot be asked
 /// as given. The recommended option is the first, as everywhere else.
-fn extra_questions(extra: &[ExtraQuestionInput]) -> Result<Vec<Value>, DevupError> {
+pub(super) fn extra_questions(extra: &[ExtraQuestionInput]) -> Result<Vec<Value>, DevupError> {
     let mut seen = BTreeSet::new();
     extra
         .iter()
@@ -435,7 +435,7 @@ pub enum AnswerInput {
 }
 
 impl AnswerInput {
-    fn values(&self) -> Vec<&str> {
+    pub(super) fn values(&self) -> Vec<&str> {
         match self {
             Self::One(value) => vec![value.as_str()],
             Self::Many(values) => values.iter().map(String::as_str).collect(),
@@ -491,26 +491,26 @@ pub struct PlanLinkInput {
     pub url: Option<String>,
 }
 
-fn invalid(message: impl Into<String>) -> DevupError {
+pub(super) fn invalid(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupInvalidInput, message, false)
 }
 
-fn text(value: &Value) -> &str {
+pub(super) fn text(value: &Value) -> &str {
     value.as_str().unwrap_or_default()
 }
 
-fn array(value: &Value) -> &[Value] {
+pub(super) fn array(value: &Value) -> &[Value] {
     value.as_array().map(Vec::as_slice).unwrap_or_default()
 }
 
-fn sha256(bytes: &[u8]) -> String {
+pub(super) fn sha256(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
 }
 
-fn now() -> String {
+pub(super) fn now() -> String {
     let seconds = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
@@ -824,18 +824,22 @@ fn truncate(value: &str, limit: usize) -> String {
     cut
 }
 
-fn header(prefix: &str, name: &str) -> String {
+pub(super) fn header(prefix: &str, name: &str) -> String {
     truncate(&format!("{prefix}: {name}"), HEADER_LIMIT)
 }
 
 /// One option as the question tool shows it, and what choosing it does.
-struct Choice {
+pub(super) struct Choice {
     label: String,
     description: String,
     action: Value,
 }
 
-fn choice(label: impl Into<String>, description: impl Into<String>, action: Value) -> Choice {
+pub(super) fn choice(
+    label: impl Into<String>,
+    description: impl Into<String>,
+    action: Value,
+) -> Choice {
     Choice {
         label: label.into(),
         description: description.into(),
@@ -847,7 +851,13 @@ fn choice(label: impl Into<String>, description: impl Into<String>, action: Valu
 /// recommended option first with " (Recommended)" on its label, two to four
 /// options, and custom answers allowed. `resolve` stays in the plan file and is
 /// stripped from what the caller is asked.
-fn question(id: String, header: String, prompt: String, choices: Vec<Choice>, kind: &str) -> Value {
+pub(super) fn question(
+    id: String,
+    header: String,
+    prompt: String,
+    choices: Vec<Choice>,
+    kind: &str,
+) -> Value {
     let mut seen = BTreeSet::new();
     let choices = choices
         .into_iter()
@@ -881,7 +891,7 @@ fn question(id: String, header: String, prompt: String, choices: Vec<Choice>, ki
 }
 
 /// The questions as they go to the question tool: no resolution table.
-fn ask_shape(questions: &[Value]) -> Vec<Value> {
+pub(super) fn ask_shape(questions: &[Value]) -> Vec<Value> {
     ask_shape_with(questions, questions)
 }
 
@@ -4228,7 +4238,7 @@ pub(super) async fn draft_with(
     }))
 }
 
-fn strip_recommended(label: &str) -> &str {
+pub(super) fn strip_recommended(label: &str) -> &str {
     label
         .trim()
         .strip_suffix(RECOMMENDED)

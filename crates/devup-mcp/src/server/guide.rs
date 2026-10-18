@@ -26,29 +26,99 @@ pub const GUIDE_MIME_TYPE: &str = "text/markdown";
 ///
 /// The original rule numbering is preserved in [`GUIDE`] - it skipped 9 - so a
 /// reader comparing the two can see nothing was dropped in the move.
-pub const INSTRUCTIONS: &str = concat!(
-    "Build identity: identify deployments by server.commit/buildId, not version alone. ",
-    "Reconnect the MCP server if the expected build differs. ",
-    "server.updateAvailable reports whether a newer release exists; state \"unknown\" means the check is disabled, ",
-    "not yet run, or could not reach the network, and it never blocks a call.\n",
-    "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n",
-    "1a. Connection order: bridge -> direct. Call devup_figma_auth status before asking anyone to log in: the Devup ",
-    "Bridge plugin needs no login, and with one attached devup_figma_export takes no url.\n",
-    "2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; ",
-    "deliverable.isFinal describes export readiness. TSX has no wired links/events: resolve interactiveCandidates, ",
-    "run devup_ui_validate and report wired/tested counts before functional completion.\n",
-    "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
-    "workspace lacks and installs the ones it carries.\n",
-    "2c. Building pages or a site from Figma (a Section, several frames): follow skill ",
-    "devup-implementation-plan even without /devup - devup_screen_plan first, all questions up front, then never wait; audit every width (rule 16).\n",
-    "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
-    "for output sizing, verification boundaries, SECTION batching, assets and delivery."
-);
+pub const INSTRUCTIONS: &str = "Build identity: use server.commit/buildId, not version; reconnect if stale. server.updateAvailable unknown never blocks.\n1. devup-mcp is the primary Figma-to-code source. Connection: bridge -> direct; call devup_figma_auth status first, one Bridge needs no login or url.\n2b. /devup starts devup_project_plan intake for any project/feature/fix/refactor. Read Jira/spec/Figma and devup_project_context first; ask every round up front, draft ERD, confirm, then split work units. devup_screen_plan handles the Figma branch. Load devup_skills and devup-implementation-plan; after confirm never wait: defer and continue, assume at the end.\n3. For Figma implementation use devup_figma_export tsx, the deliverable. TSX links/events need wiring: resolve interactiveCandidates, devup_ui_validate, report wired/tested counts. deliverable.isFinal describes export readiness. Audit every width and exact layout. Backend completion needs devup_stack_diff zero drift.\n4. Request only outputs you read. Before your second call read devup://guide/usage for sizing, verification, batching, assets and delivery.";
 
 /// The rules that moved out of `instructions`, verbatim in meaning. This is a
 /// relocation, not a rewrite: every numbered rule that was published before is
 /// published here under the same number.
 pub const GUIDE: &str = r#"# Using devup-mcp
+
+## Project intake comes first
+
+`/devup` is the entry point for new projects, existing features, bug fixes,
+Figma page implementation and refactors. Figma screen planning is a branch
+of the confirmed project plan; complete this section before the screen workflow below.
+
+Read sources before asking: `devup_project_context` for every supported scope,
+Atlassian MCP `getJiraIssue` / `searchJiraIssuesUsingJql` for issues, epic children
+and dependencies, referenced Confluence/spec documents, and Figma exploration
+(screen names, field labels, forms, tables and detail screens). Pass each read as
+`evidence: [{source, facts}]` to `devup_project_plan`. Facts use `goal`, `parts`,
+`figma` (links), `screens` ([{name, fields}]), and `<featureId>.screens`, `.states`,
+`.permissions`, `.forms`, `.notifications`. Backend decisions use `erd`, `tenancy`,
+`auth`, `lifecycle`, `indexes`, `storage`; delivery uses `jiraPolicy`, `branchPolicy`,
+`prPolicy`. A sourced fact is a default with its provenance, not another question.
+Sources are read by the runtime's connectors, never by treating a URL as its contents.
+
+1. `devup_project_plan intake` with projectRoot: always ask the four initial
+   questions with the runtime question tool (recommended option first): work type
+   (refactor may be a custom answer), optional Figma/Jira/spec sources, one-sentence
+   goal, and parts. Existing `apis/` recommends front + admin + API;
+   `apps/admin` recommends front + admin. Retain planId on every later call.
+2. Read newly named sources. `draft` with all initial answers, source-labelled
+   evidence and `features: [{id,scope,screens,acceptance}]` or
+   `issues: [{key,scope,dependencies,acceptance}]` (epic children are issues too).
+   Each unresolved feature gets concrete screen/role, state, permission,
+   validation, notification/integration rounds. Put all remaining unknowns into
+   extraQuestions. No implementation starts while a question remains unanswered.
+3. API in scope: inspect existing `vespertide.json` and `apis/*/models/*.json`.
+   Draft complete `entities` as vespertide model objects and `relations` with
+   from/to, cardinality oneToMany|manyToMany, column/joinTable and onDelete.
+   Signup/post Figma evidence seeds user/post entities and a user FK, but the
+   agent must expand every actual domain from the source evidence. Review the
+   ERD round, ownership/tenancy, auth with integer roles (0,10,50,100), status
+   enums, soft delete, audit timestamps, nullable fields, unique/composite keys,
+   filter/sort indexes, file/image storage and cascade/restrict/set_null actions.
+   Read https://github.com/dev-five-git/vespertide/blob/main/SKILL.md and schemas/.
+   Use snake_case, `$schema` on every model, inline PK/FK/unique/index constraints,
+   and table constraints only for CHECK. A manyToMany relation generates its join
+   table. modelsDir is relative to projectRoot; set it explicitly for multiple APIs.
+   Re-draft structured entities for requested corrections before confirming.
+4. When Figma is present, run the existing screen-plan draft/rounds/confirm
+   workflow (routes, groups, exclusions, site facts) before project confirm.
+5. Ask all delivery questions now: Jira none/comment/transition, branch, PR.
+   `devup_project_plan confirm` requires every applicable answer and writes source
+   models plus confirmed state in one transaction. Then in modelsWorkingDirectory
+   run the returned commands, in order: `vespertide diff`, `vespertide sql`,
+   `vespertide revision -m "confirmed project plan"`, `vespertide export --orm seaorm`.
+   The tool returns commands; the runtime executes and checks them. Never hand-write
+   migrations/ or src/models/. Build vespera CRUD and feature routes, openapi.json,
+   and the devup-api client; `devup_stack_diff` must show zero drift before done.
+6. Latest-first updates, vinext, exact layout, all interaction/site defaults,
+   runtime/visual audits and the existing never-wait rules below still apply.
+   After confirm, use project-plan defer with id/reason/recommended/destructive;
+   continue independent work. At the end assume with no decisions resolves all
+   pending recommendations; destructive decisions remain unbuilt. Status includes
+   ERD Mermaid, decisions and the unit table; retain unresolved evidence in reports.
+
+## Supervisor execution
+
+`devup_project_plan split` splits work, not files. Jira input produces one unit
+per issue/sub-task with its explicit dependencies (reject cycles/unknown IDs).
+Without Jira, it produces shared layout/theme first, then each feature's
+models -> API -> client -> front chain; front-only features depend on shared.
+Review cross-feature dependencies before dispatch; the supervisor sequences
+shared database work to avoid concurrent schema edits. Each unit has acceptance
+criteria and build/lint/typecheck/tests/validate/runtime/visual/stack-diff checks.
+`.devup/units/<id>.md` contains scope, decisions, ERD and screen context, and checklist.
+
+Default `unitQuestions: "supervisor"` means workers never ask the user: questions
+were settled across all units during intake, and supervisor ownership avoids
+repeated questions and keeps decisions consistent. `unitQuestions: "worker"`
+is an explicit alternative, still subject to the confirmed never-wait policy.
+Load `orca-cli` and `orchestration` skills to create one worktree per unit,
+dispatch the DAG in parallel where independent, collect worker_done, and rerun
+each unit's checks yourself before merging. New decisions use orchestration
+ask/reply to the supervisor: answer from recorded decisions, or defer with a
+recommended option while the worker continues other work. Send failed checks
+back to the same worker session. Update unit states with status unitUpdates
+(pending -> running -> verifying -> merged, or unresolved); merged needs recorded
+supervisor verification. Without Orca, execute the same units sequentially in one
+session. Only under the recorded Jira/PR policy, comment results and PR link and
+transition issues. Final report includes the unit table, DAG, ERD and unresolved
+items; never claim completion from split or command generation alone.
+
+
 
 These are the rules that used to be pushed to every client in `initialize`.
 They are published here instead so a caller that never converts a Figma design
