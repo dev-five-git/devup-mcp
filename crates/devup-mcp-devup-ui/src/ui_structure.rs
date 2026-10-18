@@ -880,7 +880,7 @@ fn query_findings(
         } else {
             None
         };
-        out.push(finding(file,span,"react-query-states",if reason.is_some(){Severity::Info}else{Severity::Error},reason.unwrap_or("Query data is dereferenced during rendering without local isPending and isError handling; data can be undefined while pending. This does not assert that external boundaries are absent."),"Handle isPending and isError before rendering data, or verify the boundary or child responsible for those states."));
+        out.push(finding(file,span,"react-query-states",if reason.is_some(){Severity::Info}else{Severity::Error},reason.unwrap_or(include_str!("text/ui_structure-query_findings-60bd4f27.md")),"Handle isPending and isError before rendering data, or verify the boundary or child responsible for those states."));
     }
 }
 

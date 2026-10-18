@@ -1,0 +1,1 @@
+A bridge is attached and serves every read; login only lets what the plugin answers short - data Figma withholds while the file is out of sight, a reference PNG it cannot draw as get_screenshot does, a read an older plugin does not know - be read again on the metered direct path.

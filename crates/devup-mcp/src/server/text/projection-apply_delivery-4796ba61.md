@@ -1,0 +1,1 @@
+Read the linked resources. Preserve coupled code/theme outputs and asset requests/paths in this resource reprojection; splitting them can change token selection or generated URLs.

@@ -1,0 +1,1 @@
+Cumulative binary collection across the supplied batches only. Per-batch partial can mean assets were not requested in that batch; it is not an export failure. Projection quality is not merged. File writes are historical reports, not reverified files.

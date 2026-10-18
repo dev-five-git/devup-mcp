@@ -1,0 +1,1 @@
+Screen pixels are caller-declared. No screenshot, canvas mapping, crop or browser viewport was inspected; UI DPR and zoom do not prove capture scale. Compare DOM CSS logical dimensions to these Figma logical dimensions.

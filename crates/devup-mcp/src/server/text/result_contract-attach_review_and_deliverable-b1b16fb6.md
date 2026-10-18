@@ -1,0 +1,1 @@
+Withheld outputs first, then unmapped properties, component references, and other approximations; larger groups first within each priority. Priority is review order, not measured pixel impact.

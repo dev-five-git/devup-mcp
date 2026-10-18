@@ -1,0 +1,1 @@
+Prove the effective constraint belongs to this node, and that render-relative offsets preserve its positioning in the emitted containing block. A successful rounding check alone is insufficient.

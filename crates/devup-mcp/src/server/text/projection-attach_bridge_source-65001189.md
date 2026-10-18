@@ -1,0 +1,1 @@
+The Devup Bridge plugin is older than this devup-mcp and did not know some reads, so they went to the metered direct path. Update the repository the plugin was imported from and run the plugin again.

@@ -1,0 +1,1 @@
+Acquired image representation plus supported paint geometry maps to the exact emitted property; assetCssMappings records pixel sizes, normalized coordinates, baking evidence and explicit limits.

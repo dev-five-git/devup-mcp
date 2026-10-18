@@ -1,0 +1,1 @@
+Layout is exact at a drawn width: a box off by more than half a pixel is code drift (the code no longer writes what the export wrote) or a converter bug (it does, and renders wrong). devup_screen_plan status tells which; never hand-tune the value.

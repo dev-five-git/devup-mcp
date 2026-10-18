@@ -1,0 +1,1 @@
+The configured Figma auth callback port {port} is already in use by another process. If the OS or security software holds this port, the browser looks like the redirect succeeded, but the request is delivered to that other process instead of devup-mcp, so authentication never completes. Stop the process holding the port, or pick a different port with --figma-callback-port.

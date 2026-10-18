@@ -1,0 +1,1 @@
+Layout/style transform composition from rotation, placement and CENTER constraints; asset exports may already bake rotation. The emitted expression is compared with the responsible stage.

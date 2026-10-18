@@ -1,0 +1,1 @@
+The {width}px frame {node_id} is {height}px tall, over the {MAX_VIEWPORT_SIDE}px a viewport can be; its page comparison stays inconclusive and its sections carry the visual check.

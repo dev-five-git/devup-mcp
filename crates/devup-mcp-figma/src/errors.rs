@@ -130,12 +130,7 @@ pub fn is_quota_refusal(message: &str, flagged: bool) -> bool {
 pub fn figma_unreachable_hint(message: &str) -> Option<&'static str> {
     message
         .contains("Unable to establish connection to Figma")
-        .then_some(
-            "Figma's plugin runtime gave up after 10 seconds fetching data it had not loaded - \
-             another page, a main component, a variable or a style. It answers this once the \
-             file has been out of sight in the Figma desktop app for two or three minutes - its \
-             tab behind another file's tab, or the window minimized or covered by another \
-             window - and showing the file again brought the same reads back at once. Bring the \
-             Figma window to the front and click the file's tab, then retry.",
-        )
+        .then_some(include_str!(
+            "text/errors-figma_unreachable_hint-347725ba.md"
+        ))
 }

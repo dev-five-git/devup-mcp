@@ -1,0 +1,1 @@
+Separately, a pre-registered client registration credential is in play (see credentialSource), so login skips Dynamic Client Registration and goes straight to the authorization code flow.

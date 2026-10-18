@@ -1,0 +1,1 @@
+Drawn narrower than any screen (320px): a component its host places and sizes, not a viewport. Findings that ask where a part goes on a wider screen are left out; summary.componentRootSuppressed counts them.

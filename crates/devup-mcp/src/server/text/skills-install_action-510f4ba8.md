@@ -1,0 +1,1 @@
+The SKILL.md on disk is this build's, but a document it links to is missing or has different bytes. It looks installed and its links go nowhere.

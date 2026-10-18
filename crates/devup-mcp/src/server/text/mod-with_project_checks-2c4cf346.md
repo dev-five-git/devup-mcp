@@ -1,0 +1,1 @@
+The generated tokens are the Figma names. This project defines different ones; map each unknown token to the project's own before using this TSX, or add the missing tokens to devup.json.

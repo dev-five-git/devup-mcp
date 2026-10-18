@@ -1,0 +1,1 @@
+No url was given and no Devup Bridge plugin is attached, so there is no open file to read. Run the Devup Bridge plugin on the file in the Figma desktop app (preferred: no login), or pass the frame's Figma link as url.

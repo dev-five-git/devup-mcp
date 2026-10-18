@@ -1,0 +1,1 @@
+These are the conventions for the files this scope just read, and they are not what this runtime would load. Without them an agent edits a devup.json, an openapi.json or a Vespertide model by guessing at its shape.

@@ -1,0 +1,1 @@
+Call devup_skills with action "install". Embedded skills prefer current upstream documents with offline fallback; own skills use the binary. Then load it the way your runtime loads a project skill.

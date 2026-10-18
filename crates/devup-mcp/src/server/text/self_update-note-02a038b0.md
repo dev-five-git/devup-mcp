@@ -1,0 +1,1 @@
+A newer release is downloaded in the background, proved by running --self-check on it, and renamed into place at the next start. This process is never replaced under its own stdio pipes.

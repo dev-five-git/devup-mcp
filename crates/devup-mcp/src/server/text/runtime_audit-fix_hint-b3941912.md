@@ -1,0 +1,1 @@
+Text is cut off by a box with overflow hidden: let the box grow (drop the fixed height or width the Figma frame had), let the text wrap, or, when truncation is designed, use textOverflow ellipsis or lineClamp.

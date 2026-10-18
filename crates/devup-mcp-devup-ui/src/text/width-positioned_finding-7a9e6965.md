@@ -1,0 +1,1 @@
+Drawn near the right edge, but its constraint holds it at its left offset, so at a wider width it stays where it was drawn. The design does not say which is meant. Anchoring it right in widthPolicy also carries what is drawn inside it.

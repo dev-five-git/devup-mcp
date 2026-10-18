@@ -1,0 +1,1 @@
+Authored in devup-mcp itself, so there is no upstream revision to pin and nothing for it to fall behind. It moves when this binary does.

@@ -1,0 +1,1 @@
+accept alt autoComplete capture checked disabled form formAction formEncType formMethod formNoValidate formTarget height list max maxLength min minLength multiple name pattern placeholder readOnly required size src step type value width

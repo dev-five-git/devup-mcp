@@ -1,0 +1,1 @@
+The element's code still equals the export output, yet the browser box differs from the Figma box: the converter produced the wrong layout. Retrying does not change a deterministic result.

@@ -1,0 +1,1 @@
+Port {port} is held by a program that is not a devup-mcp ({}; {detail}), so the plugin cannot reach any devup-mcp on this machine. Stop that program. This process keeps checking, and takes the port over by itself once it is free.

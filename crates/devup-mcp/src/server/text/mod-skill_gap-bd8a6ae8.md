@@ -1,0 +1,1 @@
+Call devup_skills with action "install" and this same projectRoot, then load the skills the way your runtime loads a project skill. Before writing the code, not after. The same call rewrites an outdated copy devup-mcp wrote and leaves a document it did not write alone.

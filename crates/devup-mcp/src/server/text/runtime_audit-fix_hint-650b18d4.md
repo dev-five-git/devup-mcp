@@ -1,0 +1,1 @@
+The rendered asset differs from the Figma node's render. Likely causes, in order: a CSS mask on a multi-colour SVG paints one solid shape (render it with <Image src> instead; masks are for single-colour icons only); the wrong file at the src path; a crop or objectFit (cover vs contain) or a missing viewBox. Open the diff PNG to see which.

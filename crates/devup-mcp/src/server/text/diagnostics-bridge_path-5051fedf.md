@@ -1,0 +1,1 @@
+This process is not using the bridge plugin: DEVUP_FIGMA_BRIDGE_PORT is off or 0, or is not a port number. Unset it, or set it to the port in the plugin's manifest, to use the bridge; this process can use the metered direct path only.

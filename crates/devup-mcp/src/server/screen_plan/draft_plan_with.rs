@@ -1,0 +1,552 @@
+/// [`draft_plan`] with Figma nodes that may become the favicon or share
+/// image.
+pub(super) fn draft_plan_with(
+    screens: &[PlanScreenInput],
+    assets: &[PlanAssetInput],
+    extra: &[ExtraQuestionInput],
+    targets: &BTreeMap<String, String>,
+    evidence: &ProjectEvidence,
+    source: Value,
+    notes: Option<&str>,
+) -> Result<Value, DevupError> {
+    if screens.is_empty() {
+        return Err(invalid(
+            "draft found no screens. Link a Section or frame, or pass screens from devup_figma_explore.",
+        ));
+    }
+    if screens.len() > MAX_SCREENS {
+        return Err(invalid(format!(
+            "draft plans at most {MAX_SCREENS} screens; link one Section at a time."
+        )));
+    }
+    // Only what the user pointed at, and never what is marked as not for
+    // implementation. Both are listed, not dropped.
+    let anchor_id = source["nodeId"].as_str();
+    let anchor_name = source["anchorName"].as_str();
+    let linked = array(&source["anchorBreadcrumb"])
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .chain(anchor_name.map(str::to_owned))
+        .collect::<Vec<_>>();
+    let mut out_of_scope = Vec::new();
+    let mut excluded = Vec::new();
+    let mut kept = Vec::new();
+    for screen in screens {
+        if !in_scope(screen, anchor_id, anchor_name) {
+            out_of_scope.push(json!({"nodeId": screen.node_id, "name": screen.name,
+                "reason": "not under the linked node; never a candidate"}));
+            continue;
+        }
+        match exclusion_reason(screen, &linked, &evidence.config) {
+            Some(reason) => excluded.push((screen, reason)),
+            None => kept.push(screen.clone()),
+        }
+    }
+    if kept.is_empty() && excluded.is_empty() {
+        return Err(invalid(
+            "No screen is under the linked node. Link the Section or frame to plan; the plan never widens past it.",
+        ));
+    }
+    let mut questions = Vec::new();
+    let mut base_when = Vec::new();
+    let linked_names = linked
+        .iter()
+        .map(|name| ("linked node", name.as_str()))
+        .collect::<Vec<_>>();
+    if let Some(reason) = excluded_by(&linked_names, &evidence.config) {
+        questions.push(question(
+            "scope".into(),
+            "Linked area: build it?".into(),
+            format!(
+                "The link you gave points inside an area whose name marks it as not for implementation: {reason}. Plan the screens under it anyway?"
+            ),
+            vec![
+                choice(
+                    PLAN_ANYWAY,
+                    "You linked this area on purpose; plan its screens.",
+                    json!({"scope": "use"}),
+                ),
+                choice(
+                    NOTHING_HERE,
+                    "Build nothing from this link.",
+                    json!({"scope": "none"}),
+                ),
+            ],
+            "scope",
+        ));
+        base_when.push(when("scope", PLAN_ANYWAY, json!({"scope": "use"})));
+    }
+    if !excluded.is_empty() {
+        let listed = excluded
+            .iter()
+            .take(8)
+            .map(|(screen, reason)| format!("\"{}\" ({}): {reason}", screen.name, screen.node_id))
+            .collect::<Vec<_>>()
+            .join("; ");
+        let more = if excluded.len() > 8 {
+            format!("; and {} more listed in the plan", excluded.len() - 8)
+        } else {
+            String::new()
+        };
+        questions.push(with_when(
+            question(
+                "exclusions".into(),
+                "Excluded areas".into(),
+                format!(
+                    "These {} frames were excluded as trash, archive, draft, copy or hidden, and will not be built: {listed}{more}. Accept the exclusions?",
+                    excluded.len()
+                ),
+                vec![
+                    choice(
+                        ACCEPT_EXCLUSIONS,
+                        "None of them is built; they stay listed in the plan.",
+                        json!({"exclusions": "accept"}),
+                    ),
+                    choice(
+                        REVIEW,
+                        "Ask about each one in the next round.",
+                        json!({"exclusions": "review"}),
+                    ),
+                ],
+                "exclusions",
+            ),
+            &base_when,
+        ));
+        let review = when("exclusions", REVIEW, json!({"exclusions": "review"}));
+        for (screen, reason) in &excluded {
+            let id = &screen.node_id;
+            let conditions = [base_when.clone(), vec![review.clone()]].concat();
+            questions.push(with_when(
+                question(
+                    format!("exclusion:{id}"),
+                    header("Excluded", &screen.name),
+                    format!(
+                        "\"{}\" ({id}) was excluded: {reason}. Keep it out of the build?",
+                        screen.name
+                    ),
+                    vec![
+                        choice(
+                            KEEP_EXCLUDED,
+                            "Not built; listed as excluded.",
+                            json!({"build": false}),
+                        ),
+                        choice(
+                            BUILD_IT,
+                            "Build it; its URL is asked next.",
+                            json!({"build": true}),
+                        ),
+                    ],
+                    "exclusion",
+                ),
+                &conditions,
+            ));
+            let screen_slug = slug(&base_words(&screen.name));
+            let mut choices = Vec::new();
+            if !screen_slug.is_empty() {
+                choices.push(choice(
+                    format!("/{screen_slug}"),
+                    "Named after the layer.",
+                    json!({"route": format!("/{screen_slug}")}),
+                ));
+            }
+            choices.push(choice(
+                SKIP,
+                "Leave it out after all.",
+                json!({"skip": true}),
+            ));
+            if choices.len() < 2 {
+                choices.push(choice(
+                    NOT_A_PAGE,
+                    "It is a section or state of another screen; it gets no URL.",
+                    json!({"notPage": true}),
+                ));
+            }
+            let built = [
+                conditions,
+                vec![when(
+                    &format!("exclusion:{id}"),
+                    BUILD_IT,
+                    json!({"build": true}),
+                )],
+            ]
+            .concat();
+            questions.push(with_when(
+                question(
+                    format!("exclusion-route:{id}"),
+                    header("Route", &screen.name),
+                    format!("Which URL should \"{}\" ({id}) be served at?", screen.name),
+                    choices,
+                    "route",
+                ),
+                &built,
+            ));
+        }
+    }
+    let excluded_rows = excluded
+        .iter()
+        .map(|(screen, reason)| {
+            json!({"nodeId": screen.node_id, "name": screen.name, "width": screen.width,
+                "section": screen.section_name.clone().or_else(|| screen.section.clone()),
+                "reason": reason})
+        })
+        .collect::<Vec<_>>();
+    // A frame named like a logo or a share image is a site asset, not a page.
+    let mut site_assets = assets
+        .iter()
+        .filter_map(|asset| {
+            asset_kind(&asset.name).map(|kind| (asset.node_id.clone(), asset.name.clone(), kind))
+        })
+        .collect::<Vec<_>>();
+    kept.retain(|screen| match asset_kind(&screen.name) {
+        Some(kind) => {
+            site_assets.push((screen.node_id.clone(), screen.name.clone(), kind));
+            false
+        }
+        None => true,
+    });
+    for asked in extra_questions(extra)? {
+        questions.push(with_when(asked, &base_when));
+    }
+    let (screen_apps, app_questions, app_default) = assign_apps(evidence, &kept);
+    for asked in app_questions {
+        questions.push(with_when(asked, &base_when));
+    }
+    // One app for the whole plan: its routes are the only route evidence.
+    let chosen = screen_apps
+        .values()
+        .map(|app| app.dir.clone())
+        .collect::<BTreeSet<_>>();
+    let scoped;
+    let evidence = match (chosen.len(), screen_apps.values().next()) {
+        (1, Some(app))
+            if app_default
+                .as_ref()
+                .is_some_and(|item| item["mechanism"] == "decided") =>
+        {
+            let mut narrowed = evidence.clone();
+            narrowed
+                .routes
+                .retain(|(_, page)| page.starts_with(&format!("{}/", app.dir)));
+            narrowed.app_dir = app.path(app.app_router.as_deref().unwrap_or("src/app"));
+            narrowed.target_app = Some(app.clone());
+            scoped = narrowed;
+            &scoped
+        }
+        _ => evidence,
+    };
+    // A mixed file builds into several apps: each screen's routes come from
+    // its own app, never from another app's pages.
+    let per_app = if chosen.len() > 1 {
+        chosen
+            .iter()
+            .filter_map(|dir| {
+                let app = screen_apps.values().find(|app| &app.dir == dir)?;
+                let mut narrowed = evidence.clone();
+                narrowed
+                    .routes
+                    .retain(|(_, page)| page.starts_with(&format!("{dir}/")));
+                narrowed.app_dir = app.path(app.app_router.as_deref().unwrap_or("src/app"));
+                narrowed.target_app = Some(app.clone());
+                Some((dir.clone(), narrowed))
+            })
+            .collect::<BTreeMap<_, _>>()
+    } else {
+        BTreeMap::new()
+    };
+    let evidence_for = |frames: &[Frame]| -> &ProjectEvidence {
+        frames
+            .first()
+            .and_then(|frame| screen_apps.get(&frame.node_id))
+            .and_then(|app| per_app.get(&app.dir))
+            .unwrap_or(evidence)
+    };
+    for asked in stack_questions(evidence) {
+        questions.push(with_when(asked, &base_when));
+    }
+    let defaults = [
+        app_default.into_iter().collect::<Vec<_>>(),
+        stack_defaults(evidence),
+        site_defaults(evidence, &kept),
+    ]
+    .concat();
+    let cover = kept
+        .first()
+        .map(|screen| (screen.node_id.clone(), screen.name.clone()));
+    let (site, site_asked) = site_questions(
+        evidence,
+        &site_assets,
+        cover
+            .as_ref()
+            .map(|(node, name)| (node.as_str(), name.as_str())),
+    );
+    for asked in site_asked {
+        questions.push(with_when(asked, &base_when));
+    }
+    let mut drafts = group_screens(&kept, &evidence.config);
+    for draft in &mut drafts {
+        draft.extra_when.extend(base_when.iter().cloned());
+    }
+    for oddity in structure_questions(&drafts) {
+        let first = drafts[oddity.screens[0]].id().to_owned();
+        let id = format!("structure:{}:{first}", oddity.kind);
+        let frames = oddity
+            .screens
+            .iter()
+            .flat_map(|index| drafts[*index].frames.iter().map(Frame::json))
+            .collect::<Vec<_>>();
+        let mut asked = question(
+            id.clone(),
+            header("Figma structure", drafts[oddity.screens[0]].name()),
+            format!(
+                "{} Is that intended, or should the Figma file be fixed? This plan does not decide which frame is right.",
+                oddity.facts
+            ),
+            vec![
+                choice(
+                    oddity.keep,
+                    oddity.keep_description.clone(),
+                    json!({"structure": "keep"}),
+                ),
+                choice(
+                    FIX_FIGMA,
+                    "These frames are not built. They are listed under Design fixes requested; everything else goes on.",
+                    json!({"designFix": true}),
+                ),
+            ],
+            "structure",
+        );
+        asked["fix"] = json!({"frames": frames, "text": oddity.fix});
+        questions.push(with_when(asked, &base_when));
+        for index in &oddity.screens {
+            drafts[*index]
+                .extra_when
+                .push(when(&id, oddity.keep, json!({"structure": "keep"})));
+            drafts[*index].structure.push(id.clone());
+        }
+    }
+    let mut screen_notes = vec![Vec::new(); drafts.len()];
+    let mut decided = drafts
+        .iter()
+        .enumerate()
+        .map(|(index, screen)| {
+            let hits = route_hits(
+                &screen.frames,
+                &screen.words,
+                targets,
+                evidence_for(&screen.frames),
+                &mut screen_notes[index],
+            );
+            let proposed = agreed(&hits).map(|hit| (hit.route.clone(), hit.kind));
+            (hits, proposed)
+        })
+        .collect::<Vec<_>>();
+    // Two screens on one URL is a decision, not a fact: neither keeps it unasked.
+    let mut owners = BTreeMap::<String, Vec<usize>>::new();
+    for (index, (_, proposed)) in decided.iter().enumerate() {
+        if let Some((route, _)) = proposed {
+            owners.entry(route.clone()).or_default().push(index);
+        }
+    }
+    for indices in owners.values().filter(|indices| indices.len() > 1) {
+        for index in indices {
+            if let Some((route, _)) = decided[*index].1.take() {
+                screen_notes[*index].push(format!(
+                    "{route} is also the route of another screen in this plan."
+                ));
+            }
+        }
+    }
+    let claimed = decided
+        .iter()
+        .filter_map(|(_, proposed)| proposed.as_ref().map(|(route, _)| route.clone()))
+        .collect::<BTreeSet<_>>();
+    let modal_words = evidence
+        .config
+        .modal_keywords
+        .clone()
+        .unwrap_or_else(|| MODAL_WORDS.iter().map(|word| (*word).to_owned()).collect());
+    let kind_evidence = if evidence.config.modal_keywords.is_some() {
+        "config"
+    } else {
+        NAME_MATCH
+    };
+    let is_modal = |name: &str| {
+        let lowered = name.to_lowercase();
+        modal_words
+            .iter()
+            .any(|word| lowered.contains(&word.to_lowercase()))
+    };
+    let page_screens = drafts
+        .iter()
+        .enumerate()
+        .filter(|(_, screen)| !is_modal(screen.name()))
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let frame_owner = drafts
+        .iter()
+        .enumerate()
+        .flat_map(|(index, screen)| {
+            screen
+                .frames
+                .iter()
+                .map(move |frame| (frame.node_id.clone(), index))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let route_choice = |evidence: &ProjectEvidence, route: &str, why: &str, extra: Value| {
+        let description = match existing_page(route, evidence) {
+            Some(page) => format!("{why} Exists at {page}; the screen is merged into it."),
+            None => format!(
+                "{why} New page at {}.",
+                planned_page(route, &evidence.app_dir)
+            ),
+        };
+        let mut action = json!({"route": route});
+        if let (Some(object), Some(extra)) = (action.as_object_mut(), extra.as_object()) {
+            object.extend(extra.clone());
+        }
+        choice(route, description, action)
+    };
+    let unclaimed_for =
+        |evidence: &ProjectEvidence, words: &[String], exclude: &BTreeSet<String>| {
+            let mut unclaimed = evidence
+                .routes
+                .iter()
+                .filter(|(route, _)| !claimed.contains(route) && !exclude.contains(route))
+                .map(|(route, _)| {
+                    let score = route
+                        .trim_matches('/')
+                        .split(['/', '-'])
+                        .filter(|segment| words.iter().any(|word| word == segment))
+                        .count();
+                    (score, route.clone())
+                })
+                .collect::<Vec<_>>();
+            unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+            unclaimed
+        };
+    let mut rows = Vec::new();
+    let mut heuristics = Vec::new();
+    let mut part_screens = BTreeMap::<String, Vec<String>>::new();
+    for (index, screen) in drafts.iter().enumerate() {
+        plan_route_group(
+            RouteGroupPlanning {
+                evidence_for: &evidence_for,
+                is_modal: &is_modal,
+                route_choice: &route_choice,
+                unclaimed_for: &unclaimed_for,
+                decided: &decided,
+                claimed: &claimed,
+                drafts: &drafts,
+                targets,
+                screen_apps: &screen_apps,
+                kind_evidence,
+                page_screens: &page_screens,
+                frame_owner: &frame_owner,
+                screen_notes: &screen_notes,
+                questions: &mut questions,
+                rows: &mut rows,
+                heuristics: &mut heuristics,
+                part_screens: &mut part_screens,
+            },
+            index,
+            screen,
+        );
+    }
+    let route_heuristics = heuristics
+        .iter()
+        .filter(|item| text(&item["askedIn"]).starts_with("review:"))
+        .collect::<Vec<_>>();
+    if !route_heuristics.is_empty() {
+        let listed = route_heuristics
+            .iter()
+            .map(|item| format!("{} -> {}", text(&item["name"]), text(&item["decision"])))
+            .collect::<Vec<_>>()
+            .join(", ");
+        questions.push(question(
+            "heuristics".into(),
+            "Inferred from layer names".into(),
+            format!(
+                "These were inferred from layer names only: {listed}. Accept all (merged into the existing pages), or review each one?"
+            ),
+            vec![
+                choice(
+                    ACCEPT_ALL,
+                    "Use every inferred route; existing pages are merged into, not overwritten.",
+                    json!({"heuristics": "accept"}),
+                ),
+                choice(
+                    REVIEW,
+                    "Ask one question per inferred route, in the next round.",
+                    json!({"heuristics": "review"}),
+                ),
+            ],
+            "heuristics",
+        ));
+    }
+    for (part, owners) in part_screens.iter().filter(|(part, owners)| {
+        owners.len() > 1
+            && !evidence
+                .layout_parts
+                .iter()
+                .any(|existing| compact(existing) == compact(part))
+    }) {
+        questions.push(question(
+            format!("layout:{}", compact(part)),
+            header("Shared part", part),
+            format!(
+                "\"{part}\" appears on {} screens and no layout renders it yet. Extract it once into a shared layout?",
+                owners.len()
+            ),
+            vec![
+                choice(
+                    "Extract into a shared layout",
+                    "Build it once and render it from the App Router layout.",
+                    json!({"layout": "shared"}),
+                ),
+                choice(
+                    "Keep it in each page",
+                    "Every page renders its own copy.",
+                    json!({"layout": "per-page"}),
+                ),
+            ],
+            "layout",
+        ));
+    }
+    // Questions about the whole plan wait on the linked area being planned.
+    for asked in questions
+        .iter_mut()
+        .filter(|asked| asked["id"] == "heuristics" || text(&asked["id"]).starts_with("layout:"))
+    {
+        *asked = with_when(asked.clone(), &base_when);
+    }
+    let body = json!({"source": source, "screens": rows, "questions": questions, "notes": notes});
+    let plan_id = format!(
+        "sp-{}",
+        &sha256(&serde_json::to_vec(&body).unwrap_or_default())[..16]
+    );
+    Ok(json!({
+        "kind": PLAN_KIND,
+        "schemaVersion": SCHEMA_VERSION,
+        "planId": plan_id,
+        "status": "draft",
+        "source": body["source"],
+        "notes": notes,
+        "appDir": evidence.app_dir,
+        "inventoryNote": evidence.inventory_note,
+        "config": evidence.config_file,
+        "screens": body["screens"],
+        "heuristics": heuristics,
+        "excluded": excluded_rows,
+        "outOfScope": out_of_scope,
+        "site": site,
+        "defaults": defaults,
+        "apps": evidence.apps.iter().map(super::framework::App::json).collect::<Vec<_>>(),
+        "targetApp": evidence.target_app.as_ref().map(super::framework::App::json),
+        "siteAssets": site_assets.iter().map(|(node, name, kind)| json!({"nodeId": node, "name": name, "kind": kind})).collect::<Vec<_>>(),
+        "questions": body["questions"],
+        "answers": {},
+        "routes": [],
+        "assumptions": [],
+    }))
+}

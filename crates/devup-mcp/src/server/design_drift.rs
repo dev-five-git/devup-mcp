@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 pub(super) type Fingerprints = BTreeMap<String, String>;
 const VERSION: &str = "v1:sha256:";
 const KIND: &str = "devup-design-fingerprints";
-const MEANING: &str = "Changed means a field the converter reads changed; it does not mean the rendered screen changed and does not locate the change inside the node. Unchanged means captured converter inputs for that node are identical; it does not prove generated code on disk still matches, because a human may have edited it. Added and removed mean absence in the previous or current capture map, respectively; compare the same capture scope. These fingerprints do not hash generated code, external variable definitions, asset bytes, or pixels.";
+const MEANING: &str = include_str!("text/design_drift-MEANING-dfdee151.md");
 
 /// Pure comparison of validated maps from the same fingerprint version.
 fn compare(previous: &Fingerprints, current: &Fingerprints) -> Value {

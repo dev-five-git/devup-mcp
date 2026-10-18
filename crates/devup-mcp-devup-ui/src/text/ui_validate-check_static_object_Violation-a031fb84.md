@@ -1,0 +1,1 @@
+{call_name}({{ {key}: ... }}) accepts only statically analyzable literal values. css() can extract finite conditional branches as static classes; globalCss()/keyframes() do not select runtime classes. Value branches must be static, not arbitrary runtime values.

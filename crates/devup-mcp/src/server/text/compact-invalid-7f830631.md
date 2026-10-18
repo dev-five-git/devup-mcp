@@ -1,0 +1,1 @@
+Selection accepts at most 16 paths of 256 bytes and 8 steps: dot fields, [index], [name="exact"] or [id="exact"]. No wildcards, code, recursion or expressions. responseLimit is 1..200; responseOffset is at most 100000.

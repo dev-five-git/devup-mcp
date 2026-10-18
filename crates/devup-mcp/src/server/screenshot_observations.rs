@@ -87,7 +87,7 @@ pub fn rank(result: &mut Value, hints: Option<&ScreenshotObservations>) {
     *candidates = ranked.into_iter().map(|(_, candidate)| candidate).collect();
     result["screenshotGuidance"] = json!({"source":"caller-declared-screenshot-observations","observations":hints,
         "rankingBasis":"literal captured names/text previews and geometric aspect ratio; stable original order breaks ties",
-        "evidenceLimit":"No screenshot pixels or visual features were inspected. Text previews can be partial; matching observations only nominates real candidates and never verifies or automatically exports a selection."});
+        "evidenceLimit":include_str!("text/screenshot_observations-rank-2c5a4662.md")});
 }
 
 #[cfg(test)]

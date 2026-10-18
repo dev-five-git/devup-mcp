@@ -1,0 +1,546 @@
+
+
+pub(super) async fn run(
+    input: FeatureTraceInput,
+    artifacts: &ArtifactStore,
+) -> Result<Value, DevupError> {
+    let max_items = input.max_items.unwrap_or(100);
+    if !(1..=200).contains(&max_items) {
+        return Err(invalid("maxItems must be between 1 and 200."));
+    }
+    if supplied(&input.api_path) != supplied(&input.method) {
+        return Err(invalid("apiPath and method must be supplied together."));
+    }
+    if supplied(&input.method)
+        && !METHODS.contains(
+            &input
+                .method
+                .as_deref()
+                .unwrap()
+                .to_ascii_lowercase()
+                .as_str(),
+        )
+    {
+        return Err(invalid("method must be an HTTP method."));
+    }
+    if ![
+        &input.route_path,
+        &input.figma_node_id,
+        &input.artifact_id,
+        &input.operation_id,
+        &input.api_path,
+        &input.component_path,
+        &input.table_name,
+    ]
+    .into_iter()
+    .any(supplied)
+    {
+        return Ok(json!({"status":"REFUSED","message":ACCEPTED}));
+    }
+    if input
+        .component_tsx
+        .as_ref()
+        .is_some_and(|s| s.len() as u64 > MAX_SOURCE_BYTES)
+    {
+        return Err(invalid("componentTsx exceeds maxSourceBytes (2097152)."));
+    }
+    let ui = project_context::run("ui", input.project_root.as_deref(), None).await?;
+    let api = project_context::run("api", input.project_root.as_deref(), None).await?;
+    let db = project_context::run("db", input.project_root.as_deref(), None).await?;
+    let root = PathBuf::from(text(&ui["projectRoot"]));
+    if root.as_os_str().is_empty() {
+        return Ok(bound(
+            json!({"status":"UNVERIFIED","message":"Project root could not be resolved","evidence":ui}),
+            max_items,
+        ));
+    }
+    let mut diagnostics = vec![];
+    let operations = operations(&root, &api, &mut diagnostics);
+    let handlers = handlers(&root, &mut diagnostics);
+    let design = design(&input, artifacts).await;
+    let mut chain = vec![];
+    let mut selected_files = BTreeSet::new();
+    let mut selected_ops = BTreeSet::new();
+    let routes = array(&ui["routes"])
+        .iter()
+        .filter(|r| input.route_path.as_deref() == r["route"].as_str())
+        .collect::<Vec<_>>();
+    for route in &routes {
+        selected_files.insert(text(&route["page"]).to_owned());
+        chain.push(hop(
+            "screen-component",
+            route["route"].clone(),
+            route["page"].clone(),
+            json!({"declaration":"App Router page file","inventory":route}),
+            None,
+        ));
+    }
+    if supplied(&input.route_path) && routes.is_empty() {
+        chain.push(hop("screen-component",json!(input.route_path),Value::Null,json!({}),Some("No matching route in the bounded UI inventory; no API path inferred from the screen path.")));
+    }
+    for c in array(&ui["components"]) {
+        let direct = input.component_path.as_deref() == c["path"].as_str();
+        let sites = array(&c["importedBy"])
+            .iter()
+            .filter(|site| {
+                array(&site["routePages"])
+                    .iter()
+                    .any(|p| routes.iter().any(|r| r["page"] == *p))
+            })
+            .collect::<Vec<_>>();
+        if direct || !sites.is_empty() {
+            selected_files.insert(text(&c["path"]).into());
+            if !sites.is_empty() {
+                chain.push(hop("screen-component",json!(input.route_path),c["path"].clone(),json!({"importSites":sites,"meaning":"Static import reachability, not proof of rendering"}),None));
+            }
+        }
+    }
+    // Anchor-first: an explicit componentPath is read directly. The capped UI
+    // inventory only enriches it (import sites, reuse ranking); it never gates it.
+    let mut anchor_status = Value::Null;
+    if let Some(requested) = input
+        .component_path
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        let normalized = anchor_path(requested);
+        let in_inventory = selected_files.contains(&normalized);
+        match resolve_anchor(&root, &normalized) {
+            Ok(()) => {
+                selected_files.insert(normalized.clone());
+                anchor_status = json!({"path":normalized,"read":"direct","inInventory":in_inventory,
+                    "inventoryTruncated":ui["truncation"]["truncated"]});
+                if !in_inventory {
+                    chain.push(hop(
+                        "screen-component",
+                        json!(requested),
+                        json!(normalized),
+                        json!({"declaration":"Explicit componentPath anchor read directly from disk","inventoryNote":"Not present in the capped UI inventory; import sites and reuse ranking for this file are unavailable."}),
+                        None,
+                    ));
+                }
+            }
+            Err(reason) => {
+                anchor_status = json!({"path":normalized,"read":"failed","reason":reason});
+                chain.push(hop(
+                    "screen-component",
+                    json!(requested),
+                    Value::Null,
+                    json!({}),
+                    Some(&format!(
+                        "Explicit componentPath could not be read: {reason}"
+                    )),
+                ));
+            }
+        }
+    }
+    for (i, op) in operations.iter().enumerate() {
+        let id = supplied(&input.operation_id)
+            && input.operation_id.as_deref() == op.endpoint["operationId"].as_str();
+        let path = supplied(&input.api_path)
+            && input.api_path.as_deref() == op.endpoint["path"].as_str()
+            && input
+                .method
+                .as_deref()
+                .is_some_and(|m| m.eq_ignore_ascii_case(text(&op.endpoint["method"])));
+        if id || path {
+            selected_ops.insert(i);
+        }
+    }
+    if (supplied(&input.operation_id) || supplied(&input.api_path)) && selected_ops.is_empty() {
+        chain.push(hop("component-api",json!({"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method}),Value::Null,json!({}),Some("Explicit operation anchor was not found in project OpenAPI endpoints.")));
+    }
+    let mut navigation_sources = vec![];
+    for file in &selected_files {
+        let source = match read(&root.join(file)) {
+            Ok(s) => s,
+            Err(reason) => {
+                chain.push(hop(
+                    "component-api",
+                    json!(file),
+                    Value::Null,
+                    json!({}),
+                    Some(&reason),
+                ));
+                continue;
+            }
+        };
+        navigation_sources.push((file.clone(), source.clone()));
+        let (calls, configs) = stack_diff::parse::client_references(&source);
+        if calls.is_empty() && configs.is_empty() {
+            chain.push(hop("component-api",json!(file),Value::Null,json!({}),Some("No supported literal API reference in this file; helpers, wrappers and dynamic calls are not resolved.")));
+        }
+        for (call_site, identifier) in calls {
+            let matches = operations
+                .iter()
+                .enumerate()
+                .filter(|(_, op)| {
+                    op.endpoint["operationId"] == identifier
+                        || (identifier.starts_with('/')
+                            && stack_diff::client_path_key(&identifier)
+                                == stack_diff::client_path_key(text(&op.endpoint["path"])))
+                })
+                .collect::<Vec<_>>();
+            if matches.len() == 1 {
+                let (i, op) = matches[0];
+                selected_ops.insert(i);
+                chain.push(hop("component-api",json!(file),op.endpoint.clone(),json!({"callSite":call_site,"identifier":identifier,"specPath":op.file,"parser":"stack_diff::client_references","limitation":"Parser retains identifier but not all call methods; no runtime or method compatibility proof"}),None));
+            } else {
+                chain.push(hop("component-api",json!(file),json!(identifier),json!({"callSite":call_site,"candidateCount":matches.len()}),Some("API identifier is absent or ambiguous across methods/spec authorities; no operation guessed.")));
+            }
+        }
+        for (call_site, name) in configs {
+            let matches = operations
+                .iter()
+                .enumerate()
+                .filter(|(_, op)| {
+                    array(&op.operation["tags"]).iter().any(|tag| {
+                        ["one", "create", "edit", "fix"]
+                            .iter()
+                            .any(|kind| *tag == format!("devup:{name}:{kind}"))
+                    })
+                })
+                .collect::<Vec<_>>();
+            if matches.is_empty() {
+                chain.push(hop(
+                    "component-api",
+                    json!(file),
+                    json!(name),
+                    json!({"callSite":call_site}),
+                    Some("CRUD configuration has no matching devup:NAME:one/create/edit/fix tags."),
+                ));
+            }
+            for (i, op) in matches {
+                selected_ops.insert(i);
+                chain.push(hop("component-api",json!(file),op.endpoint.clone(),json!({"callSite":call_site,"config":name,"tags":op.operation["tags"],"specPath":op.file,"meaning":"CRUD configuration tag membership; no particular action inferred"}),None));
+            }
+        }
+    }
+    // A table anchor can travel backwards only through explicit local references.
+    if let Some(table) = input.table_name.as_deref().filter(|s| !s.trim().is_empty()) {
+        for (i, op) in operations.iter().enumerate() {
+            if handlers.iter().any(|h| {
+                handler_matches(h, op, &root)
+                    && array(&db["tables"])
+                        .iter()
+                        .filter(|t| t["table"] == table)
+                        .any(|t| {
+                            array(&t["columns"]).iter().any(|c| {
+                                stack_diff::parse::route_mapping(&h.source)
+                                    .mentions(table, text(&c["name"]))
+                            })
+                        })
+            }) {
+                selected_ops.insert(i);
+            }
+        }
+    }
+    for &i in &selected_ops {
+        let op = &operations[i];
+        let matches = handlers
+            .iter()
+            .filter(|h| handler_matches(h, op, &root))
+            .collect::<Vec<_>>();
+        if matches.len() != 1 {
+            chain.push(hop("api-handler",op.endpoint.clone(),Value::Null,json!({"specPath":op.file,"candidateCount":matches.len()}),Some("No unique local handler in the spec authority; merged prefixes, macro expansion and reexports are not resolved.")));
+            continue;
+        }
+        let h = matches[0];
+        let file = relative(&root, &h.file);
+        chain.push(hop("api-handler",op.endpoint.clone(),json!(file),json!({"attributeMethod":h.method,"fileConventionPath":h.path,"specPath":op.file,"parser":"stack_diff route attribute and path comparison","limitation":"File convention is heuristic; merged-app runtime registration is not proven"}),None));
+        let mapping = stack_diff::parse::route_mapping(&h.source);
+        let mut found = false;
+        for t in array(&db["tables"]) {
+            let table = text(&t["table"]);
+            // Keep model authority local to the spec/handler project.
+            if Path::new(text(&t["path"])).parent().and_then(Path::parent)
+                != Path::new(&op.file).parent()
+            {
+                continue;
+            }
+            let columns = array(&t["columns"])
+                .iter()
+                .filter(|c| mapping.mentions(table, text(&c["name"])))
+                .map(|c| c["name"].clone())
+                .collect::<Vec<_>>();
+            if columns.is_empty() {
+                continue;
+            }
+            found = true;
+            let reason=(handlers.iter().filter(|other|other.file==h.file).count()>1).then_some("Multiple handlers share this file; file-level schema references cannot be attributed to this handler.");
+            chain.push(hop("handler-model",json!(file),json!(table),json!({"modelPath":t["path"],"parser":"stack_diff::route_mapping","meaning":"Explicit file-level model/schema_type pick/omit references; serialization and type alias usage not proven"}),reason));
+            chain.push(hop("model-columns",json!(table),json!(columns),json!({"modelPath":t["path"],"routeFile":file,"columns":columns,"mappingUnresolved":mapping.unresolved}),reason));
+        }
+        if !found {
+            chain.push(hop("handler-model",json!(file),Value::Null,json!({}),Some("No explicit local model/column mapping resolved; substring guesses are not used.")));
+        }
+    }
+    if let Some(table) = input.table_name.as_deref().filter(|s| !s.trim().is_empty()) {
+        let tables = array(&db["tables"])
+            .iter()
+            .filter(|t| t["table"] == table)
+            .collect::<Vec<_>>();
+        if tables.len() == 1 {
+            chain.push(hop("model-columns",json!(table),tables[0]["columns"].clone(),json!({"modelPath":tables[0]["path"],"declaration":"Vespertide model JSON columns"}),None));
+        } else {
+            chain.push(hop(
+                "model-columns",
+                json!(table),
+                Value::Null,
+                json!({"candidateCount":tables.len()}),
+                Some("Table anchor is absent or ambiguous in the bounded model inventory."),
+            ));
+        }
+    }
+    if supplied(&input.figma_node_id) || supplied(&input.artifact_id) {
+        chain.push(hop("design-component",json!({"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id}),json!(design.names),design.evidence.clone(),Some("Design composition names identify reuse candidates, not an established design-to-code binding.")));
+    }
+    for kind in [
+        "screen-component",
+        "component-api",
+        "api-handler",
+        "handler-model",
+        "model-columns",
+    ] {
+        if !chain.iter().any(|h| h["kind"] == kind) {
+            chain.push(hop(
+                kind,
+                Value::Null,
+                Value::Null,
+                json!({}),
+                Some("No evidence joins this hop to the supplied anchors; no anchor was inferred."),
+            ));
+        }
+    }
+    let mut reuse = vec![];
+    for c in array(&ui["components"]) {
+        let mut reasons = vec![];
+        let mut score = 0;
+        for name in array(&c["exports"]).iter().chain(array(&c["localNames"])) {
+            if design.names.contains(text(name)) {
+                reasons.push(format!(
+                    "Export/local name {} exactly matches a design JSX reference",
+                    text(name)
+                ));
+                score += 100;
+            }
+        }
+        for prop in array(&c["props"]) {
+            if design.fields.contains(text(&prop["name"])) {
+                reasons.push(format!(
+                    "Declared prop {} matches a literal design field binding",
+                    text(&prop["name"])
+                ));
+                score += 10;
+            }
+        }
+        if selected_files.contains(text(&c["path"])) {
+            reasons.push("Already belongs to the explicitly selected component/route slice".into());
+            score += 20;
+        }
+        if score > 0 {
+            reuse.push(json!({"component":c,"score":score,"matchReasons":reasons,"confidence":"medium","limitation":"Name/prop compatibility is syntactic; visual equivalence and runtime behavior are unverified"}));
+        }
+    }
+    reuse.sort_by(|a, b| {
+        b["score"]
+            .as_u64()
+            .cmp(&a["score"].as_u64())
+            .then_with(|| text(&a["component"]["path"]).cmp(text(&b["component"]["path"])))
+    });
+    for (i, c) in reuse.iter_mut().enumerate() {
+        c["rank"] = json!(i + 1);
+    }
+    let comparisons = if (supplied(&input.figma_node_id) || supplied(&input.artifact_id))
+        && (supplied(&input.operation_id) || supplied(&input.api_path))
+    {
+        selected_ops
+            .iter()
+            .filter(|&&i| {
+                (supplied(&input.operation_id)
+                    && input.operation_id.as_deref()
+                        == operations[i].endpoint["operationId"].as_str())
+                    || (supplied(&input.api_path)
+                        && input.api_path.as_deref() == operations[i].endpoint["path"].as_str()
+                        && input.method.as_deref().is_some_and(|m| {
+                            m.eq_ignore_ascii_case(text(&operations[i].endpoint["method"]))
+                        }))
+            })
+            .map(|&i| compare(&design, &operations[i]))
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
+    let mut ownership = vec![];
+    for layer in [
+        "db-entity",
+        "entity-route",
+        "route-openapi",
+        "openapi-client",
+    ] {
+        let mut result = json!({"selfCheck":{}});
+        stack_diff::attach_source_ownership(&mut result, layer);
+        ownership.push(result["selfCheck"]["sourceOwnership"].clone());
+    }
+    let mut traced_artifacts = BTreeMap::new();
+    for file in &selected_files {
+        traced_artifacts.insert(file.clone(),json!({"path":file,"ownership":"unverified","editTarget":null,
+            "reason":"UI inventory identifies source declarations but does not certify that a local file is human-authored. Check generated-code provenance before editing.","sourceOwnership":ownership[3]}));
+    }
+    for &i in &selected_ops {
+        let operation = &operations[i];
+        let matches = handlers
+            .iter()
+            .filter(|h| handler_matches(h, operation, &root))
+            .collect::<Vec<_>>();
+        let edit_target = (matches.len() == 1)
+            .then(|| relative(&root, &matches[0].file))
+            .filter(|path| !generated_path(path, &ownership[2]));
+        traced_artifacts.insert(operation.file.clone(),json!({"path":operation.file,"ownership":"generated","editTarget":edit_target,"sourceOwnership":ownership[2]}));
+        for handler in matches {
+            let file = relative(&root, &handler.file);
+            traced_artifacts.insert(file.clone(), authored_artifact(&file, &ownership[1]));
+        }
+    }
+    for hop in &chain {
+        if let Some(path) = hop["evidence"]["modelPath"].as_str() {
+            traced_artifacts.insert(path.into(), authored_artifact(path, &ownership[0]));
+        }
+    }
+    let mut implemented = BTreeMap::<String, Vec<Value>>::new();
+    for file in &selected_files {
+        if let Ok(source) = read(&root.join(file)) {
+            for state in design_source(&source).states {
+                implemented.entry(state).or_default().push(json!({"path":file,"declaration":"literal data-state JSX attribute; runtime reachability remains unverified"}));
+            }
+        }
+    }
+    for route in &routes {
+        let page = Path::new(text(&route["page"]));
+        let owner = if route["appliesTo"] == "." {
+            PathBuf::new()
+        } else {
+            PathBuf::from(text(&route["appliesTo"]))
+        };
+        let app = if page.starts_with(owner.join("src/app")) {
+            owner.join("src/app")
+        } else {
+            owner.join("app")
+        };
+        for component in array(&ui["components"]) {
+            let boundary = Path::new(text(&component["path"]));
+            let state = boundary.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            if matches!(state, "loading" | "error")
+                && boundary.starts_with(&app)
+                && boundary.parent().is_some_and(|p| page.starts_with(p))
+                && component["appliesTo"] == route["appliesTo"]
+            {
+                implemented.entry(state.into()).or_default().push(json!({"path":component["path"],"declaration":"App Router boundary component in selected page ancestry; runtime appearance unverified"}));
+            }
+        }
+    }
+    let states=["loading","error","empty","validation","authorization"].iter().map(|state|json!({"state":state,
+        "specified":if design.states.contains(*state){"present"}else{"unknown"},
+        "implemented":if implemented.contains_key(*state){"present"}else{"unknown"},
+        "specifiedEvidence":if design.states.contains(*state){json!({"attribute":"data-state","value":state,"source":design.evidence})}else{Value::Null},
+        "implementedEvidence":implemented.get(*state),
+        "reason":"Presence records explicit state declarations or App Router boundary components only. Missing evidence is unknown, never assumed absent; runtime coverage requires tests."})).collect::<Vec<_>>();
+    let acceptance=input.acceptance_criteria.iter().map(|criterion|json!({"criterion":criterion,"status":"UNVERIFIED","reason":"Caller acceptance text is preserved without semantic interpretation; supply tests or inspect the linked evidence."})).collect::<Vec<_>>();
+    let summary = summarize(
+        &chain,
+        &anchor_status,
+        ui["truncation"]["truncated"] == true,
+    );
+    let mut navigation_graph = super::navigation::graph(
+        &design.evidence["interactiveCandidates"],
+        &navigation_sources,
+        &input.navigation_targets,
+    );
+    navigation_graph["sourceRoute"] = json!(input.route_path);
+    if let Some(route) = &input.route_path
+        && let Some(edges) = navigation_graph["codeEdges"].as_array_mut()
+    {
+        for edge in edges {
+            edge["sourceFile"] = edge["from"].clone();
+            edge["from"] = json!(route);
+        }
+    }
+    Ok(bound(
+        json!({"status":"OK","summary":summary,"projectRoot":root,"anchors":{"routePath":input.route_path,"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id,"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method,"componentPath":input.component_path,"tableName":input.table_name},"requirement":input.requirement,"acceptanceMatrix":acceptance,
+        "chain":chain,"artifacts":traced_artifacts.into_values().collect::<Vec<_>>(),"sourceOwnership":ownership,"reuseCandidates":reuse,"designContract":comparisons,"requiredStates":states,
+        "navigationGraph":navigation_graph,
+        "designEvidence":design.evidence,"designDiagnostics":design.diagnostics,"diagnostics":diagnostics,
+        "inventoryEvidence":{"uiTruncation":ui["truncation"],"uiLimits":ui["limits"],"uiDiagnostics":ui["diagnostics"],"uiExcludedPaths":ui["excludedPaths"],"unparsedFiles":ui["unparsedFiles"],"api":{"found":api["found"],"excludedPaths":api["excludedPaths"],"authorityNote":api["authorityNote"],"issues":array(&api["specs"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()},
+            "db":{"found":db["found"],"excludedPaths":db["excludedPaths"],"authorityNote":db["authorityNote"],"issues":array(&db["tables"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()}
+},
+        "limitations":["Read-only static evidence, never runtime execution proof. Shared parser findings retain low/medium confidence.","Missing results do not prove absence: scan depth, UI inventory caps, unreadable files, dynamic imports/calls, wrappers and macro expansion can hide links.","Source ownership comes unchanged from stack_diff; edit authored models/routes/frontend and regenerate generated artifacts."]}),
+        max_items,
+    ))
+}
+/// Normalise a caller-supplied component path to the inventory's `a/b/c.tsx` form.
+fn anchor_path(path: &str) -> String {
+    let unified = path.trim().replace('\\', "/");
+    unified.trim_start_matches("./").to_owned()
+}
+/// An anchor must be a regular file strictly inside the project root.
+fn resolve_anchor(root: &Path, relative_path: &str) -> Result<(), String> {
+    let candidate = Path::new(relative_path);
+    if candidate.is_absolute()
+        || candidate
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("path must be relative to the project root and may not contain '..'".into());
+    }
+    let full = root.join(candidate);
+    let canonical = full.canonicalize().map_err(|e| format!("{e}"))?;
+    let canonical_root = root.canonicalize().map_err(|e| format!("{e}"))?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err("path resolves outside the project root".into());
+    }
+    if !canonical.is_file() {
+        return Err("path is not a regular file".into());
+    }
+    Ok(())
+}
+
+/// Summary-first digest: what is resolved, what is not, and what a human must
+/// still check. Everything else in the response is detail behind it.
+fn summarize(chain: &[Value], anchor: &Value, truncated_inventory: bool) -> Value {
+    let unresolved = chain
+        .iter()
+        .filter(|h| h["status"] == "UNVERIFIED")
+        .map(|h| json!({"kind":h["kind"],"from":h["from"],"reason":h["reason"]}))
+        .collect::<Vec<_>>();
+    let resolved = chain.iter().filter(|h| h["status"] == "RESOLVED").count();
+    let mut required = vec![];
+    if anchor["read"] == "failed" {
+        required.push(json!(
+            "Fix componentPath: the explicit anchor could not be read."
+        ));
+    }
+    let mut recommended = vec![];
+    if truncated_inventory {
+        recommended.push(json!("UI inventory was capped; import sites and reuse ranking may be incomplete. Anchor files were still read directly."));
+    }
+    if !unresolved.is_empty() {
+        recommended.push(json!(
+            "Verify each UNVERIFIED hop manually; absence of a link is not proof of absence."
+        ));
+    }
+    json!({"hopsResolved":resolved,"hopsUnverified":unresolved.len(),"anchor":anchor,
+        "required":required,"recommended":recommended,"unverified":unresolved})
+}
+fn handler_matches(handler: &Handler, operation: &Operation, root: &Path) -> bool {
+    let authority = root.join(&operation.file).parent().unwrap().to_path_buf();
+    handler.file.starts_with(authority.join("src/routes"))
+        && stack_diff::route_comparison_key(&handler.method, &handler.path)
+            == stack_diff::route_comparison_key(
+                text(&operation.endpoint["method"]),
+                text(&operation.endpoint["path"]),
+            )
+}
+
+#[cfg(test)]
+#[path = "../feature_trace_tests.rs"]
+mod tests;

@@ -1,0 +1,1 @@
+Wait a moment: the bridge port just changed hands, and the plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}. If no plugin appears, run Devup Bridge again on the file.

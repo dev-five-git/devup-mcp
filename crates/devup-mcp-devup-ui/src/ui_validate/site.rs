@@ -461,7 +461,7 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                     "<{name}> is interactive ({}) but has neither a hover nor a focus style; it gives no feedback and a keyboard user cannot see focus on it.",
                     element.role.as_str()
                 ),
-                "Apply the role's recipe from the devup-implementation-plan skill: hover, _focusVisible (2px ring with offset), _active, cursor=\"pointer\" and _disabled where it applies, from existing theme tokens, with the shared transition. On a next/link, render it as <Box as={Link}> so the states are devup-ui props.",
+                include_str!("../text/site-interaction_findings-3f71ed85.md"),
             );
         } else if !element.focus {
             push(
@@ -600,7 +600,7 @@ pub fn metadata_finding(path: &str, source: &str) -> Option<Violation> {
         format!(
             "{path} exports no metadata, so the page has no title, description or share card of its own."
         ),
-        "Export metadata with title, description and openGraph (the devfive-frontend SEO rule); the root layout also carries the title template and metadataBase. A 'use client' page cannot export it: move the client part into a component.",
+        include_str!("../text/site-metadata_finding-e57c4614.md"),
     ))
 }
 

@@ -1,0 +1,1 @@
+Only the metered direct path is open, so an export needs the frame's Figma link. The Devup Bridge cannot be used from this process right now; paths.bridge.reason says why and what would change it.

@@ -1,0 +1,1 @@
+These are review prompts from actual captured fields. No screenshot was interpreted, browser was rendered, design intent was inferred or missing source image resolution was verified.

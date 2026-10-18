@@ -1,0 +1,1 @@
+Patterns from .changepacks/config.json. A leading `!` marks a tracked path; everything else is ignored. Whether your change needs a changepack is decided by this list, not by a general rule.

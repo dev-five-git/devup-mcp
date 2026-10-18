@@ -1,5 +1,10 @@
 # devup-mcp
 
+`/devup` starts `devup_project_plan` intake for projects, features, bug fixes,
+Figma pages and refactors. Read sources, settle every question, confirm the ERD
+and plan, then split supervisor work units; Figma screen planning is one branch.
+
+
 Rust-native MCP server that reads Figma designs and generates DevupUI artifacts. One binary acts as a local stdio MCP server and a read-only client of Figma Remote MCP.
 
 저장소는 Cargo workspace이며 `devup-mcp` 실행 crate, OAuth·upstream·snapshot을 담당하는 `devup-mcp-figma`, TSX·theme projection을 담당하는 `devup-mcp-devup-ui`, PNG 비교 library/CLI인 `devup-mcp-visual`로 구성됩니다. 별도 IR/auth/server crate 없이 MCP 제품 설치 단위는 `devup-mcp` 하나입니다.
@@ -1225,3 +1230,105 @@ HUG 검증은 원본과 일치하는 생성 auto-layout에서 크기 override �
 `outputPaths`의 프레임 출력 키는 `frame:<nodeId>:<output>`입니다. 예: `{"frame:3997:46715:tsx":"C:/allowed/Screen.tsx","frame:3997:46715:sourceMap":"C:/allowed/Screen.map.json"}`. `outputPathResults.supportedKeys`는 이번 투영에서 실제 쓸 수 있는 키를 열거합니다. 프레임 응답에 일반 `tsx`/`sourceMap` 키를 쓰거나 미지원·미생성 출력 키를 쓰면 `outputPathResults.diagnostics`에 명시하며 조용히 무시하지 않습니다. 최상위 단일 출력은 기존 일반 키를 사용합니다. `outputPaths` 응답은 성공적으로 커밋한 파일만 나타냅니다. 자산 binary는 계속 `assetRequests[].outputPath`를 사용합니다.
 
 명시적 `resource`와 자동 resource 전환 모두 `nextAction.tool/arguments`로 동일 artifact의 작은 본문 대조 예시를 제공합니다. 일반 화면은 단일 frame·단일 출력이며 파일을 다시 쓰지 않습니다. `sizeEstimate.outputBytes`는 기존 선택 출력의 UTF-8 바이트 수(PNG는 binary 바이트 수)이고 `minimumWireBytes`는 메타데이터를 제외한 JSON 중복 전송 하한입니다. 재투영 응답의 전체 크기는 실측하지 않았으므로 한도 미만의 경우에도 `inlineFit=unknown`입니다. 확실히 한도를 넘는 경우 resource를 안내하며, inline 크기 초과 시 기존 R12 교정 인자를 유지합니다. 자산 요청·출력 경로가 코드 URL을 결정하는 경우에는 원래 결합된 resource 인자를 유지하여 잘못된 본문 대조를 방지합니다.
+
+
+## Project intake comes first
+
+`/devup` is the entry point for new projects, existing features, bug fixes,
+Figma page implementation and refactors. Figma screen planning is a branch
+of the confirmed project plan; complete this section before the screen workflow below.
+
+Read sources before asking: `devup_project_context` for every supported scope,
+Atlassian MCP `getJiraIssue` / `searchJiraIssuesUsingJql` for issues, epic children
+and dependencies, referenced Confluence/spec documents, and Figma exploration
+(screen names, field labels, forms, tables and detail screens). Pass each read as
+`evidence: [{source, facts}]` to `devup_project_plan`. Facts use `goal`, `parts`,
+`figma` (links), `screens` ([{name, fields}]), and `<featureId>.screens`, `.states`,
+`.permissions`, `.forms`, `.notifications`. Backend decisions use `erd`, `tenancy`,
+`auth`, `lifecycle`, `indexes`, `storage`; delivery uses `jiraPolicy`, `branchPolicy`,
+`prPolicy`. A sourced fact is a default with its provenance, not another question.
+Sources are read by the runtime's connectors, never by treating a URL as its contents.
+
+1. `devup_project_plan intake` with projectRoot: always ask the four initial
+   questions with the runtime question tool (recommended option first): work type
+   (refactor may be a custom answer), optional Figma/Jira/spec sources, one-sentence
+   goal, and parts. Existing `apis/` recommends front + admin + API;
+   `apps/admin` recommends front + admin. Retain planId on every later call.
+2. Read newly named sources. `draft` with all initial answers, source-labelled
+   evidence and `features: [{id,scope,screens,acceptance}]` or
+   `issues: [{key,scope,dependencies,acceptance}]` (epic children are issues too).
+   Each unresolved feature gets concrete screen/role, state, permission,
+   validation, notification/integration rounds. Put all remaining unknowns into
+   extraQuestions. No implementation starts while a question remains unanswered.
+3. API in scope: inspect existing `vespertide.json` and `apis/*/models/*.json`.
+   Draft complete `entities` as vespertide model objects and `relations` with
+   from/to, cardinality oneToMany|manyToMany, column/joinTable and onDelete.
+   Signup/post Figma evidence seeds user/post entities and a user FK, but the
+   agent must expand every actual domain from the source evidence. Review the
+   ERD round, ownership/tenancy, auth with integer roles (0,10,50,100), status
+   enums, soft delete, audit timestamps, nullable fields, unique/composite keys,
+   filter/sort indexes, file/image storage and cascade/restrict/set_null actions.
+   Read https://github.com/dev-five-git/vespertide/blob/main/SKILL.md and schemas/.
+   Use snake_case, `$schema` on every model, inline PK/FK/unique/index constraints,
+   and table constraints only for CHECK. A manyToMany relation generates its join
+   table. modelsDir is relative to projectRoot; set it explicitly for multiple APIs.
+   Re-draft structured entities for requested corrections before confirming.
+4. When Figma is present, run the existing screen-plan draft/rounds/confirm
+   workflow (routes, groups, exclusions, site facts) before project confirm.
+5. Ask all delivery questions now: Jira none/comment/transition, branch, PR.
+   `devup_project_plan confirm` requires every applicable answer and writes source
+   models plus confirmed state in one transaction. Then in modelsWorkingDirectory
+   run the returned commands, in order: `vespertide diff`, `vespertide sql`,
+   `vespertide revision -m "confirmed project plan"`, `vespertide export --orm seaorm`.
+   The tool returns commands; the runtime executes and checks them. Never hand-write
+   migrations/ or src/models/. Build vespera CRUD and feature routes, openapi.json,
+   and the devup-api client; `devup_stack_diff` must show zero drift before done.
+6. Latest-first updates, vinext, exact layout, all interaction/site defaults,
+   runtime/visual audits and the existing never-wait rules below still apply.
+   After confirm, use project-plan defer with id/reason/recommended/destructive;
+   continue independent work. At the end assume with no decisions resolves all
+   pending recommendations; destructive decisions remain unbuilt. Status includes
+   ERD Mermaid, decisions and the unit table; retain unresolved evidence in reports.
+
+## Supervisor execution
+
+`devup_project_plan split` splits work, not files. Jira input produces one unit
+per issue/sub-task with its explicit dependencies (reject cycles/unknown IDs).
+Without Jira, it produces shared layout/theme first, then each feature's
+models -> API -> client -> front chain; front-only features depend on shared.
+Review cross-feature dependencies before dispatch; the supervisor sequences
+shared database work to avoid concurrent schema edits. Each unit has acceptance
+criteria and build/lint/typecheck/tests/validate/runtime/visual/stack-diff checks.
+`.devup/units/<id>.md` contains scope, decisions, ERD and screen context, and checklist.
+
+Default `unitQuestions: "supervisor"` means workers never ask the user: questions
+were settled across all units during intake, and supervisor ownership avoids
+repeated questions and keeps decisions consistent. `unitQuestions: "worker"`
+is an explicit alternative, still subject to the confirmed never-wait policy.
+Load `orca-cli` and `orchestration` skills to create one worktree per unit,
+dispatch the DAG in parallel where independent, collect worker_done, and rerun
+each unit's checks yourself before merging. New decisions use orchestration
+ask/reply to the supervisor: answer from recorded decisions, or defer with a
+recommended option while the worker continues other work. Send failed checks
+back to the same worker session. Update unit states with status unitUpdates
+(pending -> running -> verifying -> merged, or unresolved); merged needs recorded
+supervisor verification. Without Orca, execute the same units sequentially in one
+session. Only under the recorded Jira/PR policy, comment results and PR link and
+transition issues. Final report includes the unit table, DAG, ERD and unresolved
+items; never claim completion from split or command generation alone.
+
+
+
+Source organization: Rust source under `crates/` is limited to 1000 lines per
+file, including tests. The existing size-contract test checks this alongside
+all embedded JSON text assets. Source sections use `include!` inside the
+original module namespace to retain narrow privacy and existing test names.
+Long tool text is in `crates/devup-mcp/src/server/text/`; other crates use
+`src/text/`. `include_str!` keeps these assets inside the binary.
+
+App selection keyword overrides in `.devup/screen-plan.config.json`:
+```json
+{"appSelectionKeywords":{"publicApps":["storefront"],"admin":["controlroom"],"publicScreens":["catalogue"],"adminRoutes":["control"]}}
+```
+Each supplied category replaces its defaults; omitted categories retain the
+vendored defaults. An empty category explicitly disables its keyword matches.

@@ -1,0 +1,1 @@
+No skill root exists yet and the MCP client did not identify itself, so every known convention is written. One of them is the one your runtime reads.

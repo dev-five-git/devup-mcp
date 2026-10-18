@@ -1,0 +1,1 @@
+Filled from the plan, the verified screenshot and the executor's report. Export the frame with outputs ["referencePng"] first and put its artifactId in reference; devup_visual_compare pins that reference itself. The fields in consumerMustAdd are the consumer's to state.

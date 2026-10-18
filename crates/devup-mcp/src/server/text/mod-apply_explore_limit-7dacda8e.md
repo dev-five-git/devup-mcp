@@ -1,0 +1,1 @@
+Two cuts: limit {limit} returned {returned} of {found} candidates, and the Figma projection was itself incomplete, so further screens may exist that no limit would bring back. Raise limit to see collected candidates, or explore a narrower anchor for missing screens. Text previews use a separate budget and do not change candidate count, IDs, or projection truncation.

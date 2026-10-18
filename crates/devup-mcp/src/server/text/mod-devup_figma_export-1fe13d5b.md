@@ -1,0 +1,1 @@
+Request each frame by its direct canonicalUrl with outputs including referencePng and scope=node. For multiple selected frames, repeat once per direct frame URL. If the cached file URL is unavailable, copy the frame link from Figma.

@@ -1,0 +1,1 @@
+The code still equals the export and the browser box differs from Figma: a devup-mcp converter bug. File the repro; a local override may finish the site only with a comment naming the repro file. Retrying does not help.

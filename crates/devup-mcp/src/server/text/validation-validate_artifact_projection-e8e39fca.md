@@ -1,0 +1,1 @@
+This artifact cannot serve these outputs without calling Figma again. Repeat the call with this url instead of artifactId, keeping any assetRequests and outputPaths you sent; the new acquisition captures what is missing.

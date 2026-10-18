@@ -1,0 +1,1 @@
+The intended host. devup-mcp registers under client_name Codex by default, so devup_figma_auth { action: "login" } completes from a Codex install with no extra flags and no client_id/client_secret. Add --figma-client-name only once your own client is admitted to the Figma MCP catalog.

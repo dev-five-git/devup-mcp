@@ -1,0 +1,1 @@
+data-figma-node-id is the node at the widest width the element is shown at; data-figma-node-ids lists "<width>:<nodeId>" for every drawn width it is shown at, widest first, space-separated, so [data-figma-node-ids~="390:56:78"] selects it at one width. hiddenAt lists the drawn widths it is hidden at.

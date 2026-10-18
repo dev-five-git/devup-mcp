@@ -1,0 +1,1 @@
+devup-mcp writes only inside an allowed output root, and the home directory is not one. Widening that so a design-to-code server can write to $HOME is not a trade worth making, so the path is yours to fill.

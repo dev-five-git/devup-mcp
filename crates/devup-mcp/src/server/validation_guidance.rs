@@ -37,7 +37,7 @@ pub(super) fn guidance(
         "recoveryState":"manual-fix-required",
         "recoveryReason":format!("Automatic source correction is unavailable. {}. This does not mean the source is unfixable or that the tool failed to execute.", reasons.into_iter().collect::<Vec<_>>().join("; ")),
         "nextAction":null,
-        "nextActionReason":"Edit the source using the blocking violations' byteRange, rule and suggestion, then validate again with the same projectRoot and strict setting. Repeating unchanged arguments cannot resolve these findings."
+        "nextActionReason":include_str!("text/validation_guidance-guidance-d8ac2119.md")
     })
 }
 

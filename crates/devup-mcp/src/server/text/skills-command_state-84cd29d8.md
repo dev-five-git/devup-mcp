@@ -1,0 +1,1 @@
+devup-mcp writes no slash command for {}: no command location for it is verified. The devup skill is installed with the others and loads by its description, and the server's instructions start the workflow on a request to build pages.

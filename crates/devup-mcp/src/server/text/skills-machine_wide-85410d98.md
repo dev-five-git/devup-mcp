@@ -1,0 +1,1 @@
+Copy the installed skill directories there, or install them with your runtime's own skill tooling. A skill found in this directory is reported as installed by every later call, for every project.

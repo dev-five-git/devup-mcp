@@ -1,0 +1,1 @@
+Frames that look like the same screen sit in different sections ({}): {}. They look related because of {why}. Which is it? A custom answer may list one route per frame, e.g. "/a, /b".

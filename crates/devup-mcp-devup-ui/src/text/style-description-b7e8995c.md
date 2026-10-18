@@ -1,0 +1,1 @@
+widthPolicy: a vector with a zero-height bounding box and a solid stroke is a straight rule; its box follows the parent's width under a stretch or scale anchor, so the mask is sized to the box (100% 100%) instead of keeping its drawn length. Stroke caps, if any, scale along the line.

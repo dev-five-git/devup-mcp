@@ -686,11 +686,8 @@ fn callback_port_in_use_error(port: u16, _error: std::io::Error) -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupFigmaCallbackPortInUse,
         format!(
-            "The configured Figma auth callback port {port} is already in use by another \
-             process. If the OS or security software holds this port, the browser looks like \
-             the redirect succeeded, but the request is delivered to that other process instead \
-             of devup-mcp, so authentication never completes. Stop the process holding the port, \
-             or pick a different port with --figma-callback-port."
+            include_str!("text/oauth-callback_port_in_use_error-049191b7.md"),
+            port = port
         ),
         false,
         serde_json::json!({ "port": port }),

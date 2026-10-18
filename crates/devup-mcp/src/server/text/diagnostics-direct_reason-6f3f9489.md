@@ -1,0 +1,1 @@
+An unexpired access token is stored while the direct path reports itself unusable — these are measured separately and have disagreed. Re-run devup_figma_auth { action: "status" }, then devup_figma_auth { action: "login" } if it still answers disconnected.

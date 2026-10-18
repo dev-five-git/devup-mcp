@@ -1,0 +1,1 @@
+It looks identical to a client devup-mcp does know whose name has since changed. If `clientName` above is a client with its own skill directory, that directory is missing from devup-mcp's table and reporting the name is how it gets added.

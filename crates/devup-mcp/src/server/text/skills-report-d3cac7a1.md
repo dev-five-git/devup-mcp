@@ -1,0 +1,1 @@
+Installed, loading, and not what this build writes. `installed` means the file is there; `installState.revision` says whether it is current, and a skill listed here is teaching an agent rules this binary no longer emits. Installing again rewrites devup-mcp's own copies and leaves a `foreign` one - a document with no devup-mcp provenance note - alone.

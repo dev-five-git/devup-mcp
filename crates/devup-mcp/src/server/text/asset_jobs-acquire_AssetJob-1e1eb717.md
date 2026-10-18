@@ -1,0 +1,1 @@
+Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames.

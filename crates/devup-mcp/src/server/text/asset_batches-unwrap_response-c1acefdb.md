@@ -1,0 +1,1 @@
+Each batch must contain its export source.fileKey (or, from a Devup Bridge plugin that could not report one, source.fileName); pending jobs and bare manifests cannot establish source identity

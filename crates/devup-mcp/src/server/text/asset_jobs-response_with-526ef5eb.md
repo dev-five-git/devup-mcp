@@ -1,0 +1,1 @@
+Rows carry identity, status, bytes and file state only. Poll with responseFields to read full rows (exportDiagnostics, renderInfo); a completed job also carries them in its assetManifest.

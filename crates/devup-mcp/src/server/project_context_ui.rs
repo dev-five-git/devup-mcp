@@ -548,7 +548,7 @@ pub(super) fn run(root: &Path, filter: Option<&str>) -> Value {
         "truncation":{"truncated":false,"capsHit":[],"omitted":{"components":0,"routes":0,"diagnostics":0,"excludedPaths":0}},
         "evidenceNotes":["Syntactic evidence, not a TypeScript type check: uppercase exported functions, component factories, classes and reexports are candidates. Inspect unresolved props before reuse.",
             "client records the file's use client directive, not transitive client-bundle membership.",
-            "importedBy includes static import/reexport sites resolved through named barrels; routes describe static module reachability, not proof a component renders. Dynamic imports, runtime conditions and package export maps are not evaluated.",
+            include_str!("text/project_context_ui-run-9d95e12b.md"),
             "Unparsed files may contain additional components; totalComponents counts parsed candidates only. Check diagnostics and truncation before concluding no reusable component exists."]
     });
     if owners.len() > 1 {

@@ -1,0 +1,1 @@
+{output} is the collected design in raw form, for deciding whether a screen that looks wrong is the generator's fault or the design's. It is not needed to implement anything - the tsx already carries what it carries - and requesting it by habit is most of the response. Pass debug: true to read it.

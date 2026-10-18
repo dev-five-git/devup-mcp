@@ -1,0 +1,1 @@
+A URL is done when every check and comparison passes at its drawn widths and health and overflow pass at every width, or each remaining finding is a converter bug with its repro filed, or unresolved with its evidence after maxFixAttempts fix-and-rerun rounds. Layout is exact: a geometry mismatch is code drift (restore the export) or a converter bug, never tuned by hand.

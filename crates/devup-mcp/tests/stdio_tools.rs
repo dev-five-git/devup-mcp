@@ -174,6 +174,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_measure",
             "devup_figma_search",
             "devup_project_context",
+            "devup_project_plan",
             "devup_runtime_audit",
             "devup_screen_plan",
             "devup_skills",

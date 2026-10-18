@@ -177,7 +177,7 @@ pub(super) fn report(root: &Path) -> Value {
     json!({
         "framework": if kinds.len() == 1 { json!(kinds.iter().next()) } else { Value::Null },
         "apps": apps.iter().map(App::json).collect::<Vec<_>>(),
-        "note": "vinext runs Next.js App Router on Vite: an app with a vinext dependency, vinext scripts or a vite.config importing vinext is an App Router app even with no next dependency and no next.config.",
+        "note": include_str!("text/framework-report-6fa8f9df.md"),
     })
 }
 

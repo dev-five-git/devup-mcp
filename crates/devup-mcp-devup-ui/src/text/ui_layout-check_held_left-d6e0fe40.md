@@ -1,0 +1,1 @@
+{} is drawn {}px from the right edge of a container that follows the viewport, but held by its left edge, so at any other width it stays where it was drawn. If it belongs to the right edge, hold it there (right="{}px").

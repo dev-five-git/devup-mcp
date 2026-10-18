@@ -1,0 +1,1 @@
+The direct path reports itself usable while no access token is stored — these are measured separately and have disagreed. Treat the path as unusable and re-run devup_figma_auth { action: "login" }.

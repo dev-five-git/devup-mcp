@@ -1,0 +1,1 @@
+push_effects: visible effects in source order; shadow offset.x/y, radius, spread and bound/resolved RGBA color; textShadow omits spread; blur uses radius. Existing effect-loss diagnostics still apply.

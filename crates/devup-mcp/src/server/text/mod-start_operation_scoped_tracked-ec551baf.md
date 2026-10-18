@@ -1,0 +1,1 @@
+No Figma path is open for this file. Preferred: run the Devup Bridge plugin on this file in the Figma desktop app — it needs no login and spends no Figma allowance. Otherwise authorize the metered direct connection with devup_figma_auth login.

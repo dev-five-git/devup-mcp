@@ -1,0 +1,1 @@
+Raster/image paint: WebP is a candidate for photos and raster content; content classification is unknown. Alpha is preserved; use lossless for text, certificates and crisp edges, and inspect lossy RGB quality.

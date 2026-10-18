@@ -1,0 +1,1 @@
+Render at each implemented viewport with project fonts/assets loaded and capture a screenshot; call devup_visual_compare against referencePng. Report skipped comparisons and remaining viewports explicitly.

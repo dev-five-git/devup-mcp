@@ -1,0 +1,1 @@
+Export exceeds the asset batch budget. Split assetRequests into calls of 1–3 assets (maximum 6); retain each format, scale and outputPath. Poll or resume an existing assetJob instead of restarting it.

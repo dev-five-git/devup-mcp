@@ -1,0 +1,1 @@
+For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation.

@@ -1,0 +1,1 @@
+These are the conventions for the code devup-mcp emits and reads. Install the missing ones, then let your own skill loader surface them - an installed skill keeps applying for every later session, which is the thing reading a document once does not do.

@@ -1,0 +1,1 @@
+Export-boundary arithmetic is reported separately. Inherited/default constraints, SCALE/STRETCH, changed local geometry or an unverified containing block do not prove source placement intent.

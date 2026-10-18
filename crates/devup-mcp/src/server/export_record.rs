@@ -384,7 +384,7 @@ pub(super) fn write_repro(
         "codeFile": file,
         "page": finding["routePath"],
         "screenshot": finding["evidence"]["screenshot"],
-        "why": "The element's code still equals the export output, yet the browser box differs from the Figma box: the converter produced the wrong layout. Retrying does not change a deterministic result.",
+        "why": include_str!("text/export_record-write_repro-ab60ad0a.md"),
         "file": "Report it to devup-mcp with this file. A local override may finish the site, but it must carry a comment naming this file.",
     });
     let path = Path::new(project_root)

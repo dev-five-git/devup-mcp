@@ -1,0 +1,1 @@
+push_animation_props follows timed Smart Animate destinations in the collected snapshot, computes changed property keyframes and timing. Existing unreachable/unsupported animation diagnostics still apply.

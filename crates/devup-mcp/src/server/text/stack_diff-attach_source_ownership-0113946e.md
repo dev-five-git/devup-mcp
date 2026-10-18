@@ -1,0 +1,1 @@
+Review the human-authored frontend call and upstream route handlers or devup tags. Correct the call or route declaration, rebuild so Vespera regenerates openapi.json, then regenerate the @devup-api client from that spec.

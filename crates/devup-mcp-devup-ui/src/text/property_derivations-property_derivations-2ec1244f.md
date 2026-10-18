@@ -1,0 +1,1 @@
+Spaces adjacent to explicit breaks in non-list, unclamped text with fixed inline width use pre-wrap. This preserves source whitespace without changing Korean word-breaking policy; it does not establish glyph or wrapping parity.

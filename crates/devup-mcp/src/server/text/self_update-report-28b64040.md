@@ -1,0 +1,1 @@
+The path of the file, not a statement about the version. A directory named after a version is the host's, fixed when it installed; self-update replaces the file inside it and never renames the directory. Read server.commit/buildId for what is actually running.

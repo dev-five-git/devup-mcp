@@ -1,0 +1,1 @@
+Content is wider than the viewport{}: give the element maxW="100%", let its row wrap (flexWrap="wrap") or shrink (minW={{0}}), and turn a fixed Figma width into a responsive value at this width.

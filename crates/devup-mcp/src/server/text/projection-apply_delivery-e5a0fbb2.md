@@ -1,0 +1,1 @@
+Existing output UTF-8/binary bytes; minimumWireBytes doubles its JSON encoding (base64 for PNG). This lower bound excludes metadata/diagnostics. The new projection's full MCP response has not been measured and can still exceed the limit.

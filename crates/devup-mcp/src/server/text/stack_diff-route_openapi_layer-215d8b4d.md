@@ -1,0 +1,1 @@
+These route declarations depend on cfg/cfg_attr configuration and may be compiled out. They are excluded from definite route counts and missing-from-spec findings; inspect the build configuration before rebuilding the generated spec.

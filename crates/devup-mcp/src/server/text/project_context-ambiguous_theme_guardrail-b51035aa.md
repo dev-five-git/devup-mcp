@@ -1,0 +1,1 @@
+This project has {} devup.json files and none of them is at the project root, so none of them governs all of it. The unknown-token check was skipped rather than run against an arbitrarily chosen one. Call again with projectRoot set to the package whose code is being validated; candidateProjectRoots lists the value that selects each theme.

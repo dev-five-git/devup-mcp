@@ -45,7 +45,7 @@ enum Step {
 fn invalid() -> DevupError {
     DevupError::new(
         ErrorCode::DevupInvalidInput,
-        "Selection accepts at most 16 paths of 256 bytes and 8 steps: dot fields, [index], [name=\"exact\"] or [id=\"exact\"]. No wildcards, code, recursion or expressions. responseLimit is 1..200; responseOffset is at most 100000.",
+        include_str!("text/compact-invalid-7f830631.md"),
         false,
     )
 }

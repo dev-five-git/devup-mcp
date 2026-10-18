@@ -1,0 +1,1 @@
+{id} binds {property} to a {kind} the resource catalog did not name, so the resolved value was written instead of its token. Collect the resource, or treat the value in the generated code as a token that still needs a name.

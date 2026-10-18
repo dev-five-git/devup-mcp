@@ -1,0 +1,1 @@
+A visible gradient has insufficient stops for CSS. Recapture the missing paint geometry or explicitly flatten the entire subtree; this composition cannot be reconstructed from the collected fields.

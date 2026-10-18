@@ -1,0 +1,1 @@
+Make the per-user relay secret readable and writable for this user (see paths.bridge.reason), or restart the MCP client session holding port {port}{holder} so this process can take the port over.

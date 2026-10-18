@@ -1,0 +1,1 @@
+Provide a definite height on this generated root matching its captured FIXED height so its emitted vertical FILL child can grow into the remaining space. A host height alone is insufficient unless the root also receives that height; preserve the child's emitted flex growth and following action order.

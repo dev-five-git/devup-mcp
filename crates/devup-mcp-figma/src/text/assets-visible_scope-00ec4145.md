@@ -1,0 +1,1 @@
+Visible capture requires an acquired ancestor scope. Recollect the parent frame URL, then supply nodeId and visibleScopeNodeId for that node or an in-scope ancestor; outside-scope context is unavailable.

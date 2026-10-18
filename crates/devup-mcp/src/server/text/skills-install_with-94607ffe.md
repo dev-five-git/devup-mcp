@@ -1,0 +1,1 @@
+Load the newly installed skills the way your runtime loads a project skill, and run any command under notInstallable yourself. Call devup_skills again to confirm the state changed.

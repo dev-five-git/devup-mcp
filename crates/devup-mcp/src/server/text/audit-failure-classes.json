@@ -1,0 +1,11 @@
+[
+  "runtime-error",
+  "overflow",
+  "layout-position",
+  "layout-size",
+  "asset-mismatch",
+  "section-visual",
+  "page-visual",
+  "interaction",
+  "view-transition"
+]

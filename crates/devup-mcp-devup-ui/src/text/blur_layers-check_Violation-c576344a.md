@@ -1,0 +1,1 @@
+Static review cannot establish intended decoration, conditional visibility, external CSS, dynamic/custom ancestor effects or browser pixels; this warning does not prove a missing layer.

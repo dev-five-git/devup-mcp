@@ -1,0 +1,1 @@
+Horizontal/vertical SPACE_BETWEEN becomes center for exactly one visible non-ABSOLUTE child; child membership, visibility and positioning determine the count. This mapping does not claim pixel parity.

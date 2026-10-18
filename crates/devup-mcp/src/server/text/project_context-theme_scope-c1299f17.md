@@ -1,0 +1,1 @@
+Distinct token names across all categories and modes in this file before filtering; tokenCount is a compatibility alias of totalTokenCount. matchedTokenCount uses the same deduplication after filtering. Category counts deduplicate names within each category.

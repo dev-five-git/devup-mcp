@@ -1,0 +1,1 @@
+In the Figma desktop app, open the file and run Plugins -> Development -> Devup Bridge (imported once from plugin/manifest.json), keeping its window open. No login is needed and no Figma allowance is spent.

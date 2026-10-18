@@ -1,0 +1,1 @@
+Review the human-authored route shapes and whether the column is intentionally internal. Edit route handlers for API exposure; for database changes, edit models/*.json and run vespertide revision/export, then rebuild the routes and regenerate the client.

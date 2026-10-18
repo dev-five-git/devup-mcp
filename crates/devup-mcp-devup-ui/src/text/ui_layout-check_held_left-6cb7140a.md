@@ -1,0 +1,1 @@
+{} is drawn with equal gaps on both sides of a container that follows the viewport, but held by its left edge, so it drifts off-centre at any other width. Centre it (left="50%" with transform="translateX(-50%)") or stretch it between the gaps (left and right).

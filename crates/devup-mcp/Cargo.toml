@@ -51,3 +51,4 @@ tokio = { workspace = true, features = ["test-util"] }
 # figma crate's transport tests use, so the tool surface is driven end to end.
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
+jsonschema = "0.59.0"

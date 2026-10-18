@@ -1,0 +1,996 @@
+use std::{
+    collections::BTreeSet,
+    future::Future,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use async_trait::async_trait;
+use rmcp::{
+    ServiceExt,
+    model::CallToolRequestParams,
+    transport::{
+        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+    },
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+use tokio::sync::Mutex;
+
+use super::{
+    AssetRequest, AuthStatus, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager,
+    ResourceBatch, UpstreamFailureContext, UpstreamFailureKind,
+    collector::MAX_REFERENCE_PNG_DIMENSION, upstream_failure_error,
+};
+
+const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
+const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
+const REMOTE_SESSION_TTL: Duration = Duration::from_secs(30);
+const REMOTE_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const REMOTE_LIST_TOOLS_TIMEOUT: Duration = Duration::from_secs(30);
+const REMOTE_CALL_TOOL_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const READ_ONLY_TOOL_NAMES: [&str; 6] = [
+    "get_metadata",
+    "get_variable_defs",
+    "get_design_context",
+    "get_code_connect_map",
+    "get_screenshot",
+    "use_figma",
+];
+
+type RunningFigmaClient = rmcp::service::RunningService<rmcp::RoleClient, ()>;
+
+// Keep at most one initialized MCP session for 30 seconds. Its capability catalog is fetched
+// once, intersected with the locally compiled ReadToolCall allowlist, and reused concurrently.
+// A closed session, TTL expiry, or tools/call transport failure evicts it; the next request then
+// reconnects with a freshly resolved OAuth token and re-verifies the catalog. No remote-only tool
+// name can cross this boundary, even when the server advertises it.
+#[derive(Clone)]
+struct RemoteSessionCache {
+    ttl: Duration,
+    connect_timeout: Duration,
+    list_tools_timeout: Duration,
+    state: Arc<Mutex<Option<CachedRemoteSession>>>,
+}
+
+#[derive(Clone)]
+struct RemoteSession {
+    client: Arc<RunningFigmaClient>,
+    capabilities: Arc<BTreeSet<String>>,
+}
+
+struct CachedRemoteSession {
+    created_at: Instant,
+    session: RemoteSession,
+}
+
+impl RemoteSessionCache {
+    fn new(ttl: Duration) -> Self {
+        Self::with_timeouts(ttl, REMOTE_CONNECT_TIMEOUT, REMOTE_LIST_TOOLS_TIMEOUT)
+    }
+
+    fn with_timeouts(
+        ttl: Duration,
+        connect_timeout: Duration,
+        list_tools_timeout: Duration,
+    ) -> Self {
+        Self {
+            ttl,
+            connect_timeout,
+            list_tools_timeout,
+            state: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    async fn get_or_connect<F, Fut>(&self, connect: F) -> Result<RemoteSession, DevupError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<RunningFigmaClient, DevupError>>,
+    {
+        let mut cached = self.state.lock().await;
+        if let Some(current) = cached.as_ref()
+            && current.created_at.elapsed() < self.ttl
+            && !current.session.client.is_closed()
+        {
+            return Ok(current.session.clone());
+        }
+        let client = Arc::new(
+            tokio::time::timeout(self.connect_timeout, connect())
+                .await
+                .map_err(|_| upstream_timeout_error(UpstreamFailureContext::Connect))??,
+        );
+        let capabilities = tokio::time::timeout(self.list_tools_timeout, client.list_all_tools())
+            .await
+            .map_err(|_| upstream_timeout_error(UpstreamFailureContext::ListTools))?
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .filter(|name| is_read_only_tool_name(name))
+            .collect::<BTreeSet<_>>();
+        let session = RemoteSession {
+            client,
+            capabilities: Arc::new(capabilities),
+        };
+        *cached = Some(CachedRemoteSession {
+            created_at: Instant::now(),
+            session: session.clone(),
+        });
+        Ok(session)
+    }
+
+    async fn invalidate(&self, session: &RemoteSession) {
+        let mut cached = self.state.lock().await;
+        if cached
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(&current.session.client, &session.client))
+        {
+            cached.take();
+        }
+    }
+
+    async fn call_tool(
+        &self,
+        session: &RemoteSession,
+        call: &ReadToolCall,
+        timeout: Duration,
+    ) -> Result<rmcp::model::CallToolResult, DevupError> {
+        let result = tokio::time::timeout(
+            timeout,
+            session.client.call_tool(
+                CallToolRequestParams::new(call.tool_name()).with_arguments(call.arguments()),
+            ),
+        )
+        .await;
+        match result {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(error)) => {
+                self.invalidate(session).await;
+                Err(map_upstream_error(UpstreamFailureContext::CallTool, error))
+            }
+            Err(_) => {
+                self.invalidate(session).await;
+                Err(upstream_timeout_error(UpstreamFailureContext::CallTool))
+            }
+        }
+    }
+}
+
+fn is_read_only_tool_name(name: &str) -> bool {
+    READ_ONLY_TOOL_NAMES.contains(&name)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinScript {
+    MeasureNodes,
+    BridgeContext,
+    NodeSnapshot,
+    FastSnapshotEnvelope,
+    FastThemeEnvelope,
+    PageCatalog,
+    SearchSnapshot,
+    VariableCatalog,
+    LocalVariables,
+    UsedResources,
+    ExploreSnapshot,
+    SectionIndex,
+    MultiRootSnapshotEnvelope,
+    LargeValue,
+    AssetExport,
+}
+
+impl BuiltinScript {
+    fn source(self, node_id: &str, inputs: ScriptInputs<'_>) -> String {
+        let default_root_ids = [node_id.to_owned()];
+        let node_id = serde_json::to_string(node_id).expect("node id serializes");
+        let source = match self {
+            Self::MeasureNodes => include_str!("../scripts/measure_nodes.js"),
+            Self::BridgeContext => include_str!("../scripts/bridge_context.js"),
+            Self::NodeSnapshot => include_str!("../scripts/snapshot.js"),
+            Self::FastSnapshotEnvelope => include_str!("../scripts/fast_snapshot.js"),
+            Self::FastThemeEnvelope => include_str!("../scripts/fast_theme.js"),
+            Self::PageCatalog => include_str!("../scripts/page_catalog.js"),
+            Self::SearchSnapshot => include_str!("../scripts/search.js"),
+            Self::VariableCatalog => include_str!("../scripts/variable_catalog.js"),
+            Self::LocalVariables => include_str!("../scripts/variables.js"),
+            Self::UsedResources => include_str!("../scripts/used_resources.js"),
+            Self::ExploreSnapshot => include_str!("../scripts/explore.js"),
+            Self::SectionIndex => include_str!("../scripts/section_index.js"),
+            Self::MultiRootSnapshotEnvelope => include_str!("../scripts/fast_snapshot.js"),
+            Self::LargeValue => include_str!("../scripts/large_value.js"),
+            Self::AssetExport => include_str!("../scripts/assets.js"),
+        };
+        let empty_resources = ResourceBatch {
+            variable_ids: Vec::new(),
+            styles: Vec::new(),
+        };
+        let resources = serde_json::to_string(inputs.resources.unwrap_or(&empty_resources))
+            .expect("resource batch serializes");
+        let search = serde_json::to_string(inputs.search.unwrap_or(&SearchReadOptions::default()))
+            .expect("search options serialize");
+        let explore =
+            serde_json::to_string(inputs.explore.unwrap_or(&ExploreReadOptions::default()))
+                .expect("explore options serialize");
+        let snapshot =
+            serde_json::to_string(inputs.snapshot.unwrap_or(&SnapshotReadOptions::default()))
+                .expect("snapshot options serialize");
+        let root_ids = serde_json::to_string(inputs.root_ids.unwrap_or(&default_root_ids))
+            .expect("root ids serialize");
+        let mut large_value =
+            serde_json::to_value(inputs.large_value.unwrap_or(&LargeValueReadOptions {
+                node_id: String::new(),
+                field: String::new(),
+                offset: 0,
+                max_chunk_bytes: 1,
+                byte_length: 0,
+                sha256: String::new(),
+                version: None,
+            }))
+            .expect("large value options serialize");
+        if large_value["field"]
+            .as_str()
+            .is_some_and(|field| field.starts_with("$export:"))
+        {
+            large_value["timeoutMs"] = json!(crate::asset_timeout().as_millis() as u64);
+        }
+        let large_value = large_value.to_string();
+        let asset = inputs
+            .asset
+            .map(|(request, version)| {
+                json!({
+                    "assetId": request.asset_id,
+                    "renderMode": request.render_mode,
+                    "usageAspectRatio":request.usage_aspect_ratio,"maxWidth":request.max_width,"srcset":request.srcset,"visibleScopeNodeId":request.visible_scope_node_id,
+                    "nodeId": request.node_id,
+                    "field": request.field,
+                    "imageHash": request.image_hash,
+                    "format": request.format,
+                    "quality": request.quality,
+                    "lossless": request.lossless,
+                    "scale": request.scale,
+                    "timeoutMs": crate::asset_timeout().as_millis() as u64,
+                    "version": version
+                })
+            })
+            .unwrap_or_else(|| json!({}));
+        let asset = serde_json::to_string(&asset).expect("asset options serialize");
+        let theme = serde_json::to_string(&json!({ "offset": inputs.theme_offset.unwrap_or(0) }))
+            .expect("theme page options serialize");
+        source
+            .replace(
+                "\"__DEVUP_COMPONENT_IDENTITY_HELPERS__\"",
+                include_str!("../scripts/component_identity_helpers.js"),
+            )
+            .replace(
+                "\"__DEVUP_ASSET_RENDER_HELPERS__\"",
+                include_str!("../scripts/asset_render_helpers.js"),
+            )
+            .replace(
+                "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
+                include_str!("../scripts/large_value_helpers.js"),
+            )
+            .replace("\"__DEVUP_NODE_ID__\"", &node_id)
+            .replace("\"__DEVUP_ROOT_IDS__\"", &root_ids)
+            .replace(
+                "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
+                include_str!("../plugin_api_manifest.json"),
+            )
+            .replace(
+                "\"__DEVUP_TEXT_SEGMENT_MANIFEST__\"",
+                include_str!("../text_segment_manifest.json"),
+            )
+            .replace("\"__DEVUP_RESOURCE_BATCH__\"", &resources)
+            .replace("\"__DEVUP_SEARCH__\"", &search)
+            .replace("\"__DEVUP_EXPLORE__\"", &explore)
+            .replace("\"__DEVUP_SNAPSHOT__\"", &snapshot)
+            .replace("\"__DEVUP_LARGE_VALUE__\"", &large_value)
+            .replace("\"__DEVUP_ASSET__\"", &asset)
+            .replace("\"__DEVUP_THEME__\"", &theme)
+    }
+}
+
+#[derive(Default)]
+struct ScriptInputs<'a> {
+    resources: Option<&'a ResourceBatch>,
+    search: Option<&'a SearchReadOptions>,
+    explore: Option<&'a ExploreReadOptions>,
+    snapshot: Option<&'a SnapshotReadOptions>,
+    root_ids: Option<&'a [String]>,
+    large_value: Option<&'a LargeValueReadOptions>,
+    asset: Option<(&'a AssetRequest, Option<&'a str>)>,
+    theme_offset: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotReadOptions {
+    /// 봉투 전체가 넘을 수 없는 바이트 수. `0` 이면 스크립트 기본 천장.
+    ///
+    /// 공식 MCP 는 텍스트 결과를 자르므로 그 아래로 쪼개 여러 번 읽어야 한다.
+    /// 로컬 소켓에는 그 자름이 없어 한 번에 담을 수 있고, 그만큼 왕복이 사라진다.
+    #[serde(default)]
+    pub max_envelope_bytes: usize,
+    pub offset: usize,
+    pub max_payload_bytes: usize,
+    pub max_field_bytes: usize,
+}
+
+impl Default for SnapshotReadOptions {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            // The node payload of one page. The Figma MCP cuts a text result at
+            // 20,480 UTF-8 bytes, and the fast script packs the page against
+            // that with the resources it carries; the measurement is written
+            // up in `scripts/fast_snapshot.js`.
+            max_payload_bytes: 15_000,
+            max_field_bytes: 4_096,
+            // 0 이면 스크립트가 위에서 잰 천장을 그대로 쓴다. 자름이 없는 전송
+            // (로컬 브리지)만 이 값을 올려 한 페이지에 전부 담는다.
+            max_envelope_bytes: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchReadOptions {
+    pub query: String,
+    #[serde(default)]
+    pub node_types: Vec<String>,
+    pub match_kind: String,
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExploreReadOptions {
+    pub projection_limit: usize,
+    pub text_preview_limit: usize,
+}
+
+impl Default for ExploreReadOptions {
+    fn default() -> Self {
+        Self {
+            projection_limit: 200,
+            text_preview_limit: 160,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReadToolCall {
+    Metadata {
+        file_key: String,
+        node_id: Option<String>,
+    },
+    VariableDefs {
+        file_key: String,
+        node_id: String,
+    },
+    DesignContext {
+        file_key: String,
+        node_id: String,
+    },
+    CodeConnectMap {
+        file_key: String,
+        node_id: String,
+    },
+    Screenshot {
+        file_key: String,
+        node_id: String,
+    },
+    Snapshot {
+        file_key: String,
+        node_id: String,
+        script: BuiltinScript,
+        resources: Option<ResourceBatch>,
+        snapshot: Option<SnapshotReadOptions>,
+        root_ids: Option<Vec<String>>,
+    },
+    SearchSnapshot {
+        file_key: String,
+        node_id: String,
+        options: SearchReadOptions,
+    },
+    PageCatalog {
+        file_key: String,
+    },
+    ExploreSnapshot {
+        file_key: String,
+        node_id: String,
+        options: ExploreReadOptions,
+    },
+    FastTheme {
+        file_key: String,
+        /// Where in the file's resources the page starts; the first page is
+        /// 0, and each page says where the next begins.
+        offset: usize,
+    },
+    LargeValue {
+        file_key: String,
+        options: LargeValueReadOptions,
+    },
+    AssetExport {
+        file_key: String,
+        version: Option<String>,
+        request: Box<AssetRequest>,
+    },
+}
+
+impl ReadToolCall {
+    /// Fixed, bounded node-list read. No descendants, resources or image bytes.
+    pub fn measure_nodes(file_key: impl Into<String>, node_ids: Vec<String>) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: String::new(),
+            script: BuiltinScript::MeasureNodes,
+            resources: None,
+            snapshot: None,
+            root_ids: Some(node_ids),
+        }
+    }
+
+    pub fn metadata(file_key: impl Into<String>, node_id: Option<&str>) -> Self {
+        Self::Metadata {
+            file_key: file_key.into(),
+            node_id: node_id.map(str::to_owned),
+        }
+    }
+
+    pub fn variable_defs(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::VariableDefs {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+        }
+    }
+
+    pub fn design_context(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::DesignContext {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+        }
+    }
+
+    pub fn code_connect_map(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::CodeConnectMap {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+        }
+    }
+
+    pub fn screenshot(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::Screenshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+        }
+    }
+
+    pub fn snapshot(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        script: BuiltinScript,
+    ) -> Self {
+        let snapshot = (script == BuiltinScript::NodeSnapshot).then(SnapshotReadOptions::default);
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script,
+            resources: None,
+            snapshot,
+            root_ids: None,
+        }
+    }
+
+    pub fn snapshot_chunk(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SnapshotReadOptions,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::NodeSnapshot,
+            resources: None,
+            snapshot: Some(options),
+            root_ids: None,
+        }
+    }
+
+    pub fn fast_snapshot(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::fast_snapshot_page(file_key, node_id, SnapshotReadOptions::default())
+    }
+
+    /// A single round of the fast (text-paginated) node snapshot. `options.offset`
+    /// selects the starting node index; the script dynamically packs as many
+    /// nodes as fit under `options.max_payload_bytes` and reports a cursor for
+    /// the next round via the standard `__DEVUP_SNAPSHOT_CURSOR__` marker node.
+    pub fn fast_snapshot_page(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SnapshotReadOptions,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::FastSnapshotEnvelope,
+            resources: None,
+            snapshot: Some(options),
+            root_ids: None,
+        }
+    }
+
+    pub fn section_index(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::SectionIndex,
+            resources: None,
+            snapshot: None,
+            root_ids: None,
+        }
+    }
+
+    pub fn multi_root_snapshot(
+        file_key: impl Into<String>,
+        section_id: impl Into<String>,
+        root_ids: Vec<String>,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: section_id.into(),
+            script: BuiltinScript::MultiRootSnapshotEnvelope,
+            resources: None,
+            snapshot: None,
+            root_ids: Some(root_ids),
+        }
+    }
+
+    pub fn fast_theme(file_key: impl Into<String>) -> Self {
+        Self::fast_theme_page(file_key, 0)
+    }
+
+    /// One page of the file's resources, from `offset`.
+    pub fn fast_theme_page(file_key: impl Into<String>, offset: usize) -> Self {
+        Self::FastTheme {
+            file_key: file_key.into(),
+            offset,
+        }
+    }
+
+    pub fn large_value(file_key: impl Into<String>, options: LargeValueReadOptions) -> Self {
+        Self::LargeValue {
+            file_key: file_key.into(),
+            options,
+        }
+    }
+
+    pub fn asset_export(
+        file_key: impl Into<String>,
+        version: Option<String>,
+        request: AssetRequest,
+    ) -> Self {
+        Self::AssetExport {
+            file_key: file_key.into(),
+            version,
+            request: Box::new(request),
+        }
+    }
+
+    pub fn resource_batch(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        resources: ResourceBatch,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::LocalVariables,
+            resources: Some(resources),
+            snapshot: None,
+            root_ids: None,
+        }
+    }
+
+    pub fn used_resources(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        resources: ResourceBatch,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::UsedResources,
+            resources: Some(resources),
+            snapshot: None,
+            root_ids: None,
+        }
+    }
+
+    pub fn search_snapshot(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SearchReadOptions,
+    ) -> Self {
+        Self::SearchSnapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            options,
+        }
+    }
+
+    pub fn page_catalog(file_key: impl Into<String>) -> Self {
+        Self::PageCatalog {
+            file_key: file_key.into(),
+        }
+    }
+
+    pub fn explore_snapshot(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: ExploreReadOptions,
+    ) -> Self {
+        Self::ExploreSnapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            options,
+        }
+    }
+
+    pub fn tool_name(&self) -> &'static str {
+        match self {
+            Self::Metadata { .. } => "get_metadata",
+            Self::VariableDefs { .. } => "get_variable_defs",
+            Self::DesignContext { .. } => "get_design_context",
+            Self::CodeConnectMap { .. } => "get_code_connect_map",
+            Self::Screenshot { .. } => "get_screenshot",
+            Self::Snapshot { .. }
+            | Self::SearchSnapshot { .. }
+            | Self::PageCatalog { .. }
+            | Self::ExploreSnapshot { .. }
+            | Self::FastTheme { .. }
+            | Self::LargeValue { .. }
+            | Self::AssetExport { .. } => "use_figma",
+        }
+    }
+
+    pub fn arguments(&self) -> Map<String, Value> {
+        let value = match self {
+            // The file's own metadata - its pages - is asked for with no
+            // `nodeId` at all: the official schema takes the key as optional
+            // and refuses it as `null` ("expected string, received null"),
+            // which is what a file-scope theme export ran into.
+            Self::Metadata {
+                file_key,
+                node_id: None,
+            } => json!({ "fileKey": file_key }),
+            Self::Metadata {
+                file_key,
+                node_id: Some(node_id),
+            } => json!({ "fileKey": file_key, "nodeId": node_id }),
+            Self::VariableDefs { file_key, node_id }
+            | Self::DesignContext { file_key, node_id }
+            | Self::CodeConnectMap { file_key, node_id } => {
+                json!({ "fileKey": file_key, "nodeId": node_id })
+            }
+            // The official `get_screenshot` answers by default with the PNG's
+            // URL and curl instructions as text, and inlines the PNG only when
+            // asked; the collector has no HTTP client, so it asks. And it caps
+            // the longer edge at 1024px unless told otherwise, which would
+            // hand back a 1920px screen at half size; the cap is raised to the
+            // most this accepts, and a node smaller than that keeps its size.
+            Self::Screenshot { file_key, node_id } => json!({
+                "fileKey": file_key,
+                "nodeId": node_id,
+                "enableBase64Response": true,
+                "maxDimension": MAX_REFERENCE_PNG_DIMENSION,
+            }),
+            // These variants all route to the official `use_figma` tool, whose
+            // schema is `{ fileKey, code, description, skillNames? }` with
+            // `additionalProperties: false`. `nodeId` is NOT part of that
+            // schema and must never appear here (real Figma MCP hosts reject
+            // unknown properties); the node this call targets is tracked
+            // separately in `PlannedCall::expected_node_id` and surfaced to
+            // handoff consumers outside `arguments`, not inside it.
+            Self::Snapshot {
+                file_key,
+                node_id,
+                script,
+                resources,
+                snapshot,
+                root_ids,
+            } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": script.source(node_id, ScriptInputs {
+                    resources: resources.as_ref(),
+                    snapshot: snapshot.as_ref(),
+                    root_ids: root_ids.as_deref(),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::SearchSnapshot {
+                file_key,
+                node_id,
+                options,
+            } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::SearchSnapshot.source(node_id, ScriptInputs {
+                    search: Some(options),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::PageCatalog { file_key } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::PageCatalog.source("", ScriptInputs::default())
+            }),
+            Self::ExploreSnapshot {
+                file_key,
+                node_id,
+                options,
+            } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::ExploreSnapshot.source(node_id, ScriptInputs {
+                    explore: Some(options),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::FastTheme { file_key, offset } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::FastThemeEnvelope.source("", ScriptInputs {
+                    theme_offset: Some(*offset),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::LargeValue { file_key, options } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::LargeValue.source(&options.node_id, ScriptInputs {
+                    large_value: Some(options),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::AssetExport {
+                file_key,
+                version,
+                request,
+            } => json!({
+                "fileKey": file_key,
+                "description": self.description(),
+                "code": BuiltinScript::AssetExport.source(&request.node_id, ScriptInputs {
+                    asset: Some((request, version.as_deref())),
+                    ..ScriptInputs::default()
+                })
+            }),
+        };
+        value.as_object().cloned().unwrap_or_default()
+    }
+
+    /// Human-readable `description` required by the official `use_figma`
+    /// schema. Only meaningful for the `use_figma`-routed variants; other
+    /// variants never reach this (their `arguments()` don't call it).
+    fn description(&self) -> String {
+        let node_id = self.node_id_for_description();
+        match self {
+            Self::Snapshot { script, .. } => match script {
+                BuiltinScript::FastSnapshotEnvelope | BuiltinScript::MultiRootSnapshotEnvelope => {
+                    format!("devup-mcp fast node snapshot for node {node_id} (read-only)")
+                }
+                BuiltinScript::NodeSnapshot => {
+                    format!("devup-mcp paginated node snapshot for node {node_id} (read-only)")
+                }
+                BuiltinScript::SectionIndex => {
+                    format!("devup-mcp Section screen index for node {node_id} (read-only)")
+                }
+                BuiltinScript::VariableCatalog => {
+                    format!("devup-mcp local variable/style catalog for node {node_id} (read-only)")
+                }
+                BuiltinScript::LocalVariables | BuiltinScript::UsedResources => {
+                    format!(
+                        "devup-mcp variable/style resource batch for node {node_id} (read-only)"
+                    )
+                }
+                _ => format!("devup-mcp Figma read for node {node_id} (read-only)"),
+            },
+            Self::SearchSnapshot { .. } => {
+                format!("devup-mcp page-scoped name search for node {node_id} (read-only)")
+            }
+            Self::PageCatalog { .. } => "devup-mcp file page catalog (read-only)".to_owned(),
+            Self::ExploreSnapshot { .. } => {
+                format!("devup-mcp screen candidate exploration near node {node_id} (read-only)")
+            }
+            Self::FastTheme { .. } => {
+                "devup-mcp fast file-wide theme snapshot (read-only)".to_owned()
+            }
+            Self::LargeValue { .. } => {
+                format!("devup-mcp large field value fragment for node {node_id} (read-only)")
+            }
+            Self::AssetExport { .. } => {
+                format!("devup-mcp asset export for node {node_id} (read-only)")
+            }
+            _ => "devup-mcp Figma read (read-only)".to_owned(),
+        }
+    }
+
+    fn node_id_for_description(&self) -> &str {
+        match self {
+            Self::Snapshot { node_id, .. }
+            | Self::SearchSnapshot { node_id, .. }
+            | Self::ExploreSnapshot { node_id, .. } => node_id,
+            Self::LargeValue { options, .. } => &options.node_id,
+            Self::AssetExport { request, .. } => &request.node_id,
+            _ => "",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpstreamResult {
+    pub raw: Value,
+}
+
+/// 리소스를 몇 개씩 묶어 물어볼 수 있는지.
+///
+/// 기본값은 공식 MCP 가 텍스트 결과를 자르는 지점에서 나왔다. 변수 8개, 스타일
+/// 8개씩 끊어 묻느라 화면 하나에 수십 번을 오가고, 그 왕복 하나하나가 창이 뒤에
+/// 있을 때 10초를 넘는다. 자르지 않는 전송은 한 번에 다 물어도 된다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchBudget {
+    pub variable_items: usize,
+    pub style_items: usize,
+    pub used_resource_items: usize,
+    pub used_resource_bytes: usize,
+}
+
+impl Default for BatchBudget {
+    fn default() -> Self {
+        Self {
+            variable_items: 8,
+            style_items: 8,
+            used_resource_items: 12,
+            used_resource_bytes: 12_000,
+        }
+    }
+}
+
+#[async_trait]
+pub trait FigmaUpstream: Send + Sync {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError>;
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError>;
+
+    /// 이 전송으로 한 번에 물어볼 수 있는 양.
+    fn batch_budget(&self) -> BatchBudget {
+        BatchBudget::default()
+    }
+
+    /// 이 파일을 Figma 자격증명 없이 읽을 수 있는지 — 즉 이 파일을 열어 둔 브리지
+    /// 플러그인이 붙어 있는지.
+    ///
+    /// 로그인을 요구하기 전에 물어야 하는 값이다. 한도를 쓰지 않으려고 플러그인을
+    /// 띄운 사람에게 한도를 쓰는 경로부터 열라고 시키는 것은 순서가 거꾸로다.
+    /// 원격만 아는 상류는 기본값 `false` 를 그대로 쓴다.
+    async fn serves_without_credentials(&self, _file_key: &str) -> bool {
+        false
+    }
+
+    /// 브리지 경로의 실측 상태. 브리지를 열지 않은 상류는 `None` 이다.
+    ///
+    /// 진단 전용이다 — `devup_figma_auth doctor` 가 direct 말고도 경로가 있다는
+    /// 것을 말할 수 있어야 한다.
+    async fn bridge_path_snapshot(&self) -> Option<crate::bridge::BridgePathSnapshot> {
+        None
+    }
+
+    /// Refresh only through the attached plugin. Never use remote selection or
+    /// silently promote the last delivered event to current evidence.
+    async fn refresh_bridge_context(
+        &self,
+        _file_key: &str,
+    ) -> Result<crate::PluginContext, DevupError> {
+        Err(DevupError::new(
+            crate::ErrorCode::DevupFigmaDirectUnavailable,
+            "The attached plugin cannot refresh its current selection.",
+            false,
+        ))
+    }
+
+    /// 이 읽기가 Figma 가 세는 경로로 가는지 — 분당 한도에 맞춰 늦춰야 하는지.
+    ///
+    /// 플러그인이 답하는 읽기는 한도를 쓰지 않는다. 그런데도 모든 읽기를 한도의
+    /// 속도(분당 여덟)로 늦췄더니, 같은 서버의 두 번째 export 가 쓰지도 않는 한도를
+    /// 1분 가까이 기다렸다. 원격만 아는 상류는 모든 읽기가 그 경로로 간다.
+    async fn is_metered(&self, _call: &ReadToolCall) -> bool {
+        true
+    }
+
+    /// 지금 보내면 시도라도 되는지. 원격은 저장된 토큰이 있어야 한다.
+    ///
+    /// 플러그인이 답한 읽기를 원격으로 다시 읽기 전에 묻는다. 토큰이 없으면 그 읽기는
+    /// 로그인 요구로 끝날 뿐인데, 그 전에 한도의 속도에 맞춰 1분까지 기다리게 된다.
+    async fn has_credentials(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Clone)]
+pub struct RemoteFigmaClient<S: CredentialStore> {
+    endpoint: String,
+    oauth: OAuthManager<S>,
+    sessions: RemoteSessionCache,
+    call_tool_timeout: Duration,
+}
+
+impl<S: CredentialStore> RemoteFigmaClient<S> {
+    pub fn new(oauth: OAuthManager<S>) -> Self {
+        Self {
+            endpoint: DEFAULT_FIGMA_MCP_ENDPOINT.to_owned(),
+            oauth,
+            sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
+            call_tool_timeout: REMOTE_CALL_TOOL_TIMEOUT,
+        }
+    }
+
+    pub fn with_endpoint(endpoint: impl Into<String>, oauth: OAuthManager<S>) -> Self {
+        Self {
+            endpoint: endpoint.into(),
+            oauth,
+            sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
+            call_tool_timeout: REMOTE_CALL_TOOL_TIMEOUT,
+        }
+    }
+
+    async fn connect(&self) -> Result<RunningFigmaClient, DevupError> {
+        let token = self.oauth.access_token().await?;
+        let config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
+            .auth_header(token.expose().to_owned())
+            .max_sse_event_size(MAX_SSE_EVENT_SIZE)
+            .reinit_on_expired_session(true);
+        ().serve(StreamableHttpClientTransport::from_config(config))
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))
+    }
+
+    async fn session(&self) -> Result<RemoteSession, DevupError> {
+        self.sessions.get_or_connect(|| self.connect()).await
+    }
+}
+
+#[async_trait]
+impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        let session = self.session().await?;
+        Ok(session.capabilities.iter().cloned().collect())
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        if !is_read_only_tool_name(call.tool_name()) {
+            return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
+        }
+        let session = self.session().await?;
+        if !session.capabilities.contains(call.tool_name()) {
+            return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
+        }
+        let result = self
+            .sessions
+            .call_tool(
+                &session,
+                &call,
+                if call.is_asset_read() {
+                    crate::asset_timeout::asset_transport_timeout()
+                } else {
+                    self.call_tool_timeout
+                },
+            )
+            .await?;
+        let raw = serde_json::to_value(result)
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
+        Ok(UpstreamResult { raw })
+    }
+
+    async fn has_credentials(&self) -> bool {
+        matches!(self.oauth.status().await, Ok(AuthStatus::Connected))
+    }
+}

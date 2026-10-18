@@ -1,0 +1,1 @@
+A link or button shows no hover or focus change: give it the interaction recipe for its role from the plan defaults (theme tokens only, at most two properties, the shared 150-250ms transition) and a visible _focusVisible outline.

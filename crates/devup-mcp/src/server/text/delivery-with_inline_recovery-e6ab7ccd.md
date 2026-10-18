@@ -1,0 +1,1 @@
+Optional smaller resource projections isolate outputs; sourceMap stays paired with a generated output. These are alternatives to the full recovery call, not guaranteed-to-fit inline calls.

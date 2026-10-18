@@ -1,0 +1,1 @@
+Wait a few seconds: the devup-mcp that held port {port} went away, this process is taking the port over or reconnecting, and the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing.
