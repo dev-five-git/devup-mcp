@@ -1,0 +1,48 @@
+impl CollectorSession {
+    pub fn new(request: CollectionRequest) -> Self {
+        let assets_scheduled = request.asset_selections.is_empty() && !request.web_ready_images;
+        let reference_png_scheduled = !request.reference_png;
+        Self {
+            request,
+            queued: VecDeque::new(),
+            pending: BTreeMap::new(),
+            consumed: BTreeSet::new(),
+            metadata: None,
+            metadata_nodes: BTreeMap::new(),
+            metadata_root_ids: Vec::new(),
+            root_node_id: None,
+            source_version: None,
+            snapshot_chunks: BTreeMap::new(),
+            variable_catalog: None,
+            file_local_resources: None,
+            used_resource_refs: None,
+            variable_batches: BTreeMap::new(),
+            variables: None,
+            large_values: BTreeMap::new(),
+            chunked_assets: BTreeMap::new(),
+            fast_theme_pages: None,
+            fast_theme_page_count: 0,
+            asset_results: Vec::new(),
+            retained_asset_bytes: 0,
+            asset_byte_budget_exhausted: false,
+            assets_scheduled,
+            asset_plan_initialized: false,
+            asset_plan: VecDeque::new(),
+            reference_png: None,
+            reference_png_scheduled,
+            stats: CollectionStats::default(),
+            fast_attempted: false,
+            section_index: None,
+            section_selected_roots: Vec::new(),
+            fast_multi_resources: None,
+            fast_multi_has_large_values: false,
+            fast_snapshot_resources: None,
+            fast_snapshot_has_large_values: false,
+            fast_snapshot_rounds: 0,
+            section_fallback_roots: BTreeSet::new(),
+            screen_failures: Vec::new(),
+            next_id: 0,
+            completed: false,
+        }
+    }
+}
