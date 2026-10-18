@@ -127,11 +127,14 @@ the full rules; these are the steps.
    open question - routes, sections and structure, the site questions
    (favicon, share image, site name and URL, analytics, scroll reveal) and
    yours.
-5. **Ask everything now, with your question tool.** The flat `questions` list
-   in one call if your tool has no per-call cap; otherwise `questionRounds`
-   back to back. Never in prose, never one decision at a time, never later.
-6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId` and
-   every answer that applies.
+5. **Show the proposal table, ask once.** Show draft's `proposalMarkdown`
+   (every open decision with its recommended answer) in the language the user
+   first wrote in, and ask ONE question with your question tool: accept, or
+   name the rows to change. Never one decision at a time, never later.
+6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId`,
+   `acceptRecommended: true` and only the changed rows in `answers`. If
+   confirm reports two screens on one URL, retry with its
+   `details.retryAnswers` merged into your answers.
 7. **Latest first, before implementing, without asking.**
     a. At the repository root, run `bunx @dependency-check-updates/cli -d -u
        --rm`. It updates every manifest in the repository to the latest

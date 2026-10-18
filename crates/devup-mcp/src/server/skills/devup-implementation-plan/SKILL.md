@@ -124,13 +124,17 @@ So the order is fixed, and none of it is optional.
 
 - **No implementation before confirm.** No page, layout or component file is
   written until `devup_screen_plan` `confirm` has succeeded.
-- **All questions up front, back to back.** Ask every question before any
-  implementation starts. If your question tool has no per-call cap (OpenCode
-  `question`), ask the flat `questions` list in one call; each conditional
-  question says when it applies. If it has one (Claude Code AskUserQuestion:
-  4), ask `questionRounds` in consecutive turns with no other work in between;
-  pass `maxQuestionsPerRound` to draft when your cap is different. Never one
-  decision at a time spread through the work.
+- **One table, one confirmation.** Do not interview the user decision by
+  decision. Draft returns `proposal` / `proposalMarkdown`: every open decision
+  as a row with the recommended answer and the alternatives. Show that table
+  and ask ONE question with your question tool: accept it as it is, or name
+  the rows to change. Then confirm with `acceptRecommended: true` and only the
+  changed rows in `answers`. Use `questions` / `questionRounds` only to review
+  the rows the user asked to change.
+- **Ask in the user's language.** Translate the table, the question and the
+  option labels into the language the user first wrote to you in, for display
+  only. Answers sent to confirm stay keyed by question id and use the original
+  option labels (or custom text such as a route).
 - **Ask what the whole job needs, now.** Every question you would need at
   any point - screens and routes, site files and facts, and your own
   (`extraQuestions`) - goes into the up-front rounds. Then finish the site

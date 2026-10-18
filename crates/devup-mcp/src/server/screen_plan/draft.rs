@@ -311,6 +311,58 @@ pub(super) fn question_rounds(questions: &[Value], per_round: usize) -> Vec<Valu
     rounds
 }
 
+/// Every open decision as one table row with the answer the plan recommends,
+/// so the user confirms the whole plan at once instead of being interviewed.
+pub(crate) fn proposal(questions: &[Value]) -> Vec<Value> {
+    ask_shape(questions)
+        .iter()
+        .map(|question| {
+            let labels = array(&question["options"])
+                .iter()
+                .map(|option| strip_recommended(text(&option["label"])).to_owned())
+                .collect::<Vec<_>>();
+            json!({
+                "id": question["id"],
+                "topic": question["header"],
+                "decision": question["question"],
+                "recommended": labels.first(),
+                "alternatives": labels.get(1..).unwrap_or_default(),
+                "when": question["when"],
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn proposal_markdown(rows: &[Value]) -> String {
+    let cell = |value: &Value| match value {
+        Value::Null => "-".to_owned(),
+        Value::String(s) => s.clone(),
+        Value::Array(items) if items.is_empty() => "-".to_owned(),
+        Value::Array(items) => items
+            .iter()
+            .map(|item| item.as_str().map_or_else(|| item.to_string(), str::to_owned))
+            .collect::<Vec<_>>()
+            .join(" / "),
+        other => other.to_string(),
+    }
+    .replace('|', "\\|")
+    .replace('\n', " ");
+    let mut out = String::from(
+        "| # | topic | decision | recommended | alternatives |\n|---|---|---|---|---|\n",
+    );
+    for (index, row) in rows.iter().enumerate() {
+        out.push_str(&format!(
+            "| {} | {} | {} | {} | {} |\n",
+            index + 1,
+            cell(&row["topic"]),
+            cell(&row["decision"]),
+            cell(&row["recommended"]),
+            cell(&row["alternatives"]),
+        ));
+    }
+    out
+}
+
 fn plan_path(project_root: &str, relative: &str) -> String {
     Path::new(project_root)
         .join(relative)
@@ -429,9 +481,12 @@ pub(super) async fn draft_with(
         .iter()
         .filter(|screen| screen["routeEvidence"] == "UNVERIFIED")
         .count();
+    let proposal_rows = proposal(array(&plan["questions"]));
     Ok(json!({
         "status": "draft",
         "planId": plan["planId"],
+        "proposal": proposal_rows,
+        "proposalMarkdown": proposal_markdown(&proposal_rows),
         "screens": screen_table(&plan),
         "questionRounds": rounds,
         "questions": questions,
@@ -452,7 +507,7 @@ pub(super) async fn draft_with(
             json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": {}},
                 "how": "Nothing is open. Show the user the screens table, then confirm with empty answers."})
         } else {
-            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": "<question id -> chosen label, for every question that applies>"},
+            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "acceptRecommended": true, "answers": "<only the rows the user changed: question id -> chosen label or custom text>"},
                 "how": ASK_INSTRUCTION})
         },
     }))

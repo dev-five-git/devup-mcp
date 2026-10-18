@@ -41,7 +41,13 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             continue;
         }
         let Some(answer) = input.answers.get(&id) else {
-            missing.push(id);
+            if input.accept_recommended
+                && let Some(recommended) = array(&question["resolve"]).first()
+            {
+                actions.insert(id, recommended["action"].clone());
+            } else {
+                missing.push(id);
+            }
             continue;
         };
         let (action, note) = resolve_answer(question, answer)?;
@@ -265,10 +271,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             )
             && other != text(&row["screen"])
         {
-            return Err(invalid(format!(
-                "Two screens resolve to {url} ({other} and {}); answer their route questions with different URLs.",
-                text(&row["screen"])
-            )));
+            return Err(duplicate_route(&plan, url, &other, &row["screen"], &row["name"]));
         }
     }
     for row in routes
@@ -551,6 +554,74 @@ pub(super) async fn audit_plan(
 }
 
 pub(super) const DONE_RULE: &str = include_str!("../text/screen_plan-DONE_RULE-95793a55.md");
+
+/// The question ids that place `screen` (a screen id, or a frame node id for
+/// a frame split into its own page).
+fn placing_questions(plan: &Value, screen: &str) -> Vec<String> {
+    array(&plan["questions"])
+        .iter()
+        .map(|question| text(&question["id"]))
+        .filter(|id| {
+            ["route:", "review:", "modal:", "group:", "split-route:", "collision:"]
+                .iter()
+                .any(|prefix| id.strip_prefix(prefix) == Some(screen))
+        })
+        .map(str::to_owned)
+        .collect()
+}
+
+fn suggested_route(name: &str, screen: &str, taken: &str) -> String {
+    let words = name
+        .to_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let base = if words.is_empty() {
+        format!("/page-{}", screen.replace([':', ';'], "-"))
+    } else {
+        format!("/{}", words.join("-"))
+    };
+    if base == taken {
+        format!("{base}-{}", screen.replace([':', ';'], "-"))
+    } else {
+        base
+    }
+}
+
+/// Two screens on one URL: the error names both screens, the questions that
+/// place each, and a distinct URL for the second, so the caller can retry
+/// confirm with one changed answer instead of guessing.
+fn duplicate_route(plan: &Value, url: &str, first: &str, second: &Value, name: &Value) -> DevupError {
+    let second = text(second);
+    let first_name = array(&plan["screens"])
+        .iter()
+        .find(|screen| screen["id"] == first)
+        .map(|screen| screen["name"].clone())
+        .unwrap_or(Value::Null);
+    let suggestion = suggested_route(text(name), second, url);
+    let questions = placing_questions(plan, second);
+    let retry = questions
+        .iter()
+        .find(|id| !id.starts_with("collision:"))
+        .map(|id| json!({id.as_str(): suggestion}))
+        .unwrap_or(json!({}));
+    DevupError::with_details(
+        ErrorCode::DevupInvalidInput,
+        format!(
+            "Two screens resolve to {url} ({first} and {second}). Nothing was written. Retry confirm with the same answers plus {retry}, or show the user both screens and ask which one owns {url}."
+        ),
+        false,
+        json!({
+            "url": url,
+            "conflict": [
+                {"screen": first, "name": first_name, "questions": placing_questions(plan, first)},
+                {"screen": second, "name": name, "questions": questions, "suggestedUrl": suggestion},
+            ],
+            "retryAnswers": retry,
+        }),
+    )
+}
 
 fn screen_table(plan: &Value) -> Vec<Value> {
     array(&plan["screens"])
