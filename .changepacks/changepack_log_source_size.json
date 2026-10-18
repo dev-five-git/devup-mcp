@@ -1,9 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Patch",
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
-  },
-  "note": "Organize Rust source by responsibility with a 1000-line limit, preserve public paths and test names, embed workflow prose and keyword/class data, support appSelectionKeywords overrides, and guard all Rust source sizes and embedded JSON in the existing size-contract test.",
-  "date": "2026-10-18T00:00:00+09:00"
-}
