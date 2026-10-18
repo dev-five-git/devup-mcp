@@ -79,7 +79,7 @@ fn scan_models(root: &Path, result: &mut Vec<Value>) -> Result<(), DevupError> {
     let Ok(files) = std::fs::read_dir(root) else {
         return Ok(());
     };
-    for file in files.take(101) {
+    for file in files {
         let path = file.map_err(|e| invalid(e.to_string()))?.path();
         if path.extension().is_some_and(|e| e == "json") {
             let meta = std::fs::symlink_metadata(&path).map_err(|e| invalid(e.to_string()))?;
@@ -326,7 +326,7 @@ pub(super) fn mermaid(entities: &[Value]) -> String {
         for c in array(&e["columns"]) {
             out.push_str(&format!(
                 "    {} {}\n",
-                c["type"].as_str().unwrap_or("enum"),
+                c["type"].as_str().or_else(|| c["type"]["kind"].as_str()).unwrap_or("unknown"),
                 text(&c["name"])
             ));
         }

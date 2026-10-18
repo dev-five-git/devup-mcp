@@ -227,7 +227,11 @@ pub(super) async fn run(
                     return Err(invalid("Evidence needs a source"));
                 }
                 for (key, value) in &ev.facts {
-                    plan["facts"][key] = value.clone();
+                    if !["parts", "goal", "workType"].contains(&key.as_str())
+                        || plan["answers"][key].is_null()
+                    {
+                        plan["facts"][key] = value.clone();
+                    }
                 }
             }
             plan["evidence"]

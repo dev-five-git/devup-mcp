@@ -1,14 +1,14 @@
 ---
 name: devup
 description: |
-  Build pages or a whole site from a Figma design with devup-mcp, end to end:
-  connection, skills, project context, screen plan with every question asked
-  up front, implementation with interaction states and metadata, runtime
-  audit at every width, and a final URL x width table.
+  Start any DevFive project, feature, bug fix, Figma page implementation or
+  refactor with evidence-based project intake, all questions up front, ERD
+  models, a confirmed plan and supervisor work units. The Figma branch retains
+  screen planning, latest-first updates, vinext, exact layout, interaction states,
+  metadata, runtime/visual audits and the final URL x width table.
 
-  Invoke as /devup [figma url] [notes]. Also use it, without being asked, when
-  the user wants pages or a site implemented from Figma: a Section link,
-  several frames, or "build the site/page".
+  Invoke as /devup [sources] [goal]. Also use the Figma branch when asked to
+  build pages or a site from a design, even without an explicit /devup.
 ---
 
 ## Project intake comes first
@@ -98,11 +98,11 @@ items; never claim completion from split or command generation alone.
 
 
 
-# /devup [figma url] [notes]
+# /devup [sources] [goal]
 
-Arguments: $ARGUMENTS - a Figma Section, frame or page link (optional while
-one Devup Bridge plugin is attached; the Figma selection is used), then any
-notes, which go into the plan's `notes` untouched.
+Arguments: $ARGUMENTS - optional Figma links, Jira keys, spec URLs/files and a
+one-sentence goal. With one Devup Bridge plugin, its selection supplies the
+Figma anchor when a Figma implementation has no link.
 
 This is the devup-implementation-plan workflow, started explicitly. Follow it
 in this order and do not skip a step. The devup-implementation-plan skill has

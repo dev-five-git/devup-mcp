@@ -98,6 +98,12 @@ pub(super) fn split(
         }
     }
     validate(&units)?;
+    let mut screen_context = plan["screenPlan"].clone();
+    if let Some(context) = screen_context.as_object_mut() {
+        for key in ["questions", "questionRounds", "instruction", "askInstruction"] {
+            context.remove(key);
+        }
+    }
     for u in &units {
         let brief = format!(
             include_str!("../text/units-split-bf50d8a5.md"),
@@ -107,7 +113,7 @@ pub(super) fn split(
             text(&plan["unitQuestions"]),
             json!({"answers":plan["answers"],"facts":plan["facts"],"decisions":plan["decisions"],"backendCommands":plan["backendCommands"],"modelsWorkingDirectory":plan["modelsWorkingDirectory"]}),
             erd::mermaid(array(&plan["entities"])),
-            plan["screenPlan"],
+            screen_context,
             json!({"acceptance":u["acceptance"],"checklist":u["checklist"]})
         );
         stage(

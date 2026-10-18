@@ -67,7 +67,9 @@ pub(super) fn answers(
             return Err(invalid("Provide a concrete one-sentence goal"));
         }
         plan["answers"][id] = json!(answer);
-        if ["parts", "goal", "workType"].contains(&id.as_str()) {
+        if ["parts", "goal", "workType"].contains(&id.as_str())
+            && (id != "goal" || answer != "Use source scope")
+        {
             plan["facts"][id] = json!(answer);
         }
     }

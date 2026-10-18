@@ -64,15 +64,15 @@
       "name": "devup-implementation-plan",
       "origin": "own",
       "title": "Screen plan first, confirm once, then implement",
-      "description": "The order a Figma design becomes pages in: list the screens, draft a screen-to-URL plan with devup_screen_plan, stay inside the linked scope and out of trash/archive/draft areas, ask every question before any work (cross-section ambiguities included, with a fix-the-Figma option), confirm, implement URL by URL without asking anything more (recording assumptions instead), run the runtime audit, and finish with a URL x width status table.",
+      "description": "DevFive project intake, ERD models and supervisor work units, with the full Figma screen-plan and implementation workflow.",
       "usedFor": "Without it an agent handed a Figma Section picks URLs itself and writes pages straight away, so nobody can tell afterwards which screen became which URL or whether each one works at every width. It also keeps the questions in structured rounds asked up front, instead of a trickle of prose confirmations - or a question hours into the work while nobody is at the keyboard.",
       "repo": "dev-five-git/devup-mcp",
       "path": "crates/devup-mcp/src/server/skills/devup-implementation-plan",
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 34991,
-          "sha256": "0767019ef6b8431d4e72b878f97ce592264d0cc105e208cd3cc7cc38340a652d"
+          "bytes": 35206,
+          "sha256": "a60e55d51cc97c563419dcc50b449c8d83c2a8324470cfc6ade304a84b85f541"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -82,15 +82,15 @@
       "name": "devup",
       "origin": "own",
       "title": "/devup: build pages or a site from Figma",
-      "description": "The explicit entry point: /devup [figma url] [notes] runs the whole devup-mcp workflow - connection, skills, project context, screen plan with every question up front, implementation with interaction states and metadata, runtime audit, and the final URL x width table.",
+      "description": "DevFive project intake, ERD models and supervisor work units, with the full Figma screen-plan and implementation workflow.",
       "usedFor": "An MCP server cannot start a skill or a slash command itself. Claude Code offers this skill as /devup, and devup_skills install writes an OpenCode command beside it, so the user has one word to type that starts everything in the right order.",
       "repo": "dev-five-git/devup-mcp",
       "path": "crates/devup-mcp/src/server/skills/devup",
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 13373,
-          "sha256": "f533de6e49301acf7f522b8e5b26914b2abade7ceaae019b50552b842f70ebc1"
+          "bytes": 13426,
+          "sha256": "e3311f246745b4841d5e4b069d2c67513ab5576b1a783c0b88b020a55b622fb2"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

@@ -1,12 +1,13 @@
 ---
-description: Build pages or a site from Figma with devup-mcp (screen plan, questions up front, states, metadata, audit, final table)
+description: Plan and deliver DevFive projects, features, fixes, Figma pages and refactors with project intake, ERD models and supervisor work units
 ---
 <!-- devup-mcp:command devup - written by devup_skills install; rewritten by later installs. -->
 
 Run the devup workflow for: $ARGUMENTS
 
-The arguments are a Figma Section, frame or page link (optional while one
-Devup Bridge plugin is attached) followed by notes for the plan.
+The arguments are optional Figma links, Jira keys, spec URLs/files and a goal.
+For Figma work, one attached Devup Bridge plugin supplies the selection when
+a link is omitted.
 
 Follow the `devup` skill step by step - it is installed next to this command -
 and the devup-implementation-plan skill for its rules:

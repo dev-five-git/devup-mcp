@@ -9,7 +9,6 @@ use crate::codegen::{
 };
 
 #[path = "absolute_bounds.rs"]
-
 mod absolute_bounds;
 #[path = "attributes.rs"]
 pub mod attributes;

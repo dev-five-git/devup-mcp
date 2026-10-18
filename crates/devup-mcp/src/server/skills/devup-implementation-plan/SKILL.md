@@ -1,12 +1,15 @@
 ---
 name: devup-implementation-plan
 description: |
-  Plan which Figma screen becomes which URL, confirm it with the user in one
+  Begin DevFive projects, features, bug fixes and refactors with project intake,
+  confirmed ERD models and supervisor work units. For Figma, plan which screen
+  becomes which URL, confirm it with the user in one
   batch of questions, then implement URL by URL and finish with a URL x width
   status table. Uses devup-mcp's devup_screen_plan, devup_figma_export and
   devup_runtime_audit.
 
   TRIGGER WHEN:
+  - Starting a DevFive project, feature, bug fix or refactor through /devup
   - Asked to implement, build or convert a Figma design, Section or several
     screens into pages
   - Given a Figma Section link, or several frames, for a Next App Router project

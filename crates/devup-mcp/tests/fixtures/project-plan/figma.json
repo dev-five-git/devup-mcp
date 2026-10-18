@@ -1,0 +1,21 @@
+{
+  "source": "Figma fixture signup/post",
+  "facts": {
+    "goal": "Build a post service",
+    "screens": [
+      {
+        "name": "Signup",
+        "fields": [
+          "email",
+          "display name"
+        ]
+      },
+      {
+        "name": "Post list"
+      },
+      {
+        "name": "Post detail"
+      }
+    ]
+  }
+}

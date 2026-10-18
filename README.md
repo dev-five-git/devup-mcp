@@ -1,5 +1,10 @@
 # devup-mcp
 
+`/devup` starts `devup_project_plan` intake for projects, features, bug fixes,
+Figma pages and refactors. Read sources, settle every question, confirm the ERD
+and plan, then split supervisor work units; Figma screen planning is one branch.
+
+
 Rust-native MCP server that reads Figma designs and generates DevupUI artifacts. One binary acts as a local stdio MCP server and a read-only client of Figma Remote MCP.
 
 저장소는 Cargo workspace이며 `devup-mcp` 실행 crate, OAuth·upstream·snapshot을 담당하는 `devup-mcp-figma`, TSX·theme projection을 담당하는 `devup-mcp-devup-ui`, PNG 비교 library/CLI인 `devup-mcp-visual`로 구성됩니다. 별도 IR/auth/server crate 없이 MCP 제품 설치 단위는 `devup-mcp` 하나입니다.

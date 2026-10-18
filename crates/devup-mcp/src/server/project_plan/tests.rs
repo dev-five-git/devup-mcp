@@ -25,15 +25,14 @@ fn input(root: &Path, action: &str) -> ProjectPlanInput {
 async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Value) {
     let policy = OutputPolicy::from_roots(vec![root.to_path_buf()]).unwrap();
     let mut i = input(root, "intake");
-    i.evidence = vec![serde_json::from_value(json!({"source":"Figma fixture signup/post","facts":{
-        "goal":"Build a post service", "screens":[{"name":"Signup", "fields":["email","display name"]},{"name":"Post list"},{"name":"Post detail"}]}})).unwrap()];
+    i.evidence = vec![serde_json::from_str(include_str!("../../../tests/fixtures/project-plan/figma.json")).unwrap()];
     let r = run(&i, &policy).await.unwrap();
     i.plan_id = r["planId"].as_str().map(str::to_owned);
     i.action = "draft".into();
     i.answers = BTreeMap::from([
         ("workType".into(), json!("new project")),
         ("sources".into(), json!("Use recorded sources")),
-        ("goal".into(), json!("Build a post service")),
+        ("goal".into(), json!("Use source scope")),
         (
             "parts".into(),
             json!(if api {
@@ -49,7 +48,13 @@ async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Val
         screens: vec!["Post list".into()],
         acceptance: vec!["Authenticated authors publish posts".into()],
     }];
+    i.evidence.push(serde_json::from_value(json!({"source":"repo defaults","facts":{
+        "goal":"Source defaults cannot replace the selected goal",
+        "parts": if api {"front only"} else {"front + admin + API"}
+    }})).unwrap());
     let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["plan"]["facts"]["goal"], "Build a post service");
+    assert_eq!(r["plan"]["facts"]["parts"], if api {"front + admin + API"} else {"front only"});
     i.action = "confirm".into();
     i.evidence.clear();
     i.features.clear();
@@ -62,15 +67,19 @@ async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Val
 #[tokio::test]
 async fn figma_erd_confirm_writes_schema_valid_models() {
     let dir = TestDir::new();
-    let (i, policy, draft) = drafted(dir.path(), true).await;
+    let (mut i, policy, draft) = drafted(dir.path(), true).await;
     assert!(
         draft["erdMermaid"]
             .as_str()
             .unwrap()
             .contains("user ||--o{ post")
     );
+    i.entities = array(&draft["plan"]["entities"]).to_vec();
+    i.entities[0]["columns"].as_array_mut().unwrap().iter_mut()
+        .find(|c| c["name"] == "display_name").unwrap()["type"] = json!({"kind":"varchar", "length":100});
     let r = run(&i, &policy).await.unwrap();
     assert_eq!(r["state"], "confirmed");
+    assert!(r["erdMermaid"].as_str().unwrap().contains("varchar display_name"));
     let schema: Value = serde_json::from_str(include_str!(
         "../../../tests/fixtures/vespertide/model.schema.json"
     ))
@@ -84,6 +93,10 @@ async fn figma_erd_confirm_writes_schema_valid_models() {
         if let Some(error) = validator.iter_errors(&model).next() {
             panic!("{error}");
         }
+        if name == "post" {
+            let sample: Value = serde_json::from_str(include_str!("../../../tests/fixtures/project-plan/post.json")).unwrap();
+            assert_eq!(model, sample);
+        }
         assert!(model["$schema"].is_string());
     }
     assert!(
@@ -93,6 +106,20 @@ async fn figma_erd_confirm_writes_schema_valid_models() {
             .iter()
             .any(|c| c["name"] == "display_name")
     );
+    let source = dir.path().join("large/models");
+    std::fs::create_dir_all(&source).unwrap();
+    for index in 0..103 {
+        let name = format!("model_{index}");
+        std::fs::write(source.join(format!("{name}.json")), serde_json::to_vec(&json!({
+            "name":name,"columns":[{"name":"id","type":"integer","nullable":false,"primary_key":true}]
+        })).unwrap()).unwrap();
+    }
+    let mut input = input(&dir.path().join("large"), "draft");
+    input.models_dir = Some("models".into());
+    let mut plan = json!({"facts":{"parts":"API"},"entities":[],"relations":[]});
+    erd::draft(&input, &mut plan).unwrap();
+    assert_eq!(array(&plan["entities"]).len(), 103);
+
 }
 #[tokio::test]
 async fn many_to_many_join_table_and_gapped_roles_validate() {
@@ -138,6 +165,8 @@ async fn split_three_issues_preserves_dag_and_briefs() {
     let (i, policy, _) = drafted(dir.path(), false).await;
     run(&i, &policy).await.unwrap();
     let mut plan = read(&i.project_root).unwrap();
+    plan["screenPlan"] = json!({"status":"confirmed", "questions":[{"question":"Do not ask this?"}],
+        "questionRounds":[{"question":"Do not repeat this?"}], "answers":{"route":"/posts"}});
     plan["issues"] = json!([
         {"key":"DEV-1","scope":"Models","dependencies":[],"acceptance":["schema passes"]},
         {"key":"DEV-2","scope":"API","dependencies":["DEV-1"],"acceptance":["CRUD"]},
