@@ -1,0 +1,724 @@
+
+use std::path::{Path, PathBuf};
+
+use devup_mcp_devup_ui::theme::parse_project_theme;
+use devup_mcp_figma::{DevupError, ErrorCode};
+use serde::Deserialize;
+use serde_json::{Map, Value, json};
+
+#[cfg(test)]
+#[path = "../project_context_ui_tests.rs"]
+mod ui_tests;
+
+#[path = "../project_context_ui.rs"]
+mod ui;
+
+#[path = "../project_context_export.rs"]
+mod export;
+pub(super) use export::attach as attach_export_context;
+pub(super) use export::export_context;
+
+pub(super) fn routes_for_validation(project_root: Option<&str>) -> Value {
+    project_root.map(export_context).map(|v|v["ui"].clone())
+        .unwrap_or_else(||json!({"found":false,"reason":"No explicit projectRoot supplied; route validation skipped."}))
+}
+
+use super::project_root::{
+    PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
+    find_project_root, guardrail_object, json_files_in, not_found_response,
+};
+
+/// `(authority, appliesTo)` for a file the scan kept: whether it sits at
+/// the project root or belongs to one package inside it, and the directory
+/// it governs. A monorepo has no project-wide `devup.json`, and saying
+/// which directory each one covers is what lets a caller pick correctly.
+fn file_authority(root: &Path, file: &Path) -> (&'static str, String) {
+    let directory = file.parent().unwrap_or(root);
+    if directory == root {
+        ("project-root", ".".to_owned())
+    } else {
+        ("package-local", relative_display(root, directory))
+    }
+}
+
+/// Adds `excludedPaths` (what the scan dropped and why) and, when more
+/// than one file survived, `authorityNote` (that none of them governs the
+/// whole project). Both appear only when they have something to say, so an
+/// unambiguous single-file project's response is unchanged.
+fn attach_scan_notes(response: &mut Value, excluded: Vec<Value>, kept: usize, filename: &str) {
+    let Some(object) = response.as_object_mut() else {
+        return;
+    };
+    if !excluded.is_empty() {
+        object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+    }
+    if kept > 1 {
+        object.insert(
+            "authorityNote".to_owned(),
+            json!(format!(
+                include_str!("../text/project_context-attach_scan_notes-4b303bac.md"),
+                filename = filename,
+                kept = kept
+            )),
+        );
+    }
+}
+
+/// The `{"found": false, ...}` envelope, plus the nested checkouts that
+/// were dropped. "Nothing found" and "nothing found that this project
+/// owns" are different answers and the caller has to be able to tell them
+/// apart — otherwise a project whose only `devup.json` lives in
+/// `.worktrees/` reads as a project with no theme at all.
+fn not_found_with_exclusions(message: &str, searched: Vec<String>, excluded: Vec<Value>) -> Value {
+    let message = if excluded.is_empty() {
+        message.to_owned()
+    } else {
+        format!(
+            "{message} ({} file(s) were found only inside nested checkouts and skipped — a nested checkout is another branch's copy of this project, not its current source.)",
+            excluded.len()
+        )
+    };
+    let mut response = not_found_response(message, searched);
+    if !excluded.is_empty()
+        && let Some(object) = response.as_object_mut()
+    {
+        object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+    }
+    response
+}
+
+/// A project's `devup.json` theme, resolved for `devup_ui_validate` — or,
+/// when unavailable, the same `{"found":false,"guardrail":{...}}` shape
+/// `devup_project_context` would have returned, surfaced under a distinct
+/// key so callers can tell "no theme was available, token checks were
+/// skipped" apart from "every $token check passed".
+pub struct ThemeLookup {
+    pub theme: Option<devup_mcp_devup_ui::theme::ProjectTheme>,
+    pub guardrail: Option<Value>,
+}
+
+/// Several `devup.json` files and none of them at the project root. Names
+/// each one and the `projectRoot` value that selects it, because the
+/// caller's next move is to pass one of them.
+fn ambiguous_theme_guardrail(root: &Path, candidates: &[PathBuf], excluded: Vec<Value>) -> Value {
+    let choices = candidates
+        .iter()
+        .map(|file| {
+            let (authority, applies_to) = file_authority(root, file);
+            json!({
+                "devupJson": display_path(file),
+                "projectRoot": display_path(file.parent().unwrap_or(root)),
+                "authority": authority,
+                "appliesTo": applies_to,
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut guardrail = guardrail_object(
+        format!(
+            include_str!("../text/project_context-ambiguous_theme_guardrail-b51035aa.md"),
+            candidates.len()
+        ),
+        candidates.iter().map(|file| display_path(file)).collect(),
+    );
+    if let Some(object) = guardrail.as_object_mut() {
+        object.insert("candidateProjectRoots".to_owned(), Value::Array(choices));
+        if !excluded.is_empty() {
+            object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+        }
+    }
+    guardrail
+}
+
+/// Resolves the theme `devup_ui_validate` should check `$token` references
+/// against: the project root's own `devup.json` if present, otherwise the
+/// single `devup.json` found within the project (bounded search), otherwise
+/// `None` with an explanatory guardrail. Never caches: reads fresh on every
+/// call, per this module's no-session-cache requirement.
+pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, DevupError> {
+    let start = match project_root {
+        Some(root) => PathBuf::from(root),
+        None => std::env::current_dir().map_err(|error| {
+            DevupError::with_details(
+                ErrorCode::DevupInvalidInput,
+                "Could not determine the current directory.",
+                false,
+                json!({ "ioError": error.to_string() }),
+            )
+        })?,
+    };
+    let Some(root) = find_project_root(&start) else {
+        return Ok(ThemeLookup {
+            theme: None,
+            guardrail: Some(guardrail_object(
+                PROJECT_ROOT_NOT_FOUND_MESSAGE,
+                vec![display_path(&start)],
+            )),
+        });
+    };
+    let root_level = root.join("devup.json");
+    // Nested checkouts are dropped before "the first one found" is taken.
+    // `find_files_named` sorts, and `.worktrees` sorts ahead of `apps`, so
+    // on a project with a git worktree this used to validate every `$token`
+    // against a *stale branch's* theme without saying so.
+    let (file, excluded) = if root_level.is_file() {
+        (Some(root_level), Vec::new())
+    } else {
+        let (candidates, excluded) = find_files_named(&root, "devup.json", 4);
+        // More than one theme and none at the project root: nothing here
+        // governs the whole project, so there is no "the" theme to check
+        // against. Taking the first sorted one is how a monorepo root
+        // validated `apps/front` code against `apps/admin`'s theme and
+        // called every real token `unknown-token` — an *error* verdict that
+        // then suggested the other app's token as the fix. Skipping the
+        // check and naming the choices is the honest answer.
+        if candidates.len() > 1 {
+            return Ok(ThemeLookup {
+                theme: None,
+                guardrail: Some(ambiguous_theme_guardrail(&root, &candidates, excluded)),
+            });
+        }
+        (candidates.into_iter().next(), excluded)
+    };
+    let Some(file) = file else {
+        let message = if excluded.is_empty() {
+            "No devup.json found. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.".to_owned()
+        } else {
+            format!(
+                include_str!("../text/project_context-theme_for_validation-ba1b05bd.md"),
+                excluded.len()
+            )
+        };
+        return Ok(ThemeLookup {
+            theme: None,
+            guardrail: Some(guardrail_object(
+                message,
+                vec![display_path(&root.join("devup.json"))],
+            )),
+        });
+    };
+    let source = std::fs::read_to_string(&file).map_err(|error| {
+        DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "Could not read devup.json.",
+            false,
+            json!({ "path": display_path(&file), "ioError": error.to_string() }),
+        )
+    })?;
+    let theme = parse_project_theme(&source)?;
+    Ok(ThemeLookup {
+        theme: Some(theme),
+        guardrail: None,
+    })
+}
+
+pub async fn run(
+    scope: &str,
+    project_root: Option<&str>,
+    filter: Option<&str>,
+) -> Result<Value, DevupError> {
+    if !["theme", "api", "db", "ui", "routes", "all"].contains(&scope) {
+        return Err(DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "scope must be theme, api, db, ui, routes, or all (ui/routes are opt-in).",
+            false,
+        ));
+    }
+    let start = match project_root {
+        Some(root) => PathBuf::from(root),
+        None => std::env::current_dir().map_err(|error| {
+            DevupError::with_details(
+                ErrorCode::DevupInvalidInput,
+                "Could not determine the current directory.",
+                false,
+                json!({ "ioError": error.to_string() }),
+            )
+        })?,
+    };
+    let Some(root) = find_project_root(&start) else {
+        let response =
+            not_found_response(PROJECT_ROOT_NOT_FOUND_MESSAGE, vec![display_path(&start)]);
+        return Ok(if matches!(scope, "theme" | "all") {
+            attach_theme_semantics(response)
+        } else {
+            response
+        });
+    };
+
+    match scope {
+        "theme" => Ok(theme_scope(&root, filter)),
+        "api" => Ok(api_scope(&root, filter)),
+        "db" => Ok(db_scope(&root, filter)),
+        "ui" => {
+            let mut inventory = ui::run(&root, filter);
+            inventory["frameworks"] = super::framework::report(&root);
+            Ok(inventory)
+        }
+        "routes" => {
+            let mut inventory = ui::run(&root, filter);
+            inventory["frameworks"] = super::framework::report(&root);
+            inventory.as_object_mut().unwrap().remove("components");
+            inventory["scope"] = json!("routes");
+            Ok(inventory)
+        }
+        "all" => {
+            let mut all = Map::new();
+            all.insert("found".to_owned(), Value::Bool(true));
+            all.insert("projectRoot".to_owned(), json!(display_path(&root)));
+            all.insert("theme".to_owned(), theme_scope(&root, filter));
+            all.insert("api".to_owned(), api_scope(&root, filter));
+            all.insert("db".to_owned(), db_scope(&root, filter));
+            Ok(Value::Object(all))
+        }
+        _ => unreachable!("scope validated above"),
+    }
+}
+
+// ---------------------------------------------------------------------
+// theme scope
+// ---------------------------------------------------------------------
+
+fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
+    let (mut files, excluded) = find_files_named(root, "devup.json", 4);
+    files.sort();
+    files.dedup();
+    if files.is_empty() {
+        return attach_theme_semantics(not_found_with_exclusions(
+            "No devup.json found. Do not write code by guessing color, typography, length, or shadow token names.",
+            vec![display_path(&root.join("devup.json"))],
+            excluded,
+        ));
+    }
+    let mut projects = Vec::new();
+    for file in &files {
+        let relative = relative_display(root, file);
+        let (authority, applies_to) = file_authority(root, file);
+        let source = match std::fs::read_to_string(file) {
+            Ok(source) => source,
+            Err(error) => {
+                projects.push(json!({
+                    "path": relative,
+                    "readError": error.to_string()
+                }));
+                continue;
+            }
+        };
+        let theme = match parse_project_theme(&source) {
+            Ok(theme) => theme,
+            Err(error) => {
+                projects.push(json!({
+                    "path": relative,
+                    "parseError": error.message
+                }));
+                continue;
+            }
+        };
+        let modes = theme.modes();
+        let matches_filter = |name: &str| filter.is_none_or(|needle| name.contains(needle));
+        let colors = filtered_mode_map(&theme.colors, matches_filter);
+        let length = filtered_mode_map(&theme.length, matches_filter);
+        let shadow = filtered_mode_map(&theme.shadow, matches_filter);
+        let typography = theme
+            .typography
+            .iter()
+            .filter(|(name, _)| matches_filter(name))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect::<Map<_, _>>();
+        let catalog = theme.token_catalog();
+        let matched_count = catalog.keys().filter(|name| matches_filter(name)).count();
+        let mut categories = Map::new();
+        for (name, original, returned) in [
+            (
+                "colors",
+                serde_json::to_value(&theme.colors).unwrap(),
+                json!(colors),
+            ),
+            (
+                "length",
+                serde_json::to_value(&theme.length).unwrap(),
+                json!(length),
+            ),
+            (
+                "shadow",
+                serde_json::to_value(&theme.shadow).unwrap(),
+                json!(shadow),
+            ),
+            (
+                "typography",
+                serde_json::to_value(&theme.typography).unwrap(),
+                json!(typography),
+            ),
+        ] {
+            let names = |value: &Value| -> std::collections::BTreeSet<String> {
+                if name == "typography" {
+                    value
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|m| m.keys().cloned())
+                        .collect()
+                } else {
+                    value
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|m| m.values())
+                        .filter_map(Value::as_object)
+                        .flat_map(|m| m.keys().cloned())
+                        .collect()
+                }
+            };
+            let total = names(&original).len();
+            let matched = names(&returned).len();
+            categories.insert(name.into(), json!({"totalTokenCount":total,"matchedTokenCount":matched,
+                "state":if total == 0 {"absent-in-source"} else if matched == 0 {"filtered-out"} else {"included"}}));
+        }
+        projects.push(json!({
+            "path": relative,
+            "authority": authority,
+            "appliesTo": applies_to,
+            "modes": modes,
+            "tokenCount": theme.token_count(),
+            "totalTokenCount": theme.token_count(),
+            "matchedTokenCount": matched_count,
+            "tokenCountScope":include_str!("../text/project_context-theme_scope-c1299f17.md"),
+            "categories": categories,
+            "colors": colors,
+            "typography": typography,
+            "length": length,
+            "shadow": shadow,
+        }));
+    }
+    let mut response = json!({
+        "found": true,
+        "scope": "theme",
+        "projectRoot": display_path(root),
+        "files": projects,
+    });
+    attach_scan_notes(&mut response, excluded, files.len(), "devup.json");
+    attach_theme_semantics(response)
+}
+
+fn attach_theme_semantics(mut response: Value) -> Value {
+    let Some(object) = response.as_object_mut() else {
+        return response;
+    };
+    object.insert(
+        "modeResolution".to_owned(),
+        json!({
+            "order": "active mode -> selected default mode",
+            "defaultModeSelection": ["default", "light", "first mode in lexical order"],
+            "note": "A token absent from a mode resolves through this chain. Equal values across modes are a design choice, not a defect."
+        }),
+    );
+    object.insert(
+        "responsiveArrayOrder".to_owned(),
+        json!(["mobile", "sm", "tablet", "lg", "PC"]),
+    );
+    object.insert(
+        "propConventions".to_owned(),
+        json!({
+            "colorAndLength": "$token",
+            "typography": "bare token name, no $ prefix"
+        }),
+    );
+    response
+}
+
+fn filtered_mode_map(
+    map: &std::collections::BTreeMap<String, std::collections::BTreeMap<String, Value>>,
+    matches_filter: impl Fn(&str) -> bool,
+) -> Map<String, Value> {
+    map.iter()
+        .map(|(mode, tokens)| {
+            let tokens = tokens
+                .iter()
+                .filter(|(name, _)| matches_filter(name))
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect::<Map<_, _>>();
+            (mode.clone(), Value::Object(tokens))
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------
+// api scope
+// ---------------------------------------------------------------------
+
+const HTTP_METHODS: &[&str] = &[
+    "get", "post", "put", "patch", "delete", "head", "options", "trace",
+];
+
+fn api_scope(root: &Path, filter: Option<&str>) -> Value {
+    let (files, excluded) = find_files_named(root, "openapi.json", 4);
+    if files.is_empty() {
+        return not_found_with_exclusions(
+            "No openapi.json found. Do not write code by guessing API endpoint or schema names.",
+            vec![format!("{} (up to depth 4)", display_path(root))],
+            excluded,
+        );
+    }
+    let mut specs = Vec::new();
+    for file in &files {
+        let relative = relative_display(root, file);
+        let (authority, applies_to) = file_authority(root, file);
+        let source = match std::fs::read_to_string(file) {
+            Ok(source) => source,
+            Err(error) => {
+                specs.push(json!({ "path": relative, "readError": error.to_string() }));
+                continue;
+            }
+        };
+        let parsed: Value = match serde_json::from_str(&source) {
+            Ok(value) => value,
+            Err(error) => {
+                specs.push(json!({ "path": relative, "parseError": error.to_string() }));
+                continue;
+            }
+        };
+        specs.push(project_openapi_spec(
+            &relative,
+            authority,
+            &applies_to,
+            &parsed,
+            filter,
+        ));
+    }
+    let mut response = json!({
+        "found": true,
+        "scope": "api",
+        "projectRoot": display_path(root),
+        "specs": specs,
+    });
+    attach_scan_notes(&mut response, excluded, files.len(), "openapi.json");
+    response
+}
+
+fn project_openapi_spec(
+    relative_path: &str,
+    authority: &str,
+    applies_to: &str,
+    spec: &Value,
+    filter: Option<&str>,
+) -> Value {
+    let matches_filter = |haystack: &str| filter.is_none_or(|needle| haystack.contains(needle));
+    let mut endpoints = Vec::new();
+    if let Some(paths) = spec.get("paths").and_then(Value::as_object) {
+        for (path, methods) in paths {
+            let Some(methods) = methods.as_object() else {
+                continue;
+            };
+            for method in HTTP_METHODS {
+                let Some(operation) = methods.get(*method) else {
+                    continue;
+                };
+                let operation_id = operation.get("operationId").and_then(Value::as_str);
+                let haystack = format!("{path} {} {}", method, operation_id.unwrap_or(""));
+                if !matches_filter(&haystack) {
+                    continue;
+                }
+                endpoints.push(json!({
+                    "method": method.to_ascii_uppercase(),
+                    "path": path,
+                    "operationId": operation_id,
+                }));
+            }
+        }
+    }
+    let mut schemas = Vec::new();
+    let schema_container = spec
+        .get("components")
+        .and_then(|components| components.get("schemas"))
+        .or_else(|| spec.get("definitions")); // OpenAPI 2 / Swagger fallback
+    if let Some(Value::Object(schema_map)) = schema_container {
+        for (name, schema) in schema_map {
+            if !matches_filter(name) {
+                continue;
+            }
+            let required = schema
+                .get("required")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let properties = schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .map(|props| props.keys().cloned().collect::<Vec<_>>())
+                .unwrap_or_default();
+            schemas.push(json!({
+                "name": name,
+                "requiredFields": required,
+                "properties": properties,
+            }));
+        }
+    }
+    json!({
+        "path": relative_path,
+        "authority": authority,
+        "appliesTo": applies_to,
+        "endpointCount": endpoints.len(),
+        "schemaCount": schemas.len(),
+        "endpoints": endpoints,
+        "schemas": schemas,
+    })
+}
+
+// ---------------------------------------------------------------------
+// db scope (Vespertide models)
+// ---------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+struct VespertideModel {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    columns: Vec<VespertideColumn>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VespertideColumn {
+    name: String,
+    #[serde(rename = "type")]
+    column_type: Value,
+    #[serde(default)]
+    nullable: bool,
+    #[serde(default)]
+    primary_key: Option<Value>,
+    #[serde(default)]
+    unique: Option<Value>,
+    #[serde(default)]
+    foreign_key: Option<Value>,
+    #[serde(default)]
+    index: Option<Value>,
+    #[serde(default)]
+    comment: Option<String>,
+}
+
+fn db_scope(root: &Path, filter: Option<&str>) -> Value {
+    let (model_dirs, excluded) = find_dirs_named(root, "models", 4);
+    let mut model_files = Vec::new();
+    for dir in &model_dirs {
+        model_files.extend(json_files_in(dir));
+    }
+    model_files.sort();
+    model_files.dedup();
+    if model_files.is_empty() {
+        return not_found_with_exclusions(
+            "No Vespertide models (models/*.json) found. Do not write code by guessing table or column names or types.",
+            vec![format!(
+                "{} (models/*.json, up to depth 4)",
+                display_path(root)
+            )],
+            excluded,
+        );
+    }
+    let matches_filter = |haystack: &str| filter.is_none_or(|needle| haystack.contains(needle));
+    let mut tables = Vec::new();
+    for file in &model_files {
+        let relative = relative_display(root, file);
+        let source = match std::fs::read_to_string(file) {
+            Ok(source) => source,
+            Err(error) => {
+                tables.push(json!({ "path": relative, "readError": error.to_string() }));
+                continue;
+            }
+        };
+        let model: VespertideModel = match serde_json::from_str(&source) {
+            Ok(model) => model,
+            Err(error) => {
+                // Not every *.json in a `models/` directory is necessarily a
+                // Vespertide model (e.g. `vespertide.json` config sitting
+                // one level up would not match this dir name, but a stray
+                // non-model JSON inside `models/` itself would land here).
+                // Report the parse failure rather than silently skipping,
+                // so the caller can see exactly why a file didn't surface.
+                tables.push(json!({ "path": relative, "parseError": error.to_string() }));
+                continue;
+            }
+        };
+        if !matches_filter(&model.name) {
+            continue;
+        }
+        let columns = model.columns.iter().map(column_to_json).collect::<Vec<_>>();
+        let enums = model
+            .columns
+            .iter()
+            .filter_map(enum_definition)
+            .collect::<Vec<_>>();
+        tables.push(json!({
+            "path": relative,
+            "table": model.name,
+            "description": model.description,
+            "columns": columns,
+            "enums": enums,
+        }));
+    }
+    let mut response = json!({
+        "found": true,
+        "scope": "db",
+        "projectRoot": display_path(root),
+        "tables": tables,
+    });
+    attach_scan_notes(&mut response, excluded, model_dirs.len(), "models/");
+    response
+}
+
+fn column_to_json(column: &VespertideColumn) -> Value {
+    let (type_name, enum_values) = describe_column_type(&column.column_type);
+    json!({
+        "name": column.name,
+        "type": type_name,
+        "nullable": column.nullable,
+        "primaryKey": column.primary_key.is_some(),
+        "unique": column.unique.is_some(),
+        "indexed": column.index.is_some(),
+        "foreignKey": column.foreign_key,
+        "enumValues": enum_values,
+        "comment": column.comment,
+    })
+}
+
+fn enum_definition(column: &VespertideColumn) -> Option<Value> {
+    let object = column.column_type.as_object()?;
+    if object.get("kind").and_then(Value::as_str) != Some("enum") {
+        return None;
+    }
+    Some(json!({
+        "column": column.name,
+        "name": object.get("name"),
+        "values": object.get("values").cloned().unwrap_or(Value::Null),
+    }))
+}
+
+/// Returns `(type_name, enum_values)`: for simple string types, the string
+/// itself with no enum values; for complex `{"kind": ..., ...}` types, the
+/// `kind` string, and — for `kind: "enum"` — the raw `values` array.
+fn describe_column_type(column_type: &Value) -> (String, Option<Value>) {
+    match column_type {
+        Value::String(simple) => (simple.clone(), None),
+        Value::Object(object) => {
+            let kind = object
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_owned();
+            let enum_values = if kind == "enum" {
+                object.get("values").cloned()
+            } else {
+                None
+            };
+            (kind, enum_values)
+        }
+        other => (other.to_string(), None),
+    }
+}
+
+pub(super) fn relative_display(root: &Path, file: &Path) -> String {
+    file.strip_prefix(root)
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| display_path(file))
+}
