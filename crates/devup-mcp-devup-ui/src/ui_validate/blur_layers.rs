@@ -161,7 +161,7 @@ pub(super) fn check(source_text: &str, attrs: &[GeneratedAttribute]) -> Vec<Viol
         Violation {rule:"blur-only-image",severity:Severity::Warning,byte_range:[first.start,first.end],
             context:json!({"assetPath":path,"elementIndices":uses.iter().map(|(a,_)|a.element).collect::<Vec<_>>(),
                 "state":"review-required","evidenceScope":"literal src and statically resolved known-wrapper or same-element CSS filters",
-                "evidenceLimit":"Static review cannot establish intended decoration, conditional visibility, external CSS, dynamic/custom ancestor effects or browser pixels; this warning does not prove a missing layer."}).as_object().unwrap().clone(),
+                "evidenceLimit":include_str!("../text/blur_layers-check_Violation-c576344a.md")}).as_object().unwrap().clone(),
             message:"All statically visible literal uses of this image apply positive CSS blur; review whether an intended sharp copy is missing.".into(),
             suggestion:Some("If the design includes a sharp image, render that copy alongside the blur layer; keep deliberate decoration explicitly marked.".into())}
     }).collect()

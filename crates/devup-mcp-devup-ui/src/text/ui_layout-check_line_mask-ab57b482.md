@@ -1,0 +1,1 @@
+A rule drawn as a mask keeps its drawn length while this box follows its parent's width, so the line stops short of the box at any other width. Size the mask to the box, or draw the rule as a filled box of the same colour and weight.

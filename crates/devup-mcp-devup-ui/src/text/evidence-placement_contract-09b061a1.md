@@ -1,0 +1,1 @@
+Ensure the generated root's {axis} matches the intended containing block (captured {axis}: {size}); this axis is determined by host CSS or in-flow content, not a generated fixed size.

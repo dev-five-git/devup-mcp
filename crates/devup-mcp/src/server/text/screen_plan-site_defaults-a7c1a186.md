@@ -1,0 +1,1 @@
+Root layout metadata with a title template, description and metadataBase when the site URL is known; every page exports title, description and openGraph taken from its Figma heading and lead text.

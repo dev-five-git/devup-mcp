@@ -1,0 +1,1 @@
+The surface this root is drawn on in Figma, read from the collected parent. It is reported, not emitted: the parent is not part of this component. Apply it to the host when the screen is meant to sit on it.

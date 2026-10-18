@@ -1,0 +1,1 @@
+Review selection.candidates using name, nodeType, textPreview and textPreviewState. Run the bounded batches below in order, retaining each response before continuing. Select nonstandard cases and notes from selection.explicitCandidates with frameIds or their canonicalUrl. Use the per-candidate nextAction to inspect text when preview is unavailable.

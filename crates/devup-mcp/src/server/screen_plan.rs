@@ -44,10 +44,12 @@ const SCHEMA_VERSION: u64 = 1;
 /// it from the same place, so the two cannot disagree about which plan holds.
 pub(super) const PLAN_FILE: &str = ".devup/screen-plan.json";
 const PLAN_MARKDOWN: &str = ".devup/screen-plan.md";
-pub(super) const ASK_INSTRUCTION: &str = "Ask every question now, before implementing, with your question tool and never in prose. If the tool has no per-call cap (OpenCode `question`), ask the flat `questions` list in one call; each conditional question says when it applies. If it has one (Claude Code AskUserQuestion: 4), ask the questionRounds back to back in consecutive calls with no other work in between, skipping a question whose `when` was not met. Then confirm. After confirm never ask the user anything: take the recommended or most conservative option and record it with action assume.";
+pub(super) const ASK_INSTRUCTION: &str =
+    include_str!("text/screen_plan-ASK_INSTRUCTION-0285b268.md");
 /// What implementation does instead of asking. Someone may have walked away
 /// from the keyboard three hours ago; a question then stops all the work.
-pub(super) const IMPLEMENT_INSTRUCTION: &str = "Implement URL by URL without asking the user anything. devup_figma_export with projectRoot takes each page's route from this plan. Anything new: take the recommended or most conservative option, record it with devup_screen_plan action assume, and keep going. Then run devup_runtime_audit at every width and devup_screen_plan action status.";
+pub(super) const IMPLEMENT_INSTRUCTION: &str =
+    include_str!("text/screen_plan-IMPLEMENT_INSTRUCTION-0f8204de.md");
 /// The optional project file whose entries count as evidence.
 pub(super) const CONFIG_FILE: &str = ".devup/screen-plan.config.json";
 /// The question tools this is shaped for cut headers short. OpenCode's has no
@@ -70,27 +72,24 @@ const MAX_SOURCE_BYTES: u64 = 512 * 1024;
 const SKIP: &str = "Skip this screen";
 const NOT_A_PAGE: &str = "Not a page (part of another screen)";
 
-const MODAL_WORDS: &[&str] = &[
-    "modal",
-    "popup",
-    "pop-up",
-    "pop up",
-    "dialog",
-    "overlay",
-    "bottom sheet",
-    "bottomsheet",
-    "drawer",
-    "toast",
-    "팝업",
-    "모달",
-    "레이어",
-];
-const DEVICE_WORDS: &[&str] = &[
-    "pc", "mobile", "mo", "mob", "m", "tablet", "tab", "desktop", "web", "dt",
-];
+static MODAL_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-modal-words.json"))
+        .expect("vendored keyword JSON")
+});
+static DEVICE_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-device-words.json"))
+        .expect("vendored keyword JSON")
+});
 /// Device words that name a whole section rather than a frame suffix.
-const SECTION_DEVICE_WORDS: &[&str] = &["phone", "모바일", "태블릿", "데스크톱", "데스크탑", "웹"];
-const ROOT_WORDS: &[&str] = &["home", "main", "index", "landing", "메인", "홈"];
+static SECTION_DEVICE_WORDS: std::sync::LazyLock<Vec<&'static str>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("text/screen-plan-section-device-words.json"))
+            .expect("vendored keyword JSON")
+    });
+static ROOT_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-root-words.json"))
+        .expect("vendored keyword JSON")
+});
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -323,6 +322,9 @@ pub(super) struct PlanConfig {
     /// Replaces the built-in modal words (modal, popup, dialog, ...).
     #[serde(default)]
     pub modal_keywords: Option<Vec<String>>,
+    /// Overrides app-selection keyword categories; omitted categories retain defaults.
+    #[serde(default)]
+    pub app_selection_keywords: BTreeMap<String, Vec<String>>,
     /// Layer name -> route.
     #[serde(default)]
     pub route_aliases: BTreeMap<String, String>,
@@ -1342,44 +1344,26 @@ fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
 
 /// Layer names that mark a Figma node as the site's logo or icon, and as its
 /// share image. Frames named like this are site assets, not pages.
-const LOGO_WORDS: &[&str] = &[
-    "logo",
-    "symbol",
-    "favicon",
-    "appicon",
-    "로고",
-    "심볼",
-    "파비콘",
-];
+static LOGO_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-logo-words.json"))
+        .expect("vendored keyword JSON")
+});
 /// Narrow on purpose: a bare "share" or "thumbnail" names real UI - a share
 /// sheet, a video thumbnail - and those are screens.
-const OG_WORDS: &[&str] = &[
-    "og",
-    "opengraph",
-    "open graph",
-    "share image",
-    "share card",
-    "social image",
-    "공유 이미지",
-    "대표 이미지",
-];
+static OG_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-og-words.json"))
+        .expect("vendored keyword JSON")
+});
 /// Package names that say a project already measures or verifies something.
-const ANALYTICS_PACKAGES: &[&str] = &[
-    "@vercel/analytics",
-    "@next/third-parties",
-    "react-ga4",
-    "react-gtm-module",
-    "@amplitude/analytics-browser",
-    "mixpanel-browser",
-    "posthog-js",
-];
-const ANALYTICS_ENV: &[&str] = &[
-    "GA_",
-    "GTM",
-    "GOOGLE_ANALYTICS",
-    "GOOGLE_SITE_VERIFICATION",
-    "NAVER_SITE_VERIFICATION",
-];
+static ANALYTICS_PACKAGES: std::sync::LazyLock<Vec<&'static str>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("text/screen-plan-analytics-packages.json"))
+            .expect("vendored keyword JSON")
+    });
+static ANALYTICS_ENV: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-analytics-env.json"))
+        .expect("vendored keyword JSON")
+});
 
 fn asset_kind(name: &str) -> Option<&'static str> {
     if LOGO_WORDS.iter().any(|word| keyword_in(name, word)) || keyword_in(name, "app icon") {
@@ -1600,7 +1584,7 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
                         .push((version.to_owned(), format!("{peer} in {shown} {section}")));
                 }
             }
-            for name in MOTION_LIBRARIES {
+            for name in MOTION_LIBRARIES.iter() {
                 if package[section].get(*name).is_some()
                     && !evidence.motion_libraries.iter().any(|known| known == name)
                 {
@@ -1609,7 +1593,7 @@ fn read_site_facts(root: &Path, evidence: &mut ProjectEvidence) {
             }
         }
         for section in ["dependencies", "devDependencies"] {
-            for name in ANALYTICS_PACKAGES {
+            for name in ANALYTICS_PACKAGES.iter() {
                 if package[section].get(*name).is_some() {
                     evidence.analytics.push(format!("{name} in {shown}"));
                 }
@@ -1630,14 +1614,10 @@ fn bun_locked(lock: &str, name: &str) -> Option<String> {
 
 /// Libraries that already animate page changes. With one present, adding
 /// view transitions is a question, not a default.
-const MOTION_LIBRARIES: &[&str] = &[
-    "framer-motion",
-    "motion",
-    "next-view-transitions",
-    "react-transition-group",
-    "@react-spring/web",
-    "gsap",
-];
+static MOTION_LIBRARIES: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-motion-libraries.json"))
+        .expect("vendored keyword JSON")
+});
 
 /// The interaction recipe per element role: what each one gets on hover,
 /// press and focus. The devup-implementation-plan skill carries the same
@@ -1645,7 +1625,7 @@ const MOTION_LIBRARIES: &[&str] = &[
 const INTERACTION_RECIPES: &[(&str, &str)] = &[
     (
         "primary button",
-        "hover one token step darker; active scale(0.98) or one more step darker; focusVisible 2px ring with offset; disabled reduced opacity and cursor not-allowed; a loading state (disabled, spinner) while a form it submits is pending",
+        include_str!("text/screen_plan-INTERACTION_RECIPES-703799bb.md"),
     ),
     (
         "secondary / ghost / outline button",
@@ -1681,7 +1661,7 @@ const INTERACTION_RECIPES: &[(&str, &str)] = &[
     ),
 ];
 
-const RESTRAINT_RULES: &str = "Figma variant states first, otherwise existing theme tokens only (no new colours; record an assumption when none fits); at most two properties change per state; 150-250ms, ease or ease-out, defined once as a shared token or constant; no bounce and no infinite or attention-seeking animation; transforms of 4px or less and scale between 0.97 and 1.05; everything that moves is off under _motionReduce; non-interactive elements get no hover.";
+const RESTRAINT_RULES: &str = include_str!("text/screen_plan-RESTRAINT_RULES-cef67bed.md");
 
 /// `major.minor.patch` from a version or range as package.json writes it:
 /// `^16.1.0`, `~19.3.0-canary-...`, `16`. `None` for `latest`,
@@ -1729,13 +1709,11 @@ pub(super) const UPDATE_STEP: &str = "bunx @dependency-check-updates/cli -d -u -
 ///   whatever the React version; the runtime audit's view-transition check is
 ///   what settles whether it animates.
 /// - https://github.com/cloudflare/vinext#readme - peer dependency react ^19.3.1.
-const VIEW_TRANSITION_DOCS: &[&str] = &[
-    "https://nextjs.org/docs/app/guides/view-transitions",
-    "https://react.dev/reference/react/ViewTransition",
-    "https://vinext.dev/compatibility",
-    "https://github.com/cloudflare/vinext/blob/main/examples/app-router-playground/app/view-transitions/_ui/transitions.tsx",
-    "https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts",
-];
+static VIEW_TRANSITION_DOCS: std::sync::LazyLock<Vec<&'static str>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("text/screen-plan-view-transition-docs.json"))
+            .expect("vendored keyword JSON")
+    });
 
 /// The view-transition default: always on. DevFive runs the latest versions
 /// (the dependency step comes first), and the latest Next App Router and
@@ -1748,7 +1726,7 @@ const VIEW_TRANSITION_DOCS: &[&str] = &[
 fn view_transition_default(evidence: &ProjectEvidence) -> Value {
     let skipped = |why: String| {
         json!({"item": "view-transitions", "mechanism": "skipped",
-            "decision": "No view transitions.", "evidence": why, "docs": VIEW_TRANSITION_DOCS})
+            "decision": "No view transitions.", "evidence": why, "docs": *VIEW_TRANSITION_DOCS})
     };
     if evidence.config.view_transitions == Some(false) {
         return skipped(format!("viewTransitions: false in {CONFIG_FILE}"));
@@ -1773,8 +1751,8 @@ fn view_transition_default(evidence: &ProjectEvidence) -> Value {
         "vinext"
     };
     json!({"item": "view-transitions", "mechanism": "react-view-transition",
-        "decision": "import { ViewTransition } from 'react', wrapping each page's content in its page.tsx (not the layout, which persists): a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion. Verify it with a runtime-audit view-transition check (follow a link between two routes; it fails when no transition ran) - a failure is a bug to fix. experimental.viewTransition is added to the next config only if that check fails without it (vinext's own example sets it).",
-        "evidence": format!("runs on {runner} at the latest versions"), "app": evidence.app_root(), "docs": VIEW_TRANSITION_DOCS})
+        "decision": include_str!("text/screen_plan-view_transition_default-81ca7ab7.md"),
+        "evidence": format!("runs on {runner} at the latest versions"), "app": evidence.app_root(), "docs": *VIEW_TRANSITION_DOCS})
 }
 
 /// No app, no routes and no framework: a project still to be created.
@@ -1791,7 +1769,7 @@ fn stack_defaults(evidence: &ProjectEvidence) -> Vec<Value> {
     let mut defaults = Vec::new();
     if is_new_project(evidence) {
         defaults.push(json!({"item": "project-start",
-            "decision": format!("Start from dev-five-git/service-template - bun workspaces apps/*, vinext, devup-ui, oxlint via eslint-plugin-devup, TS 7 - keeping its structure and AGENTS.md conventions, then run the dependency step ({UPDATE_STEP})."),
+            "decision": format!(include_str!("text/screen_plan-stack_defaults-d534196c.md"), UPDATE_STEP = UPDATE_STEP),
             "evidence": "no app, route or framework in the project"}));
     } else if let Some(app) = &evidence.target_app {
         defaults.push(
@@ -1805,7 +1783,7 @@ fn stack_defaults(evidence: &ProjectEvidence) -> Vec<Value> {
             "evidence": format!("updateDependencies: false in {CONFIG_FILE}")})
     } else {
         json!({"item": "dependencies", "mechanism": "update",
-            "decision": format!("Before implementing, at the repository root: {UPDATE_STEP}, which updates every manifest in the repository - every bun workspace and every Cargo.toml - to the latest versions (-d finds them all, -u applies the updates as one recoverable batch, --rm removes each lockfile and installed directory, Cargo.lock and target/ included, so everything resolves fresh); then bun install, build, lint and typecheck. Fix code to new APIs; pin back only when no fix exists, and record the pin as an assumption. Record the outcome with devup_screen_plan assume (dependencyUpdate)."),
+            "decision": format!(include_str!("text/screen_plan-stack_defaults-c2140f37.md"), UPDATE_STEP = UPDATE_STEP),
             "evidence": "DevFive works on the latest versions; API knowledge from memory is assumed stale"})
     });
     defaults
@@ -1814,48 +1792,26 @@ fn stack_defaults(evidence: &ProjectEvidence) -> Vec<Value> {
 /// Words that mark an app, or a screen, as the public site or the admin
 /// console. An app named `admin` is the admin console; a Figma design for a
 /// public site is almost never for it.
-const PUBLIC_APP_WORDS: &[&str] = &[
-    "front", "web", "site", "www", "landing", "home", "public", "client",
-];
-const ADMIN_WORDS: &[&str] = &[
-    "admin",
-    "dashboard",
-    "console",
-    "backoffice",
-    "back office",
-    "cms",
-    "manager",
-    "관리자",
-    "어드민",
-    "대시보드",
-    "회원관리",
-];
+static PUBLIC_APP_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-public-app-words.json"))
+        .expect("vendored keyword JSON")
+});
+static ADMIN_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-admin-words.json"))
+        .expect("vendored keyword JSON")
+});
 /// Screen names a public site has and an admin console does not.
-const PUBLIC_SCREEN_WORDS: &[&str] = &[
-    "home",
-    "main",
-    "landing",
-    "about",
-    "company",
-    "service",
-    "services",
-    "contact",
-    "portfolio",
-    "pricing",
-    "blog",
-    "news",
-    "faq",
-    "gnb",
-    "메인",
-    "홈",
-    "회사소개",
-    "서비스",
-    "문의",
-    "포트폴리오",
-    "소개",
-];
+static PUBLIC_SCREEN_WORDS: std::sync::LazyLock<Vec<&'static str>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("text/screen-plan-public-screen-words.json"))
+            .expect("vendored keyword JSON")
+    });
 /// Routes that say an app is a console: a sign-in gate and a dashboard.
-const ADMIN_ROUTE_SEGMENTS: &[&str] = &["signin", "sign-in", "login", "dashboard", "admin"];
+static ADMIN_ROUTE_SEGMENTS: std::sync::LazyLock<Vec<&'static str>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("text/screen-plan-admin-route-segments.json"))
+            .expect("vendored keyword JSON")
+    });
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Side {
@@ -1864,10 +1820,18 @@ enum Side {
     Unclear,
 }
 
-fn words_side(names: &[&str], public: &[&str]) -> (usize, usize) {
+fn selection_words<'a>(config: &'a PlanConfig, key: &str, defaults: &[&'a str]) -> Vec<&'a str> {
+    config
+        .app_selection_keywords
+        .get(key)
+        .map(|words| words.iter().map(String::as_str).collect())
+        .unwrap_or_else(|| defaults.to_vec())
+}
+fn words_side(names: &[&str], public: &[&str], config: &PlanConfig) -> (usize, usize) {
+    let admin_words = selection_words(config, "admin", &ADMIN_WORDS);
     let admin = names
         .iter()
-        .filter(|name| ADMIN_WORDS.iter().any(|word| keyword_in(name, word)))
+        .filter(|name| admin_words.iter().any(|word| keyword_in(name, word)))
         .count();
     let public = names
         .iter()
@@ -1884,7 +1848,11 @@ fn app_side(app: &super::framework::App, evidence: &ProjectEvidence) -> (Side, V
     if let Some(name) = &app.name {
         names.push(name.as_str());
     }
-    let (mut public, mut admin) = words_side(&names, PUBLIC_APP_WORDS);
+    let (mut public, mut admin) = words_side(
+        &names,
+        &selection_words(&evidence.config, "publicApps", &PUBLIC_APP_WORDS),
+        &evidence.config,
+    );
     let mut why = Vec::new();
     if public > 0 {
         why.push(format!("{} is named like the public site", app.dir));
@@ -1897,10 +1865,10 @@ fn app_side(app: &super::framework::App, evidence: &ProjectEvidence) -> (Side, V
         .iter()
         .filter(|(_, page)| page.starts_with(&format!("{}/", app.dir)))
         .filter(|(route, _)| {
-            route
-                .trim_matches('/')
-                .split('/')
-                .any(|segment| ADMIN_ROUTE_SEGMENTS.contains(&segment))
+            route.trim_matches('/').split('/').any(|segment| {
+                selection_words(&evidence.config, "adminRoutes", &ADMIN_ROUTE_SEGMENTS)
+                    .contains(&segment)
+            })
         })
         .map(|(route, _)| route.clone())
         .collect::<Vec<_>>();
@@ -1926,11 +1894,15 @@ fn app_side(app: &super::framework::App, evidence: &ProjectEvidence) -> (Side, V
 
 /// Which side one Figma frame belongs to, from its own name and its
 /// section's. Admin markers win: a "관리자 - 메인" frame is the console's.
-fn screen_side(screen: &PlanScreenInput) -> Side {
+fn screen_side(screen: &PlanScreenInput, config: &PlanConfig) -> Side {
     let mut names = vec![screen.name.as_str()];
     names.extend(screen.section_name.as_deref());
     names.extend(screen.breadcrumb.iter().map(String::as_str));
-    match words_side(&names, PUBLIC_SCREEN_WORDS) {
+    match words_side(
+        &names,
+        &selection_words(config, "publicScreens", &PUBLIC_SCREEN_WORDS),
+        config,
+    ) {
         (_, admin) if admin > 0 => Side::Admin,
         (public, _) if public > 0 => Side::Public,
         _ => Side::Unclear,
@@ -1986,7 +1958,7 @@ fn assign_apps(
         .collect::<Vec<_>>();
     let screen_sides = screens
         .iter()
-        .map(|screen| (screen, screen_side(screen)))
+        .map(|screen| (screen, screen_side(screen, &evidence.config)))
         .collect::<Vec<_>>();
     let admin_screens = screen_sides
         .iter()
@@ -2117,7 +2089,7 @@ fn stack_questions(evidence: &ProjectEvidence) -> Vec<Value> {
             vec![
                 choice(
                     "Migrate to vinext",
-                    "vite.config.ts with vinext() and the devup-ui Vite plugin, vinext dev/build/start scripts, no next.config; the code and routes stay the App Router. Done before implementing, then the dependency step.",
+                    include_str!("text/screen_plan-stack_questions-eb6d40b2.md"),
                     json!({"framework": {"source": "vinext"}}),
                 ),
                 choice(
@@ -2200,7 +2172,7 @@ fn site_defaults(evidence: &ProjectEvidence, screens: &[PlanScreenInput]) -> Vec
             "decision": "_motionReduce removes transforms and transitions (or one globalCss rule does), so prefers-reduced-motion gets no movement.",
             "evidence": "devup-ui _motionReduce"}),
         json!({"item": "metadata",
-            "decision": "Root layout metadata with a title template, description and metadataBase when the site URL is known; every page exports title, description and openGraph taken from its Figma heading and lead text.",
+            "decision": include_str!("text/screen_plan-site_defaults-a7c1a186.md"),
             "evidence": "devfive-frontend critical-rules 2 (SEO metadata with openGraph)"}),
         json!({"item": "lang", "decision": format!("<html lang=\"{}\">", lang.0), "evidence": lang.1}),
         json!({"item": "alt-text", "decision": "alt text from the Figma layer name or its text content on every image.",
@@ -2627,30 +2599,10 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
 
 /// Names that mark a page, section or frame as not for implementation. Words
 /// in ASCII match whole words; the rest match anywhere in the name.
-const EXCLUDE_WORDS: &[&str] = &[
-    "trash",
-    "휴지통",
-    "archive",
-    "archived",
-    "아카이브",
-    "old",
-    "구버전",
-    "이전",
-    "deprecated",
-    "사용안함",
-    "미사용",
-    "backup",
-    "백업",
-    "draft",
-    "wip",
-    "작업중",
-    "test",
-    "테스트",
-    "sandbox",
-    "playground",
-    "copy",
-    "사본",
-];
+static EXCLUDE_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("text/screen-plan-exclude-words.json"))
+        .expect("vendored keyword JSON")
+});
 
 fn keyword_in(name: &str, keyword: &str) -> bool {
     let name = name.to_lowercase();
@@ -3460,9 +3412,10 @@ pub(super) fn draft_plan_with(
                     group_id.clone(),
                     header("Sections", &name),
                     format!(
-                        "Frames that look like the same screen sit in different sections ({}): {}. They look related because of {why}. Which is it? A custom answer may list one route per frame, e.g. \"/a, /b\".",
+                        include_str!("text/screen_plan-draft_plan_with-140b58b5.md"),
                         sections.join(", "),
-                        describe_frames(&screen.frames)
+                        describe_frames(&screen.frames),
+                        why = why
                     ),
                     if *all_device {
                         vec![single, separate, fix]
@@ -4850,7 +4803,7 @@ pub(super) fn defer(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Va
         "how": if decision.destructive {
             "Recorded. Do not build what it touches; carry on with everything else. It stays unbuilt and is listed in the final report."
         } else {
-            "Recorded. Carry on with everything else; items it blocks move to the back of the work queue. When the rest is done, take it with action assume (about: the decision id, decision: the recommended option)."
+            include_str!("text/screen_plan-defer-3281174c.md")
         },
     }))
 }
@@ -4916,7 +4869,7 @@ pub(super) async fn audit_plan(
     Ok(result)
 }
 
-pub(super) const DONE_RULE: &str = "A URL is done when every check and comparison passes at its drawn widths and health and overflow pass at every width, or each remaining finding is a converter bug with its repro filed, or unresolved with its evidence after maxFixAttempts fix-and-rerun rounds. Layout is exact: a geometry mismatch is code drift (restore the export) or a converter bug, never tuned by hand.";
+pub(super) const DONE_RULE: &str = include_str!("text/screen_plan-DONE_RULE-95793a55.md");
 
 fn screen_table(plan: &Value) -> Vec<Value> {
     array(&plan["screens"])

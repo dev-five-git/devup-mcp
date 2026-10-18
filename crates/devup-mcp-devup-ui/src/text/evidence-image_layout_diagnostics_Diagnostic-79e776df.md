@@ -1,0 +1,1 @@
+Preserve explicit fixed dimensions or source-supported aspect ratio; measure rendered card sizes with the chosen assets. Zero-minimum fractional columns protect track allocation but do not establish image height or crop fidelity.

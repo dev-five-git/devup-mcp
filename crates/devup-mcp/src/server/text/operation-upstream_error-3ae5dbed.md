@@ -1,0 +1,1 @@
+Figma meters reads with a leaky bucket, so capacity returns gradually rather than resetting at a fixed time. Retry after a short wait; a small request may succeed while a large one is still refused.

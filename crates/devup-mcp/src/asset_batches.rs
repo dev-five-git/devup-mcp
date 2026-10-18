@@ -42,7 +42,7 @@ fn unwrap_response(value: &Value) -> anyhow::Result<Value> {
     }
     anyhow::ensure!(
         batch_file(value).is_some(),
-        "Each batch must contain its export source.fileKey (or, from a Devup Bridge plugin that could not report one, source.fileName); pending jobs and bare manifests cannot establish source identity"
+        include_str!("server/text/asset_batches-unwrap_response-c1acefdb.md")
     );
     anyhow::ensure!(
         value["assetSummary"].is_object(),
@@ -215,7 +215,7 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
         source[field] = json!(file);
     }
     Ok(json!({"status":if complete {"complete"} else {"partial"},
-        "description":"Cumulative binary collection across the supplied batches only. Per-batch partial can mean assets were not requested in that batch; it is not an export failure. Projection quality is not merged. File writes are historical reports, not reverified files.",
+        "description":include_str!("server/text/asset_batches-merge-8a712496.md"),
         "scope":"union-of-supplied-batches", "inventoryComplete":incomplete_inventory_batches == 0,
         "incompleteInventoryBatchCount":incomplete_inventory_batches, "source":source,
         "scopeRootIds":roots,"batchCount":values.len(),"discovery":if incomplete {"incomplete"} else {"complete"},

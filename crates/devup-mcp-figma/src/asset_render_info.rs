@@ -703,7 +703,7 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
         info["formatRecommendationEvidence"] = json!(if asset.source_kind == "vector-node" {
             "Vector asset: retain SVG when the native export is usable; inspect effects and embedded rasters."
         } else {
-            "Raster/image paint: WebP is a candidate for photos and raster content; content classification is unknown. Alpha is preserved; use lossless for text, certificates and crisp edges, and inspect lossy RGB quality."
+            include_str!("text/asset_render_info-annotate_assets-012d4cd1.md")
         });
         if info["extraFills"].is_null() {
             info["extraFills"] = view

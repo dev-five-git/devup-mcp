@@ -1,0 +1,1 @@
+This plugin could not report its file key (figma.fileKey is empty, as in Dev Mode), so no key is claimed for its file. It serves reads only while it is the only plugin attached; address it by omitting url, or with figma-bridge://current.

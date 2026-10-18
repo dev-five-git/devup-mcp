@@ -106,13 +106,13 @@ pub(super) fn attach_source_ownership(result: &mut Value, layer: &str) {
             "Review and edit the Vespertide model in models/*.json, then run vespertide revision and vespertide export --orm seaorm to regenerate entities and migrations."
         }
         "entity-route" => {
-            "Review the human-authored route shapes and whether the column is intentionally internal. Edit route handlers for API exposure; for database changes, edit models/*.json and run vespertide revision/export, then rebuild the routes and regenerate the client."
+            include_str!("text/stack_diff-attach_source_ownership-758751d4.md")
         }
         "route-openapi" => {
             "Review the human-authored route handlers and merged app configuration, then rebuild so Vespera regenerates openapi.json and regenerate the downstream client."
         }
         "openapi-client" => {
-            "Review the human-authored frontend call and upstream route handlers or devup tags. Correct the call or route declaration, rebuild so Vespera regenerates openapi.json, then regenerate the @devup-api client from that spec."
+            include_str!("text/stack_diff-attach_source_ownership-0113946e.md")
         }
         _ => unreachable!("validated layer"),
     };
@@ -579,7 +579,7 @@ fn route_openapi_layer(root: &Path) -> Value {
                     .unwrap_or_default();
                 drifts.push(json!({
                     "kind": "route-openapi-unresolved-fallback",
-                    "message": "Could not resolve all route declarations in this file. These legacy text-scan candidates are unverified, may include comments or unrelated strings, and are excluded from declared route counts; review the source and build configuration before rebuilding the generated spec.",
+                    "message": include_str!("text/stack_diff-route_openapi_layer-4d0cfa16.md"),
                     "file": display_path(&file),
                     "routes": guesses,
                     "confidence": "low",
@@ -590,7 +590,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if !conditional_routes.is_empty() {
         drifts.push(json!({
             "kind": "conditional-route-openapi",
-            "message": "These route declarations depend on cfg/cfg_attr configuration and may be compiled out. They are excluded from definite route counts and missing-from-spec findings; inspect the build configuration before rebuilding the generated spec.",
+            "message": include_str!("text/stack_diff-route_openapi_layer-215d8b4d.md"),
             "routes": conditional_routes.iter().map(|(method, path)| json!({
                 "method": method, "path": path,
             })).collect::<Vec<_>>(),
@@ -665,7 +665,8 @@ fn route_openapi_layer(root: &Path) -> Value {
     let mut notes = Vec::new();
     if spelling_only_matches > 0 {
         notes.push(json!(format!(
-            "{spelling_only_matches} route(s) exist on both sides in different spellings and were matched rather than reported. Vespera writes a handler's URL into openapi.json in kebab-case — including inside {{...}} parameters — and gives a module-root route a trailing slash, while this scan reads the file name and path attribute verbatim. Only `_` vs `-` and a trailing slash are folded; every other difference is still reported as drift."
+            include_str!("text/stack_diff-route_openapi_layer-3c2d71f8.md"),
+            spelling_only_matches = spelling_only_matches
         )));
     }
 
@@ -692,7 +693,7 @@ fn route_openapi_layer(root: &Path) -> Value {
             json!({
                 "kind": "mirrored-drift",
                 "count": mirrored,
-                "message": "These routes are on both drift lists in different spellings, which means the two sides write the same route differently — not that a route is missing. Treat them as unverified rather than as drift, and report the spelling difference instead.",
+                "message": include_str!("text/stack_diff-route_openapi_layer-70549f41.md"),
                 "confidence": "low",
             }),
         );
@@ -1111,9 +1112,13 @@ fn openapi_client_layer(root: &Path) -> Value {
     if spelling_only_matches > 0
         && let Some(object) = layer.as_object_mut()
     {
-        object.insert("notes".to_owned(), json!([format!(
-            "{spelling_only_matches} call(s) name an endpoint that openapi.json has under a different spelling and were matched rather than reported. openapi.json carries Vespera's kebab-case paths, parameters included (`/order/{{order-number}}`), while the generated @devup-api client and the code calling it use the camelCase parameter name (`/order/{{orderNumber}}`). Case and the `_`/`-` separators are folded; the path's `/` and `{{}}` structure still has to agree exactly."
-        )]));
+        object.insert(
+            "notes".to_owned(),
+            json!([format!(
+                include_str!("text/stack_diff-openapi_client_layer-a74a750f.md"),
+                spelling_only_matches = spelling_only_matches
+            )]),
+        );
     }
     attach_excluded_paths(&mut layer, excluded);
     layer

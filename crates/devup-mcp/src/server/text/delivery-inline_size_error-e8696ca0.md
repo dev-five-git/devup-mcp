@@ -1,0 +1,1 @@
+Output bytes are UTF-8 or binary payload bytes; serializedResponseBytes includes JSON escaping, base64 and duplicated MCP content/structuredContent. Per-output bytes are not additive wire sizes.

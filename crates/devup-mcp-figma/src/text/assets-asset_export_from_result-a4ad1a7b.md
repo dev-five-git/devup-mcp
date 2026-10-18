@@ -1,0 +1,1 @@
+Figma exported the asset but did not return the {} bytes. Upstream returns written files as an attachment only for png; svg is carried inline. Request png or svg instead.

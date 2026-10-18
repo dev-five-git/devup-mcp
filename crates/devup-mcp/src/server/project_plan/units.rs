@@ -100,7 +100,7 @@ pub(super) fn split(
     validate(&units)?;
     for u in &units {
         let brief = format!(
-            "# Work unit {}\n\nScope: {}\n\nDependencies: {}\n\nQuestion owner: {}. Workers never ask the user in supervisor mode. Escalate new decisions via Orca orchestration ask/reply; supervisor uses recorded decisions or defers the recommended option while other work continues.\n\n## Recorded decisions and source facts\n```json\n{}\n```\n\n## ERD slice (shared entities retained for cross-feature FKs)\n```mermaid\n{}\n```\n\n## Screen-plan slice (full confirmed routing context)\n```json\n{}\n```\n\n## Acceptance and verification\n```json\n{}\n```\n\nSupervisor reruns verification before merging; return failures to this worker session.\n",
+            include_str!("../text/units-split-bf50d8a5.md"),
             text(&u["id"]),
             text(&u["scope"]),
             u["dependencies"],

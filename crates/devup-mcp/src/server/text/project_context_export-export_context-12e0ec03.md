@@ -1,0 +1,1 @@
+Review existing components and import sites before creating new Header/Footer/widgets; compare props and design variants. Environment key presence does not prove provider setup or valid values.

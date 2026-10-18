@@ -1,0 +1,1 @@
+With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma.

@@ -1023,11 +1023,7 @@ impl Skill {
         }
         if r.origin == Origin::Own {
             return format!(
-                "{marker}{repo}, at {path}.\n     \
-                 Part of this devup-mcp build - there is no separate upstream for it to fall \
-                 behind.\n     \
-                 Current revision: {latest}\n     \
-                 Why this matters here: {used} -->",
+                include_str!("text/skills-provenance_note-ca003bce.md"),
                 marker = AUTHORED_MARKER,
                 repo = r.repo,
                 path = r.path,
@@ -1036,11 +1032,7 @@ impl Skill {
             );
         }
         format!(
-            "{marker}{repo}/{path} at {commit} ({at}).\n     \
-             Embedded in this devup-mcp build; no network was used to read it.\n     \
-             This revision: {source}\n     \
-             Newer revisions, if any: {latest}\n     \
-             Why this matters here: {used} -->",
+            include_str!("text/skills-provenance_note-fa8096ea.md"),
             marker = VENDORED_MARKER,
             repo = r.repo,
             path = r.path,
@@ -1091,9 +1083,7 @@ impl Skill {
                     "action": "devup_skills",
                     "arguments": {"action": "install", "names": [self.record.name]},
                     "why": if revision == Freshness::Incomplete {
-                        "The SKILL.md on disk is this build's, but a document it links to is \
-                         missing or has different bytes. It looks installed and its links go \
-                         nowhere."
+                        include_str!("text/skills-install_action-510f4ba8.md")
                     } else {
                         "The copy on disk was written by a different devup-mcp build. It still \
                          loads, and it describes conventions this binary no longer emits."
@@ -1108,9 +1098,7 @@ impl Skill {
                 "revision": revision.as_str(),
                 "action": null,
                 "how": if revision == Freshness::Foreign {
-                    "Installed, but this document is not one devup-mcp wrote - no provenance \
-                     note. It is left exactly as it is, because replacing it would destroy work \
-                     this server did not do. Delete it first if you want devup-mcp's copy."
+                    include_str!("text/skills-install_action-50ca51e1.md")
                 } else {
                     "Already installed and current. Your skill loader picks it up by its own \
                      triggers; nothing to do."
@@ -1137,15 +1125,12 @@ impl Skill {
                     "action": "devup_skills",
                     "arguments": {"action": "install", "names": [self.record.name]},
                     "writesTo": writes,
-                    "how": "Call devup_skills with action \"install\". Embedded skills prefer current upstream documents with offline fallback; own skills use the binary. Then load it the way your runtime loads \
-                            a project skill.",
+                    "how": include_str!("text/skills-install_action-e5981815.md"),
                     "runtime": lookup.runtime.as_str(),
                     "rootChoice": if !roots.is_empty() {
                         format!("Using the existing root {}.", targets[0].display())
                     } else if lookup.runtime == Runtime::Unknown {
-                        "No skill root exists yet and the MCP client did not identify itself, \
-                         so every known convention is written. One of them is the one your \
-                         runtime reads."
+                        include_str!("text/skills-install_action-13d23996.md")
                             .to_owned()
                     } else {
                         format!(
@@ -1255,7 +1240,7 @@ pub fn command_state(lookup: &Lookup) -> serde_json::Value {
         "perRuntime": per_runtime,
         "how": if !supported {
             format!(
-                "devup-mcp writes no slash command for {}: no command location for it is verified. The devup skill is installed with the others and loads by its description, and the server's instructions start the workflow on a request to build pages.",
+                include_str!("text/skills-command_state-84cd29d8.md"),
                 lookup.runtime.as_str()
             )
         } else if installed {
@@ -1348,9 +1333,7 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
             } else if r.origin == Origin::Own {
                 entry["embeddedRevision"] = serde_json::json!({
                     "commit": serde_json::Value::Null,
-                    "note": "Authored in devup-mcp itself, so there is no upstream revision to \
-                             pin and nothing for it to fall behind. It moves when this binary \
-                             does.",
+                    "note": include_str!("text/skills-report-1a0ab5f8.md"),
                 });
             }
             if r.origin == Origin::External {
@@ -1382,9 +1365,7 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
             "detected": lookup.runtime.as_str(),
             "clientName": lookup.client_name,
             "from": "The MCP clientInfo name sent at initialize, echoed here as `clientName`.",
-            "why": "Runtimes do not read the same directory. Installing into one this runtime \
-                    never opens reports success and still never loads, which is the failure this \
-                    field exists to make visible.",
+            "why": include_str!("text/skills-report-071c67f6.md"),
             // A closed-source client's name is matched against what has been
             // observed rather than read out of source, so a wrong guess does
             // not fail - it just never fires, and reads exactly like a client
@@ -1394,10 +1375,7 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
                 serde_json::json!({
                     "meaning": "No runtime matched this client name, so every convention is read \
                                 and the three broad ones are written. That is safe, not wrong.",
-                    "butAlso": "It looks identical to a client devup-mcp does know whose name has \
-                                since changed. If `clientName` above is a client with its own \
-                                skill directory, that directory is missing from devup-mcp's table \
-                                and reporting the name is how it gets added.",
+                    "butAlso": include_str!("text/skills-report-55e539f1.md"),
                     "reportAt": "https://github.com/dev-five-git/devup-mcp/issues",
                 })
             } else {
@@ -1419,35 +1397,20 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
                 .iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>(),
-            "userRootsNote": "Machine-wide roots are read to decide `installed`, never written: \
-                              devup-mcp writes only inside an allowed output root. A skill found \
-                              in one of these is already loaded by its runtime and needs nothing.",
+            "userRootsNote": include_str!("text/skills-report-eb1c9bcc.md"),
             "writeConventions": lookup.runtime.write_roots(),
             "allKnownRoots": EVERY_PROJECT_ROOT,
-            "scopeNote": "`known` is every root this runtime *reads*, so an install someone else \
-                          made is found rather than duplicated. `writeConventions` is the \
-                          narrower list an install may create, and `wouldUse` is what this call \
-                          would actually write. For an unidentified client the first is every \
-                          convention and the second is the three broad ones, because writing a \
-                          copy into each of a dozen editor directories is worse than the problem \
-                          it solves.",
+            "scopeNote": include_str!("text/skills-report-3e1e10ee.md"),
         },
         "installedCount": entries.len() - missing,
         "missingCount": missing,
         "outdated": stale,
-        "outdatedNote": "Installed, loading, and not what this build writes. `installed` means the \
-                         file is there; `installState.revision` says whether it is current, and a \
-                         skill listed here is teaching an agent rules this binary no longer emits. \
-                         Installing again rewrites devup-mcp's own copies and leaves a `foreign` \
-                         one - a document with no devup-mcp provenance note - alone.",
+        "outdatedNote": include_str!("text/skills-report-d3cac7a1.md"),
         "skills": entries,
         "command": command_state(lookup),
         "machineWide": machine_wide(lookup),
-        "how": "These are the conventions for the code devup-mcp emits and reads. Install the \
-                missing ones, then let your own skill loader surface them - an installed skill \
-                keeps applying for every later session, which is the thing reading a document \
-                once does not do.",
-        "boundary": "devup-mcp installs only carried skills: embedded skills prefer current upstream documents with offline fallback, and own skills use the binary. External skills are never fetched or written; their install command is yours to run.",
+        "how": include_str!("text/skills-report-d4500f82.md"),
+        "boundary": include_str!("text/skills-report-2e1e5387.md"),
     });
     if let Some(obligation) = changepacks_obligation(&lookup.project) {
         report["repoObligations"] = serde_json::json!({ "changepacks": obligation });
@@ -1476,12 +1439,8 @@ fn machine_wide(lookup: &Lookup) -> serde_json::Value {
         "directory": display_path(&directory),
         "appliesTo": "Every project on this machine, not just this one.",
         "action": "run-this-yourself",
-        "why": "devup-mcp writes only inside an allowed output root, and the home directory is \
-                not one. Widening that so a design-to-code server can write to $HOME is not a \
-                trade worth making, so the path is yours to fill.",
-        "how": "Copy the installed skill directories there, or install them with your runtime's \
-                own skill tooling. A skill found in this directory is reported as installed by \
-                every later call, for every project.",
+        "why": include_str!("text/skills-machine_wide-46b2476c.md"),
+        "how": include_str!("text/skills-machine_wide-85410d98.md"),
         "readNotWritten": true,
     })
 }
@@ -1524,17 +1483,11 @@ fn changepacks_obligation(project: &Path) -> Option<serde_json::Value> {
 
     Some(serde_json::json!({
         "detected": display_path(&directory),
-        "obligation": "A pull request that changes a tracked path must add a changepack log. \
-                       Without one the version never moves, so the change reaches the base branch \
-                       and is never released.",
+        "obligation": include_str!("text/skills-changepacks_obligation-91f6f9c2.md"),
         "createWith": "bunx @changepacks/cli --yes --update-type <major|minor|patch> --message \"<why this change exists>\"",
-        "whyNotBare": "Running the tool with no flags opens an interactive selection UI, which \
-                       hangs or is cancelled in a non-TTY shell. That is the usual reason a pull \
-                       request arrives without the changepack it needed.",
+        "whyNotBare": include_str!("text/skills-changepacks_obligation-54540b9a.md"),
         "tracks": config.get("ignore").cloned().unwrap_or(serde_json::Value::Null),
-        "tracksNote": "Patterns from .changepacks/config.json. A leading `!` marks a tracked path; \
-                       everything else is ignored. Whether your change needs a changepack is decided \
-                       by this list, not by a general rule.",
+        "tracksNote": include_str!("text/skills-changepacks_obligation-23e2c441.md"),
         "baseBranch": config.get("baseBranch").cloned().unwrap_or(serde_json::Value::Null),
         "pendingLogs": pending,
         "skill": "changepacks",
@@ -1710,12 +1663,10 @@ async fn install_with(
             serde_json::Value::Null
         } else {
             serde_json::json!({
-                "how": "Load the newly installed skills the way your runtime loads a project \
-                        skill, and run any command under notInstallable yourself. Call \
-                        devup_skills again to confirm the state changed.",
+                "how": include_str!("text/skills-install_with-94607ffe.md"),
             })
         },
-        "boundary": "Only carried skills were written, using current upstream documents where available or the embedded copy. External skills were not fetched or written, and no install command was executed.",
+        "boundary": include_str!("text/skills-install_with-5f02c573.md"),
     }))
 }
 

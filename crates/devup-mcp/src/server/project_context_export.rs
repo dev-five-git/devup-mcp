@@ -110,7 +110,7 @@ pub(crate) fn export_context(project_root: &str) -> Value {
     let key_count = keys.len();
     json!({"ui":ui,"envKeyNames":keys.into_iter().take(200).collect::<Vec<_>>(),
         "envContext":{"valuesIncluded":false,"filesScanned":files.len().min(32),"truncated":files.len()>32 || key_count>200,"keyNamesOmitted":key_count.saturating_sub(200),"maxFiles":32,"maxFileBytes":65_536,"maxKeyNames":200,"excludedPaths":excluded,"diagnostics":diagnostics},
-        "reuseGuidance":"Review existing components and import sites before creating new Header/Footer/widgets; compare props and design variants. Environment key presence does not prove provider setup or valid values."})
+        "reuseGuidance":include_str!("text/project_context_export-export_context-12e0ec03.md")})
 }
 
 /// Added context is bounded independently and respects remaining inline space.

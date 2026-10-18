@@ -1,0 +1,1 @@
+The element has the wrong size: compare its width and height props with the Figma sizing (fixed, fill or hug), make fill stretch at widths that were not drawn, and check an image's aspect ratio and min/max sizes.

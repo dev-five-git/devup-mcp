@@ -1,0 +1,1 @@
+Restore the values the export wrote for this element (the finding lists what is missing and what was added); layout is exact, so do not tune it by hand - re-export the node if the design changed.

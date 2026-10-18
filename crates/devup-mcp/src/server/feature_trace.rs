@@ -24,7 +24,7 @@ const MAX_SOURCE_BYTES: u64 = 2_097_152;
 const METHODS: &[&str] = &[
     "get", "post", "put", "patch", "delete", "head", "options", "trace",
 ];
-const ACCEPTED: &str = "Supply at least one explicit anchor: routePath, figmaNodeId, artifactId, operationId, apiPath with method, componentPath, or tableName. Requirement prose is never interpreted as an anchor.";
+const ACCEPTED: &str = include_str!("text/feature_trace-ACCEPTED-59546b50.md");
 
 fn text(value: &Value) -> &str {
     value.as_str().unwrap_or("")
@@ -484,7 +484,7 @@ fn comparison(fields: &BTreeSet<String>, contract: &BTreeSet<String>, reasons: &
     json!({"status":if fields.is_empty() || !reasons.is_empty(){"UNVERIFIED"}else{"RESOLVED"},
         "designFields":fields,"contractFields":contract,"designFieldsNotProvided":fields.difference(contract).collect::<Vec<_>>(),
         "contractFieldsUnused":contract.difference(fields).collect::<Vec<_>>(),"reasons":reasons,
-        "scope":"Literal top-level name/data-field bindings versus declared schema fields; differences are candidates only when status is UNVERIFIED. This is not type compatibility or runtime serialization proof."})
+        "scope":include_str!("text/feature_trace-comparison-60526fe1.md")})
 }
 fn compare(design: &Design, operation: &Operation) -> Value {
     let mut request = BTreeSet::new();

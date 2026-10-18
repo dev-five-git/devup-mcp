@@ -73,7 +73,7 @@ pub(super) fn checklist(payload: &CollectedPayload, roots: &[String]) -> Value {
     }
     json!({"sections":records,"totalSections":sections.len(),"sectionsTruncated":sections.len()>20,
         "scope":"selected captured roots with at most 100 descendants examined per root","implementationState":"unverified",
-        "evidenceLimit":"These are review prompts from actual captured fields. No screenshot was interpreted, browser was rendered, design intent was inferred or missing source image resolution was verified."})
+        "evidenceLimit":include_str!("text/section_checklist-checklist-500ab77e.md")})
 }
 
 #[cfg(test)]

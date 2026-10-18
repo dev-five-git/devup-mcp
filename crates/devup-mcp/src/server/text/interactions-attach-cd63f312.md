@@ -1,0 +1,1 @@
+Resolve every interactiveCandidate against real routes, record IDs and accessible controls; validate and test the wiring. Ask about unresolved targets together; never invent a destination.

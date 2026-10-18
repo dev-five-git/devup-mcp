@@ -1,0 +1,1 @@
+This Section's candidate list does not fit the plugin transport. The list is never truncated to fit, because dropping a candidate would hide a screen the caller can select; text previews are already surrendered first. Narrow the target instead: search this Section by name for the screen you want, or open a nested Section and export from there.

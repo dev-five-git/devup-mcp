@@ -1,0 +1,1 @@
+A plugin is attached to this process, which holds the bridge port {port}. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login; other devup-mcp processes on this machine read through this one. {SERVED_WITH_ONE_PLUGIN}

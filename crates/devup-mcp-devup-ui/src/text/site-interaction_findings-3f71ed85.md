@@ -1,0 +1,1 @@
+Apply the role's recipe from the devup-implementation-plan skill: hover, _focusVisible (2px ring with offset), _active, cursor="pointer" and _disabled where it applies, from existing theme tokens, with the shared transition. On a next/link, render it as <Box as={Link}> so the states are devup-ui props.

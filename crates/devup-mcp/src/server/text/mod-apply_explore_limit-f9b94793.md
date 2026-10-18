@@ -1,0 +1,1 @@
+The Figma projection this was read from is itself incomplete - the collection script reached its byte ceiling and left nodes out - so screens may be missing that no limit would bring back. Explore a narrower anchor. Text previews use a separate budget and do not change candidate count, IDs, or projection truncation.

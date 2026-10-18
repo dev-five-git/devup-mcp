@@ -1,0 +1,1 @@
+One solid square-cornered OUTSIDE edge becomes a zero-blur translated box shadow that consumes no layout space; real effects follow it in paint order. This does not claim a source shadow effect or pixel parity.

@@ -1,0 +1,1 @@
+Start from dev-five-git/service-template - bun workspaces apps/*, vinext, devup-ui, oxlint via eslint-plugin-devup, TS 7 - keeping its structure and AGENTS.md conventions, then run the dependency step ({UPDATE_STEP}).

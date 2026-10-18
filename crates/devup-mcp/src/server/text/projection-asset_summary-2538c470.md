@@ -1,0 +1,1 @@
+Only some deliverable asset bytes were collected, or discovery is incomplete. capture-not-in-artifact means not collected in this batch, not an export failure. Merge saved batch responses with devup-mcp --merge-asset-batches batch1.json batch2.json.

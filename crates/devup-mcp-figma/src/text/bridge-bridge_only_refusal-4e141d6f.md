@@ -1,0 +1,1 @@
+This read cannot go through the Devup Bridge plugin, and the plugin could not report the file's Figma key, so the direct path cannot make it either. Repeat the call with the file's own Figma link (Share -> Copy link) to read it through the direct path.

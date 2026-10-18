@@ -1,0 +1,1 @@
+Literal top-level name/data-field bindings versus declared schema fields; differences are candidates only when status is UNVERIFIED. This is not type compatibility or runtime serialization proof.

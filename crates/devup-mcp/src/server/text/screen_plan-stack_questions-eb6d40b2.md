@@ -1,0 +1,1 @@
+vite.config.ts with vinext() and the devup-ui Vite plugin, vinext dev/build/start scripts, no next.config; the code and routes stay the App Router. Done before implementing, then the dependency step.

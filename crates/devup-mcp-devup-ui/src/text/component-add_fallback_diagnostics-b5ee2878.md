@@ -1,0 +1,1 @@
+This live layout background references a native node rendition that includes the node's other fills, effects and subtree. CSS/live children can repeat that composition. Review the exported PNG and flatten the entire subtree, or export original fill bytes separately and implement the paint transforms/compositing before use; automatic fidelity is unsupported here.

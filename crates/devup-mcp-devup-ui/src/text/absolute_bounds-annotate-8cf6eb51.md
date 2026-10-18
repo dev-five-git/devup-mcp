@@ -1,0 +1,1 @@
+Absolute asset export policy: generated {css} = px(absoluteRenderBounds.{axis}); export origin = render.xy - parent.absoluteBoundingBox.xy. Bounding-box differences are boundary selection, not rounding.

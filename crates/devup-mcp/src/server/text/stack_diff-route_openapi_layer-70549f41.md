@@ -1,0 +1,1 @@
+These routes are on both drift lists in different spellings, which means the two sides write the same route differently — not that a route is missing. Treat them as unverified rather than as drift, and report the spelling difference instead.

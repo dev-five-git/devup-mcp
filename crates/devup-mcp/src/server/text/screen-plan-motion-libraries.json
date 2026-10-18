@@ -1,0 +1,8 @@
+[
+  "framer-motion",
+  "motion",
+  "next-view-transitions",
+  "react-transition-group",
+  "@react-spring/web",
+  "gsap"
+]

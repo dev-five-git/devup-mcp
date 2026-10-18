@@ -623,7 +623,7 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
             issues.as_array_mut().unwrap().push(json!({"code":"DEVUP_CODEGEN_INTERACTION_UNMAPPED","nodeId":node_ids.first(),"screenId":screen_id,
                 "property":"reactions","severity":"warning","fidelityImpact":"none",
                 "message":"Interaction candidate has static markup only; href/events and accessible control semantics require implementation.",
-                "details":{"classification":"interaction-unmapped","candidateCount":node_ids.len(),"nodeIds":node_ids,"nextAction":"Resolve every interactiveCandidate against real routes, record IDs and accessible controls; validate and test the wiring. Ask about unresolved targets together; never invent a destination."}}));
+                "details":{"classification":"interaction-unmapped","candidateCount":node_ids.len(),"nodeIds":node_ids,"nextAction":include_str!("text/interactions-attach-cd63f312.md")}}));
         }
         if result["deliverable"].is_object() {
             result["deliverable"]["isFinal"] = json!(false);
@@ -681,7 +681,7 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
         }
     }
     result["ambiguityQuestions"] = json!(questions);
-    result["completionEvidence"] = json!({"behavior":"unverified","visual":"unverified","required":["Report candidate, wired and tested counts with unresolved reasons.","Run devup_ui_validate with real route inventory and inspect source/rendered href coverage.","Render at each implemented viewport with project fonts/assets loaded and capture a screenshot; call devup_visual_compare against referencePng. Report skipped comparisons and remaining viewports explicitly."],
+    result["completionEvidence"] = json!({"behavior":"unverified","visual":"unverified","required":["Report candidate, wired and tested counts with unresolved reasons.","Run devup_ui_validate with real route inventory and inspect source/rendered href coverage.",include_str!("text/interactions-attach-1e4189e6.md")],
         "visualCompare":{"tool":"devup_visual_compare","automaticRun":false,"reason":"Requires actual browser-rendered screenshot and matching Figma reference; source analysis is not pixel evidence."}});
     if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
         for frame in frames {

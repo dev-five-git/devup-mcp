@@ -1,0 +1,1 @@
+{} further drawing(s) claim the file {path}; the first is written. An asset is named after its layer, as the plugin names it, so two drawings a designer named alike cannot both be written.

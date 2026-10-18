@@ -1,0 +1,1 @@
+No view transition ran on this navigation: wrap the routed content in React's <ViewTransition> (or add @view-transition { navigation: auto } for a cross-document transition) and navigate with the framework's Link so it is a client navigation.

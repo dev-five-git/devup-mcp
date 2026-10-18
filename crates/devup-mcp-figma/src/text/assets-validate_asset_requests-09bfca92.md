@@ -1,0 +1,1 @@
+renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; PNG/JPG preserve original bytes; explicit WebP transcodes PNG/JPEG source without resizing.

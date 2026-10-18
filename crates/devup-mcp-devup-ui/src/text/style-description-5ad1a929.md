@@ -1,0 +1,1 @@
+In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.

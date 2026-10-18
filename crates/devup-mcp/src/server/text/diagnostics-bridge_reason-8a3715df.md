@@ -1,0 +1,1 @@
+Port {port} is held by a devup-mcp{holder} that speaks bridge relay protocol {}, and this one speaks {ours}. Rather than risk a wrong answer, this process does not read through it. Restart the MCP client session whose devup-mcp is older so both run the same release.

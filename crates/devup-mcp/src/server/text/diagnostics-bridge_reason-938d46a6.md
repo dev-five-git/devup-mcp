@@ -1,0 +1,1 @@
+Another process{holder} holds the bridge port {port}, but this process could not read or create the per-user relay secret it proves itself with ({detail}), so it cannot read through it.

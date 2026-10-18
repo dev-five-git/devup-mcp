@@ -279,7 +279,11 @@ pub(super) fn url_plan(
             Some(height) if (1..=MAX_VIEWPORT_SIDE).contains(&height) => height,
             Some(height) => {
                 notes.push(format!(
-                    "The {width}px frame {node_id} is {height}px tall, over the {MAX_VIEWPORT_SIDE}px a viewport can be; its page comparison stays inconclusive and its sections carry the visual check."
+                    include_str!("text/audit_plan-url_plan-a1031a26.md"),
+                    MAX_VIEWPORT_SIDE = MAX_VIEWPORT_SIDE,
+                    height = height,
+                    node_id = node_id,
+                    width = width
                 ));
                 DEFAULT_HEIGHT
             }
@@ -810,8 +814,8 @@ pub(super) async fn write(
         "runner": {"directory": runner.display().to_string(), "state": template_state,
             "install": [["npm", "ci"], ["npx", "playwright", "install", "chromium"]],
             "ifInstallFails": "Record it with devup_screen_plan action status, auditPlanPath and toolingUnavailable: the URL's audit stays inconclusive and the work goes on."},
-        "nodeIdentity": "Sections, cards and assets are found by data-figma-node-id, which devup_figma_export writes into a project's TSX. A check whose element is missing reports missingNodes; re-export with projectRoot.",
-        "nextAction": "For each URL in order: export what missingReferences names and run auditPlan again, start the app, run the plan, then call devup_screen_plan action status with auditPlanPath and auditReportPath (report/report.json). Run each visualComparisons call, pass the results back as visualResults, fix every finding, and repeat until the URL is done.",
+        "nodeIdentity": include_str!("text/audit_plan-write-7f9aea99.md"),
+        "nextAction": include_str!("text/audit_plan-write-925db929.md"),
     }))
 }
 

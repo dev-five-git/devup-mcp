@@ -1,0 +1,1 @@
+Constraint, geometry, read errors, containing block or emitted props do not satisfy the bounded CENTER/MIN/MAX proof; STRETCH/SCALE and MAX with unverified sizing require separate proofs.

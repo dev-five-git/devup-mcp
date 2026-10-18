@@ -184,7 +184,7 @@ pub(crate) fn absolute_component_verification(
         };
         let mut evidence = json!({"state":if preserved {"preserved"} else if intrinsic || percentage {"verified"} else {"approximated"},"fidelityImpact":if preserved || intrinsic || percentage {"none"} else {"approximated"},
             "sourceSizing":view.string(sizing),"sourceValue":original,"generatedValue":generated,
-            "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage && absolute_width {"Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides."} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
+            "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage && absolute_width {include_str!("../text/sizing-absolute_component_verification-cfd19786.md")} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
             "resolutionCondition":"Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."});
         evidence["blockedBy"] = json!(blocked_by);
         if axis == "width" {
@@ -208,7 +208,7 @@ pub(crate) fn absolute_component_verification(
             } else if intrinsic {
                 "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
             } else {
-                "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
+                include_str!("../text/sizing-absolute_component_verification-bdf7d908.md")
             });
         }
         evidence
@@ -300,8 +300,8 @@ pub(crate) fn absolute_component_verification(
         json!({"state":if verified {"verified"} else {"approximated"},"fidelityImpact":if verified {"none"} else {"approximated"},
             "constraint":constraint,"constraintDeclared":view.value("constraints").is_some(),"sourceOffset":offset,"sourceSize":own_size,"parentSize":parent_size,
             "generatedProperty":css,"generatedValue":generated,"transform":prop(tag,"transform"),
-            "reason":if verified {"Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified."} else {"Constraint, geometry, read errors, containing block or emitted props do not satisfy the bounded CENTER/MIN/MAX proof; STRETCH/SCALE and MAX with unverified sizing require separate proofs."},
-            "resolutionCondition":"Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."})
+            "reason":if verified {"Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified."} else {include_str!("../text/sizing-absolute_component_verification-65b6e30c.md")},
+            "resolutionCondition":include_str!("../text/sizing-absolute_component_verification-13b3029b.md")})
     };
     let mut components = json!({"height":height,"width":width,
         "horizontal":axis(horizontal,"x","width","left","right"),"vertical":axis(vertical,"y","height","top","bottom"),

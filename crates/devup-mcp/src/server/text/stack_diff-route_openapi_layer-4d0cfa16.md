@@ -1,0 +1,1 @@
+Could not resolve all route declarations in this file. These legacy text-scan candidates are unverified, may include comments or unrelated strings, and are excluded from declared route counts; review the source and build configuration before rebuilding the generated spec.

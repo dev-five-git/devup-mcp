@@ -1,0 +1,1 @@
+Inert data attributes the runtime audit locates sections and assets by. Keep them; to drop them from a production build use Next's compiler.reactRemoveProperties {properties: ["^data-figma-node-id$"]}, or set figmaNodeIds false in .devup/screen-plan.config.json and re-export.

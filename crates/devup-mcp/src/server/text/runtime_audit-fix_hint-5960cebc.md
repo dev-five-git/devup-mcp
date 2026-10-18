@@ -1,0 +1,1 @@
+The page differs from the frame: fix the section and asset comparisons first, they localise the problem; a difference only the page shows is usually the page background, its padding or the spacing between sections.

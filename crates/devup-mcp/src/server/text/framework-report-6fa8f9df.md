@@ -1,0 +1,1 @@
+vinext runs Next.js App Router on Vite: an app with a vinext dependency, vinext scripts or a vite.config importing vinext is an App Router app even with no next dependency and no next.config.

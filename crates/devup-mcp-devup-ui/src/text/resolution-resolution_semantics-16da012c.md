@@ -1,0 +1,1 @@
+Supplied acquisition evidence confirms baked effects. The same CSS effects are suppressed at this asset boundary; layout ancestors retain their effects. Missing baking evidence is unknown; no canvas equality is implied.

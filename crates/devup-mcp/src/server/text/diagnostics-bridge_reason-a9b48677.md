@@ -1,0 +1,1 @@
+The devup-mcp that held the bridge port {port}{left} exited, and another{holder} took the port over; this process now reads through it. The plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}; call status again shortly. If no plugin appears, run Devup Bridge again on the file.

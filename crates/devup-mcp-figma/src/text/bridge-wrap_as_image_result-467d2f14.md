@@ -1,0 +1,1 @@
+Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). Layers reaching into it may show here: {}; get_screenshot leaves other layers out.

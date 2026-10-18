@@ -1,0 +1,1 @@
+For each URL in order: export what missingReferences names and run auditPlan again, start the app, run the plan, then call devup_screen_plan action status with auditPlanPath and auditReportPath (report/report.json). Run each visualComparisons call, pass the results back as visualResults, fix every finding, and repeat until the URL is done.

@@ -480,11 +480,11 @@ impl StyleDerivation {
                     "parentId",
                     "fills",
                 ],
-                "In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.",
+                include_str!("../text/style-description-5ad1a929.md"),
             ),
             Self::NativeRaster => (
                 vec!["isAsset", "fills", "absoluteRenderBounds"],
-                "Native raster boundary: use the already rendered pixel box without applying the source IMAGE paint fit a second time; in-flow export offsets override this placement when present.",
+                include_str!("../text/style-description-49ef22f0.md"),
             ),
             Self::ImagePaintScale => (
                 vec!["isAsset", "fills"],
@@ -498,7 +498,7 @@ impl StyleDerivation {
                     "rotation",
                     "constraints",
                 ],
-                "widthPolicy: a vector with a zero-height bounding box and a solid stroke is a straight rule; its box follows the parent's width under a stretch or scale anchor, so the mask is sized to the box (100% 100%) instead of keeping its drawn length. Stroke caps, if any, scale along the line.",
+                include_str!("../text/style-description-b7e8995c.md"),
             ),
         }
     }

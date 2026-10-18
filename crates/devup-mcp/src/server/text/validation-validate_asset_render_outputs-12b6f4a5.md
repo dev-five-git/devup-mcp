@@ -1,0 +1,1 @@
+Visible ancestor captures require assetManifest-only outputs; export nodeId for that parent intentionally before generating parent code. A parent bitmap cannot replace a leaf at leaf dimensions.

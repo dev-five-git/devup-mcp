@@ -1,0 +1,1 @@
+The devup-mcp that held the bridge port {port}{left} went away. This process is taking the port over, or reconnecting to whichever process did; the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing. Nothing can be read through the bridge until then - call status again in a few seconds.

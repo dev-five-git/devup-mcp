@@ -479,7 +479,7 @@ fn resource_diagnostic_details(
         }
     }
     result["metadataDelivery"] = json!({"mode":"resource-details","uri":uri,"name":"projection-details.json","fields":FIELDS.into_iter().chain(BULKY).collect::<Vec<_>>(),"requiresFullDetailRead":true,
-        "note":"Diagnostic identities, counts, severity and verdicts remain inline; complete original details are in this resource. Read it before accepting projection evidence or final completeness."});
+        "note":include_str!("text/projection-resource_diagnostic_details-9b1c1ed8.md")});
     outputs.push(output);
     Ok(())
 }
@@ -593,14 +593,14 @@ pub(super) async fn apply_delivery(
         }
         let example = json!({"tool":"devup_figma_export","arguments":args});
         result["nextAction"] = json!({"tool":"devup_figma_export","arguments":args,"example":example,
-            "how":if coupled { "Read the linked resources. Preserve coupled code/theme outputs and asset requests/paths in this resource reprojection; splitting them can change token selection or generated URLs." }
+            "how":if coupled { include_str!("text/projection-apply_delivery-4796ba61.md") }
                 else if field == "responsiveTsx" { "Read the linked resource or reproject this responsive output with the same breakpoint selection. A responsive merge requires multiple source screens." }
-                else { "Read the linked resources, or compare the same artifact using this single-screen, single-output reprojection. No new Figma acquisition is required. Inline errors retain R12 resource recovery arguments." },
+                else { include_str!("text/projection-apply_delivery-6938bf43.md") },
             "sizeEstimate":{"outputBytes":bytes,"minimumWireBytes":escaped_bytes * 2,
                 "limitBytes":super::delivery::MAX_INLINE_TOTAL_BYTES,"isMeasuredReprojection":false,
                 "inlineFit":if escaped_bytes * 2 > super::delivery::MAX_INLINE_TOTAL_BYTES {"exceeds-limit"} else {"unknown"},
                 "binary":binary,
-                "basis":"Existing output UTF-8/binary bytes; minimumWireBytes doubles its JSON encoding (base64 for PNG). This lower bound excludes metadata/diagnostics. The new projection's full MCP response has not been measured and can still exceed the limit."}});
+                "basis":include_str!("text/projection-apply_delivery-e5a0fbb2.md")}});
     }
     resource_diagnostic_details(result, &mut outputs, &artifact.artifact_id)?;
     let projection_key = projection_key(&outputs);
@@ -1218,7 +1218,7 @@ fn asset_summary(
             "Assets were discovered but no binary bytes were collected; unavailable explains unrequested captures, hidden exclusions, or export failures."
         }
         "partial" => {
-            "Only some deliverable asset bytes were collected, or discovery is incomplete. capture-not-in-artifact means not collected in this batch, not an export failure. Merge saved batch responses with devup-mcp --merge-asset-batches batch1.json batch2.json."
+            include_str!("text/projection-asset_summary-2538c470.md")
         }
         "collected" => "All discovered non-hidden deliverable assets have collected binary bytes.",
         _ => unreachable!(),
@@ -1513,7 +1513,7 @@ fn annotate_node_ids(
         "sections": sections.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
         "parts": parts.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
         "assets": assets.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
-        "note": "Inert data attributes the runtime audit locates sections and assets by. Keep them; to drop them from a production build use Next's compiler.reactRemoveProperties {properties: [\"^data-figma-node-id$\"]}, or set figmaNodeIds false in .devup/screen-plan.config.json and re-export.",
+        "note": include_str!("text/projection-annotate_node_ids-b03e6d56.md"),
     })
 }
 
@@ -1626,12 +1626,12 @@ fn attach_bridge_source(source: &mut Value, payload: &CollectedPayload) {
         let hints: Vec<&str> = reasons
             .iter()
             .filter_map(|reason| match *reason {
-                "file-out-of-sight" => Some(
-                    "Figma had stopped fetching data for the file because it was out of sight - its tab behind another tab, or the window minimized or covered by another window - so the plugin's reads came back short and were read again on the metered direct path. Keep the file visible in the Figma desktop app to keep every read on the plugin.",
-                ),
-                "plugin-older-than-server" => Some(
-                    "The Devup Bridge plugin is older than this devup-mcp and did not know some reads, so they went to the metered direct path. Update the repository the plugin was imported from and run the plugin again.",
-                ),
+                "file-out-of-sight" => Some(include_str!(
+                    "text/projection-attach_bridge_source-e2f65c04.md"
+                )),
+                "plugin-older-than-server" => Some(include_str!(
+                    "text/projection-attach_bridge_source-65001189.md"
+                )),
                 _ => None,
             })
             .collect();
@@ -1906,7 +1906,7 @@ async fn project_operation(
                 return Err(unavailable_output(
                     payload,
                     "sourceMap",
-                    r#"A source map needs a generated output. Even when reusing artifactId, include tsx, componentTsx or devupJson in outputs in the same call. Example: {"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#,
+                    include_str!("text/projection-project_operation-648fa6f6.md"),
                 ));
             }
             // Capture the accepted projection before fields are consumed by
@@ -2180,7 +2180,7 @@ async fn project_operation(
                     "nextAction".to_owned(),
                     json!({
                         "why": "This is a Section candidate list. Screen artifacts have not been exported yet.",
-                        "how": "Review selection.candidates using name, nodeType, textPreview and textPreviewState. Run the bounded batches below in order, retaining each response before continuing. Select nonstandard cases and notes from selection.explicitCandidates with frameIds or their canonicalUrl. Use the per-candidate nextAction to inspect text when preview is unavailable.",
+                        "how": include_str!("text/projection-project_operation-2b397164.md"),
                         "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
@@ -2664,9 +2664,9 @@ async fn project_operation(
                     ids["perWidthAttribute"] =
                         json!(devup_mcp_devup_ui::codegen::node_ids::NODE_IDS_ATTRIBUTE);
                     ids["responsive"] = json!(written);
-                    ids["responsiveFormat"] = json!(
-                        "data-figma-node-id is the node at the widest width the element is shown at; data-figma-node-ids lists \"<width>:<nodeId>\" for every drawn width it is shown at, widest first, space-separated, so [data-figma-node-ids~=\"390:56:78\"] selects it at one width. hiddenAt lists the drawn widths it is hidden at."
-                    );
+                    ids["responsiveFormat"] = json!(include_str!(
+                        "text/projection-project_operation-8a156710.md"
+                    ));
                 }
                 let module = merged.module(&name);
                 // The responsive tree builder does not run the ordinary
@@ -2754,7 +2754,7 @@ async fn project_operation(
                         "note":if merged.verified {
                             "Read at each collected width's slot, the merged module writes that width's own verified tsx: the same elements, values and text. This reads the code; it is not a rendering."
                         } else {
-                            "Read at each collected width's slot, the merged module does not write that width's own verified tsx everywhere; mergeGaps names where. Review responsiveUnrepresented and projectionIssues."
+                            include_str!("text/projection-project_operation-9a2b2731.md")
                         }},
                     "_propertyContract":merged.contract});
 
@@ -3835,10 +3835,11 @@ async fn project_operation(
                     manifest.diagnostics.push(Diagnostic {
                         code: "DEVUP_ASSET_NAME_SHARED".to_owned(),
                         message: format!(
-                            "{} further drawing(s) claim the file {path}; the first is written. \
-                             An asset is named after its layer, as the plugin names it, so two \
-                             drawings a designer named alike cannot both be written.",
-                            others.len()
+                            include_str!(
+                                "text/projection-project_operation_Diagnostic-6ab28a84.md"
+                            ),
+                            others.len(),
+                            path = path
                         ),
                         severity: Some(DiagnosticSeverity::Warning),
                         resource_kind: Some("asset".to_owned()),
@@ -4073,11 +4074,8 @@ mod tests {
 
     #[test]
     fn a_layer_name_no_file_system_takes_is_renamed_wherever_the_code_points_at_it() {
-        let code = concat!(
-            "<Box maskImage=\"url(/icons/ic:round-arrow-left.svg)\" />\n",
-            "<Image src=\"/images/Frame 269.png\" />\n",
-            "<Box maskImage=\"url('/icons/Frame 287.svg')\" />\n",
-            "<Box maskImage=\"url(/icons/grommet-icons:language.svg)\" />\n",
+        let code = include_str!(
+            "text/projection-tests_a_layer_name_no_file_system_takes_is_renamed_wherever_the_code_p-90121fb1.md"
         );
         assert_eq!(
             with_host_safe_asset_paths(code),

@@ -1,0 +1,1 @@
+Preserve valid explicit tracks; use auto for unknown/invalid tracks and a count-only equal-share fallback (auto for HUG). Omit unsupported declarations above the 4096-track codegen budget. No child pixel width is inferred.

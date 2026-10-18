@@ -1,0 +1,1 @@
+Run every devup-mcp on this machine as the same user (they prove themselves to each other with a secret only that user can read), or restart the MCP client session holding port {port}{holder}.

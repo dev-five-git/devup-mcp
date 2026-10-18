@@ -1,0 +1,1 @@
+Figma is not showing this file. Once it has been out of view for a minute or two, Figma answers reads of data it has not loaded with "Unable to establish connection to Figma" after 10 seconds each. Bring the Figma window to the front and click this file's tab before a collection.

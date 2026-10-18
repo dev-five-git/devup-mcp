@@ -1,0 +1,1 @@
+A pull request that changes a tracked path must add a changepack log. Without one the version never moves, so the change reaches the base branch and is never released.

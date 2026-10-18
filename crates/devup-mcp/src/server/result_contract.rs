@@ -109,7 +109,7 @@ pub(super) fn attach_review_and_deliverable(
     });
     if !issues.is_empty() {
         result.insert("projectionReview".into(), json!({"issueCount":issues.len(),"groups":groups,
-            "order":"Withheld outputs first, then unmapped properties, component references, and other approximations; larger groups first within each priority. Priority is review order, not measured pixel impact."}));
+            "order":include_str!("text/result_contract-attach_review_and_deliverable-b1b16fb6.md")}));
     }
     if !requested
         .iter()

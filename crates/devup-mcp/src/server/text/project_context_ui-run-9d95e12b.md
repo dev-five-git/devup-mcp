@@ -1,0 +1,1 @@
+importedBy includes static import/reexport sites resolved through named barrels; routes describe static module reachability, not proof a component renders. Dynamic imports, runtime conditions and package export maps are not evaluated.

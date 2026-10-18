@@ -1,0 +1,1 @@
+Never wait. Workers escalate to supervisor; defer and continue; assume pending recommendations at the end. Run backendCommands in modelsWorkingDirectory, feature routes, OpenAPI/client generation, then devup_stack_diff with zero drift before done.

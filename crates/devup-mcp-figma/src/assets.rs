@@ -406,9 +406,9 @@ fn visible_scope(
             return Ok(current);
         }
     }
-    Err(invalid(
-        "Visible capture requires an acquired ancestor scope. Recollect the parent frame URL, then supply nodeId and visibleScopeNodeId for that node or an in-scope ancestor; outside-scope context is unavailable.",
-    ))
+    Err(invalid(include_str!(
+        "text/assets-visible_scope-00ec4145.md"
+    )))
 }
 
 pub fn validate_asset_options(
@@ -825,9 +825,9 @@ pub fn validate_asset_requests(
                 )
                 || request.scale != 1.0)
         {
-            return Err(invalid(
-                "renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; PNG/JPG preserve original bytes; explicit WebP transcodes PNG/JPEG source without resizing.",
-            ));
+            return Err(invalid(include_str!(
+                "text/assets-validate_asset_requests-09bfca92.md"
+            )));
         }
         // Reject what the manifest already knows cannot be exported, so the
         // reason travels with the rejection instead of arriving later as an
@@ -1146,9 +1146,7 @@ pub fn asset_export_from_result(
         DevupError::with_details(
             ErrorCode::DevupSnapshotUnsupported,
             format!(
-                "Figma exported the asset but did not return the {} bytes. \
-                     Upstream returns written files as an attachment only for png; \
-                     svg is carried inline. Request png or svg instead.",
+                include_str!("text/assets-asset_export_from_result-a4ad1a7b.md"),
                 request.format.extension()
             ),
             false,

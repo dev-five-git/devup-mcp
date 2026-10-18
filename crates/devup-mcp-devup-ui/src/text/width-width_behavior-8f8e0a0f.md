@@ -1,0 +1,1 @@
+The root keeps its drawn width in px, so the screen renders at that width at every viewport. Findings describe what changes once the root takes its container's width - with widthPolicy, or by editing the root.

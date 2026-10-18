@@ -173,7 +173,7 @@ pub(super) fn validate_artifact_projection(
                 "tool": "devup_figma_export",
                 "arguments": arguments,
                 "omitArguments": ["artifactId"],
-                "how": "This artifact cannot serve these outputs without calling Figma again. Repeat the call with this url instead of artifactId, keeping any assetRequests and outputPaths you sent; the new acquisition captures what is missing.",
+                "how": include_str!("text/validation-validate_artifact_projection-e8e39fca.md"),
             },
         }),
     ))
@@ -228,11 +228,8 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
             return Err(DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
                 format!(
-                    "{output} is the collected design in raw form, for deciding whether a \
-                     screen that looks wrong is the generator's fault or the design's. It is \
-                     not needed to implement anything - the tsx already carries what it \
-                     carries - and requesting it by habit is most of the response. Pass \
-                     debug: true to read it."
+                    include_str!("text/validation-validate_outputs-166587f3.md"),
+                    output = output
                 ),
                 false,
                 json!({"stage":"preflight","nextAction":{"tool":"devup_figma_export",
@@ -251,7 +248,7 @@ pub(super) fn validate_asset_budget(requests: &[FigmaAssetRequestInput]) -> Resu
     if requests.len() > MAX_ASSET_COUNT {
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,
-            "Export exceeds the asset batch budget. Split assetRequests into calls of 1–3 assets (maximum 6); retain each format, scale and outputPath. Poll or resume an existing assetJob instead of restarting it.",
+            include_str!("text/validation-validate_asset_budget-915c1c5f.md"),
             false,
             json!({"requestedAssetCount":requests.len(),"maxAssetCount":MAX_ASSET_COUNT,
                 "recommendedBatchSize":RECOMMENDED_ASSET_COUNT,
@@ -345,7 +342,7 @@ pub(super) fn parse_asset_requests(
         {
             return Err(DevupError::new(
                 ErrorCode::DevupInvalidInput,
-                "renderMode fill requires scale 1: PNG/JPG preserve the matching original codec and bytes; WebP explicitly transcodes PNG/JPEG source without resizing. Use renderMode node for other codecs or visible crop/effects.",
+                include_str!("text/validation-parse_asset_requests-eecb2af1.md"),
                 false,
             ));
         }
@@ -421,7 +418,7 @@ pub(super) fn validate_asset_render_outputs(
     {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
-            "Visible ancestor captures require assetManifest-only outputs; export nodeId for that parent intentionally before generating parent code. A parent bitmap cannot replace a leaf at leaf dimensions.",
+            include_str!("text/validation-validate_asset_render_outputs-12b6f4a5.md"),
             false,
         ));
     }
@@ -581,7 +578,7 @@ pub(super) fn validate_export_budget(
         let recommended = batch_size.min(3);
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,
-            "Export exceeds the batch budget for a 300-second client timeout. Split frameIds into smaller calls; use 1–3 frames per call and reuse artifactId when its capture covers the selected frames.",
+            include_str!("text/validation-validate_export_budget-986a2783.md"),
             false,
             json!({"requestedFrameCount":frame_ids.len(),"outputCount":output_count,
                 "frameOutputUnits":frame_ids.len().saturating_mul(output_count),

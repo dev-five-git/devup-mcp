@@ -233,7 +233,7 @@ fn inline_size_error(
             "outputBytes":output_bytes,"serializedResponseBytes":wire_bytes,
             "exceededByBytes":measured.saturating_sub(MAX_INLINE_TOTAL_BYTES),
             "outputs":outputs.iter().map(|o| serde_json::json!({"name":o.name,"bytes":o.bytes.len(),"binary":o.is_binary})).collect::<Vec<_>>(),
-            "measurement":"Output bytes are UTF-8 or binary payload bytes; serializedResponseBytes includes JSON escaping, base64 and duplicated MCP content/structuredContent. Per-output bytes are not additive wire sizes.",
+            "measurement":include_str!("text/delivery-inline_size_error-e8696ca0.md"),
             "recoveryState":"unrecoverable",
             "recoveryReason":"The delivery size check alone has no artifact or original projection arguments. The export boundary must supply a concrete resource-delivery call.",
             "nextAction":null
@@ -286,9 +286,9 @@ pub(super) fn with_inline_recovery(mut error: DevupError, arguments: Value) -> D
     );
     error.details["splitRequests"] = serde_json::json!(split);
     error.details["splitReason"] = serde_json::json!(if coupled_assets {
-        "No optional split is offered: asset requests, output paths and assetPublicRoot can determine generated asset URLs. Keep those coupled outputs together in the full resource recovery call."
+        include_str!("text/delivery-with_inline_recovery-01306837.md")
     } else {
-        "Optional smaller resource projections isolate outputs; sourceMap stays paired with a generated output. These are alternatives to the full recovery call, not guaranteed-to-fit inline calls."
+        include_str!("text/delivery-with_inline_recovery-e6ab7ccd.md")
     });
     error
 }
@@ -297,7 +297,7 @@ pub(crate) fn server_identity() -> Value {
     serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"buildId":crate::build_id(),
         "commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s|!s.is_empty()),
         "displayVersion":format!("{}+{}", env!("CARGO_PKG_VERSION"), crate::build_id()),
-        "identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+        "identityGuidance":include_str!("text/delivery-server_identity-f8e03915.md"),
         // Cache-only. The lookup lives in a background task, so adding this to
         // the identity every response carries costs no network on the call path
         // and cannot delay a tool call.

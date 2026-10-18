@@ -1,0 +1,1 @@
+Open the URL at this width and read the first page or console error: an error-boundary text ("This page couldn't load", "Application error") means a component threw while rendering or a data fetch failed. Fix the throwing component or give the data a loading and error state, then re-run.

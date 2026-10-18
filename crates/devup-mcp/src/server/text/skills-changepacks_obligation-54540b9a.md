@@ -1,0 +1,1 @@
+Running the tool with no flags opens an interactive selection UI, which hangs or is cancelled in a non-TTY shell. That is the usual reason a pull request arrives without the changepack it needed.

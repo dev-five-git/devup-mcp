@@ -55,7 +55,7 @@ enum ActivePath {
 const FIGMA_LINK_PLACEHOLDER: &str = "<the frame's Figma link>";
 
 /// What `fileKey: null` on an attached file means, said where it is read.
-const KEYLESS_NOTE: &str = "This plugin could not report its file key (figma.fileKey is empty, as in Dev Mode), so no key is claimed for its file. It serves reads only while it is the only plugin attached; address it by omitting url, or with figma-bridge://current.";
+const KEYLESS_NOTE: &str = include_str!("text/diagnostics-KEYLESS_NOTE-bcb2fb02.md");
 
 /// Backs `devup_figma_auth`'s `status`, `login` and `logout` answers, and is
 /// the first half of `doctor`.
@@ -105,7 +105,7 @@ pub fn connection_report(
                 "arguments": { "url": FIGMA_LINK_PLACEHOLDER, "outputs": ["tsx"] },
                 "requiredArguments": ["url"],
                 "note": if bridge_blocked {
-                    "Only the metered direct path is open, so an export needs the frame's Figma link. The Devup Bridge cannot be used from this process right now; paths.bridge.reason says why and what would change it."
+                    include_str!("text/diagnostics-connection_report-d61f53ae.md")
                 } else {
                     "Only the metered direct path is open, so an export needs the frame's Figma link. Running the Devup Bridge plugin on the file instead spends no allowance and makes url optional."
                 },
@@ -235,7 +235,7 @@ pub(super) fn ways_to_open_a_path(
     })
 }
 
-const RUN_THE_PLUGIN: &str = "In the Figma desktop app, open the file and run Plugins -> Development -> Devup Bridge (imported once from plugin/manifest.json), keeping its window open. No login is needed and no Figma allowance is spent.";
+const RUN_THE_PLUGIN: &str = include_str!("text/diagnostics-RUN_THE_PLUGIN-6f87e1f9.md");
 
 /// How long the plugin waits before it connects again after its socket closed
 /// (`RETRY_MS` in plugin/src/ui.ts), said where a reader waits on it.
@@ -251,7 +251,7 @@ fn bridge_option(bridge: &BridgePathSnapshot, retry: &Value) -> Value {
     match bridge.role {
         BridgeRole::Host | BridgeRole::Relay if bridge.handover_from.is_some() => json!({
             "path": "bridge",
-            "action": format!("Wait a moment: the bridge port just changed hands, and the plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}. If no plugin appears, run Devup Bridge again on the file."),
+            "action": format!(include_str!("text/diagnostics-bridge_option-1573849a.md"), PLUGIN_REATTACH = PLUGIN_REATTACH),
             "then": status_again(),
         }),
         BridgeRole::Host | BridgeRole::Relay => json!({
@@ -261,7 +261,7 @@ fn bridge_option(bridge: &BridgePathSnapshot, retry: &Value) -> Value {
         }),
         BridgeRole::Connecting => json!({
             "path": "bridge",
-            "action": format!("Wait a few seconds: the devup-mcp that held port {port} went away, this process is taking the port over or reconnecting, and the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing."),
+            "action": format!(include_str!("text/diagnostics-bridge_option-c5748d60.md"), PLUGIN_REATTACH = PLUGIN_REATTACH, port = port),
             "then": status_again(),
         }),
         BridgeRole::Unavailable => json!({
@@ -323,22 +323,35 @@ fn repair(bridge: &BridgePathSnapshot) -> String {
     let holder = holder_text(bridge);
     match &bridge.issue {
         Some(BridgeIssue::LegacyHost { owner }) => format!(
-            "The devup-mcp holding port {port} ({}) predates bridge sharing, so this process cannot read through it: restart (or update) the MCP client session that started it. Once it exits, this process takes the port over by itself and the plugin reconnects to it.",
-            owner_text(owner.as_ref(), &port)
+            include_str!("text/diagnostics-repair-05473b24.md"),
+            owner_text(owner.as_ref(), &port),
+            port = port
         ),
         Some(BridgeIssue::ForeignProgram { owner, .. }) => format!(
             "Stop the program holding port {port} ({}). The plugin's port is fixed by its manifest; once the port is free this process takes it over by itself.",
             owner_text(owner.as_ref(), &port)
         ),
-        Some(BridgeIssue::IncompatibleProtocol { .. }) => format!(
-            "The devup-mcp holding port {port}{holder} and this one are different releases that cannot relay to each other: restart the MCP client session whose devup-mcp is older so both run the same release."
-        ),
-        Some(BridgeIssue::AuthenticationFailed { .. }) => format!(
-            "Run every devup-mcp on this machine as the same user (they prove themselves to each other with a secret only that user can read), or restart the MCP client session holding port {port}{holder}."
-        ),
-        Some(BridgeIssue::SecretUnavailable { .. }) => format!(
-            "Make the per-user relay secret readable and writable for this user (see paths.bridge.reason), or restart the MCP client session holding port {port}{holder} so this process can take the port over."
-        ),
+        Some(BridgeIssue::IncompatibleProtocol { .. }) => {
+            format!(
+                include_str!("text/diagnostics-repair-a70db245.md"),
+                holder = holder,
+                port = port
+            )
+        }
+        Some(BridgeIssue::AuthenticationFailed { .. }) => {
+            format!(
+                include_str!("text/diagnostics-repair-c2a44c5b.md"),
+                holder = holder,
+                port = port
+            )
+        }
+        Some(BridgeIssue::SecretUnavailable { .. }) => {
+            format!(
+                include_str!("text/diagnostics-repair-8e741ef8.md"),
+                holder = holder,
+                port = port
+            )
+        }
         Some(BridgeIssue::BindFailed { .. }) | None => format!(
             "Free port {port}, or change it in all three places the plugin's README names (the manifest's allowedDomains, src/code.ts and DEVUP_FIGMA_BRIDGE_PORT)."
         ),
@@ -361,7 +374,8 @@ fn repair(bridge: &BridgePathSnapshot) -> String {
 /// and a reader has no way to tell which of the two the tool means. A
 /// diagnostic that misreports its own state cannot be used to diagnose
 /// anything, so the field now carries what it counts next to the value.
-const CREDENTIAL_SOURCE_NOTE: &str = "Where the OAuth *client registration* credential (client_id/client_secret) came from: cli-arg, env, credential-store, or none. This is not the user's access token — that is tokenState, and whether the direct path is usable right now is available. \"none\" only means no pre-registered client is injected, so login registers dynamically under registrationClientName; a signed-in session that registered that way reads credentialSource \"none\" with tokenState \"valid\", which is normal.";
+const CREDENTIAL_SOURCE_NOTE: &str =
+    include_str!("text/diagnostics-CREDENTIAL_SOURCE_NOTE-f6bf233e.md");
 
 /// Builds the response for `devup_figma_auth {"action":"doctor"}`: the same
 /// path-aware report `status` gives, plus the reference data behind it.
@@ -378,9 +392,7 @@ pub async fn doctor_report(
     bridge: Option<BridgePathSnapshot>,
 ) -> Value {
     let mut report = connection_report(status, &direct, bridge.as_ref());
-    report["preferredPathNote"] = json!(
-        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first: it serves every read a collection makes, and direct is the fallback that re-reads what the plugin answers short - data Figma withholds while the file is out of sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an older plugin does not know."
-    );
+    report["preferredPathNote"] = json!(include_str!("text/diagnostics-doctor_report-787ad2ad.md"));
     report["clientSetup"] = client_setup();
     report
 }
@@ -396,12 +408,7 @@ fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available
         direct.credential_source,
     );
     if bridge_available {
-        reason.push_str(
-            " While a bridge plugin is attached it serves every read, and this path only re-reads \
-             what the plugin answers short: data Figma withholds while the file is out of sight, \
-             a reference PNG the plugin cannot draw as get_screenshot does, a read an older \
-             plugin does not know.",
-        );
+        reason.push_str(include_str!("text/diagnostics-direct_path-c63b8306.md"));
     }
     json!({
         "available": direct_available,
@@ -415,7 +422,7 @@ fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available
         "registrationClientName": {
             "value": direct.client_name,
             "isDefault": direct.client_name == DEFAULT_CLIENT_NAME,
-            "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
+            "note": include_str!("text/diagnostics-direct_path-6f63807d.md")
         },
         "reason": reason
     })
@@ -456,7 +463,7 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
             "port": null,
             "host": null,
             "attachedFiles": [],
-            "reason": "This process is not using the bridge plugin: DEVUP_FIGMA_BRIDGE_PORT is off or 0, or is not a port number. Unset it, or set it to the port in the plugin's manifest, to use the bridge; this process can use the metered direct path only.",
+            "reason": include_str!("text/diagnostics-bridge_path-5051fedf.md"),
         });
     };
     let mut path = json!({
@@ -466,7 +473,7 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
         "port": bridge.port,
         "host": bridge.host.as_ref().map(|host| peer(host, bridge.role == BridgeRole::Host)),
         "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
-        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (Figma fills figma.fileKey only for a manifest declaring enablePrivatePluginApi, which older builds lack); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "attachedFilesNote": include_str!("text/diagnostics-bridge_path-10545dbe.md"),
         "reason": bridge_reason(bridge),
     });
     if let Some(issue) = &bridge.issue {
@@ -522,7 +529,8 @@ fn peer(peer: &BridgePeer, this_process: bool) -> Value {
     })
 }
 
-const SERVED_WITH_ONE_PLUGIN: &str = "With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma.";
+const SERVED_WITH_ONE_PLUGIN: &str =
+    include_str!("text/diagnostics-SERVED_WITH_ONE_PLUGIN-a04b8617.md");
 
 fn bridge_reason(bridge: &BridgePathSnapshot) -> String {
     let port = port_text(bridge);
@@ -534,50 +542,98 @@ fn bridge_reason(bridge: &BridgePathSnapshot) -> String {
         .map(|previous| format!(" (pid {})", previous.pid))
         .unwrap_or_default();
     match (bridge.role, &bridge.issue) {
-        (BridgeRole::Host, _) if attached => format!(
-            "A plugin is attached to this process, which holds the bridge port {port}. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login; other devup-mcp processes on this machine read through this one. {SERVED_WITH_ONE_PLUGIN}"
-        ),
-        (BridgeRole::Relay, _) if attached => format!(
-            "Another devup-mcp on this machine{holder} holds the bridge port {port} and the plugins attach to it; this process reads through it. Reads for the files listed in attachedFiles spend no Figma allowance and need no login. {SERVED_WITH_ONE_PLUGIN}"
-        ),
-        (BridgeRole::Host, _) if bridge.handover_from.is_some() => format!(
-            "This process took the bridge port {port} over moments ago from the devup-mcp that held it{left}, which exited. The plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}; call status again shortly. If no plugin appears, run Devup Bridge again on the file."
-        ),
-        (BridgeRole::Relay, _) if bridge.handover_from.is_some() => format!(
-            "The devup-mcp that held the bridge port {port}{left} exited, and another{holder} took the port over; this process now reads through it. The plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}; call status again shortly. If no plugin appears, run Devup Bridge again on the file."
-        ),
-        (BridgeRole::Host, _) => format!(
-            "The bridge is listening on 127.0.0.1:{port} but no plugin is attached, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json). The bridge works only while that plugin window stays open. If the indicator stays grey, the port in the plugin's manifest allowedDomains and the port here must match."
-        ),
-        (BridgeRole::Relay, _) => format!(
-            "Another devup-mcp on this machine{holder} holds the bridge port {port}, and this process reads through it, but no plugin is attached there, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json); it attaches to that process, and every devup-mcp on this machine can then read through it."
-        ),
-        (BridgeRole::Connecting, _) if bridge.handover_from.is_some() => format!(
-            "The devup-mcp that held the bridge port {port}{left} went away. This process is taking the port over, or reconnecting to whichever process did; the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing. Nothing can be read through the bridge until then - call status again in a few seconds."
-        ),
+        (BridgeRole::Host, _) if attached => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-bfc91239.md"),
+                SERVED_WITH_ONE_PLUGIN = SERVED_WITH_ONE_PLUGIN,
+                port = port
+            )
+        }
+        (BridgeRole::Relay, _) if attached => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-2101bbfb.md"),
+                SERVED_WITH_ONE_PLUGIN = SERVED_WITH_ONE_PLUGIN,
+                holder = holder,
+                port = port
+            )
+        }
+        (BridgeRole::Host, _) if bridge.handover_from.is_some() => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-9a4710b8.md"),
+                PLUGIN_REATTACH = PLUGIN_REATTACH,
+                left = left,
+                port = port
+            )
+        }
+        (BridgeRole::Relay, _) if bridge.handover_from.is_some() => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-a9b48677.md"),
+                PLUGIN_REATTACH = PLUGIN_REATTACH,
+                holder = holder,
+                left = left,
+                port = port
+            )
+        }
+        (BridgeRole::Host, _) => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-6c5cdae3.md"),
+                port = port
+            )
+        }
+        (BridgeRole::Relay, _) => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-76cadd39.md"),
+                holder = holder,
+                port = port
+            )
+        }
+        (BridgeRole::Connecting, _) if bridge.handover_from.is_some() => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-88ec9725.md"),
+                PLUGIN_REATTACH = PLUGIN_REATTACH,
+                left = left,
+                port = port
+            )
+        }
         (BridgeRole::Connecting, _) => format!(
             "This process is still finding out which devup-mcp holds the bridge port {port}. Call status again in a moment."
         ),
         (BridgeRole::Unavailable, Some(BridgeIssue::LegacyHost { owner })) => format!(
-            "Port {port} is held by a devup-mcp built before the bridge could be shared ({}): it serves the plugin on /plugin but has no relay endpoint, so only that process can use the plugin and this one cannot read through it. To use the bridge here, restart (or update) the MCP client session that started it. This process keeps checking, and takes the port over by itself once that process exits.",
-            owner_text(owner.as_ref(), &port)
+            include_str!("text/diagnostics-bridge_reason-c2bc4670.md"),
+            owner_text(owner.as_ref(), &port),
+            port = port
         ),
         (BridgeRole::Unavailable, Some(BridgeIssue::ForeignProgram { detail, owner })) => format!(
-            "Port {port} is held by a program that is not a devup-mcp ({}; {detail}), so the plugin cannot reach any devup-mcp on this machine. Stop that program. This process keeps checking, and takes the port over by itself once it is free.",
-            owner_text(owner.as_ref(), &port)
+            include_str!("text/diagnostics-bridge_reason-d72562c5.md"),
+            owner_text(owner.as_ref(), &port),
+            detail = detail,
+            port = port
         ),
         (BridgeRole::Unavailable, Some(BridgeIssue::IncompatibleProtocol { theirs, ours })) => {
             format!(
-                "Port {port} is held by a devup-mcp{holder} that speaks bridge relay protocol {}, and this one speaks {ours}. Rather than risk a wrong answer, this process does not read through it. Restart the MCP client session whose devup-mcp is older so both run the same release.",
-                theirs.map_or_else(|| "<unstated>".to_owned(), |version| version.to_string())
+                include_str!("text/diagnostics-bridge_reason-8a3715df.md"),
+                theirs.map_or_else(|| "<unstated>".to_owned(), |version| version.to_string()),
+                holder = holder,
+                ours = ours,
+                port = port
             )
         }
-        (BridgeRole::Unavailable, Some(BridgeIssue::AuthenticationFailed { detail })) => format!(
-            "Port {port} is held by a process{holder} that could not be verified as this user's devup-mcp ({detail}). Relaying needs both processes to read the same secret, which only this user can read, so a devup-mcp run as another user - or sandboxed away from that secret - cannot share the bridge, and this process does not read through it."
-        ),
-        (BridgeRole::Unavailable, Some(BridgeIssue::SecretUnavailable { detail })) => format!(
-            "Another process{holder} holds the bridge port {port}, but this process could not read or create the per-user relay secret it proves itself with ({detail}), so it cannot read through it."
-        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::AuthenticationFailed { detail })) => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-d82d1e27.md"),
+                detail = detail,
+                holder = holder,
+                port = port
+            )
+        }
+        (BridgeRole::Unavailable, Some(BridgeIssue::SecretUnavailable { detail })) => {
+            format!(
+                include_str!("text/diagnostics-bridge_reason-938d46a6.md"),
+                detail = detail,
+                holder = holder,
+                port = port
+            )
+        }
         (BridgeRole::Unavailable, Some(BridgeIssue::BindFailed { detail })) => format!(
             "This process cannot open the bridge port {port} ({detail}), and nothing is listening on it."
         ),
@@ -605,9 +661,7 @@ fn attached_file(file: &AttachedFile) -> Value {
     if let Some(in_view) = file.context.in_view {
         entry["inView"] = json!(in_view);
         if !in_view {
-            entry["inViewNote"] = json!(
-                "Figma is not showing this file. Once it has been out of view for a minute or two, Figma answers reads of data it has not loaded with \"Unable to establish connection to Figma\" after 10 seconds each. Bring the Figma window to the front and click this file's tab before a collection."
-            );
+            entry["inViewNote"] = json!(include_str!("text/diagnostics-attached_file-eb5b83b1.md"));
         }
     }
     if file.file_key.is_none() {
@@ -649,24 +703,17 @@ fn direct_reason(
             "An authorized access token is stored and unexpired, so the direct path is usable now."
         }
         (true, TokenState::Expired) => {
-            "An authorized access token is stored but has expired. It is refreshed on the next \
-             call when a refresh token was stored with it, and otherwise needs devup_figma_auth \
-             { action: \"login\" } again."
+            include_str!("text/diagnostics-direct_reason-83c3453a.md")
         }
         // `available` and `tokenState` are read by two separate calls on the
         // auth backend, so they can disagree. Saying so is the useful answer;
         // picking whichever one makes a tidier sentence is what produced the
         // contradiction this function exists to stop.
         (true, TokenState::Absent) => {
-            "The direct path reports itself usable while no access token is stored — these are \
-             measured separately and have disagreed. Treat the path as unusable and re-run \
-             devup_figma_auth { action: \"login\" }."
+            include_str!("text/diagnostics-direct_reason-6336653b.md")
         }
         (false, TokenState::Valid) => {
-            "An unexpired access token is stored while the direct path reports itself unusable — \
-             these are measured separately and have disagreed. Re-run devup_figma_auth \
-             { action: \"status\" }, then devup_figma_auth { action: \"login\" } if it still \
-             answers disconnected."
+            include_str!("text/diagnostics-direct_reason-6f3f9489.md")
         }
         (false, TokenState::Expired) => {
             "The stored access token has expired and was not refreshed. Run devup_figma_auth \
@@ -679,19 +726,12 @@ fn direct_reason(
     };
     let client = match credential_source {
         ClientCredentialSource::None => {
-            "Separately, no pre-registered client registration credential is injected \
-             (credentialSource \"none\"), so login falls back to Dynamic Client Registration \
-             under the allowlisted client_name in registrationClientName. If that returns 403 \
-             the allowlist rejected the name — register a client credential you obtained \
-             yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }, or \
-             join the Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/)."
+            include_str!("text/diagnostics-direct_reason-3faeaac8.md")
         }
         ClientCredentialSource::CliArg
         | ClientCredentialSource::Env
         | ClientCredentialSource::CredentialStore => {
-            "Separately, a pre-registered client registration credential is in play (see \
-             credentialSource), so login skips Dynamic Client Registration and goes straight to \
-             the authorization code flow."
+            include_str!("text/diagnostics-direct_reason-df4d5655.md")
         }
     };
     format!("{token} {client}")
@@ -701,14 +741,14 @@ fn client_setup() -> Value {
     json!({
         "constraints": {
             "registerEndpoint": "POST https://api.figma.com/v1/oauth/mcp/register",
-            "clientNameAllowlist": "Figma approves a registration request's client_name only against an exact-match allowlist (e.g. Codex and Claude Code get 200; OpenCode, opencode, Cursor, and VS Code get 403). A non-approved name returns 403 with a plain-text 'Forbidden' body instead of JSON, which also breaks OAuth error parsing in several clients. Registering a new client is only possible through the waitlist: https://www.figma.com/mcp-catalog/",
+            "clientNameAllowlist": include_str!("text/diagnostics-client_setup-b61acd6f.md"),
             "redirectUri": "redirect_uri must use exactly the path /callback and the host 127.0.0.1 (200). A localhost host, or another path such as /mcp/oauth/callback, is rejected with 400.",
-            "callbackPortCaution": "If the OS or security software already occupies the local OAuth callback port, the browser looks like it redirected successfully, but that request goes to the other process and the client waits forever at 'Waiting for authorization...' with no error. Check first that no other process is using the callback port.",
+            "callbackPortCaution": include_str!("text/diagnostics-client_setup-ebbeb457.md"),
             "personalAccessToken": "A Figma PAT (figd_...) is not supported by the remote MCP through either Authorization: Bearer or X-Figma-Token."
         },
         "codex": {
             "primary": true,
-            "hint": "The intended host. devup-mcp registers under client_name Codex by default, so devup_figma_auth { action: \"login\" } completes from a Codex install with no extra flags and no client_id/client_secret. Add --figma-client-name only once your own client is admitted to the Figma MCP catalog.",
+            "hint": include_str!("text/diagnostics-client_setup-4350fbba.md"),
             "installDevupMcp": {
                 "file": "~/.codex/config.toml",
                 "toml": "[mcp_servers.devup-mcp]\ncommand = \"devup-mcp\"\nargs = [\"--allow-write-root\", \"<project path>\"]",
@@ -720,7 +760,7 @@ fn client_setup() -> Value {
             "note": "Reference only — devup-mcp targets Codex.",
             "claudeCode": "claude mcp add --transport http figma https://mcp.figma.com/mcp",
             "opencode": {
-                "hint": "Setting clientId/clientSecret/scope/callbackPort/redirectUri directly under mcp.<name>.oauth skips Dynamic Client Registration. clientId/clientSecret must be issued to you by registering yourself under an allowlisted client_name.",
+                "hint": include_str!("text/diagnostics-client_setup-a528a590.md"),
                 "example": {
                     "mcp": {
                         "figma": {

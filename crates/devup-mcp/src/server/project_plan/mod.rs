@@ -177,7 +177,7 @@ fn response(plan: Value) -> Value {
     json!({"planId":plan["planId"], "state":plan["state"],
         "questions":screen_plan::ask_shape(&questions),
         "questionRounds":screen_plan::question_rounds(&questions, 4),
-        "instruction": if plan["state"] == "confirmed" { "Never wait. Workers escalate to supervisor; defer and continue; assume pending recommendations at the end. Run backendCommands in modelsWorkingDirectory, feature routes, OpenAPI/client generation, then devup_stack_diff with zero drift before done." } else { screen_plan::ASK_INSTRUCTION },
+        "instruction": if plan["state"] == "confirmed" { include_str!("../text/mod-response-22d8f704.md") } else { screen_plan::ASK_INSTRUCTION },
         "erdMermaid":erd::mermaid(array(&plan["entities"])),
         "unitDag":units::dag(array(&plan["units"])),
         "finalReport":{"units":plan["units"], "decisions":plan["decisions"], "completion":"unverified until supervisor reruns all verification and stack diff reports no drift"},

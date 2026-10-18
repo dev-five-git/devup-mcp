@@ -1,0 +1,1 @@
+allowFullScreen allowpopups autosize blinkfeatures disableblinkfeatures disableguestresize disablewebsecurity guestinstance httpreferrer nodeintegration partition plugins preload src useragent webpreferences

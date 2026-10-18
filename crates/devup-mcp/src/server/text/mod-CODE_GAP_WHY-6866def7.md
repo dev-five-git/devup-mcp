@@ -1,0 +1,1 @@
+This response carries devup-ui code, and the conventions it is written in are not what this runtime would load. Without them the code is written from guesses - invented $tokens, an authored CSS file, components treated as runtime React - and this server can neither see nor correct that.

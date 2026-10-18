@@ -1,0 +1,1 @@
+Compare screenshots with devup_visual_compare only at the drawn widths - visualComparisons holds the call for each one; elsewhere there is no visual original and only the layout checks above apply.

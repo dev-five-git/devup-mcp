@@ -1,0 +1,1 @@
+A widthPolicy anchor writes this width as the node's edges or share of its parent; at the drawn parent width it resolves to the drawn width. Other widths follow the policy and are not a claim about the design.

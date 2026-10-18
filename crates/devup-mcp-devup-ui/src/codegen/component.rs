@@ -675,7 +675,7 @@ pub fn render_component_registration_snapshot(
         }
     }
     Ok(format!(
-        "{{\n  \"name\": {},\n  \"node\": {},\n  \"tree\": {{\n    \"children\": [],\n    \"component\": \"Box\",\n    \"nodeName\": {},\n    \"nodeType\": \"COMPONENT\",\n    \"props\": {{\n{}\n    }},\n  }},\n  \"variantComments\": {{}},\n  \"variants\": {},\n}}",
+        include_str!("../text/component-render_component_registration_snapshot-dcc3fe0a.md"),
         json_string(name),
         node,
         json_string(selected.typed_view().name().unwrap_or(target_name)),
@@ -1429,10 +1429,12 @@ fn unresolved_token_bindings(
             diagnostics.push(Diagnostic {
                 code: "DEVUP_CODEGEN_TOKEN_NAME_UNRESOLVED".to_owned(),
                 message: format!(
-                    "{id} binds {property} to a {kind} the resource catalog did not name, \
-                     so the resolved value was written instead of its token. Collect the \
-                     resource, or treat the value in the generated code as a token that \
-                     still needs a name."
+                    include_str!(
+                        "../text/component-unresolved_token_bindings_Diagnostic-08be2867.md"
+                    ),
+                    id = id,
+                    kind = kind,
+                    property = property
                 ),
                 severity: Some(DiagnosticSeverity::Warning),
                 node_id: Some(id.clone()),
@@ -2114,7 +2116,7 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
                     })
                 }),
             "DEVUP_CODEGEN_IMAGE_COMPOSITION_UNSUPPORTED",
-            "A visible gradient has insufficient stops for CSS. Recapture the missing paint geometry or explicitly flatten the entire subtree; this composition cannot be reconstructed from the collected fields.",
+            include_str!("../text/component-add_fallback_diagnostics-9333dc00.md"),
             FidelityImpact::Lossy,
         ),
         (
@@ -2144,7 +2146,7 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
                         .and_then(serde_json::Value::as_array)
                         .is_some_and(|es| es.iter().any(|e| e["visible"] != false))),
             "DEVUP_CODEGEN_IMAGE_COMPOSITION_UNSUPPORTED",
-            "This live layout background references a native node rendition that includes the node's other fills, effects and subtree. CSS/live children can repeat that composition. Review the exported PNG and flatten the entire subtree, or export original fill bytes separately and implement the paint transforms/compositing before use; automatic fidelity is unsupported here.",
+            include_str!("../text/component-add_fallback_diagnostics-b5ee2878.md"),
             FidelityImpact::Lossy,
         ),
         (

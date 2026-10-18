@@ -83,7 +83,7 @@ pub(super) fn annotate(
             "selectedValue":selected,"sourceFields":source_fields,"originalValue":original,
             "layoutDimension":view.number(axis),
             "boundaryDeltaPixels":selected.zip(view.number(axis)).map(|(a,b)|a-b),
-            "calculation":format!("Absolute asset export policy: generated {css} = px(absoluteRenderBounds.{axis}); export origin = render.xy - parent.absoluteBoundingBox.xy. Bounding-box differences are boundary selection, not rounding."),
+            "calculation":format!(include_str!("../text/absolute_bounds-annotate-8cf6eb51.md"), axis = axis, css = css),
             "evidenceLimit":"Verifies the collected export-boundary projection, not equality with the layout bounding box or browser/SVG composition."});
         component["sourceFields"] = source_fields.clone();
         component["calculation"] = component["boundary"]["calculation"].clone();
@@ -209,7 +209,7 @@ pub(super) fn annotate(
             "declaredValue":declared.and_then(|v|v.get(axis)),"effectiveValue":effective,
             "state":if origin == "node" && !node.field_errors.contains_key("constraints") {"declared"} else {"assumed"},
             "sourceFields":["constraints", "childrenIds", "children[0].constraints"],
-            "calculation":"Use node constraint object; otherwise first child's constraint object; missing axis defaults to MIN. SCALE/STRETCH currently emit the near-edge offset, without a responsive scaling proof.",
+            "calculation":include_str!("../text/absolute_bounds-annotate-f08cae30.md"),
             "resolutionCondition":"An inherited/default constraint is generation policy only; establish that it represents this GROUP's placement intent before verifying the axis."});
         component["boundary"] = json!({"state":if position_boundary_ok {"verified"} else {"unverified"},
             "selectedField":"absoluteRenderBounds","sourceFields":position_fields,"originalValue":original,
@@ -233,12 +233,10 @@ pub(super) fn annotate(
         if !verified {
             component["state"] = json!("approximated");
             component["fidelityImpact"] = json!("approximated");
-            component["reason"] = json!(
-                "Export-boundary arithmetic is reported separately. Inherited/default constraints, SCALE/STRETCH, changed local geometry or an unverified containing block do not prove source placement intent."
-            );
-            component["resolutionCondition"] = json!(
-                "Prove the effective constraint belongs to this node, and that render-relative offsets preserve its positioning in the emitted containing block. A successful rounding check alone is insufficient."
-            );
+            component["reason"] =
+                json!(include_str!("../text/absolute_bounds-annotate-9c9cb9c4.md"));
+            component["resolutionCondition"] =
+                json!(include_str!("../text/absolute_bounds-annotate-35afe622.md"));
         }
     }
 }

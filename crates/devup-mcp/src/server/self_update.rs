@@ -102,7 +102,7 @@ impl Ownership {
     fn note(self) -> &'static str {
         match self {
             Self::Owned => {
-                "A newer release is downloaded in the background, proved by running --self-check on it, and renamed into place at the next start. This process is never replaced under its own stdio pipes."
+                include_str!("text/self_update-note-02a038b0.md")
             }
             Self::Disabled => {
                 "Staging is off (DEVUP_MCP_NO_AUTO_UPDATE). The release check still reports a difference."
@@ -423,11 +423,7 @@ pub fn report() -> Value {
         // say 0.9.0-dev while the binary inside it reports 0.10.1 after a
         // self-update replaced the file in place. That is the mechanism
         // working, not a mismatch, and it reads like one.
-        "installedPathNote": "The path of the file, not a statement about the version. A \
-                              directory named after a version is the host's, fixed when it \
-                              installed; self-update replaces the file inside it and never \
-                              renames the directory. Read server.commit/buildId for what is \
-                              actually running.",
+        "installedPathNote": include_str!("text/self_update-report-28b64040.md"),
         "note": ownership.note(),
         "disableWith": DISABLE_ENV,
     })

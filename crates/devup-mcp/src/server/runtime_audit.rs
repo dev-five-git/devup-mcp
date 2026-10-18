@@ -1060,10 +1060,10 @@ fn write_plan(
         "workingDirectory": template_path,
         "commands": [ ["npm", "ci"], ["npx", "playwright", "install", "chromium"],
             ["node", "run.mjs", "--plan", written.as_deref().unwrap_or("<saved plan.json>"), "--out", "report"] ],
-        "note": "Execute these argument arrays in the generated directory in your consumer project with its app running. The server executes nothing. The plan and report must remain under allowed roots for ingest."});
+        "note": include_str!("text/runtime_audit-write_plan-2d2cc624.md")});
     result["nextAction"] = json!({
         "where": "the consumer project",
-        "how": "Run the executor against this plan with the app served at baseUrl, then call devup_runtime_audit with action ingest, the plan path and the report.json it writes. Nothing here has run yet.",
+        "how": include_str!("text/runtime_audit-write_plan-c3ca4e3c.md"),
     });
     Ok(result)
 }
@@ -1505,7 +1505,7 @@ fn ingest_references(
                 .partition(|width| figma.drawn_widths.contains(width));
             Some(json!({"screen": screen.id, "nodeId": figma.node_id,
                 "visualOriginalAt": visual, "layoutChecksOnlyAt": layout_only,
-                "note": "Compare screenshots with devup_visual_compare only at the drawn widths - visualComparisons holds the call for each one; elsewhere there is no visual original and only the layout checks above apply."}))
+                "note": include_str!("text/runtime_audit-ingest_references-72b6591d.md")}))
         })
         .collect::<Vec<_>>();
     Ok(json!({
@@ -1885,22 +1885,29 @@ pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
 /// element where the executor reported one.
 pub(crate) fn fix_hint(class: &str, kind: &str, measured: &Value) -> String {
     match class {
-        "runtime-error" => "Open the URL at this width and read the first page or console error: an error-boundary text (\"This page couldn't load\", \"Application error\") means a component threw while rendering or a data fetch failed. Fix the throwing component or give the data a loading and error state, then re-run.".to_owned(),
-        "overflow" if kind == "no-clipped-text" => "Text is cut off by a box with overflow hidden: let the box grow (drop the fixed height or width the Figma frame had), let the text wrap, or, when truncation is designed, use textOverflow ellipsis or lineClamp.".to_owned(),
+        "runtime-error" => include_str!("text/runtime_audit-fix_hint-3a12f919.md").to_owned(),
+        "overflow" if kind == "no-clipped-text" => {
+            include_str!("text/runtime_audit-fix_hint-b3941912.md").to_owned()
+        }
         "overflow" => format!(
-            "Content is wider than the viewport{}: give the element maxW=\"100%\", let its row wrap (flexWrap=\"wrap\") or shrink (minW={{0}}), and turn a fixed Figma width into a responsive value at this width.",
-            measured["widest"].as_str().map(|widest| format!(" (widest: {widest})")).unwrap_or_default()
+            include_str!("text/runtime_audit-fix_hint-975acb57.md"),
+            measured["widest"]
+                .as_str()
+                .map(|widest| format!(" (widest: {widest})"))
+                .unwrap_or_default()
         ),
-        "layout-position" | "layout-size" if kind == "bounds" => "Layout is exact at a drawn width: a box off by more than half a pixel is code drift (the code no longer writes what the export wrote) or a converter bug (it does, and renders wrong). devup_screen_plan status tells which; never hand-tune the value.".to_owned(),
-        "layout-position" => "The element sits in the wrong place relative to its parent: compare the parent's gap, padding and alignment (justifyContent, alignItems) with the Figma frame, check the order of its children and any absolute offsets.".to_owned(),
-        "layout-size" => "The element has the wrong size: compare its width and height props with the Figma sizing (fixed, fill or hug), make fill stretch at widths that were not drawn, and check an image's aspect ratio and min/max sizes.".to_owned(),
-        "code-drift" => "Restore the values the export wrote for this element (the finding lists what is missing and what was added); layout is exact, so do not tune it by hand - re-export the node if the design changed.".to_owned(),
-        "converter-bug" => "The code still equals the export and the browser box differs from Figma: a devup-mcp converter bug. File the repro; a local override may finish the site only with a comment naming the repro file. Retrying does not help.".to_owned(),
-        "asset-mismatch" => "The rendered asset differs from the Figma node's render. Likely causes, in order: a CSS mask on a multi-colour SVG paints one solid shape (render it with <Image src> instead; masks are for single-colour icons only); the wrong file at the src path; a crop or objectFit (cover vs contain) or a missing viewBox. Open the diff PNG to see which.".to_owned(),
-        "section-visual" => "The section differs from its Figma render: open the diff PNG, find the highlighted area and fix the elements there; the usual causes are font size, weight or line height, a missing background or border, and spacing.".to_owned(),
-        "page-visual" => "The page differs from the frame: fix the section and asset comparisons first, they localise the problem; a difference only the page shows is usually the page background, its padding or the spacing between sections.".to_owned(),
-        "interaction" => "A link or button shows no hover or focus change: give it the interaction recipe for its role from the plan defaults (theme tokens only, at most two properties, the shared 150-250ms transition) and a visible _focusVisible outline.".to_owned(),
-        "view-transition" => "No view transition ran on this navigation: wrap the routed content in React's <ViewTransition> (or add @view-transition { navigation: auto } for a cross-document transition) and navigate with the framework's Link so it is a client navigation.".to_owned(),
+        "layout-position" | "layout-size" if kind == "bounds" => {
+            include_str!("text/runtime_audit-fix_hint-1f874fed.md").to_owned()
+        }
+        "layout-position" => include_str!("text/runtime_audit-fix_hint-516a692f.md").to_owned(),
+        "layout-size" => include_str!("text/runtime_audit-fix_hint-1ca5b7eb.md").to_owned(),
+        "code-drift" => include_str!("text/runtime_audit-fix_hint-60ba4f27.md").to_owned(),
+        "converter-bug" => include_str!("text/runtime_audit-fix_hint-0e677049.md").to_owned(),
+        "asset-mismatch" => include_str!("text/runtime_audit-fix_hint-650b18d4.md").to_owned(),
+        "section-visual" => include_str!("text/runtime_audit-fix_hint-a13b2885.md").to_owned(),
+        "page-visual" => include_str!("text/runtime_audit-fix_hint-5960cebc.md").to_owned(),
+        "interaction" => include_str!("text/runtime_audit-fix_hint-e19dc0a1.md").to_owned(),
+        "view-transition" => include_str!("text/runtime_audit-fix_hint-7a003bba.md").to_owned(),
         _ => "Re-run the check and read its reason.".to_owned(),
     }
 }
@@ -2056,7 +2063,7 @@ fn visual_comparison(
     }
     if shot.height != viewport.height {
         blockers.push(format!(
-            "The page is {}px tall in a {}px viewport, so the full-page capture is {}x{}. devup_visual_compare needs the viewport to be the reference's size: plan this width at the frame's drawn height.",
+            include_str!("text/runtime_audit-visual_comparison-8010a061.md"),
             shot.height, viewport.height, shot.width, shot.height
         ));
     }
@@ -2102,7 +2109,7 @@ fn visual_comparison(
         "ifItFails": {"class": "page-visual", "fixHint": fix_hint("page-visual", "", &Value::Null)},
         "consumerMustAdd": must_add,
         "blockers": blockers,
-        "note": "Filled from the plan, the verified screenshot and the executor's report. Export the frame with outputs [\"referencePng\"] first and put its artifactId in reference; devup_visual_compare pins that reference itself. The fields in consumerMustAdd are the consumer's to state.",
+        "note": include_str!("text/runtime_audit-visual_comparison-8418b2cf.md"),
     })
 }
 

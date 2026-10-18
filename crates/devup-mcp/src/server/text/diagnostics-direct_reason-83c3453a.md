@@ -1,0 +1,1 @@
+An authorized access token is stored but has expired. It is refreshed on the next call when a refresh token was stored with it, and otherwise needs devup_figma_auth { action: "login" } again.

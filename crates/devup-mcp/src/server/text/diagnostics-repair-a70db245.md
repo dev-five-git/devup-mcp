@@ -1,0 +1,1 @@
+The devup-mcp holding port {port}{holder} and this one are different releases that cannot relay to each other: restart the MCP client session whose devup-mcp is older so both run the same release.

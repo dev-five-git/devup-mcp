@@ -1,0 +1,1 @@
+Port {port} is held by a process{holder} that could not be verified as this user's devup-mcp ({detail}). Relaying needs both processes to read the same secret, which only this user can read, so a devup-mcp run as another user - or sandboxed away from that secret - cannot share the bridge, and this process does not read through it.

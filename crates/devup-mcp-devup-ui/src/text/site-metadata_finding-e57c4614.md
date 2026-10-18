@@ -1,0 +1,1 @@
+Export metadata with title, description and openGraph (the devfive-frontend SEO rule); the root layout also carries the title template and metadataBase. A 'use client' page cannot export it: move the client part into a component.

@@ -142,7 +142,7 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
             // an allowance "resets tomorrow" would invite waiting for a
             // rollover that never happens, and it explains why small
             // requests slip through while a large one still fails.
-            "recovery": "Figma meters reads with a leaky bucket, so capacity returns gradually rather than resetting at a fixed time. Retry after a short wait; a small request may succeed while a large one is still refused.",
+            "recovery": include_str!("text/operation-upstream_error-3ae5dbed.md"),
             "costHint": "A refreshed export spends about 15 Figma tool calls, so prefer a cached artifact over refresh.",
         });
         // The REST API states the exact wait in `Retry-After`, and names
@@ -209,7 +209,7 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     } else if message.contains("DEVUP_SECTION_REQUIRED") {
         details = json!({"pluginCode":"DEVUP_SECTION_REQUIRED","stage":"section-index","sectionId":null,
             "nextAction":{"tool":"devup_figma_export","requiredArguments":["url"],
-                "how":"The url must point to a SECTION, while frameIds selects frames inside it. Open the requested frame's containing SECTION in Figma and copy its link. This legacy response did not include its ancestor SECTION ID."}});
+                "how":include_str!("text/operation-upstream_error-e5dda23e.md")}});
     }
     if let Some(code) = &code {
         if details["pluginCode"].is_null() {
@@ -264,7 +264,7 @@ fn plugin_next_action(code: &str) -> Option<Value> {
     match code {
         "DEVUP_NODE_NOT_FOUND" => Some(json!({
             "tool": "devup_figma_search",
-            "how": "The node-id in this url does not exist in this file. Figma links can outlive the node they pointed at, and a link copied from a comment or a requirement often names a node that has since been renamed or deleted. Search this file by name for the screen you meant and use the canonicalUrl the search returns.",
+            "how": include_str!("text/operation-plugin_next_action-021029b8.md"),
             "requiredArguments": ["url", "query"]
         })),
         "DEVUP_PAGE_NOT_FOUND" => Some(json!({
@@ -278,14 +278,14 @@ fn plugin_next_action(code: &str) -> Option<Value> {
             "doNot": "Do not raise limit to recover this; limit bounds the answer, not the collection."
         })),
         "DEVUP_BRIDGE_UNKNOWN_SCRIPT" => Some(json!({
-            "how": "The Devup Bridge plugin running in Figma was built before this devup-mcp and does not know this read. Update the checkout it was imported from, or import plugin/manifest.json from a current one (Plugins -> Development -> Import plugin from manifest...), run the plugin again on the file, then retry. Until then this read goes to the metered direct path only when the plugin reported the file's Figma key and devup_figma_auth login has been done."
+            "how": include_str!("text/operation-plugin_next_action-847e92e7.md")
         })),
         "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(json!({
-            "how": "This node's PNG is larger than the 8 MiB one Devup Bridge answer carries. The direct path takes up to 16 MiB once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise export a smaller frame."
+            "how": include_str!("text/operation-plugin_next_action-d622713f.md")
         })),
         "DEVUP_SECTION_INDEX_TOO_LARGE" => Some(json!({
             "tool": "devup_figma_search",
-            "how": "This Section's candidate list does not fit the plugin transport. The list is never truncated to fit, because dropping a candidate would hide a screen the caller can select; text previews are already surrendered first. Narrow the target instead: search this Section by name for the screen you want, or open a nested Section and export from there.",
+            "how": include_str!("text/operation-plugin_next_action-8366c796.md"),
             "doNot": "Do not retry the same Section URL. The ceiling is a property of this Section's size, so the same request produces the same refusal.",
             "requiredArguments": ["url", "query"]
         })),

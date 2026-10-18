@@ -1,0 +1,1 @@
+The devup-mcp holding port {port} ({}) predates bridge sharing, so this process cannot read through it: restart (or update) the MCP client session that started it. Once it exits, this process takes the port over by itself and the plugin reconnects to it.

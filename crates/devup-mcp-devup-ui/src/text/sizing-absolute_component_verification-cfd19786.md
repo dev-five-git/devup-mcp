@@ -1,0 +1,1 @@
+Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides.

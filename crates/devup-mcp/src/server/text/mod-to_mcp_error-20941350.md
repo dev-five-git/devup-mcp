@@ -1,0 +1,1 @@
+Use the original Figma SECTION URL and frameIds (or allScreens) with refresh:true to collect a new artifact. Then reuse the new cache.artifactId; do not send the expired artifactId with url or refresh.

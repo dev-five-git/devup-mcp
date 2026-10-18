@@ -2958,21 +2958,7 @@ mod w5_tests {
         serde_json::from_slice(&output.stdout).unwrap()
     }
 
-    const TREE: &str = r#"
-const doc = {id:'0:0', type:'DOCUMENT'};
-const page = {id:'1:1', type:'PAGE', name:'Page', parent:doc, children:[]};
-function node(id, type, name, parent) {
- const n = {id, type, name, parent, children:[], x:0, y:0, width:390, height:844, visible:true};
- n.findAll = predicate => n.children.flatMap(c => [c, ...c.findAll(predicate)]).filter(predicate);
- parent.children.push(n); return n;
-}
-const section = node('2:1', 'SECTION', 'Loading section', page);
-const frame = node('3:1', 'FRAME', 'Loading', section);
-node('3:2', 'FRAME', 'Loading', page);
-page.findAll = () => { throw new Error('must not traverse whole page'); };
-const figma = {fileKey:'file', getNodeByIdAsync: async () => section,
- setCurrentPageAsync: async p => { if (p !== page) throw new Error('wrong page'); }};
-"#;
+    const TREE: &str = include_str!("text/collector-w5_tests_TREE-ae8d8ae7.md");
 
     fn search_output(setup: &str) -> Value {
         run_script(
@@ -2986,14 +2972,10 @@ const figma = {fileKey:'file', getNodeByIdAsync: async () => section,
     #[test]
     fn p4_section_keeps_long_page_and_nested_automatic_screens() {
         let setup = format!(
-            r#"{TREE}
-frame.height = 7240;
-const wrapper = node('4:1', 'GROUP', 'Wrapper', frame);
-node('5:1', 'FRAME', 'Screen', wrapper);
-node('5:2', 'FRAME', 'Screen contents', wrapper.children[0]);
-const small = node('6:1', 'FRAME', 'Case', section); small.width = small.height = 150;
-node('6:2', 'TEXT', 'Text case', section);
-"#
+            include_str!(
+                "text/collector-w5_tests_p4_section_keeps_long_page_and_nested_automatic_screens-261e1062.md"
+            ),
+            TREE = TREE
         );
         let output = run_script(
             include_str!("scripts/section_index.js"),
@@ -3050,12 +3032,10 @@ node('6:2', 'TEXT', 'Text case', section);
     #[test]
     fn w5_text_preview_does_not_change_candidates_or_projection_truncation() {
         let setup = format!(
-            r#"{TREE}
-for (let i=0; i<60; i++) {{
- const f = node('4:'+i, 'FRAME', 'Screen '+i, section);
- const t = node('5:'+i, 'TEXT', 'Copy', f); t.characters = '한글 " preview '.repeat(40);
-}}
-"#
+            include_str!(
+                "text/collector-w5_tests_w5_text_preview_does_not_change_candidates_or_projection_trun-90cc510e.md"
+            ),
+            TREE = TREE
         );
         let mut baseline = None;
         for limit in [0, 160, 500] {

@@ -356,7 +356,7 @@ pub(crate) fn policy_width_proof(
             } else {
                 "width share / 100 * drawn parent width = drawn width"
             },
-            "reason": "A widthPolicy anchor writes this width as the node's edges or share of its parent; at the drawn parent width it resolves to the drawn width. Other widths follow the policy and are not a claim about the design.",
+            "reason": include_str!("../text/width-policy_width_proof-d2d9e821.md"),
         })
     })
 }
@@ -409,7 +409,7 @@ pub(crate) fn policy_horizontal_proof(
                 .iter()
                 .map(|(name, super::component::PropValue::String(value))| (name.clone(), value.clone()))
                 .collect::<BTreeMap<_, _>>(),
-            "reason": "The widthPolicy anchor's props reproduce the drawn offset at the drawn parent width. Which edge holds the node at other widths is the caller's policy, not the design's constraint.",
+            "reason": include_str!("../text/width-policy_horizontal_proof-6cd374a8.md"),
         })
     })
 }
@@ -544,11 +544,11 @@ pub fn width_behavior(snapshot: &Snapshot, root_id: &str, output: &CodegenOutput
             "fluid": root_fluid,
             "componentSized": component_sized,
             "note": if component_sized {
-                "Drawn narrower than any screen (320px): a component its host places and sizes, not a viewport. Findings that ask where a part goes on a wider screen are left out; summary.componentRootSuppressed counts them."
+                include_str!("../text/width-width_behavior-fdf7cb4e.md")
             } else if root_fluid {
                 "The root takes its container's width, so every finding below applies at any viewport other than the drawn width."
             } else {
-                "The root keeps its drawn width in px, so the screen renders at that width at every viewport. Findings describe what changes once the root takes its container's width - with widthPolicy, or by editing the root."
+                include_str!("../text/width-width_behavior-8f8e0a0f.md")
             },
         },
         "exactnessScope": "quality.projection grades the mapping at the drawn width only. It is not a claim about other viewport widths.",
@@ -564,7 +564,7 @@ pub fn width_behavior(snapshot: &Snapshot, root_id: &str, output: &CodegenOutput
         omitted_shapes.truncate(10);
         report["shapeSizeOmitted"] = json!({
             "nodeIds": omitted_shapes,
-            "note": "Positioned childless shapes are written h=\"100%\" with no width, as the plugin writes them; projectionIssues reports their drawn size. widthPolicy writes each one at its own size.",
+            "note": include_str!("../text/width-width_behavior-d9663795.md"),
         });
     }
     if let Some(policy) = policy {
@@ -711,7 +711,7 @@ fn positioned_finding(
             "right-aligned-but-held-left",
             "consumer-policy-required",
             "medium",
-            "Drawn near the right edge, but its constraint holds it at its left offset, so at a wider width it stays where it was drawn. The design does not say which is meant. Anchoring it right in widthPolicy also carries what is drawn inside it.",
+            include_str!("../text/width-positioned_finding-7a9e6965.md"),
             json!([
                 {"anchor": "left", "source": "design-constraint"},
                 {"anchor": "right", "rightPx": round(right_gap)},

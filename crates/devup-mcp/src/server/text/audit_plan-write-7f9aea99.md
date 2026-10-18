@@ -1,0 +1,1 @@
+Sections, cards and assets are found by data-figma-node-id, which devup_figma_export writes into a project's TSX. A check whose element is missing reports missingNodes; re-export with projectRoot.

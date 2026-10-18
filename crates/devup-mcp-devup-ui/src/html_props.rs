@@ -40,7 +40,7 @@ pub(crate) fn is_html_prop(tag: &str, prop: &str) -> bool {
             "alt crossOrigin decoding fetchPriority height loading referrerPolicy sizes src srcSet useMap width"
         }
         "input" => {
-            "accept alt autoComplete capture checked disabled form formAction formEncType formMethod formNoValidate formTarget height list max maxLength min minLength multiple name pattern placeholder readOnly required size src step type value width"
+            include_str!("text/html_props-is_html_prop-9108b590.md")
         }
         "keygen" => "challenge disabled form keyParams keyType name",
         "label" => "form htmlFor",
@@ -76,9 +76,12 @@ pub(crate) fn is_html_prop(tag: &str, prop: &str) -> bool {
             "autoPlay controls controlsList crossOrigin disablePictureInPicture disableRemotePlayback height loop mediaGroup muted playsInline poster preload src width"
         }
         "webview" => {
-            "allowFullScreen allowpopups autosize blinkfeatures disableblinkfeatures disableguestresize disablewebsecurity guestinstance httpreferrer nodeintegration partition plugins preload src useragent webpreferences"
+            include_str!("text/html_props-is_html_prop-113d7813.md")
         }
         _ => return false,
     };
-    "about accessKey autoCapitalize autoCorrect autoFocus autoSave children className color content contentEditable contextMenu dangerouslySetInnerHTML datatype defaultChecked defaultValue dir draggable enterKeyHint exportparts hidden id inert inlist inputMode is itemID itemProp itemRef itemScope itemType key lang nonce part popover popoverTarget popoverTargetAction prefix property radioGroup ref rel resource results rev role security slot spellCheck style suppressContentEditableWarning suppressHydrationWarning tabIndex title translate typeof unselectable vocab".split_whitespace().chain(specific.split_whitespace()).any(|known| known == prop)
+    include_str!("text/html_props-is_html_prop-2afffb93.md")
+        .split_whitespace()
+        .chain(specific.split_whitespace())
+        .any(|known| known == prop)
 }

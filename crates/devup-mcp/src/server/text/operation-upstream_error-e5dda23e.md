@@ -1,0 +1,1 @@
+The url must point to a SECTION, while frameIds selects frames inside it. Open the requested frame's containing SECTION in Figma and copy its link. This legacy response did not include its ancestor SECTION ID.

@@ -1,0 +1,1 @@
+This node's PNG is larger than the 8 MiB one Devup Bridge answer carries. The direct path takes up to 16 MiB once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise export a smaller frame.

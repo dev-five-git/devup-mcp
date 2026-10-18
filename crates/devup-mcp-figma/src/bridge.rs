@@ -557,10 +557,7 @@ fn not_reachable(link: &LinkState) -> DevupError {
              {{ action: \"status\" }} says why and what to do",
             issue.code()
         )),
-        _ => unavailable(
-            "the Devup Bridge port is changing hands: the devup-mcp that held it went away and \
-             this process is taking it over or reconnecting. Repeat the call in a few seconds.",
-        ),
+        _ => unavailable(include_str!("text/bridge-not_reachable-fa7318ce.md")),
     }
 }
 
@@ -1218,7 +1215,7 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
         result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] =
             json!(format!("devup-mcp could not compose it: {}", error.message));
         result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(format!(
-            "Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). Layers reaching into it may show here: {}; get_screenshot leaves other layers out.",
+            include_str!("text/bridge-wrap_as_image_result-467d2f14.md"),
             error.message,
             data["reaching"].as_str().unwrap_or("other layers")
         ));
@@ -1934,8 +1931,7 @@ fn reports_unreachable(text: &str) -> bool {
 fn no_room_on_the_metered_path() -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupFigmaRateLimited,
-        "The Devup Bridge plugin could not answer this read, and the metered direct path had no \
-         room in its allowance to read it in time. It is retried once the allowance frees up.",
+        include_str!("text/bridge-no_room_on_the_metered_path-41a0802f.md"),
         true,
         json!({ "source": "direct", "stage": "bridge-fallback" }),
     )
@@ -1996,9 +1992,7 @@ fn bridge_only_refusal(call: &ReadToolCall) -> DevupError {
         "The Devup Bridge plugin this request was addressed to is no longer attached. Run it \
          again on the file in the Figma desktop app, then repeat the call."
     } else {
-        "This read cannot go through the Devup Bridge plugin, and the plugin could not report \
-         the file's Figma key, so the direct path cannot make it either. Repeat the call with the \
-         file's own Figma link (Share -> Copy link) to read it through the direct path."
+        include_str!("text/bridge-bridge_only_refusal-4e141d6f.md")
     };
     DevupError::with_details(
         ErrorCode::DevupFigmaDirectUnavailable,

@@ -348,7 +348,7 @@ pub(super) fn report(source: &str, inventory: &Value, rendered_html: Option<&str
             finding(
                 "fixed-navigation-marker",
                 "info",
-                "Navigation candidate has a constant underline/highlight; it may be decorative. Confirm its purpose and, if it denotes the active menu, derive it from route/state (usePathname for GNB). Active state and runtime behavior remain unverified.",
+                include_str!("text/navigation-report-928037dc.md"),
             );
         }
         if let Some(href) = element["href"]

@@ -1,0 +1,1 @@
+Machine-wide roots are read to decide `installed`, never written: devup-mcp writes only inside an allowed output root. A skill found in one of these is already loaded by its runtime and needs nothing.

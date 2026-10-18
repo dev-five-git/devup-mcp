@@ -1,0 +1,1 @@
+The element sits in the wrong place relative to its parent: compare the parent's gap, padding and alignment (justifyContent, alignItems) with the Figma frame, check the order of its children and any absolute offsets.

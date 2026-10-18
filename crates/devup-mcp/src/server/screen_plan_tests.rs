@@ -1898,6 +1898,33 @@ fn rows_app(plan: &Value) -> Vec<(String, String)> {
 /// by name order. Marketing frames build the public site without a question.
 #[tokio::test]
 async fn marketing_frames_go_to_the_public_app_without_a_question() {
+    let config: PlanConfig = serde_json::from_value(json!({"appSelectionKeywords": {
+        "publicApps": ["storefront"], "admin": ["controlroom"],
+        "publicScreens": ["catalogue"], "adminRoutes": ["control"]
+    }}))
+    .unwrap();
+    assert_eq!(
+        selection_words(&config, "publicApps", &PUBLIC_APP_WORDS),
+        vec!["storefront"]
+    );
+    assert_eq!(
+        words_side(&["controlroom"], &["storefront"], &config),
+        (0, 1)
+    );
+    assert_eq!(
+        screen_side(
+            &PlanScreenInput {
+                name: "catalogue".into(),
+                ..Default::default()
+            },
+            &config
+        ),
+        Side::Public
+    );
+    assert_eq!(
+        selection_words(&PlanConfig::default(), "admin", &ADMIN_WORDS),
+        *ADMIN_WORDS
+    );
     let fixture = template_fixture();
     let plan = plan_screens_at(
         fixture.root(),

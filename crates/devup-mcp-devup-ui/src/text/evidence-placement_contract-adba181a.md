@@ -1,0 +1,1 @@
+Provide a positioned host matching the original parent dimensions and coordinate origin; the parent is not included in this component. Review the emitted offsets before insertion.

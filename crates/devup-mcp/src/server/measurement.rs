@@ -98,7 +98,7 @@ pub(super) fn calibrate(result: &Value, input: &super::tools::MeasureCalibration
         "nodeId":input.node_id,"logicalWidth":width,"logicalHeight":height,
         "scaleX":x.is_finite().then_some(x),"scaleY":y.is_finite().then_some(y),
         "uniformScale":consistent.then_some((x+y)/2.0),"aspectConsistent":consistent,
-        "evidenceLimit":"Screen pixels are caller-declared. No screenshot, canvas mapping, crop or browser viewport was inspected; UI DPR and zoom do not prove capture scale. Compare DOM CSS logical dimensions to these Figma logical dimensions."})
+        "evidenceLimit":include_str!("text/measurement-calibrate-b4d6cfac.md")})
 }
 
 pub(super) async fn run(

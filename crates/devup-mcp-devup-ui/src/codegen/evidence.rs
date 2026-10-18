@@ -76,7 +76,7 @@ pub(super) fn image_layout_diagnostics(
                         "classification":"grid-track-sizing", "reasonCodes":template.unverified,
                         "originalValue":{"sizes":node.typed_view().value(sizes),"count":node.typed_view().value(count)},
                         "generatedProperty":generated, "generatedSizing":sizing(element),
-                        "sizingPolicy":"Preserve valid explicit tracks; use auto for unknown/invalid tracks and a count-only equal-share fallback (auto for HUG). Omit unsupported declarations above the 4096-track codegen budget. No child pixel width is inferred.",
+                        "sizingPolicy":include_str!("../text/evidence-image_layout_diagnostics_Diagnostic-c94c1150.md"),
                         "verification":{"state":"unverified","reasonCode":"source-track-sizing-incomplete"},
                         "nextAction":"Collect explicit track sizes and child FIXED/FILL/HUG sizing. Compare computed card widths before accepting the fallback; no original card width is inferred.",
                         "evidenceLimit":"Generated CSS policy and collected metadata only; browser layout was not measured."
@@ -208,7 +208,7 @@ pub(super) fn image_layout_diagnostics(
                         "generatedSizing":sizing(element),
                         "layout":{"nodeId":parent.id,"mode":mode,"generatedSizing":sizing(parent_element),"zeroMinimumColumns":columns.is_some_and(|css| css.contains("minmax(0,"))},
                         "verification":{"state":"unverified","reasonCode":"browser-intrinsic-layout-not-measured"},
-                        "nextAction":"Preserve explicit fixed dimensions or source-supported aspect ratio; measure rendered card sizes with the chosen assets. Zero-minimum fractional columns protect track allocation but do not establish image height or crop fidelity.",
+                        "nextAction":include_str!("../text/evidence-image_layout_diagnostics_Diagnostic-79e776df.md"),
                         "evidenceLimit":"Potential CSS intrinsic-size dependency, not a measured cause or proof of unequal cards. Intrinsic attributes use acquired pixels when available."
                     })),
                     ..Diagnostic::default()
@@ -262,7 +262,7 @@ pub(super) fn placement_contract(
             "color": color,
             "layoutMode": parent.string("layoutMode"),
             "name": parent.string("name"),
-            "note": "The surface this root is drawn on in Figma, read from the collected parent. It is reported, not emitted: the parent is not part of this component. Apply it to the host when the screen is meant to sit on it.",
+            "note": include_str!("../text/evidence-placement_contract-5c61c6c3.md"),
         }))
     });
     let source = output
@@ -287,7 +287,8 @@ pub(super) fn placement_contract(
     let embedded = options.root_layout == super::RootLayout::Embedded;
     let mut requirements = Vec::new();
     if absolute {
-        requirements.push("Provide a positioned host matching the original parent dimensions and coordinate origin; the parent is not included in this component. Review the emitted offsets before insertion.".to_owned());
+        requirements
+            .push(include_str!("../text/evidence-placement_contract-adba181a.md").to_owned());
     }
     if vertical_fill
         && (embedded
@@ -296,7 +297,7 @@ pub(super) fn placement_contract(
                     || tag.contains(&format!("boxSize=\"{}\"", super::layout::px(h)))
             }))
     {
-        requirements.push("Provide a definite height on this generated root matching its captured FIXED height so its emitted vertical FILL child can grow into the remaining space. A host height alone is insufficient unless the root also receives that height; preserve the child's emitted flex growth and following action order.".into());
+        requirements.push(include_str!("../text/evidence-placement_contract-7c9ff723.md").into());
     }
     if positioned {
         for (axis, sizing, prop) in [
@@ -313,7 +314,11 @@ pub(super) fn placement_contract(
                 let size = captured
                     .map(super::layout::px)
                     .unwrap_or_else(|| "not collected".into());
-                requirements.push(format!("Ensure the generated root's {axis} matches the intended containing block (captured {axis}: {size}); this axis is determined by host CSS or in-flow content, not a generated fixed size."));
+                requirements.push(format!(
+                    include_str!("../text/evidence-placement_contract-09b061a1.md"),
+                    axis = axis,
+                    size = size
+                ));
             }
         }
         if !absolute && !relative {
@@ -333,7 +338,7 @@ pub(super) fn placement_contract(
             "parentIncludedInOutput": false,
             "parentMissingReason": if parent.is_none() { Some("The root is at the capture boundary; its parent geometry was not collected.") } else { None },
             "containingBlock": if absolute { "external-host" } else if relative { "generated-root" } else { "normal-flow-host" },
-            "coordinateBasis": if absolute { "Emitted offsets resolve against the external positioned host; source parent placement is not self-contained." } else { "The root is inserted in normal document flow; source canvas x/y are not its placement in the application. Positioned children resolve against the generated root when it establishes a containing block." },
+            "coordinateBasis": if absolute { "Emitted offsets resolve against the external positioned host; source parent placement is not self-contained." } else { include_str!("../text/evidence-placement_contract_Diagnostic-d84874e6.md") },
             "sourceSize": {"width":view.number("width"), "height":view.number("height"), "horizontal":view.string("layoutSizingHorizontal"), "vertical":view.string("layoutSizingVertical")},
             "sourcePosition": {"x":view.number("x"), "y":view.number("y"), "constraints":view.value("constraints")},
             "sourceParentSize": parent.map(|p| json!({"width":p.typed_view().number("width"), "height":p.typed_view().number("height")})),

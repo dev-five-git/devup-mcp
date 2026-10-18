@@ -145,7 +145,7 @@ impl AssetJobs {
                     json!({"frameIds":frame_ids,"allScreens":all_screens,"frameCount":frames,"frameOutputUnits":units,
                         "planningSecondsPerUnit":[5,20],"planningSeconds":units.map(|units|[units*5,units*20]),
                         "isGuarantee":false,"initialReplyBudgetSeconds":1,
-                        "note":"Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."})
+                        "note":include_str!("text/asset_jobs-acquire_AssetJob-1e1eb717.md")})
                 }
                 _ => unreachable!(),
             },
@@ -508,7 +508,7 @@ impl AssetJob {
         } else {
             job["assetRows"] = json!("compact");
             job["assetDetail"] = json!({
-                "how": "Rows carry identity, status, bytes and file state only. Poll with responseFields to read full rows (exportDiagnostics, renderInfo); a completed job also carries them in its assetManifest.",
+                "how": include_str!("text/asset_jobs-response_with-526ef5eb.md"),
                 "arguments": {"jobId": self.id, "jobAction": "status", "responseFields": ["exportJob.assets"]},
             });
         }

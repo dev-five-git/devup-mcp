@@ -1,0 +1,1 @@
+The root is inserted in normal document flow; source canvas x/y are not its placement in the application. Positioned children resolve against the generated root when it establishes a containing block.

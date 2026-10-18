@@ -1,0 +1,7 @@
+[
+  "https://nextjs.org/docs/app/guides/view-transitions",
+  "https://react.dev/reference/react/ViewTransition",
+  "https://vinext.dev/compatibility",
+  "https://github.com/cloudflare/vinext/blob/main/examples/app-router-playground/app/view-transitions/_ui/transitions.tsx",
+  "https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts"
+]

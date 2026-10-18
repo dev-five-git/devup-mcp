@@ -65,7 +65,9 @@ fn attach_scan_notes(response: &mut Value, excluded: Vec<Value>, kept: usize, fi
         object.insert(
             "authorityNote".to_owned(),
             json!(format!(
-                "This project has {kept} {filename} files and none of them governs all of it. Each applies to the directory in its own appliesTo; use the one whose appliesTo contains the file being written."
+                include_str!("text/project_context-attach_scan_notes-4b303bac.md"),
+                filename = filename,
+                kept = kept
             )),
         );
     }
@@ -122,7 +124,7 @@ fn ambiguous_theme_guardrail(root: &Path, candidates: &[PathBuf], excluded: Vec<
         .collect::<Vec<_>>();
     let mut guardrail = guardrail_object(
         format!(
-            "This project has {} devup.json files and none of them is at the project root, so none of them governs all of it. The unknown-token check was skipped rather than run against an arbitrarily chosen one. Call again with projectRoot set to the package whose code is being validated; candidateProjectRoots lists the value that selects each theme.",
+            include_str!("text/project_context-ambiguous_theme_guardrail-b51035aa.md"),
             candidates.len()
         ),
         candidates.iter().map(|file| display_path(file)).collect(),
@@ -191,7 +193,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
             "No devup.json found. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.".to_owned()
         } else {
             format!(
-                "The only devup.json files under this project ({}) are inside nested checkouts — another branch's copy, not this project's current source — so none was used. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.",
+                include_str!("text/project_context-theme_for_validation-ba1b05bd.md"),
                 excluded.len()
             )
         };
@@ -385,7 +387,7 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
             "tokenCount": theme.token_count(),
             "totalTokenCount": theme.token_count(),
             "matchedTokenCount": matched_count,
-            "tokenCountScope":"Distinct token names across all categories and modes in this file before filtering; tokenCount is a compatibility alias of totalTokenCount. matchedTokenCount uses the same deduplication after filtering. Category counts deduplicate names within each category.",
+            "tokenCountScope":include_str!("text/project_context-theme_scope-c1299f17.md"),
             "categories": categories,
             "colors": colors,
             "typography": typography,

@@ -1,0 +1,1 @@
+No screenshot pixels or visual features were inspected. Text previews can be partial; matching observations only nominates real candidates and never verifies or automatically exports a selection.

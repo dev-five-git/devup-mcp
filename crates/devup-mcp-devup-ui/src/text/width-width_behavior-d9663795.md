@@ -1,0 +1,1 @@
+Positioned childless shapes are written h="100%" with no width, as the plugin writes them; projectionIssues reports their drawn size. widthPolicy writes each one at its own size.

@@ -1,0 +1,1 @@
+Export exceeds the batch budget for a 300-second client timeout. Split frameIds into smaller calls; use 1–3 frames per call and reuse artifactId when its capture covers the selected frames.

@@ -1,0 +1,1 @@
+The page is {}px tall in a {}px viewport, so the full-page capture is {}x{}. devup_visual_compare needs the viewport to be the reference's size: plan this width at the frame's drawn height.

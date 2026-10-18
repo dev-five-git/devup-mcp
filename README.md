@@ -1312,3 +1312,18 @@ session. Only under the recorded Jira/PR policy, comment results and PR link and
 transition issues. Final report includes the unit table, DAG, ERD and unresolved
 items; never claim completion from split or command generation alone.
 
+
+
+Source organization: Rust source under `crates/` is limited to 1000 lines per
+file, including tests. The existing size-contract test checks this alongside
+all embedded JSON text assets. Source sections use `include!` inside the
+original module namespace to retain narrow privacy and existing test names.
+Long tool text is in `crates/devup-mcp/src/server/text/`; other crates use
+`src/text/`. `include_str!` keeps these assets inside the binary.
+
+App selection keyword overrides in `.devup/screen-plan.config.json`:
+```json
+{"appSelectionKeywords":{"publicApps":["storefront"],"admin":["controlroom"],"publicScreens":["catalogue"],"adminRoutes":["control"]}}
+```
+Each supplied category replaces its defaults; omitted categories retain the
+vendored defaults. An empty category explicitly disables its keyword matches.

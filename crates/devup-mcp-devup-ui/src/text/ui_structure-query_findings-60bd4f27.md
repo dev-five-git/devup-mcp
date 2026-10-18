@@ -1,0 +1,1 @@
+Query data is dereferenced during rendering without local isPending and isError handling; data can be undefined while pending. This does not assert that external boundaries are absent.

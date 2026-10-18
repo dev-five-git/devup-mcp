@@ -1,0 +1,1 @@
+Native raster boundary: use the already rendered pixel box without applying the source IMAGE paint fit a second time; in-flow export offsets override this placement when present.

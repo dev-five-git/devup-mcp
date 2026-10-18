@@ -1,0 +1,1 @@
+The section differs from its Figma render: open the diff PNG, find the highlighted area and fix the elements there; the usual causes are font size, weight or line height, a missing background or border, and spacing.

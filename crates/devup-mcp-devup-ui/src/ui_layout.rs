@@ -308,7 +308,7 @@ impl Collector<'_> {
             (
                 "right-aligned-but-held-left",
                 format!(
-                    "{} is drawn {}px from the right edge of a container that follows the viewport, but held by its left edge, so at any other width it stays where it was drawn. If it belongs to the right edge, hold it there (right=\"{}px\").",
+                    include_str!("text/ui_layout-check_held_left-d6e0fe40.md"),
                     describe_short(node),
                     round(right_gap),
                     round(right_gap),
@@ -318,7 +318,7 @@ impl Collector<'_> {
             (
                 "centered-but-held-left",
                 format!(
-                    "{} is drawn with equal gaps on both sides of a container that follows the viewport, but held by its left edge, so it drifts off-centre at any other width. Centre it (left=\"50%\" with transform=\"translateX(-50%)\") or stretch it between the gaps (left and right).",
+                    include_str!("text/ui_layout-check_held_left-6cb7140a.md"),
                     describe_short(node),
                 ),
             )
@@ -399,7 +399,7 @@ impl Collector<'_> {
                 "rule": "fixed-length-line-mask",
                 "confidence": "high",
                 "elements": [self.describe(element, placement)],
-                "message": "A rule drawn as a mask keeps its drawn length while this box follows its parent's width, so the line stops short of the box at any other width. Size the mask to the box, or draw the rule as a filled box of the same colour and weight.",
+                "message": include_str!("text/ui_layout-check_line_mask-ab57b482.md"),
             }));
         }
     }

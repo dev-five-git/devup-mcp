@@ -1,0 +1,1 @@
+Figma had stopped fetching data for the file because it was out of sight - its tab behind another tab, or the window minimized or covered by another window - so the plugin's reads came back short and were read again on the metered direct path. Keep the file visible in the Figma desktop app to keep every read on the plugin.

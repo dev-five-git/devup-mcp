@@ -1,0 +1,1 @@
+This code broke devup-ui rules, and the devup-ui skill is not installed in this workspace. Installing it puts the rules in front of you while you write, instead of after this tool has already refused the result.

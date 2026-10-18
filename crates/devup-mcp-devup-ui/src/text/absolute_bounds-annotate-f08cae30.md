@@ -1,0 +1,1 @@
+Use node constraint object; otherwise first child's constraint object; missing axis defaults to MIN. SCALE/STRETCH currently emit the near-edge offset, without a responsive scaling proof.

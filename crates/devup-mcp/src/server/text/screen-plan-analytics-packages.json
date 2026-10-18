@@ -1,0 +1,9 @@
+[
+  "@vercel/analytics",
+  "@next/third-parties",
+  "react-ga4",
+  "react-gtm-module",
+  "@amplitude/analytics-browser",
+  "mixpanel-browser",
+  "posthog-js"
+]

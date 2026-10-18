@@ -1,0 +1,1 @@
+ While a bridge plugin is attached it serves every read, and this path only re-reads what the plugin answers short: data Figma withholds while the file is out of sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an older plugin does not know.

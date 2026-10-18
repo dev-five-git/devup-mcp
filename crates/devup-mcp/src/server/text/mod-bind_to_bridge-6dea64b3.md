@@ -1,0 +1,1 @@
+No url or node was given, and the attached Devup Bridge plugin does not report the Figma selection - it predates this devup-mcp. Re-run Devup Bridge from this devup-mcp's plugin/manifest.json, or name the node.

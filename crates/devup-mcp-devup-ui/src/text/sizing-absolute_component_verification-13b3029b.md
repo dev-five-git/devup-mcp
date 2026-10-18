@@ -1,0 +1,1 @@
+Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props.

@@ -1,0 +1,1 @@
+No optional split is offered: asset requests, output paths and assetPublicRoot can determine generated asset URLs. Keep those coupled outputs together in the full resource recovery call.

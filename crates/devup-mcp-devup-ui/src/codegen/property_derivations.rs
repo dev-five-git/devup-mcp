@@ -93,18 +93,18 @@ pub(crate) fn property_derivations(
             "wordBreak" => (vec!["styledTextSegments"], "push_text_props: Korean segment text uses keep-all word breaking."),
             "boxShadow" if style::asset_kind(snapshot, node).is_none() && style::single_outside_stroke(&node.typed_view()).is_some() =>
                 (vec!["strokes", "strokeAlign", "strokeTopWeight", "strokeRightWeight", "strokeBottomWeight", "strokeLeftWeight", "effects"],
-                "One solid square-cornered OUTSIDE edge becomes a zero-blur translated box shadow that consumes no layout space; real effects follow it in paint order. This does not claim a source shadow effect or pixel parity."),
+                include_str!("../text/property_derivations-property_derivations-f4103b4e.md")),
             "boxShadow" | "textShadow" | "filter" | "backdropFilter" => (vec!["effects"],
-                "push_effects: visible effects in source order; shadow offset.x/y, radius, spread and bound/resolved RGBA color; textShadow omits spread; blur uses radius. Existing effect-loss diagnostics still apply."),
+                include_str!("../text/property_derivations-property_derivations-a4bd5441.md")),
             "objectFit" | "objectPos" | "maskRepeat" | "maskSize" | "maskPos" => {
                 if *stage != "style" { return None; }
                 style_derivations.matching(&name, &value)?.description()
             },
             "alignSelf" => (vec!["layoutAlign", "layoutSizingHorizontal", "layoutSizingVertical", "parentId"], "Layout cross-axis fill maps to alignSelf=stretch when required by parent alignment."),
-            "transform" | "transformOrigin" => (vec!["rotation", "relativeTransform", "absoluteBoundingBox", "absoluteRenderBounds", "constraints", "x", "y", "parentId"], "Layout/style transform composition from rotation, placement and CENTER constraints; asset exports may already bake rotation. The emitted expression is compared with the responsible stage."),
+            "transform" | "transformOrigin" => (vec!["rotation", "relativeTransform", "absoluteBoundingBox", "absoluteRenderBounds", "constraints", "x", "y", "parentId"], include_str!("../text/property_derivations-property_derivations-691f8d10.md")),
             "zIndex" => (vec!["layoutPositioning", "fills", "childrenIds", "parentId"], "Layout stacking policy for absolute backgrounds and overlapping children, evaluated by push_layout_props."),
             "gridTemplateColumns" | "gridTemplateRows" =>
-                (vec!["inferredAutoLayout", "gridColumnSizes", "gridRowSizes", "gridColumnCount", "gridRowCount", "layoutSizingHorizontal", "layoutSizingVertical"], "push_auto_layout: explicit FIXED tracks retain pixels, HUG/AUTO tracks retain content sizing, and FLEX columns use minmax(0, Nfr) outside HUG grids to avoid automatic min-content expansion. Rows retain their content minimum. Count-only tracks use a diagnosed equal-share fallback (auto for HUG); unknown/invalid tracks use diagnosed auto sizing. Child widths and placement are independent of track sizing."),
+                (vec!["inferredAutoLayout", "gridColumnSizes", "gridRowSizes", "gridColumnCount", "gridRowCount", "layoutSizingHorizontal", "layoutSizingVertical"], include_str!("../text/property_derivations-property_derivations-a0f0555b.md")),
             "gridColumn" | "gridRow" | "columnGap" | "rowGap" =>
                 (vec!["layoutMode", "gridColumnAnchorIndex", "gridRowAnchorIndex", "gridColumnSpan", "gridRowSpan", "gridColumnSizes", "gridRowSizes", "gridColumnCount", "gridRowCount", "gridColumnGap", "gridRowGap", "parentId"], "push_layout_props: grid tracks, one-based anchors/spans and grid gaps; parent grid count participates in placement."),
             "bgBlendMode" => (vec!["fills"], "push_style_props: visible paint blendMode maps to CSS background blend mode."),
@@ -114,12 +114,12 @@ pub(crate) fn property_derivations(
             "visibility" | "display" => (vec!["visible", "opacity", "absoluteRenderBounds", "fills", "textTruncation", "maxLines"], "Visibility/non-rendering or text truncation policy in the named stage; existing visibility classification is retained."),
             "WebkitTextStroke" | "paintOrder" => (vec!["strokes", "strokeWeight", "styledTextSegments"], "push_text_props composes text stroke width/color and stroke-before-fill paint order."),
             "WebkitBoxOrient" | "WebkitLineClamp" | "textOverflow" => (vec!["textTruncation", "maxLines", "styledTextSegments"], "push_text_props projects truncation and maximum line count into the emitted clamp properties."),
-            "whiteSpace" if text::preserves_hard_break_spaces(&node.typed_view()) => (vec!["characters", "styledTextSegments", "textAutoResize", "maxLines"], "Spaces adjacent to explicit breaks in non-list, unclamped text with fixed inline width use pre-wrap. This preserves source whitespace without changing Korean word-breaking policy; it does not establish glyph or wrapping parity."),
+            "whiteSpace" if text::preserves_hard_break_spaces(&node.typed_view()) => (vec!["characters", "styledTextSegments", "textAutoResize", "maxLines"], include_str!("../text/property_derivations-property_derivations-2ec1244f.md")),
             "textDecoration" => (vec!["textDecoration", "styledTextSegments"], "Text UNDERLINE/STRIKETHROUGH maps to underline/line-through."),
             "textTransform" => (vec!["textCase", "styledTextSegments"], "Text case projection follows push_text_props."),
             "as" | "my" => (vec!["styledTextSegments", "listOptions", "paragraphSpacing"], "Text list/paragraph projection uses the emitted semantic tag and spacing policy."),
             "animationName" | "animationDuration" | "animationTimingFunction" | "animationFillMode" | "animationDelay" | "animationIterationCount" =>
-                (vec!["reactions", "relativeTransform", "rotation", "childrenIds"], "push_animation_props follows timed Smart Animate destinations in the collected snapshot, computes changed property keyframes and timing. Existing unreachable/unsupported animation diagnostics still apply."),
+                (vec!["reactions", "relativeTransform", "rotation", "childrenIds"], include_str!("../text/property_derivations-property_derivations-f0db063f.md")),
             // No generic 'the renderer wrote it' proof. A newly introduced
             // property must register its source fields/calculation or receives
             // PROPERTY_UNMAPPED from the final AST audit.

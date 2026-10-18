@@ -418,8 +418,8 @@ impl<'t> TsxVisitor<'t> {
             context: serde_json::Map::from_iter([("tokenMatches".into(), serde_json::json!(token_matches))]),
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
-                "{prop_name} uses hardcoded {kind} {text}, which this project's devup.json already defines as {named}. Check the matching modes before replacement; a partial-mode match may change this value in another mode."
-            ),
+                include_str!("text/ui_validate-report_hardcoded_value_Violation-63c589c5.md")
+            , kind = kind, named = named, prop_name = prop_name, text = text),
             suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change colors in other modes.")),
         });
     }
@@ -520,12 +520,14 @@ impl<'t> TsxVisitor<'t> {
                     rule: "runtime-value",
                     severity: Severity::Error,
                     context: Default::default(),
-            byte_range: [
+                    byte_range: [
                         property.value.span().start as usize,
                         property.value.span().end as usize,
                     ],
                     message: format!(
-                        "{call_name}({{ {key}: ... }}) accepts only statically analyzable literal values. css() can extract finite conditional branches as static classes; globalCss()/keyframes() do not select runtime classes. Value branches must be static, not arbitrary runtime values."
+                        include_str!("text/ui_validate-check_static_object_Violation-a031fb84.md"),
+                        call_name = call_name,
+                        key = key
                     ),
                     suggestion: None,
                 });

@@ -1,0 +1,1 @@
+A source map needs a generated output. Even when reusing artifactId, include tsx, componentTsx or devupJson in outputs in the same call. Example: {"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}

@@ -1,0 +1,1 @@
+No sourceMap entry generated the attribute these sit on, or they sit on no attribute. The export names each attribute its sourceMap does not map in projectionIssues (DEVUP_CODEGEN_PROPERTY_UNMAPPED) or projectionEvidence, at the same elementIndex.

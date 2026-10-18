@@ -1,0 +1,1 @@
+Diagnostic identities, counts, severity and verdicts remain inline; complete original details are in this resource. Read it before accepting projection evidence or final completeness.

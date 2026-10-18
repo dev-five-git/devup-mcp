@@ -1,0 +1,1 @@
+hover one token step darker; active scale(0.98) or one more step darker; focusVisible 2px ring with offset; disabled reduced opacity and cursor not-allowed; a loading state (disabled, spinner) while a form it submits is pending

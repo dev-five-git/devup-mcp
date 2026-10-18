@@ -1,0 +1,1 @@
+Source spaces adjacent to explicit line breaks select pre-wrap for non-list, unclamped text whose inline width is fixed and height is automatic. Characters come from the node or collected styled segments. This preserves source whitespace without changing Korean keep-all; it does not claim intrinsic HUG sizing, glyph parity or identical wrapping.

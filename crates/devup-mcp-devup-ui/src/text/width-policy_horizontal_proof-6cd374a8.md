@@ -1,0 +1,1 @@
+The widthPolicy anchor's props reproduce the drawn offset at the drawn parent width. Which edge holds the node at other widths is the caller's policy, not the design's constraint.
