@@ -47,6 +47,6 @@
 //! ever exported a screen.
 
 // Source sections share this module to preserve privacy and test names.
-include!("skills/use_declaration.rs");
-include!("skills/impl.rs");
+include!("skills/catalog.rs");
+include!("skills/installation.rs");
 include!("skills/tests.rs");

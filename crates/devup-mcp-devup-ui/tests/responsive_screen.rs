@@ -6,5 +6,5 @@
 //! these skip when it is absent rather than pretending to have checked.
 
 // Source sections share this module to preserve privacy and test names.
-include!("responsive_screen/use_declaration.rs");
+include!("responsive_screen/fixtures_and_cases.rs");
 include!("responsive_screen/every_element_the_module_draws_is_one_it_imports.rs");

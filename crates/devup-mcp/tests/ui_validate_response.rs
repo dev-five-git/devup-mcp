@@ -9,5 +9,5 @@
 //! response to the meaning `UiValidation` documents.
 
 // Source sections share this module to preserve privacy and test names.
-include!("ui_validate_response/use_declaration.rs");
+include!("ui_validate_response/fixtures_and_cases.rs");
 include!("ui_validate_response/a_page_named_module_outside_the_router_is_not_judged_as_a_route.rs");

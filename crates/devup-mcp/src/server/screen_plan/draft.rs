@@ -1,5 +1,3 @@
-
-
 /// The first exclude keyword in any of `names`, unless an include keyword
 /// forces them in.
 fn excluded_by<'a>(names: &[(&'a str, &'a str)], config: &PlanConfig) -> Option<String> {
@@ -269,18 +267,6 @@ pub(super) fn draft_plan(
 ) -> Result<Value, DevupError> {
     draft_plan_with(screens, &[], &[], targets, evidence, source, notes)
 }
-
-/// [`draft_plan`] with Figma nodes that may become the favicon or share
-/// image.
-pub(super) fn draft_plan_with(
-    screens: &[PlanScreenInput],
-    assets: &[PlanAssetInput],
-    extra: &[ExtraQuestionInput],
-    targets: &BTreeMap<String, String>,
-    evidence: &ProjectEvidence,
-    source: Value,
-    notes: Option<&str>,
-) -> Result<Value, DevupError> { include!("draft_plan_with.rs") }
 
 /// How deep a question sits behind the answers it depends on. A question is
 /// asked in a round after every question it depends on.

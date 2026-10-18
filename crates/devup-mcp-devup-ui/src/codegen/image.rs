@@ -3,5 +3,5 @@
 //! and paint order/blending: https://developers.figma.com/docs/plugins/api/Paint/
 
 // Source sections share this module to preserve privacy and test names.
-include!("image/use_declaration.rs");
+include!("image/image_projection.rs");
 include!("image/project_tree.rs");

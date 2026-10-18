@@ -36,5 +36,5 @@
 //! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 // Source sections share this module to preserve privacy and test names.
-include!("diagnostics/use_declaration.rs");
+include!("diagnostics/response_diagnostics.rs");
 include!("diagnostics/tests.rs");

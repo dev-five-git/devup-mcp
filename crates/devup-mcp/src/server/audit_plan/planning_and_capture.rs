@@ -28,7 +28,9 @@ const FONT_ORIGINS: [&str; 3] = [
     "https://fonts.gstatic.com",
     "https://cdn.jsdelivr.net",
 ];
-const NAV_WORDS: [&str; 5] = ["nav", "header", "gnb", "menu", "헤더"];
+static NAV_WORDS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("../text/audit-nav-words.json")).expect("vendored nav words")
+});
 
 fn invalid(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupInvalidInput, message, false)

@@ -9,5 +9,5 @@
 //! envelope rather than an empty/ambiguous success.
 
 // Source sections share this module to preserve privacy and test names.
-include!("project_context/use_declaration.rs");
+include!("project_context/context_and_inventory.rs");
 include!("project_context/tests.rs");

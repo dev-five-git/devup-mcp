@@ -10,6 +10,14 @@ fn visit(dir: &Path) {
         let path = entry.expect("source entry").path();
         if path.is_dir() {
             visit(&path);
+        } else if path.extension().is_some_and(|s| s == "rs") {
+            let source = std::fs::read_to_string(&path).expect("read Rust source");
+            let lines = source.lines().count();
+            assert!(
+                lines <= 1000,
+                "{} has {lines} lines; maximum is 1000",
+                path.display()
+            );
         } else if path.extension().is_some_and(|s| s == "json")
             && path.components().any(|c| c.as_os_str() == "text")
         {

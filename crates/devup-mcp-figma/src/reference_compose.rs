@@ -12,6 +12,6 @@
 //! ancestor.
 
 // Source sections share this module to preserve privacy and test names.
-include!("reference_compose/use_declaration.rs");
+include!("reference_compose/types_and_helpers.rs");
 include!("reference_compose/impl.rs");
 include!("reference_compose/tests.rs");

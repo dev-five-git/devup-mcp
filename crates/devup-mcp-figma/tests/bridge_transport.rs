@@ -5,5 +5,5 @@
 //! 모든 것 — 등록, 이름·값 매핑, 상관, 봉투 모양, 라우팅 판정 — 을 확인한다.
 
 // Source sections share this module to preserve privacy and test names.
-include!("bridge_transport/use_declaration.rs");
+include!("bridge_transport/fixtures_and_cases.rs");
 include!("bridge_transport/impl.rs");

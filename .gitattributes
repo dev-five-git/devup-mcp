@@ -7,3 +7,9 @@
 # are not git's to touch in either direction.
 crates/devup-mcp/src/server/skills/**/*.md -text
 crates/devup-mcp/src/server/skills/manifest.json -text
+
+# Compiled-in text is part of the binary's output contract. Preserve the
+# original template bytes, including intentional newlines, on every platform.
+crates/devup-mcp/src/server/text/** -text
+crates/devup-mcp-figma/src/text/** -text
+crates/devup-mcp-devup-ui/src/text/** -text

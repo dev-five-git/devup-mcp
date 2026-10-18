@@ -16,5 +16,5 @@
 //! see each layer's doc comment for exactly what it can and cannot see.
 
 // Source sections share this module to preserve privacy and test names.
-include!("stack_diff/use_declaration.rs");
+include!("stack_diff/contracts_and_layers.rs");
 include!("stack_diff/openapi_client_layer.rs");

@@ -33,5 +33,5 @@
 //! in `themeNotes`, avoiding repeated, impossible advice (D11).
 
 // Source sections share this module to preserve privacy and test names.
-include!("ui_validate/use_declaration.rs");
+include!("ui_validate/types_and_helpers.rs");
 include!("ui_validate/tests.rs");

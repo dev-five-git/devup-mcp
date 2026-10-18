@@ -9,5 +9,5 @@
 //! that URL's frame, and because the work goes URL by URL.
 
 // Source sections share this module to preserve privacy and test names.
-include!("audit_plan/use_declaration.rs");
+include!("audit_plan/planning_and_capture.rs");
 include!("audit_plan/static_params.rs");

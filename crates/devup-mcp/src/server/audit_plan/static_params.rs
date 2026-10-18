@@ -1,4 +1,7 @@
-
+static FAILURE_CLASSES: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("../text/audit-failure-classes.json"))
+        .expect("vendored failure classes")
+});
 
 /// `generateStaticParams` in the route's page: literal params in its body,
 /// else the param's values in a local data file it reads.
@@ -254,20 +257,10 @@ pub struct VisualResultInput {
 /// The order a URL's failures are worked in: a page that does not render
 /// first, then overflow, then layout, then pixels, then states.
 fn class_rank(class: &str) -> usize {
-    [
-        "runtime-error",
-        "overflow",
-        "layout-position",
-        "layout-size",
-        "asset-mismatch",
-        "section-visual",
-        "page-visual",
-        "interaction",
-        "view-transition",
-    ]
-    .iter()
-    .position(|candidate| *candidate == class)
-    .unwrap_or(9)
+    FAILURE_CLASSES
+        .iter()
+        .position(|candidate| *candidate == class)
+        .unwrap_or(9)
 }
 
 /// Folds one audit run (and the visual results for it) into the plan's

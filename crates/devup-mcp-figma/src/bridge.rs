@@ -18,6 +18,6 @@
 //! 거친 답도 이 모양이다 — 감싸는 일은 요청한 프로세스가 한다.
 
 // Source sections share this module to preserve privacy and test names.
-include!("bridge/holder_section.rs");
+include!("bridge/transport_and_state.rs");
 include!("bridge/stamp_file_key.rs");
 include!("bridge/texts.rs");

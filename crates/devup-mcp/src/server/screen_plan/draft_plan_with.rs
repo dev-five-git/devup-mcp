@@ -1,4 +1,14 @@
-{
+/// [`draft_plan`] with Figma nodes that may become the favicon or share
+/// image.
+pub(super) fn draft_plan_with(
+    screens: &[PlanScreenInput],
+    assets: &[PlanAssetInput],
+    extra: &[ExtraQuestionInput],
+    targets: &BTreeMap<String, String>,
+    evidence: &ProjectEvidence,
+    source: Value,
+    notes: Option<&str>,
+) -> Result<Value, DevupError> {
     if screens.is_empty() {
         return Err(invalid(
             "draft found no screens. Link a Section or frame, or pass screens from devup_figma_explore.",
@@ -418,7 +428,31 @@
     let mut rows = Vec::new();
     let mut heuristics = Vec::new();
     let mut part_screens = BTreeMap::<String, Vec<String>>::new();
-    for (index, screen) in drafts.iter().enumerate() { include!("draft_plan_with_block.rs") }
+    for (index, screen) in drafts.iter().enumerate() {
+        plan_route_group(
+            RouteGroupPlanning {
+                evidence_for: &evidence_for,
+                is_modal: &is_modal,
+                route_choice: &route_choice,
+                unclaimed_for: &unclaimed_for,
+                decided: &decided,
+                claimed: &claimed,
+                drafts: &drafts,
+                targets,
+                screen_apps: &screen_apps,
+                kind_evidence,
+                page_screens: &page_screens,
+                frame_owner: &frame_owner,
+                screen_notes: &screen_notes,
+                questions: &mut questions,
+                rows: &mut rows,
+                heuristics: &mut heuristics,
+                part_screens: &mut part_screens,
+            },
+            index,
+            screen,
+        );
+    }
     let route_heuristics = heuristics
         .iter()
         .filter(|item| text(&item["askedIn"]).starts_with("review:"))

@@ -23,6 +23,6 @@
 //! repo's corpus pins — `src/codegen/responsive/`.
 
 // Source sections share this module to preserve privacy and test names.
-include!("responsive/use_declaration.rs");
+include!("responsive/breakpoint_merge.rs");
 include!("responsive/merge_content.rs");
 include!("responsive/impl.rs");
