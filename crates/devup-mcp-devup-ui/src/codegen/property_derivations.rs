@@ -88,6 +88,9 @@ pub(crate) fn property_derivations(
     props.into_iter().filter_map(|(name, PropValue::String(value))| {
         let stage = origins.get(&name)?;
         let (fields, calculation): (Vec<&str>, &str) = match name.as_str() {
+            "w" | "h" | "maxW" | "flexWrap" | "flexShrink" if layout::in_wrapping_row(snapshot,node) =>
+                (vec!["layoutMode", "layoutSizingHorizontal", "width", "height", "childrenIds", "parentId", "itemSpacing"],
+                "fixed_row_props: a row of fixed-width items wider than 390px wraps in available width; the drawn item widths and gap remain exact, descendants stay within their card and the row height follows wrapped content."),
             "w" | "h" | "maxW" | "minW" | "gap" | "gridTemplateColumns" | "gridTemplateRows" | "gridColumn" | "gridRow"
                 if layout::in_reading_grid(snapshot, node) =>
                 (vec!["absoluteBoundingBox", "childrenIds", "parentId", "layoutMode", "characters"],

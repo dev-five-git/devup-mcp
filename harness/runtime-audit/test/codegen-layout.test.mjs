@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {spawnSync} from 'node:child_process';
-import {mkdir, mkdtemp, writeFile, rm} from 'node:fs/promises';
+import {mkdir, mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {build, preview} from 'vite';
@@ -15,6 +15,7 @@ async function rendered(snapshot, verify) {
   const dir = await mkdtemp(join(harness,'out','layout-'));
   let server, browser;
   try {
+    if (typeof snapshot !== 'string') {await writeFile(join(dir,'snapshot.json'),JSON.stringify(snapshot));snapshot=join(dir,'snapshot.json');}
     const generated = spawnSync('cargo',['run','--quiet','-p','devup-mcp-devup-ui','--example','render_fixture','--',snapshot,join(dir,'Generated.tsx')],{cwd:repo,encoding:'utf8',windowsHide:true,timeout:300000});
     assert.equal(generated.status,0,generated.stderr);
     await writeFile(join(dir,'devup.json'),JSON.stringify({theme:{}}));
@@ -49,4 +50,32 @@ test('generated staggered grid keeps drawn geometry and reads 01 02 03 04 at 390
       await page.close();
     }
   });
+});
+
+
+test('generated 160px tech items, six 180px columns and three cards fit 390 and retain drawn geometry', {timeout:360000},async()=> {
+  for(const [count,itemWidth] of [[6,160],[6,180],[3,350]]) {
+    const snapshot=JSON.parse(await readFile(join(repo,'crates/devup-mcp-devup-ui/tests/fixtures/staggered-sequence.json'),'utf8'));
+    const drawn=count*itemWidth+(count-1)*20;
+    const root=snapshot.nodes.root;
+    snapshot.nodes={root};
+    root.fields.childrenIds=Array.from({length:count},(_,i)=>`item${i}`);
+    Object.assign(root.fields,{width:drawn,height:100,itemSpacing:20,inferredAutoLayout:{layoutMode:'HORIZONTAL',itemSpacing:20},absoluteBoundingBox:{x:0,y:0,width:drawn,height:100}});
+    for(const id of root.fields.childrenIds) snapshot.nodes[id]={id,type:'FRAME',fields:{parentId:'root',width:itemWidth,height:100,layoutSizingHorizontal:'FIXED',layoutSizingVertical:'FIXED',maxWidth:null,maxHeight:null}};
+    await rendered(snapshot,async(browser,url)=> {
+      for(const width of [390,drawn]) {
+        const page=await browser.newPage({viewport:{width,height:900}});
+        await page.goto(url);
+        await page.locator(`[data-figma-node-id="item${count-1}"]`).waitFor();
+        const items=await Promise.all(root.fields.childrenIds.map((id)=>page.locator(`[data-figma-node-id="${id}"]`).boundingBox()));
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);
+        assert.ok(items.every((box)=>box.x+box.width<=width+0.5));
+        if(width===drawn) for(const [i,box] of items.entries()) {
+          assert.equal(box.x,i*(itemWidth+20)); assert.equal(box.y,0); assert.equal(box.width,itemWidth);
+        }
+        else assert.ok(items.at(-1).y>items[0].y);
+        await page.close();
+      }
+    });
+  }
 });

@@ -826,6 +826,7 @@ pub(super) fn push_layout_props(
     }
     if let Some(grid) = reading_grid(snapshot, node) { reading_grid_props(&grid, props); }
     reading_card_props(snapshot, node, props);
+    fixed_row_props(snapshot, node, props);
 }
 
 pub(crate) fn vertical_fill_container(snapshot: &Snapshot, node: &RawNode) -> bool {
