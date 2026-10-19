@@ -7,10 +7,19 @@
     "devup-runtime-audit": "run.mjs"
   },
   "scripts": {
-    "test": "node --test test/checks.test.mjs test/browser.test.mjs test/layout.test.mjs test/appearance.test.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify:render": "node verify-render.mjs",
     "test:unit": "node --test test/checks.test.mjs"
   },
   "dependencies": {
     "playwright": "1.63.0"
+  },
+  "devDependencies": {
+    "@devup-ui/react": "^1.0.41",
+    "@devup-ui/reset-css": "^1.0.28",
+    "@devup-ui/vite-plugin": "^1.0.69",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vite": "^8.3.0"
   }
 }

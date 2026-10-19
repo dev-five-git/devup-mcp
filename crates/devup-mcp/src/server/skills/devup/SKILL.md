@@ -179,7 +179,16 @@ the full rules; these are the steps.
 11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
     recommended option, keep working, take it with `assume` at the end; a
     destructive one stays unbuilt.
-12. **Done = zero fails.** Every check and comparison passes at the drawn
+12. **Done = zero fails.** A real Chromium render is mandatory before claiming
+    any page is done. Build and serve the generated app, execute the Playwright
+    runner, read its report and compare the actual screenshots with independent
+    Figma references. Static checks, TSX snapshots, a generated audit plan and a
+    capture check's `pass` do not prove visual correctness. Verify background
+    images, colors and loaded assets; inspect page/section/asset diffs and feed
+    every visual result back to status. Missing references, unavailable browser
+    tooling, failed assets and not-run comparisons mean incomplete. Preserve the
+    screenshots, reference identity, report and diffs in the final evidence.
+    Every check and comparison passes at the drawn
     widths and health and overflow pass at every required width. Report filed
     converter bugs and unresolved findings with evidence as incomplete. Also: every
     URL implemented, the production build free of `data-figma-node-id` (the
