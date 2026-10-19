@@ -1,0 +1,40 @@
+
+  VITE v8.2.2  ready in 776 ms
+
+  ➜  Local:   http://127.0.0.1:4317/
+오전 4:05:46 [vite] (rsc) connected.
+ GET /about 308 in 837ms
+오전 4:05:48 [vite] (ssr) connected.
+ GET /about/ 200 in 715ms (compile: 231ms, render: 481ms)
+오전 4:05:51 [vite] (ssr) page reload C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-20.css
+오전 4:05:51 [vite] (ssr) program reload
+오전 4:05:51 [vite] (client) hmr update /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-20.css?direct&t=17924367483100
+오전 4:05:51 [vite] (ssr) page reload C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-17.css
+오전 4:05:51 [vite] (client) hmr update /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-17.css?direct&t=17924367483100
+오전 4:05:51 [vite] (ssr) page reload C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-34.css
+오전 4:05:51 [vite] (client) hmr update /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-34.css?direct&t=17924367483100
+ GET /seo-geo 308 in 2ms
+오전 4:05:53 [vite] (rsc) hmr update /@id/__x00__virtual:vinext-rsc-entry
+오전 4:05:53 [vite] (ssr) page reload C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui.css
+오전 4:05:53 [vite] (client) hmr update /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui.css?direct&t=17924367483108580, /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui.css?direct&t=17924367477186141, /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui.css?direct&t=17924367477606433, /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui.css?direct&t=17924367477918563 and 18 more
+오전 4:05:53 [vite] (rsc) hot updated: \0virtual:vinext-rsc-entry
+ GET /seo-geo/ 200 in 181ms (compile: 66ms, render: 112ms)
+오전 4:05:53 [vite] (ssr) page reload C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-51.css
+오전 4:05:53 [vite] (ssr) program reload
+오전 4:05:53 [vite] (client) hmr update /@fs/C:/Users/DEVFIV~1/AppData/Local/Temp/devup-rootcause-B-20261020/df/devup-ui/devup-ui-51.css?direct&t=17924367531470
+ GET /about 308 in 1ms
+ GET /about/ 200 in 119ms (compile: 22ms, render: 96ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 31ms (compile: 2ms, render: 27ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 51ms (compile: 2ms, render: 47ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 20ms (compile: 2ms, render: 17ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 66ms (compile: 3ms, render: 62ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 28ms (compile: 3ms, render: 24ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 52ms (compile: 1ms, render: 49ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 29ms (compile: 2ms, render: 26ms)

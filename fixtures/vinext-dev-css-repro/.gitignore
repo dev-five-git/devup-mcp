@@ -1,0 +1,9 @@
+node_modules/
+df/
+.vite*/
+dist/
+.vinext/
+.next/
+next-env.d.ts
+server.*.log
+audit*/

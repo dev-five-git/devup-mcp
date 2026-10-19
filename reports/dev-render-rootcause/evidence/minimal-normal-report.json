@@ -1,0 +1,577 @@
+{
+  "schemaVersion": 1,
+  "kind": "devup-runtime-audit-report",
+  "planId": "prime-cold-exclude",
+  "planSha256": "49c802b4e3225eea7cd24df4f0ab111b58c69aca458dd9510ed533863d843a20",
+  "status": "completed",
+  "startedAt": "2026-10-19T19:13:07.493Z",
+  "executor": {
+    "name": "devup-runtime-audit",
+    "node": "v26.8.2",
+    "playwright": "1.63.0",
+    "browser": {
+      "name": "chromium",
+      "version": "153.0.8010.12"
+    }
+  },
+  "environment": {
+    "os": "win32 10.0.26200",
+    "locale": null,
+    "timezone": null
+  },
+  "runs": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "startedAt": "2026-10-19T19:13:07.589Z",
+      "environmentErrors": [
+        {
+          "kind": "console-error",
+          "message": "Failed to load resource: the server responded with a status of 500 ()"
+        },
+        {
+          "kind": "navigation-failed",
+          "message": "/seo-geo: HTTP 500"
+        }
+      ],
+      "screens": [
+        {
+          "id": "about",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 1440,
+                "scrollWidth": 1440,
+                "maxRight": 1440,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": []
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/about/",
+          "screenshot": {
+            "path": "1440x900@1-about.png",
+            "sha256": "d250f6f1d5e6708ce3f201578c409522493fb15617a5cb1af131170d5e3e0d1e",
+            "bytes": 10407
+          },
+          "links": [
+            "/seo-geo/"
+          ]
+        },
+        {
+          "id": "seo-geo",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "fail",
+              "reason": "the page shows \"This page couldn’t load\"; console-error: Failed to load resource: the server responded with a status of 500 (); navigation-failed: /seo-geo: HTTP 500",
+              "measured": {
+                "problems": [
+                  "the page shows \"This page couldn’t load\"",
+                  "console-error: Failed to load resource: the server responded with a status of 500 ()",
+                  "navigation-failed: /seo-geo: HTTP 500"
+                ]
+              }
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 1440,
+                "scrollWidth": 1440,
+                "maxRight": 1440,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": [
+                  {
+                    "name": "Reload to try again, or go back.",
+                    "width": 245.640625
+                  }
+                ]
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/seo-geo/",
+          "screenshot": {
+            "path": "1440x900@1-seo-geo.png",
+            "sha256": "f658edf44b2ce2e33d93d5ac95e25407aee0b5fec97fc7aaa27ff4f9a8cf434a",
+            "bytes": 12415
+          },
+          "links": []
+        }
+      ],
+      "finishedAt": "2026-10-19T19:13:09.100Z"
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "startedAt": "2026-10-19T19:13:09.139Z",
+      "environmentErrors": [],
+      "screens": [
+        {
+          "id": "about",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 1100,
+                "scrollWidth": 1100,
+                "maxRight": 1100,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": []
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/about/",
+          "screenshot": {
+            "path": "1100x900@1-about.png",
+            "sha256": "1ad275bd33605525e440d6ec51e4c34fb6e6093759c1f961ac3bb1de10438c69",
+            "bytes": 9359
+          },
+          "links": [
+            "/seo-geo/"
+          ]
+        },
+        {
+          "id": "seo-geo",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 1100,
+                "scrollWidth": 1100,
+                "maxRight": 1100,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": [
+                  {
+                    "name": "Search engine optimization content",
+                    "width": 480
+                  },
+                  {
+                    "name": "Generative engine optimization content",
+                    "width": 480
+                  }
+                ]
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/seo-geo/",
+          "screenshot": {
+            "path": "1100x900@1-seo-geo.png",
+            "sha256": "547f59b4e4bcef7b51c89c0c25675738186e09c2dc22ab252d27e04a19362fb5",
+            "bytes": 15757
+          },
+          "links": []
+        }
+      ],
+      "finishedAt": "2026-10-19T19:13:09.380Z"
+    },
+    {
+      "viewport": {
+        "width": 858,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "startedAt": "2026-10-19T19:13:09.413Z",
+      "environmentErrors": [],
+      "screens": [
+        {
+          "id": "about",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 858,
+                "scrollWidth": 858,
+                "maxRight": 858,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": []
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/about/",
+          "screenshot": {
+            "path": "858x900@1-about.png",
+            "sha256": "5dc657645744ba492709e8f7f9df77c9f09881b7b2a71f0016435fdc23b87ff1",
+            "bytes": 8004
+          },
+          "links": [
+            "/seo-geo/"
+          ]
+        },
+        {
+          "id": "seo-geo",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 858,
+                "scrollWidth": 858,
+                "maxRight": 858,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": [
+                  {
+                    "name": "Search engine optimization content",
+                    "width": 818
+                  },
+                  {
+                    "name": "Generative engine optimization content",
+                    "width": 818
+                  }
+                ]
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/seo-geo/",
+          "screenshot": {
+            "path": "858x900@1-seo-geo.png",
+            "sha256": "a866b84946ad4f2ced97eec5c66ee681b3a5f4bc304240227022696cc499e08b",
+            "bytes": 13901
+          },
+          "links": []
+        }
+      ],
+      "finishedAt": "2026-10-19T19:13:09.597Z"
+    },
+    {
+      "viewport": {
+        "width": 600,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "startedAt": "2026-10-19T19:13:09.630Z",
+      "environmentErrors": [],
+      "screens": [
+        {
+          "id": "about",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 600,
+                "scrollWidth": 600,
+                "maxRight": 600,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": []
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/about/",
+          "screenshot": {
+            "path": "600x900@1-about.png",
+            "sha256": "a1547d50110b5aeee7ab217f8cb604deedf988df2a49eb47d113907b62b4154b",
+            "bytes": 7196
+          },
+          "links": [
+            "/seo-geo/"
+          ]
+        },
+        {
+          "id": "seo-geo",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 600,
+                "scrollWidth": 600,
+                "maxRight": 600,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": [
+                  {
+                    "name": "Search engine optimization content",
+                    "width": 560
+                  },
+                  {
+                    "name": "Generative engine optimization content",
+                    "width": 560
+                  }
+                ]
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/seo-geo/",
+          "screenshot": {
+            "path": "600x900@1-seo-geo.png",
+            "sha256": "f9aff70853aa5a75ca26a365879103ca71702e78dfb05e7c06e5f5e85928441a",
+            "bytes": 13088
+          },
+          "links": []
+        }
+      ],
+      "finishedAt": "2026-10-19T19:13:09.817Z"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "startedAt": "2026-10-19T19:13:09.853Z",
+      "environmentErrors": [],
+      "screens": [
+        {
+          "id": "about",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 390,
+                "scrollWidth": 390,
+                "maxRight": 390,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": []
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/about/",
+          "screenshot": {
+            "path": "390x900@1-about.png",
+            "sha256": "786b581968c489fe89dfccb0b30a3c8fff4d2bfcdde846140b9f3b1ffdef5aa8",
+            "bytes": 6727
+          },
+          "links": [
+            "/seo-geo/"
+          ]
+        },
+        {
+          "id": "seo-geo",
+          "status": "completed",
+          "checks": [
+            {
+              "index": 0,
+              "kind": "page-health",
+              "status": "pass",
+              "reason": "no error page, page error, console error or failed navigation",
+              "measured": {}
+            },
+            {
+              "index": 1,
+              "kind": "no-horizontal-overflow",
+              "status": "pass",
+              "reason": "nothing reaches past the viewport",
+              "measured": {
+                "viewportWidth": 390,
+                "scrollWidth": 390,
+                "maxRight": 390,
+                "overflowHidden": false
+              }
+            },
+            {
+              "index": 2,
+              "kind": "section-layout",
+              "status": "pass",
+              "reason": "sections visible and text columns have room",
+              "measured": {
+                "sections": [],
+                "texts": [
+                  {
+                    "name": "Search engine optimization content",
+                    "width": 350
+                  },
+                  {
+                    "name": "Generative engine optimization content",
+                    "width": 350
+                  }
+                ]
+              }
+            }
+          ],
+          "url": "http://127.0.0.1:4318/seo-geo/",
+          "screenshot": {
+            "path": "390x900@1-seo-geo.png",
+            "sha256": "046db10ecf6eb5777519692a7e63f248ff9930c6a199d6e18f6c3069fd62680d",
+            "bytes": 12503
+          },
+          "links": []
+        }
+      ],
+      "finishedAt": "2026-10-19T19:13:10.043Z"
+    }
+  ],
+  "finishedAt": "2026-10-19T19:13:10.083Z",
+  "summary": {
+    "pass": 29,
+    "fail": 1,
+    "inconclusive": 0,
+    "skipped": 0
+  }
+}

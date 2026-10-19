@@ -191,6 +191,12 @@ Do not add `include`, `optimizeDeps.exclude` or `ssr.noExternal` entries for it.
 They are redundant, and writing them teaches the next reader that a devup-ui
 package needs wiring when none does.
 
+This applies to reset-css setup. A separately reproduced `rsc:use-client`
+warning about `@devup-ui/react` needs its own versioned diagnosis; its exclusion
+does not fix generated-CSS writes triggering an SSR `program reload` during
+cold navigation. Capture server output with runtime audit `--server-log` and
+rerun affected screens after the dev server settles before changing page CSS.
+
 ### What decides static extraction
 
 One rule explains every case below:
