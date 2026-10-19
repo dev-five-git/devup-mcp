@@ -23,6 +23,16 @@ fn audit_delivered_properties(value: &mut Value) {
         let Some(code) = value[field].as_str() else {
             continue;
         };
+        let risks = devup_mcp_devup_ui::ui_layout::layout_risks(code, None)["risks"].clone();
+        if let Some(risks) = risks.as_array() {
+            if !value["layoutRisks"].is_array() { value["layoutRisks"] = json!([]); }
+            for risk in risks {
+                let mut risk = risk.clone();
+                risk["output"] = json!(field);
+                value["layoutRisks"].as_array_mut().unwrap().push(risk);
+            }
+        }
+        let code = value[field].as_str().unwrap();
         let mut missing =
             devup_mcp_devup_ui::provenance::attributes::uncovered_attributes(code, &contract);
         let layout = &value["outputResults"][field]["fidelity"]["layout"];

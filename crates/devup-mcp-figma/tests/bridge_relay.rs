@@ -93,7 +93,11 @@ async fn next_text(socket: &mut Socket) -> Value {
             .expect("the socket stays open")
             .expect("the socket reads cleanly");
         if let Message::Text(text) = message {
-            return serde_json::from_str(&text).expect("messages are JSON");
+            let value: Value = serde_json::from_str(&text).expect("messages are JSON");
+            if value["kind"] == "server-info" {
+                continue;
+            }
+            return value;
         }
     }
 }
@@ -358,7 +362,7 @@ async fn the_relay_door_turns_away_browsers_and_unproven_callers() {
     // None of them got a read through. A forwarded job would have been queued
     // on this socket long before now, so a short look is enough to see none.
     assert!(
-        tokio::time::timeout(Duration::from_millis(300), plugin.next())
+        tokio::time::timeout(Duration::from_millis(300), next_text(&mut plugin))
             .await
             .is_err(),
         "no job may reach the plugin from an unauthenticated relay"

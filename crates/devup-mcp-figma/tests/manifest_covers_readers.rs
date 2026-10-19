@@ -12,6 +12,7 @@ use std::{collections::BTreeSet, fs, path::Path};
 /// Names that are read through the same accessors but never come from a Figma
 /// node, so the manifest has nothing to say about them.
 const NOT_NODE_FIELDS: &[&str] = &[
+    "as", // Optional codegen semantic tag override on supplied snapshots; not a Figma API property.
     // Written by our own scripts onto the node record.
     "parentId",
     "parentType",

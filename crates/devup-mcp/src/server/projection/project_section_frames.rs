@@ -1,6 +1,7 @@
 use super::*;
 
 pub(super) struct SectionFrames<'a> {
+    pub(super) annotate_node_ids: bool,
     pub(super) design_fingerprints: &'a Option<BTreeMap<String, String>>,
     pub(super) payload: &'a CollectedPayload,
     pub(super) artifact: &'a ArtifactLookup,
@@ -42,6 +43,7 @@ type SectionFrameProjection = Result<
 
 pub(super) fn project_section_frames(input: SectionFrames<'_>) -> SectionFrameProjection {
     let SectionFrames {
+        annotate_node_ids,
         design_fingerprints,
         payload,
         artifact,
@@ -197,8 +199,16 @@ pub(super) fn project_section_frames(input: SectionFrames<'_>) -> SectionFramePr
                         continue;
                     }
                 };
+                let coverage = super::super::asset_guard::export_coverage(
+                    &payload.snapshot,
+                    &candidate.node.node_id,
+                    &mut output,
+                    field == "tsx",
+                    annotate_node_ids,
+                );
                 scope_output(&mut output, field);
                 frame["outputResults"][field] = output_result(&output);
+                frame["outputResults"][field]["sectionCoverage"] = coverage;
                 if frame.get("widthBehavior").is_none() {
                     frame["widthBehavior"] = devup_mcp_devup_ui::codegen::width::width_behavior(
                         &payload.snapshot,

@@ -620,6 +620,7 @@ fn attached_file(file: &AttachedFile) -> Value {
         "zoom":file.context.zoom,"uiDevicePixelRatio":file.context.ui_device_pixel_ratio,
         "contextFreshness":"last-delivered-event","observedAt":file.context.observed_at,
         "lastKnownSelection":file.context.last_known_selection,"lastKnownPage":file.context.last_known_page,
+        "pluginVersion":file.context.plugin_version,
         "displayContextEvidenceLimit":"Zoom is Figma viewport zoom; DPR belongs to the plugin UI iframe and does not verify screenshot capture scale.",
     });
     if let Some(in_view) = file.context.in_view {

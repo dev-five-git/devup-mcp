@@ -1,5 +1,3 @@
-
-
 /// Cuts the ranked candidate list to `limit` and reports the two truncations
 /// apart.
 ///
@@ -66,51 +64,51 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
 
 #[path = "../coerce_args.rs"]
 mod coerce_args;
-#[path = "../handlers/devup_figma_measure.rs"]
-mod devup_figma_measure_handler;
-#[path = "../handlers/devup_skills.rs"]
-mod devup_skills_handler;
+#[path = "../handlers/devup_feature_trace.rs"]
+mod devup_feature_trace_handler;
 #[path = "../handlers/devup_figma_auth.rs"]
 mod devup_figma_auth_handler;
-#[path = "../handlers/devup_figma_search.rs"]
-mod devup_figma_search_handler;
 #[path = "../handlers/devup_figma_explore.rs"]
 mod devup_figma_explore_handler;
 #[path = "../handlers/devup_figma_export.rs"]
 mod devup_figma_export_handler;
+#[path = "../handlers/devup_figma_measure.rs"]
+mod devup_figma_measure_handler;
+#[path = "../handlers/devup_figma_search.rs"]
+mod devup_figma_search_handler;
 #[path = "../handlers/devup_project_context.rs"]
 mod devup_project_context_handler;
-#[path = "../handlers/devup_ui_validate.rs"]
-mod devup_ui_validate_handler;
-#[path = "../handlers/devup_stack_diff.rs"]
-mod devup_stack_diff_handler;
-#[path = "../handlers/devup_visual_compare.rs"]
-mod devup_visual_compare_handler;
-#[path = "../handlers/devup_feature_trace.rs"]
-mod devup_feature_trace_handler;
-#[path = "../handlers/devup_runtime_audit.rs"]
-mod devup_runtime_audit_handler;
 #[path = "../handlers/devup_project_plan.rs"]
 mod devup_project_plan_handler;
+#[path = "../handlers/devup_runtime_audit.rs"]
+mod devup_runtime_audit_handler;
 #[path = "../handlers/devup_screen_plan.rs"]
 mod devup_screen_plan_handler;
+#[path = "../handlers/devup_skills.rs"]
+mod devup_skills_handler;
+#[path = "../handlers/devup_stack_diff.rs"]
+mod devup_stack_diff_handler;
+#[path = "../handlers/devup_ui_validate.rs"]
+mod devup_ui_validate_handler;
+#[path = "../handlers/devup_visual_compare.rs"]
+mod devup_visual_compare_handler;
 
 impl DevupServer {
     fn tool_router() -> ToolRouter<Self> {
-        Self::devup_figma_measure_router() +
-        Self::devup_skills_router() +
-        Self::devup_figma_auth_router() +
-        Self::devup_figma_search_router() +
-        Self::devup_figma_explore_router() +
-        Self::devup_figma_export_router() +
-        Self::devup_project_context_router() +
-        Self::devup_ui_validate_router() +
-        Self::devup_stack_diff_router() +
-        Self::devup_visual_compare_router() +
-        Self::devup_feature_trace_router() +
-        Self::devup_runtime_audit_router() +
-        Self::devup_project_plan_router() +
-        Self::devup_screen_plan_router()
+        Self::devup_figma_measure_router()
+            + Self::devup_skills_router()
+            + Self::devup_figma_auth_router()
+            + Self::devup_figma_search_router()
+            + Self::devup_figma_explore_router()
+            + Self::devup_figma_export_router()
+            + Self::devup_project_context_router()
+            + Self::devup_ui_validate_router()
+            + Self::devup_stack_diff_router()
+            + Self::devup_visual_compare_router()
+            + Self::devup_feature_trace_router()
+            + Self::devup_runtime_audit_router()
+            + Self::devup_project_plan_router()
+            + Self::devup_screen_plan_router()
     }
 }
 
@@ -151,6 +149,10 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         .collect::<Vec<_>>();
     if input.project_root.is_some() {
         rules.push(mask_guard::RULE);
+        rules.push(asset_guard::RULE);
+    }
+    if input.section_coverage.is_some() {
+        rules.push(asset_guard::COVERAGE_RULE);
     }
     if input.files.is_some() {
         rules.extend([
@@ -164,6 +166,10 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
     result["verificationScope"] = json!({
         "static": {
             "rules": rules,
+            "sectionCoverage": {
+                "state": if input.section_coverage.is_some() { "checked" } else { "unverified" },
+                "scope": "Supplied JSX identities and asset references; runtime use and visibility remain unverified."
+            },
             "unknownTokenCheckRan": result["tokens"]["unknownTokenCheckRan"],
             "layout": layout["checked"],
             "referenceWidth": input.reference_width,

@@ -13,7 +13,7 @@ expression: actual
 
 export function Button({ size, leftIcon, showLeftIcon, rightIcon, showRightIcon }: ButtonProps) {
   return (
-    <Box>
+    <Box appearance="none" bg="transparent">
       {showLeftIcon && leftIcon}
       <Text
         boxSize="100%"

@@ -3,6 +3,40 @@ static FAILURE_CLASSES: std::sync::LazyLock<Vec<&'static str>> = std::sync::Lazy
         .expect("vendored failure classes")
 });
 
+/// The rendered-completeness check for one drawn width, listing at most
+/// `MAX_COMPLETENESS_NODES` sections and images and noting what it left out.
+fn completeness_check(
+    width: u32,
+    frame_id: &str,
+    frame_height: f64,
+    sections: &[String],
+    images: Vec<String>,
+    notes: &mut Vec<String>,
+) -> CheckInput {
+    let limit = runtime_audit::MAX_COMPLETENESS_NODES;
+    let mut listed = |ids: &[String], kind: &str| {
+        if ids.len() > limit {
+            notes.push(format!(
+                "{} {kind} past the first {limit} left out of the completeness check at {width}px.",
+                ids.len() - limit
+            ));
+        }
+        ids.iter().take(limit).cloned().collect::<Vec<_>>()
+    };
+    let mut unique_images = Vec::new();
+    for id in images {
+        if !unique_images.contains(&id) {
+            unique_images.push(id);
+        }
+    }
+    let section_ids = listed(sections, "sections");
+    let image_ids = listed(&unique_images, "images");
+    check(json!({"kind": "rendered-completeness",
+        "label": format!("page renders its {width}px frame"),
+        "nodeId": frame_id, "widths": [width],
+        "completeness": {"frameHeight": frame_height, "sections": section_ids, "images": image_ids}}))
+}
+
 /// `generateStaticParams` in the route's page: literal params in its body,
 /// else the param's values in a local data file it reads.
 pub(super) fn static_params(
@@ -438,6 +472,12 @@ pub(super) fn record_round(
             record["status"] = json!("resolved");
         }
     }
+    let mut visual_pending = plan["audit"]["visualPending"].as_array().cloned().unwrap_or_default();
+    visual_pending.retain(|comparison| !comparison["routePath"].as_str().zip(comparison["viewport"]["width"].as_u64())
+        .is_some_and(|(route, width)| audited.contains(&(route.to_owned(), width))));
+    visual_pending.extend(comparisons.iter().filter(|comparison| !visual.iter().any(|result|
+        comparison["id"] == result.id && matches!(result.verdict.as_str(), "pass" | "fail"))).cloned());
+    plan["audit"]["visualPending"] = json!(visual_pending);
     json!({"pendingComparisons": pending, "inconclusiveComparisons": inconclusive})
 }
 
@@ -496,7 +536,7 @@ pub(super) fn work_queue(
                         "why": decision["question"], "meanwhile": "work the rest; it is taken with assume at the end"}));
                 }
             }
-            if row["implemented"] != "yes" {
+            if row["implemented"] == "no" {
                 items.push(json!({"do": "build", "file": row["file"]}));
             }
             if let Some(reason) = plan["audit"]["inconclusive"][url].as_str() {
@@ -526,7 +566,11 @@ pub(super) fn work_queue(
                 items.push(json!({"do": "compare", "count": comparisons,
                     "how": "run each visualComparisons call and pass the results back as visualResults"}));
             }
-            let done = items.is_empty();
+            let cells_pass = row["widths"].as_array().is_some_and(|widths| !widths.is_empty() && widths.iter().all(|width| width["result"] == "pass"));
+            if !cells_pass && items.is_empty() {
+                items.push(json!({"do":"fix and rerun the audit", "why":"every required URL x width cell must pass before done"}));
+            }
+            let done = items.is_empty() && blocked.is_empty() && cells_pass && row["implemented"] == "yes";
             items.extend(blocked);
             let reported = plan["audit"]["converterBugs"]
                 .as_object()
@@ -562,7 +606,7 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
         other => other.to_string(),
     };
     let mut out = String::from(
-        "| URL | width | health | geometry | drift / converter bugs | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+        "| URL | width | result | completeness | health | geometry | drift / converter bugs | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let records = plan["audit"]["findings"].as_object();
     for row in rows {
@@ -592,8 +636,10 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
                     .count()
             };
             out.push_str(&format!(
-                "| {url} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {url} | {} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |\n",
                 width["width"],
+                cell(&width["result"]),
+                cell(&columns["completeness"]),
                 cell(&columns["health"]),
                 cell(&columns["geometry"]),
                 count("code-drift"),
@@ -783,4 +829,34 @@ pub(super) fn classify_geometry(
             }
         }
     }
+}
+
+fn text_alignment_check(payload: &CollectedPayload, child: &str, width: u32) -> Option<CheckInput> {
+    let view = payload.snapshot.nodes[child].typed_view();
+    let edge = view.string("textAlignHorizontal")?.to_lowercase();
+    if !["left", "right", "center", "justify"].contains(&edge.as_str()) { return None; }
+    Some(check(json!({"kind":"text-align", "label":format!("{} text alignment", name_of(payload, child)),
+        "subject":node_at(width, child), "nodeId":child, "edge":edge, "widths":[width]})))
+}
+
+fn read_module(base: &Path, module: &str) -> Option<String> {
+    for suffix in [
+        "",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".mjs",
+        ".json",
+        "/index.ts",
+        "/index.js",
+    ] {
+        let path = base.join(format!("{module}{suffix}"));
+        if path.is_file()
+            && std::fs::metadata(&path).is_ok_and(|meta| meta.len() <= 512 * 1024)
+            && let Ok(text) = std::fs::read_to_string(&path)
+        {
+            return Some(text);
+        }
+    }
+    None
 }

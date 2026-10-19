@@ -182,9 +182,18 @@ the full rules; these are the steps.
 11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
     recommended option, keep working, take it with `assume` at the end; a
     destructive one stays unbuilt.
-12. **Done = zero fails.** Every check and comparison passes at the drawn
-    widths and health and overflow pass at every width, or each remaining
-    finding is a filed converter bug or unresolved with evidence. Also: every
+12. **Done = zero fails.** A real Chromium render is mandatory before claiming
+    any page is done. Build and serve the generated app, execute the Playwright
+    runner, read its report and compare the actual screenshots with independent
+    Figma references. Static checks, TSX snapshots, a generated audit plan and a
+    capture check's `pass` do not prove visual correctness. Verify background
+    images, colors and loaded assets; inspect page/section/asset diffs and feed
+    every visual result back to status. Missing references, unavailable browser
+    tooling, failed assets and not-run comparisons mean incomplete. Preserve the
+    screenshots, reference identity, report and diffs in the final evidence.
+    Every check and comparison passes at the drawn
+    widths and health and overflow pass at every required width. Report filed
+    converter bugs and unresolved findings with evidence as incomplete. Also: every
     URL implemented, the production build free of `data-figma-node-id` (the
     strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
     nothing), `bun run build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
@@ -196,6 +205,8 @@ the full rules; these are the steps.
     assumptions, design fixes, exclusions, defaults and the dependencies line.
 
 Hard rules: visually verify every screen, section and asset at every drawn
-width; never stop to wait, reorder the work; done = zero fails, or listed as
-unresolved with evidence; layout is exact, a mismatch is drift or a
+width; never stop to wait, reorder the work; done = every required cell passes;
+report unresolved cells with evidence as incomplete; layout is exact, a mismatch is drift or a
 converter bug.
+
+Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask all site, structure and URL questionRounds back to back up front before implementation; never ask a later round during the build.

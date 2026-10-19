@@ -23,6 +23,7 @@ export function Button({ size, variant }: ButtonProps) {
           white: [null, null, null, null, "$background"]
         }[variant]
       }}
+      appearance="none"
       bg={{
         primary: "$primary",
         white: "$containerBackground"

@@ -163,6 +163,9 @@ export function evaluatePageHealth(observed) {
     ...observed.errorTexts.map((text) => `the page shows "${text}"`),
     ...observed.errors.map((error) => `${error.kind}: ${String(error.message).split('\n')[0]}`),
   ];
+  if (Number.isFinite(observed.documentWidth) && observed.documentWidth < observed.viewportWidth - 1) {
+    problems.push(`document is ${round(observed.documentWidth)}px wide in a ${observed.viewportWidth}px viewport`);
+  }
   return problems.length === 0
     ? { status: 'pass', reason: 'no error page, page error, console error or failed navigation', measured: {} }
     : { status: 'fail', reason: problems.slice(0, 5).join('; '), measured: { problems } };
@@ -297,6 +300,154 @@ export function evaluateViewTransition(observed) {
   return { status: 'fail', reason: `navigating from ${observed.from} to ${observed.to} ran no view transition`, measured };
 }
 
+/** Parses a computed CSS colour (rgb/rgba, as getComputedStyle returns it). */
+export function parseColor(text) {
+  const match = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)/.exec(String(text));
+  if (!match) return null;
+  let alpha = match[4] === undefined ? 1 : parseFloat(match[4]);
+  if (String(match[4]).endsWith('%')) alpha /= 100;
+  return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]), a: alpha };
+}
+
+function over(top, bottom) {
+  const a = top.a + bottom.a * (1 - top.a);
+  if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+  const mix = (key) => (top[key] * top.a + bottom[key] * bottom.a * (1 - top.a)) / a;
+  return { r: mix('r'), g: mix('g'), b: mix('b'), a };
+}
+
+function luminance({ r, g, b }) {
+  const channel = (value) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two opaque colours. */
+export function contrastRatio(first, second) {
+  const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/**
+ * The contrast of text against what is painted behind it: its own colour
+ * over the stack of ancestor background colours (nearest first), on the
+ * white canvas. Text over a background image cannot be judged from colours
+ * and returns null.
+ */
+export function textContrast(sample) {
+  if (sample.imageBehind) return null;
+  const color = parseColor(sample.color);
+  const canvas = parseColor(sample.canvasColor ?? 'rgb(255, 255, 255)');
+  if (!color || !canvas) return null;
+  if (sample.layers) {
+    let ink = color;
+    let backdrop = { r: 0, g: 0, b: 0, a: 0 };
+    for (const layer of sample.layers) {
+      const background = parseColor(layer.color);
+      if (!background && (ink.a < 1 || backdrop.a < 1)) return null;
+      if (background) {
+        ink = over(ink, background);
+        backdrop = over(backdrop, background);
+      }
+      ink.a *= layer.opacity;
+      backdrop.a *= layer.opacity;
+    }
+    return contrastRatio(over(ink, canvas), over(backdrop, canvas));
+  }
+  let backdrop = canvas;
+  for (const layer of [...sample.backgrounds].reverse()) {
+    const parsed = parseColor(layer);
+    if (!parsed) return null;
+    backdrop = over(parsed, backdrop);
+  }
+  const ink = over({ ...color, a: color.a * (sample.opacity ?? 1) }, backdrop);
+  return contrastRatio(ink, backdrop);
+}
+
+export const DEFAULT_MIN_HEIGHT_RATIO = 0.9;
+export const DEFAULT_MIN_CONTRAST = 1.5;
+
+/** Text uses computed colours, including browser default button backgrounds. */
+export function evaluateNoLowContrastText(options, observed) {
+  const minContrast = options.minContrast ?? DEFAULT_MIN_CONTRAST;
+  const invisible = [];
+  let judged = 0;
+  let skipped = 0;
+  for (const sample of observed.texts) {
+    const contrast = textContrast(sample);
+    if (contrast === null) { skipped += 1; continue; }
+    judged += 1;
+    if (contrast < minContrast) invisible.push({ text: sample.text, tag: sample.tag, contrast: round(contrast) });
+  }
+  return {
+    status: invisible.length ? 'fail' : skipped ? 'inconclusive' : 'pass',
+    reason: invisible.length
+      ? `${invisible.length} texts cannot be seen against their background: ${invisible.slice(0, 3).map((item) => `"${item.text}" (${item.contrast}:1)`).join(', ')}`
+      : skipped ? `${skipped} text samples have backgrounds or colours that cannot be judged` : `${judged} texts have visible contrast`,
+    measured: { judged, skipped, invisible: invisible.slice(0, 20), minContrast },
+  };
+}
+
+/** Every img and CSS background URL must decode to a nonzero natural width. */
+export function evaluateImageLoaded(observed) {
+  const resources = observed.resources ?? [];
+  const broken = resources.filter((resource) => !resource.loaded);
+  return {
+    status: broken.length ? 'fail' : 'pass',
+    reason: broken.length ? `${broken.length} images did not load: ${broken.slice(0, 5).map((item) => item.source).join(', ')}` : `${resources.length} image resources loaded`,
+    measured: { listed: resources.length, broken },
+  };
+}
+
+/**
+ * Whether the page the browser rendered is the frame it was built from, not
+ * merely code on disk: tall enough, every section and image present and
+ * shown, images decoded, and no text a person cannot see.
+ *
+ * @param {object} completeness  the plan's { frameHeight, minHeightRatio, sections, images, minContrast }
+ * @param {object} observed  { pageHeight, sections: [{ id, count, visible, width, height }],
+ *   images: [{ id, count, visible, width, height, broken }], texts: [{ text, tag, color, backgrounds, imageBehind, opacity }] }
+ */
+export function evaluateRenderedCompleteness(completeness, observed) {
+  const ratio = completeness.minHeightRatio ?? DEFAULT_MIN_HEIGHT_RATIO;
+  const needed = completeness.frameHeight * ratio;
+  const problems = [];
+  if (!(observed.pageHeight >= needed)) {
+    problems.push(`the page is ${round(observed.pageHeight)}px tall, under ${Math.round(ratio * 100)}% of the ${round(completeness.frameHeight)}px frame`);
+  }
+  const absent = (items) => items.filter((item) => item.count !== 1 || !item.visible || !(item.width > 0) || !(item.height > 0));
+  const missingSections = absent(observed.sections);
+  if (missingSections.length) {
+    problems.push(`${missingSections.length} of ${observed.sections.length} sections not rendered: ${missingSections.slice(0, 5).map((item) => item.id).join(', ')}`);
+  }
+  const missingImages = absent(observed.images);
+  if (missingImages.length) {
+    problems.push(`${missingImages.length} of ${observed.images.length} images not rendered: ${missingImages.slice(0, 5).map((item) => item.id).join(', ')}`);
+  }
+  const broken = observed.images.filter((item) => !missingImages.includes(item) && item.broken);
+  if (broken.length) {
+    problems.push(`${broken.length} images did not load: ${broken.slice(0, 5).map((item) => item.id).join(', ')}`);
+  }
+  const contrast = evaluateNoLowContrastText(completeness, observed);
+  const resources = evaluateImageLoaded(observed);
+  if (contrast.status === 'fail') problems.push(contrast.reason);
+  if (resources.status === 'fail') problems.push(resources.reason);
+  const measured = {
+    pageHeight: round(observed.pageHeight),
+    frameHeight: completeness.frameHeight,
+    minHeightRatio: ratio,
+    sections: { listed: observed.sections.length, missing: missingSections.map((item) => item.id) },
+    images: { listed: observed.images.length, missing: missingImages.map((item) => item.id), broken: broken.map((item) => item.id) },
+    texts: contrast.measured,
+    resources: resources.measured,
+  };
+  return problems.length === 0
+    ? { status: contrast.status, reason: contrast.status === 'inconclusive' ? contrast.reason : `rendered complete: ${observed.sections.length} sections, ${observed.images.length} images, ${contrast.measured.judged} texts visible, ${round(observed.pageHeight)}px tall`, measured }
+    : { status: 'fail', reason: problems.join('; '), measured };
+}
+
 export function summarize(runs) {
   const summary = { pass: 0, fail: 0, inconclusive: 0, skipped: 0 };
   for (const run of runs) {
@@ -307,4 +458,36 @@ export function summarize(runs) {
     }
   }
   return summary;
+}
+
+/** Read independent numbered groups by visual rows, then left to right. */
+export function evaluateSequenceOrder(observed) {
+  const failures = [];
+  for (const group of observed.groups) {
+    const remaining = [...group];
+    const ordered = [];
+    while (remaining.length) {
+      const top = Math.min(...remaining.map((item) => item.y));
+      const row = remaining.filter((item) => item.y <= top + 8).sort((a, b) => a.x - b.x);
+      ordered.push(...row);
+      for (const item of row) remaining.splice(remaining.indexOf(item), 1);
+    }
+    for (let index = 1; index < ordered.length; index += 1) {
+      if (ordered[index].number < ordered[index - 1].number) failures.push(`${ordered[index - 1].name} before ${ordered[index].name}`);
+    }
+  }
+  return { status: failures.length ? 'fail' : 'pass', reason: failures.length ? `sequence out of visual order: ${failures.join('; ')}` : 'numbered siblings follow increasing visual order', measured: observed };
+}
+
+export function evaluateSectionLayout(observed) {
+  const failures = observed.sections.filter((item) => !item.visible || item.width < item.containerWidth * 0.5 || item.height <= 0);
+  const narrow = observed.texts.filter((item) => item.width < 120);
+  const problems = [...failures.map((item) => `${item.name}: section ${round(item.width)}px wide in ${round(item.containerWidth)}px container or hidden`), ...narrow.map((item) => `${item.name}: text column only ${round(item.width)}px wide`)];
+  return { status: problems.length ? 'fail' : 'pass', reason: problems.length ? problems.join('; ') : 'sections visible and text columns have room', measured: observed };
+}
+
+export function evaluateTextAlignment(check, observed) {
+  const actual = observed.align === 'start' ? (observed.direction === 'rtl' ? 'right' : 'left') : observed.align === 'end' ? (observed.direction === 'rtl' ? 'left' : 'right') : observed.align;
+  const pass = observed.count === 1 && observed.visible && actual === check.edge;
+  return { status: pass ? 'pass' : 'fail', reason: pass ? `text is ${actual} aligned as drawn` : `text alignment ${actual ?? 'missing'}, expected ${check.edge} (${observed.count} elements)`, measured: observed };
 }

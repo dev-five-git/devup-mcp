@@ -634,18 +634,42 @@ fn status_marks_widths_without_an_audit_item_not_run() {
     let report = status_report(&confirmed_plan(), &evidence(), Some(&audit));
     let rows = array(&report["rows"]);
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0]["implemented"], "yes");
+    assert_eq!(
+        rows[0]["implemented"], "written-unverified",
+        "a page file without a passing rendered-completeness check is only written"
+    );
     assert_eq!(rows[1]["implemented"], "no");
     assert_eq!(rows[0]["widths"][0]["result"], "pass");
     assert_eq!(rows[0]["widths"][1]["result"], "not-run");
-    assert_eq!(rows[1]["widths"][1]["result"], "fail");
+    assert_eq!(rows[1]["widths"][3]["result"], "fail");
     assert!(
         text(&report["summary"]).starts_with(
-            "2 URLs: 1 implemented, 0 verified at all widths, /about overflows at 390"
+            "2 URLs: 0 implemented, 0 verified at all widths, 1 written but not rendered complete at every drawn width, /about overflows at 390"
         ),
         "{}",
         report["summary"]
     );
+    assert!(text(&report["markdownTable"]).contains("written, not rendered complete"));
+
+    let complete = json!({
+        "verdict": "pass",
+        "widthTable": [{"width": 1440}, {"width": 390}],
+        "screenTable": [
+            {"screen": "main", "routePath": "/", "width": 1440, "status": "pass", "reasons": [], "columns": {"completeness": "pass"}},
+            {"screen": "main", "routePath": "/", "width": 390, "status": "pass", "reasons": [], "columns": {"completeness": "pass"}},
+        ],
+    });
+    let rendered = status_report(&confirmed_plan(), &evidence(), Some(&complete));
+    assert_eq!(rendered["rows"][0]["implemented"], "yes");
+    let half = json!({
+        "widthTable": [{"width": 1440}, {"width": 390}],
+        "screenTable": [
+            {"screen": "main", "routePath": "/", "width": 1440, "status": "pass", "reasons": [], "columns": {"completeness": "pass"}},
+            {"screen": "main", "routePath": "/", "width": 390, "status": "fail", "reasons": ["rendered-completeness: the page is 300px tall"], "columns": {"completeness": "fail"}},
+        ],
+    });
+    let blank = status_report(&confirmed_plan(), &evidence(), Some(&half));
+    assert_eq!(blank["rows"][0]["implemented"], "written-unverified");
     assert_eq!(report["states"][0]["hostUrl"], "/");
     assert!(text(&report["markdownTable"]).contains("1440x900@1-main.png"));
 
@@ -868,6 +892,41 @@ async fn reviewing_heuristics_asks_each_one_in_the_same_batch() {
     let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
     assert_eq!(confirmed["routes"][0]["url"], "/home");
 }
+#[test]
+fn a_partial_report_cannot_drop_required_widths_or_claim_done() {
+    let report = status_report(&confirmed_plan(), &evidence(), Some(&json!({
+        "widthTable":[{"width":1440}],
+        "screenTable":[{"routePath":"/", "width":1440, "status":"pass", "columns":{"completeness":"pass"}}]
+    })));
+    let widths = array(&report["rows"][0]["widths"]);
+    assert_eq!(widths.iter().map(|row| row["width"].as_u64().unwrap()).collect::<Vec<_>>(), [1440,1100,858,390]);
+    assert!(widths[1..].iter().all(|row| row["result"] == "not-run"));
+    assert!(text(&report["finalReport"]).contains("not-run"));
+    assert_eq!(report["workQueue"][0]["done"], false);
+}
+
+#[test]
+fn site_structure_and_url_questions_are_all_in_the_initial_rounds() {
+    let mut project = evidence();
+    project.config = PlanConfig::default();
+    let plan = draft_plan(&main_widths(), &BTreeMap::new(), &project, json!({}), None).unwrap();
+    let ids = question_ids(&plan);
+    assert!(ids.iter().any(|id| id.starts_with("site:")));
+    assert!(ids.iter().any(|id| id.starts_with("group:")));
+    assert!(ids.iter().any(|id| id.starts_with("split-route:")));
+    assert_rounds_cover(&plan);
+}
+
+#[test]
+fn visual_comparisons_and_missing_asset_references_block_a_passing_cell() {
+    let mut plan = confirmed_plan();
+    plan["audit"] = json!({"visualPending":[{"routePath":"/", "viewport":{"width":1440}}]});
+    let audit = json!({"widthTable":[{"width":1440}],"screenTable":[{"routePath":"/", "width":1440,"status":"pass","columns":{"completeness":"pass"}}]});
+    assert_eq!(status_report(&plan, &evidence(), Some(&audit))["rows"][0]["widths"][0]["result"], "not-run");
+    plan["audit"] = json!({"plans":[{"url":"/", "missingReferences":[{"width":1440,"kind":"nativeRender"}]}]});
+    assert_eq!(status_report(&plan, &evidence(), Some(&audit))["rows"][0]["widths"][0]["result"], "not-run");
+}
+
 
 #[tokio::test]
 async fn accepting_the_proposal_confirms_with_no_answers() {

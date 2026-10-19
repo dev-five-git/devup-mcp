@@ -592,6 +592,26 @@ pub fn suggested_asset_filename(snapshot: &Snapshot, asset: &AssetManifestEntry)
 
 /// Add snapshot context and safe filename suggestions without changing byte identity
 /// or choosing a filesystem destination. Live export observations take precedence.
+fn has_child_text(snapshot: &Snapshot, node_id: &str) -> bool {
+    let mut pending = vec![node_id];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        if let Some(node) = snapshot.nodes.get(id) {
+            if node.typed_view().bool("visible") == Some(false) {
+                continue;
+            }
+            if id != node_id && node.typed_view().node_type() == "TEXT" {
+                return true;
+            }
+            pending.extend(node.typed_view().child_ids());
+        }
+    }
+    false
+}
+
 pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
     let parents: std::collections::BTreeMap<_, _> = snapshot
         .nodes
@@ -724,6 +744,15 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
             info["byteEvidence"] = Value::Null;
         }
         compare(&mut info);
+        if !asset.render_mode.is_original() && has_child_text(snapshot, &asset.node_id) {
+            let warning = json!(
+                "node-render-bakes-child-text; use original-source IMAGE fill for backgrounds"
+            );
+            let warnings = info["warnings"].as_array_mut().unwrap();
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
+        }
         asset.render_info = Some(info);
         if let Some(diagnostics) = &mut asset.export_diagnostics {
             diagnostics.render_info = asset.render_info.clone();

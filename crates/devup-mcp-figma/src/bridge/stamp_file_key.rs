@@ -320,6 +320,7 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
 
                 match value.get("kind").and_then(Value::as_str) {
                     Some("hello") => {
+                        state.announce_server(&outbox);
                         // 키가 없어도 등록한다. 건너뛰면 창은 "연결됨"이라고 하는데
                         // 어떤 읽기도 오지 않아 원인을 찾을 수 없다. 키 없는 연결을
                         // 어디까지 믿을지는 resolve 가 정한다.
@@ -350,11 +351,13 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                     // 이 값으로 대상을 고르므로, 늦게라도 최신이어야 한다. 중계들도
                     // 같은 선택을 보도록 함께 알린다.
                     Some("context") => {
-                        let Ok(context) = serde_json::from_value::<PluginContext>(value) else {
+                        let Ok(mut context) = serde_json::from_value::<PluginContext>(value) else {
                             continue;
                         };
                         let mut inner = state.inner.lock().await;
                         if let Some(plugin) = inner.plugins.get_mut(&id) {
+                            // 버전은 hello 에만 실려 온다. 맥락을 바꿔 끼워도 잃지 않는다.
+                            context.plugin_version = plugin.context.plugin_version.take();
                             plugin.context = context;
                             state.plugins_changed(&mut inner);
                         }

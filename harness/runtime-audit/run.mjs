@@ -17,8 +17,11 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
-  evaluateInteraction, evaluatePageHealth, evaluateViewTransition, summarize,
+  evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
 } from './checks.mjs';
+import {
+  evaluateImagesLoaded, evaluateNativeAppearance, evaluateStaleResources, freshLoad, guardOrigins, observeImages, observeNativeAppearance, snapshotLoad,
+} from './resource-checks.mjs';
 
 const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
@@ -195,6 +198,170 @@ async function clippedText(page, subject) {
   });
 }
 
+// Internal overflow can hide cards and navigation even when the page fits.
+export function observeClippedContent(page) {
+  return page.evaluate(() => {
+    const clipped = [];
+    for (const element of document.querySelectorAll('body *')) {
+      if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      const horizontal = style.overflowX !== 'visible' && element.scrollWidth > element.clientWidth + 1;
+      const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+      if (!horizontal && !vertical) continue;
+      if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
+      const scrollbar = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
+      if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
+      clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
+    }
+    return { clipped };
+  });
+}
+
+// What the rendered page holds of its frame. A node is found by the id it
+// carries itself, or, on a page merged from one frame per width, under this
+// width in its data-figma-node-ids map.
+export function observeCompleteness(page, completeness, width, subject) {
+  const scope = subject ? locate(page, subject) : page.locator('body');
+  return scope.evaluate(async (root, { sections, images, width: drawnWidth }) => {
+    const find = (id) => document.querySelectorAll(
+      `[data-figma-node-id="${id}"], [data-figma-node-ids~="${drawnWidth}:${id}"]`,
+    );
+    const shown = (element) => !element.checkVisibility
+      || element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    const describe = (id) => {
+      const found = find(id);
+      if (found.length !== 1) return { id, count: found.length };
+      const element = found[0];
+      const rect = element.getBoundingClientRect();
+      const img = element.tagName === 'IMG' ? element : null;
+      return {
+        id,
+        count: 1,
+        visible: shown(element),
+        width: rect.width,
+        height: rect.height,
+        broken: img ? !(img.complete && img.naturalWidth > 0) : false,
+      };
+    };
+    const canvasProbe = document.createElement('span');
+    canvasProbe.style.backgroundColor = 'Canvas';
+    document.body.appendChild(canvasProbe);
+    const canvasColor = getComputedStyle(canvasProbe).backgroundColor;
+    canvasProbe.remove();
+    const texts = [];
+    const walker = [...(root === document.body ? [document.documentElement] : []), root, ...root.querySelectorAll('*')];
+    for (let index = 0; index < walker.length; index += 1) {
+      const element = walker[index];
+      const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').trim();
+      if (!own || !shown(element)) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      const style = getComputedStyle(element);
+      const backgrounds = [];
+      const layers = [];
+      let imageBehind = false;
+      let backgroundExposed = true;
+      let opacity = 1;
+      for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
+        const nodeStyle = getComputedStyle(node);
+        opacity *= Number(nodeStyle.opacity);
+        layers.push({ color: nodeStyle.backgroundColor, opacity: Number(nodeStyle.opacity) });
+        if (backgroundExposed) {
+          if (nodeStyle.backgroundImage && nodeStyle.backgroundImage !== 'none') imageBehind = true;
+          backgrounds.push(nodeStyle.backgroundColor);
+          // An opaque colour covers images and colours on more distant ancestors.
+          if (/^rgb\(/.test(nodeStyle.backgroundColor) || /,\s*1\)$/.test(nodeStyle.backgroundColor)) backgroundExposed = false;
+        }
+      }
+      texts.push({ text: own.slice(0, 60), tag: element.tagName.toLowerCase(), color: style.color, canvasColor, backgrounds, layers, imageBehind, opacity });
+    }
+    const resources = [];
+    const pending = [];
+    const probe = (source, element, kind) => {
+      const item = { source, tag: element.tagName.toLowerCase(), kind, loaded: false };
+      resources.push(item);
+      pending.push(new Promise((resolve) => {
+        const image = new Image();
+        const timer = setTimeout(() => resolve(), 5000);
+        const done = () => { item.loaded = image.naturalWidth > 0; clearTimeout(timer); resolve(); };
+        image.onload = done;
+        image.onerror = done;
+        image.src = source;
+        if (image.complete) done();
+      }));
+    };
+    for (const element of walker) {
+      if (element.tagName === 'IMG') {
+        const item = { source: element.currentSrc || element.src, tag: 'img', kind: 'img', loaded: false };
+        resources.push(item);
+        element.loading = 'eager';
+        pending.push(new Promise((resolve) => {
+          const timer = setTimeout(resolve, 5000);
+          const done = () => { item.loaded = element.naturalWidth > 0; clearTimeout(timer); resolve(); };
+          element.decode().then(done, done);
+        }));
+      }
+      for (const pseudo of [null, '::before', '::after']) {
+        const style = getComputedStyle(element, pseudo);
+        if (pseudo && (style.content === 'none' || style.content === 'normal')) continue;
+        for (const match of style.backgroundImage.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/g)) {
+          probe(match[1] ?? match[2] ?? match[3], element, `background${pseudo ?? ''}`);
+        }
+      }
+    }
+    await Promise.all(pending);
+    return {
+      resources,
+      pageHeight: document.documentElement.scrollHeight,
+      sections: sections.map(describe),
+      images: images.map(describe),
+      texts,
+    };
+  }, { sections: completeness.sections ?? [], images: completeness.images ?? [], width });
+}
+
+export function observeSequence(page) {
+  return page.evaluate(() => {
+    const groups = new Map();
+    for (const element of document.querySelectorAll('body *')) {
+      if (element.children.length || !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+      const label = element.textContent.trim();
+      const match = /^(?:STEP\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
+      if (!match) continue;
+      const number = Number(match[1] ?? match[2]);
+      const scope = element.closest('section, [data-sequence-group], main') ?? document.body;
+      const box = element.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      const group = groups.get(scope) ?? [];
+      group.push({ number, name: `${label} <${element.tagName.toLowerCase()}>`, x: box.x, y: box.y });
+      groups.set(scope, group);
+    }
+    return { groups: [...groups.values()].filter((group) => group.length > 1 && new Set(group.map((item) => item.number)).size === group.length) };
+  });
+}
+
+export async function observeSectionLayout(page, subject, container) {
+  if (subject) {
+    const target = locate(page, subject);
+    const parent = locate(page, container);
+    const box = await target.count() === 1 ? await target.boundingBox() : null;
+    const containerBox = await parent.count() === 1 ? await parent.boundingBox() : null;
+    return { sections: [{ name: JSON.stringify(subject), visible: Boolean(box) && await target.evaluate((element) => element.checkVisibility({ opacityProperty: true, visibilityProperty: true })), width: box?.width ?? 0, height: box?.height ?? 0, containerWidth: containerBox?.width ?? page.viewportSize().width }], texts: [] };
+  }
+  return page.evaluate(() => {
+    const shown = (element) => element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    const sections = [...document.querySelectorAll('main > section, body > section')].map((element) => {
+      const box = element.getBoundingClientRect();
+      return { name: element.id || element.tagName, visible: shown(element), width: box.width, height: box.height, containerWidth: element.parentElement.getBoundingClientRect().width };
+    });
+    const texts = [...document.querySelectorAll('body *')].filter((element) => shown(element) && [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').length > 24).map((element) => ({ name: element.textContent.trim().slice(0, 60), width: element.getBoundingClientRect().width }));
+    return { sections, texts };
+  });
+}
+
 async function stateStyles(locator) {
   return locator.evaluate((element, properties) => {
     const style = getComputedStyle(element);
@@ -280,6 +447,7 @@ async function pageMetrics(page) {
     const bodyStyle = document.body ? getComputedStyle(document.body) : style;
     return {
       viewportWidth,
+      documentWidth: document.documentElement.getBoundingClientRect().width,
       scrollWidth: document.documentElement.scrollWidth,
       maxRight,
       widest,
@@ -320,7 +488,7 @@ async function checkExpectations(page, expect, timeout) {
 
 async function runViewport(browser, plan, viewport, out, deadline, references) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
-  const context = await browser.newContext({
+  const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor ?? 1,
     isMobile: Boolean(viewport.mobile),
@@ -328,27 +496,29 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
     locale: plan.locale ?? undefined,
     timezoneId: plan.timezone ?? undefined,
     serviceWorkers: 'block',
-  });
+  };
+  const context = await browser.newContext(contextOptions);
   const environmentErrors = [];
   const blocked = [];
-  await context.route('**/*', (route) => {
-    const url = route.request().url();
-    const protocol = url.slice(0, url.indexOf(':'));
-    if (['data', 'blob', 'about'].includes(protocol) || allowed.has(new URL(url).origin)) {
-      return route.continue();
-    }
-    blocked.push(url);
-    return route.abort('blockedbyclient');
-  });
+  await guardOrigins(context, allowed, blocked);
   await context.addInitScript(VIEW_TRANSITION_PROBE);
   const page = await context.newPage();
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
   page.on('console', (message) => {
     if (message.type() === 'error') environmentErrors.push({ kind: 'console-error', message: message.text() });
   });
+  const responseLog = [];
+  page.on('response', (response) => {
+    const type = response.request().resourceType();
+    if (['image', 'script', 'stylesheet', 'font', 'media'].includes(type)) {
+      responseLog.push({ url: response.url(), status: response.status(), type });
+    }
+  });
+  const failedLog = [];
   page.on('requestfailed', (request) => {
     const failure = request.failure()?.errorText ?? 'failed';
     if (failure.includes('ERR_BLOCKED_BY_CLIENT')) return;
+    if (request.resourceType() === 'image') failedLog.push({ url: request.url(), failure });
     environmentErrors.push({ kind: 'request-failed', message: `${request.url()}: ${failure}` });
   });
 
@@ -365,6 +535,8 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       const record = { id: screen.id, status: 'completed', checks: [] };
       run.screens.push(record);
       const errorsAtStart = environmentErrors.length;
+      const responsesAtStart = responseLog.length;
+      const failedAtStart = failedLog.length;
       const notMeasured = (status, reason) => {
         record.checks = screen.checks.map((check, index) => ({ index, kind: check.kind, label: check.label, status, reason, measured: {} }));
       };
@@ -423,7 +595,27 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
           const errors = environmentErrors
             .slice(errorsAtStart)
             .filter((error) => ['page-error', 'console-error', 'navigation-failed'].includes(error.kind));
-          record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.includes(needle)), errors }) });
+          record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.replaceAll("?", "'").includes(needle)), errors, documentWidth: metrics.documentWidth, viewportWidth: metrics.viewportWidth }) });
+          continue;
+        }
+        if (check.kind === 'text-align') {
+          const target = locate(page, check.subject);
+          const count = await target.count();
+          const observed = count === 1 ? await target.evaluate((element) => ({ count: 1, visible: element.checkVisibility({ opacityProperty: true, visibilityProperty: true }), align: getComputedStyle(element).textAlign, direction: getComputedStyle(element).direction })) : { count };
+          record.checks.push({ ...item, ...evaluateTextAlignment(check, observed) });
+          continue;
+        }
+        if (check.kind === 'no-clipped-content') {
+          const observed = await observeClippedContent(page);
+          record.checks.push({ ...item, status: observed.clipped.length ? 'fail' : 'pass', reason: observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
+          continue;
+        }
+        if (check.kind === 'sequence-order') {
+          record.checks.push({ ...item, ...evaluateSequenceOrder(await observeSequence(page)) });
+          continue;
+        }
+        if (check.kind === 'section-layout') {
+          record.checks.push({ ...item, ...evaluateSectionLayout(await observeSectionLayout(page, check.subject, check.container)) });
           continue;
         }
         if (check.kind === 'hidden') {
@@ -435,6 +627,60 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
               && (!element.checkVisibility || element.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
           });
           record.checks.push({ ...item, ...evaluateHidden({ subjectCount, visible }) });
+          continue;
+        }
+        if (check.kind === 'image-loaded') {
+          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+          if ((await scope.count()) !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          const requests = {
+            responses: responseLog.slice(responsesAtStart).filter((entry) => entry.type === 'image'),
+            failed: failedLog.slice(failedAtStart),
+            scoped: Boolean(check.subject),
+          };
+          record.checks.push({ ...item, ...evaluateImagesLoaded(await observeImages(scope), requests) });
+          continue;
+        }
+        if (check.kind === 'no-low-contrast-text') {
+          if (check.subject && await locate(page, check.subject).count() !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          const observed = await observeCompleteness(page, {}, viewport.width, check.subject);
+          const result = evaluateNoLowContrastText({}, observed);
+          record.checks.push({ ...item, ...result });
+          continue;
+        }
+        if (check.kind === 'native-appearance') {
+          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+          if ((await scope.count()) !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          record.checks.push({ ...item, ...evaluateNativeAppearance(await observeNativeAppearance(scope)) });
+          continue;
+        }
+        if (check.kind === 'stale-resources') {
+          const responses = responseLog.slice(responsesAtStart);
+          const first = await snapshotLoad(page);
+          let second = null;
+          let reloadError = null;
+          try {
+            second = await freshLoad({
+              browser, contextOptions, url: page.url(), timeout: stepTimeout,
+              install: (fresh) => guardOrigins(fresh, allowed, blocked),
+              ready: (fresh) => waitReady(fresh, plan, stepTimeout),
+            });
+          } catch (error) {
+            reloadError = String(error?.message ?? error).split('\n')[0];
+          }
+          record.checks.push({ ...item, ...evaluateStaleResources({ responses, first, second, reloadError }) });
+          continue;
+        }
+        if (check.kind === 'rendered-completeness') {
+          record.checks.push({ ...item, ...evaluateRenderedCompleteness(check.completeness, await observeCompleteness(page, check.completeness, viewport.width)) });
           continue;
         }
         if (check.kind === 'no-clipped-text') {

@@ -121,6 +121,26 @@ async fn project_operation(
             delivery,
             width_policy,
         } => {
+            // Source selection can turn a nodeId target into its IMAGE fill.
+            // Keep requested file destinations and capture reporting attached
+            // to the resolved asset rather than the convenience node alias.
+            for capture in &mut asset_captures {
+                if !matches!(capture.render_mode, devup_mcp_figma::AssetRenderMode::OriginalSource | devup_mcp_figma::AssetRenderMode::Auto) {
+                    continue;
+                }
+                let Some(asset) = payload.assets.iter().find(|asset| {
+                    asset.render_mode.is_original() && asset.field.starts_with("fills/")
+                        && (asset.asset_id == capture.asset_id
+                            || capture.asset_id == format!("{}:node", asset.node_id))
+                }) else { continue };
+                if capture.asset_id != asset.asset_id {
+                    if let Some(path) = asset_output_paths.remove(&capture.asset_id) {
+                        asset_output_paths.insert(asset.asset_id.clone(), path);
+                    }
+                    capture.asset_id = asset.asset_id.clone();
+                }
+                capture.render_mode = asset.render_mode;
+            }
             if web_ready_images {
                 asset_captures = payload
                     .assets
@@ -517,6 +537,10 @@ async fn project_operation(
                 section_tsx_projected,
             ) = project_section_frames::project_section_frames(
                 project_section_frames::SectionFrames {
+                    annotate_node_ids: theme_options
+                        .project_root
+                        .as_deref()
+                        .is_some_and(super::screen_plan::node_ids_enabled),
                     failures,
                     design_fingerprints: &design_fingerprints,
                     payload,

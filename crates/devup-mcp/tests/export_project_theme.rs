@@ -246,6 +246,10 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
         "{}",
         result["figmaNodeIds"]
     );
+    assert_eq!(
+        result["outputResults"]["tsx"]["sectionCoverage"]["nodeIds"],
+        json!(["3879:35481"])
+    );
     // What the export wrote for the node, kept to tell code drift from a
     // converter bug later.
     let record: Value =
@@ -278,6 +282,7 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
             .contains("data-figma-node-id")
     );
     assert!(result.get("figmaNodeIds").is_none());
+    assert!(result["outputResults"]["tsx"]["sectionCoverage"].is_null());
 
     let result = export(json!({"url": URL, "outputs": ["tsx"]})).await?;
     assert!(

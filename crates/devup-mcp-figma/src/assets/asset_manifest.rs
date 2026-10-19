@@ -905,6 +905,28 @@ pub fn resolve_asset_selections(
                 .ok_or_else(|| {
                     invalid("The selected asset or nodeId is not in the acquired snapshot scope.")
                 })?;
+            // nodeId is a convenient target, not permission to flatten a hero's
+            // live heading and controls into its background photograph.
+            let source_fill = (selection.render_mode == AssetRenderMode::OriginalSource
+                || (selection.render_mode == AssetRenderMode::Auto
+                    && snapshot.nodes.get(&asset.node_id).is_some_and(|node| {
+                        node.typed_view().child_ids().next().is_some()
+                    })))
+            .then(|| {
+                manifest.assets.iter().find(|candidate| {
+                    candidate.node_id == asset.node_id
+                        && candidate.field.starts_with("fills/")
+                        && candidate.image_hash.is_some()
+                        && (asset.field == "node" || asset.field == candidate.field)
+                })
+            })
+            .flatten();
+            let asset = source_fill.unwrap_or(asset);
+            let render_mode = if source_fill.is_some() {
+                AssetRenderMode::OriginalSource
+            } else {
+                selection.render_mode
+            };
             let capture_scope = if selection.render_mode == AssetRenderMode::Visible {
                 Some(visible_scope(
                     snapshot,
@@ -925,7 +947,7 @@ pub fn resolve_asset_selections(
                 image_hash: asset.image_hash.clone(),
                 format: selection.format,
                 scale: selection.scale,
-                render_mode: selection.render_mode,
+                render_mode,
                 quality: selection.quality,
                 lossless: selection.lossless,
             })

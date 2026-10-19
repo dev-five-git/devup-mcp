@@ -3,7 +3,7 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"<Box boxSize="100%">
-  <Box />
-  <Box />
+"<Box appearance="none" bg="transparent" boxSize="100%">
+  <Box appearance="none" bg="transparent" />
+  <Box appearance="none" bg="transparent" />
 </Box>"

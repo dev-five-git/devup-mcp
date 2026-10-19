@@ -7,6 +7,7 @@ expression: actual
   return (
     <Flex
       alignItems="center"
+      appearance="none"
       bg="$primary"
       borderRadius="100px"
       gap="20px"

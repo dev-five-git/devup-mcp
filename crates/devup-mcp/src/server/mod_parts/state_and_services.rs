@@ -1,5 +1,7 @@
 #[path = "../artifacts.rs"]
 pub mod artifacts;
+#[path = "../asset_guard.rs"]
+mod asset_guard;
 #[path = "../asset_jobs.rs"]
 mod asset_jobs;
 #[path = "../audit_plan.rs"]

@@ -536,20 +536,41 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
     let mut links = Vec::new();
     for (link_index, link) in screen.links.iter().enumerate() {
         let resolved = link
-        .url
-        .as_deref()
-        .map(|url| json!({"url": url, "evidence": "figma-url"}))
-        .or_else(|| {
-            let destination = link.destination_node_id.as_deref()?;
-            targets
-                .get(destination)
-                .map(|url| json!({"url": url, "evidence": format!("navigationTargets[{destination}]")}))
-                .or_else(|| {
-                    frame_owner.get(destination).map(|owner| {
-                        json!({"screen": drafts[*owner].id(), "evidence": "destination frame in this plan"})
+            .url
+            .as_deref()
+            .map(|url| json!({"url": url, "evidence": "figma-url"}))
+            .or_else(|| {
+                let inferred = if link.destination_node_id.is_none() {
+                    let owners = drafts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, draft)| {
+                            screen_apps.get(draft.id()).map(|app| &app.dir)
+                                == screen_apps.get(screen.id()).map(|app| &app.dir)
+                                && draft.frames.iter().any(|frame| {
+                                    label_names_frame(&link.label, &frame.name)
+                                })
+                        })
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>();
+                    (owners.len() == 1).then(|| owners[0])
+                } else {
+                    None
+                };
+                let destination = link
+                    .destination_node_id
+                    .as_deref()
+                    .or_else(|| inferred.map(|owner| drafts[owner].id()))?;
+                frame_owner.get(destination).map(|owner| {
+                    json!({"screen": drafts[*owner].id(),
+                        "nodeId": link.destination_node_id,
+                        "evidence": if inferred.is_some() { "label matches a frame in this plan" } else { "destination frame in this plan" }})
+                }).or_else(|| {
+                    targets.get(destination).map(|url| {
+                        json!({"url": url, "evidence": format!("navigationTargets[{destination}]")})
                     })
                 })
-        });
+            });
         if resolved.is_none() {
             decisions.push("unresolved-link");
             let mut choices = vec![choice(

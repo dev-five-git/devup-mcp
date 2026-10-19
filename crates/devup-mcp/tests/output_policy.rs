@@ -245,7 +245,9 @@ fn rejects_a_directory_symlink_parent_that_escapes_the_root() -> anyhow::Result<
     let root = unique_temp_dir("symlink-root")?;
     let outside = unique_temp_dir("symlink-outside")?;
     if let Err(error) = symlink_dir(&outside, root.join("linked")) {
-        if error.kind() == std::io::ErrorKind::PermissionDenied {
+        if error.kind() == std::io::ErrorKind::PermissionDenied
+            || error.raw_os_error() == Some(1314)
+        {
             fs::remove_dir_all(root)?;
             fs::remove_dir_all(outside)?;
             return Ok(());

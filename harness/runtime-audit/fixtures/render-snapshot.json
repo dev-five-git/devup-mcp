@@ -1,0 +1,28 @@
+{
+  "fileKey": "synthetic-render-contract",
+  "version": "1",
+  "roots": ["1:1"],
+  "diagnostics": [],
+  "nodes": {
+    "1:1": {
+      "id": "1:1", "type": "FRAME",
+      "fields": {
+        "name": "Hero", "width": 320, "height": 240,
+        "layoutMode": "NONE", "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+        "childrenIds": ["1:2"],
+        "fills": [{"type": "IMAGE", "imageHash": "hero", "scaleMode": "FILL"}]
+      },
+      "extra": {}, "fieldErrors": {}
+    },
+    "1:2": {
+      "id": "1:2", "type": "FRAME",
+      "fields": {
+        "name": "Card", "parentId": "1:1", "x": 32, "y": 32, "width": 80, "height": 60,
+        "layoutMode": "NONE", "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+        "childrenIds": [],
+        "fills": [{"type": "SOLID", "color": {"r": 1, "g": 0, "b": 0, "a": 1}}]
+      },
+      "extra": {}, "fieldErrors": {}
+    }
+  }
+}

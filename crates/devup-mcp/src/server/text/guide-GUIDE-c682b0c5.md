@@ -302,5 +302,8 @@ routes at concrete URLs, and production builds strip the ids unless
 overflow, layout-position, layout-size, asset-mismatch, section-visual,
 page-visual, interaction, view-transition) with its node, file and fix hint.
 Never stop to wait; reorder the work: a decision after confirm goes to
-`defer` and is taken with `assume` at the end. Done = zero fails, or listed as
-unresolved with evidence after `maxFixAttempts`.
+`defer` and is taken with `assume` at the end. Done = every required URL x width cell passes. Report unresolved findings
+with evidence after `maxFixAttempts` as incomplete.
+
+Before reporting done, run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read the report, fix failures and rerun until every cell passes. Missing cells are not-run and block completion. At drawn widths require rendered completeness and page, section and asset visual comparisons. Check sequence-order and section-layout at every width.
+Ask all site, structure and URL questions from the draft questions/questionRounds together up front, back to back before implementing. Never ask another round during the build; record conservative assumptions after confirmation.

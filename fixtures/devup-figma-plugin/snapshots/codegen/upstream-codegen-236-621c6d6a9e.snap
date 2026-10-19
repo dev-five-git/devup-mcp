@@ -5,7 +5,13 @@ expression: actual
 
 "export function SvgDetail() {
   return (
-    <Center bg="$containerBackground" border="solid 1px $gray200" borderRadius="10px" p="7px">
+    <Center
+      appearance="none"
+      bg="$containerBackground"
+      border="solid 1px $gray200"
+      borderRadius="10px"
+      p="7px"
+    >
       <Box
         aspectRatio="1"
         bg="$textLight"
