@@ -99,7 +99,7 @@ struct Collector<'s> {
 
 impl<'a> Visit<'a> for Collector<'_> {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
-        let attrs = string_attributes(&element.opening_element);
+        let attrs = string_attributes(&element.opening_element, self.source);
         let follows_viewport = match self.ancestors.last() {
             None => fluid_width(&attrs),
             Some(parent) => parent.follows_viewport && stretches_across(parent, &attrs),
@@ -133,7 +133,7 @@ impl<'a> Visit<'a> for Collector<'_> {
     }
 }
 
-fn string_attributes(element: &JSXOpeningElement<'_>) -> BTreeMap<String, String> {
+fn string_attributes(element: &JSXOpeningElement<'_>, source: &str) -> BTreeMap<String, String> {
     element
         .attributes
         .iter()
@@ -150,7 +150,10 @@ fn string_attributes(element: &JSXOpeningElement<'_>) -> BTreeMap<String, String
                     match container.expression.as_expression()?.get_inner_expression() {
                         Expression::StringLiteral(text) => text.value.to_string(),
                         Expression::NumericLiteral(number) => number.value.to_string(),
-                        _ => return None,
+                        _ => {
+                            let span = container.expression.span();
+                            source[span.start as usize..span.end as usize].to_owned()
+                        }
                     }
                 }
                 _ => return None,
@@ -221,6 +224,44 @@ fn center_offset(left: &str) -> Option<f64> {
 
 impl Collector<'_> {
     fn analyze(&mut self, parent: &Element, children: &[Element]) {
+        fn direction(element: &Element) -> Option<&String> {
+            element
+                .attrs
+                .get("flexDir")
+                .or_else(|| element.attrs.get("flexDirection"))
+        }
+        let column = |element: &Element| {
+            element.tag == "VStack"
+                || direction(element).is_some_and(|value| value.contains("column"))
+        };
+        if children
+            .iter()
+            .filter(|child| column(child) && child.has_children)
+            .count()
+            >= 2
+        {
+            self.risks.push(json!({"rule":"column-reading-order", "confidence":"medium", "elementIndex":parent.ordinal,
+                "message":"Column wrappers can collapse cards in column order (01,03,02,04). Use one Grid or flex-wrap in design reading order, or explicit breakpoint order; run sequence-order at every width."}));
+        }
+        let row = parent.tag == "Flex"
+            && direction(parent).is_none_or(|value| !value.contains("column"))
+            || parent.tag == "Grid"
+                && parent
+                    .attrs
+                    .get("gridTemplateColumns")
+                    .is_some_and(|value| value.contains(" ") || value.contains("repeat"));
+        let wraps = parent
+            .attrs
+            .get("flexWrap")
+            .is_some_and(|value| value.contains("wrap"));
+        let fixed_children = children
+            .iter()
+            .filter(|child| pixels(child.attrs.get("w")).is_some())
+            .count();
+        if row && !wraps && fixed_children >= 2 {
+            self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal,
+                "message":"A multi-column row keeps fixed child widths without a narrow column or wrap rule. Supply narrow responsive layout props and verify section-layout, overflow and clipped text at 390/858px."}));
+        }
         let width = pixels(parent.attrs.get("w"))
             .or_else(|| pixels(parent.attrs.get("boxSize")))
             .or(self.reference_width);
@@ -585,5 +626,38 @@ mod tests {
         let report = layout_risks(tsx, None);
         assert!(report["risks"].as_array().unwrap().is_empty());
         assert_eq!(report["groupsWithoutReferenceWidth"], 1);
+    }
+}
+
+#[cfg(test)]
+mod responsive_failure_tests {
+    use super::*;
+    #[test]
+    fn columns_and_wide_only_fixed_rows_are_flagged() {
+        let columns = r#"const A = () => <Flex flexDir={["column", "row"]}><Flex flexDir="column"><Box/><Box/></Flex><Flex flexDir="column"><Box/><Box/></Flex></Flex>"#;
+        assert!(
+            layout_risks(columns, None)["risks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|risk| risk["rule"] == "column-reading-order")
+        );
+        let fixed =
+            r#"const A = () => <Flex w={[null, "1200px"]}><Box w="400px"/><Box w="400px"/></Flex>"#;
+        assert!(
+            crate::ui_validate::validate_devup_ui_tsx(fixed, None, true)
+                .violations
+                .iter()
+                .any(|risk| risk.rule == "narrow-fixed-columns")
+        );
+        let wrapping =
+            r#"const A = () => <Flex flexWrap="wrap"><Box w="400px"/><Box w="400px"/></Flex>"#;
+        assert!(
+            !layout_risks(wrapping, None)["risks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|risk| risk["rule"] == "narrow-fixed-columns")
+        );
     }
 }

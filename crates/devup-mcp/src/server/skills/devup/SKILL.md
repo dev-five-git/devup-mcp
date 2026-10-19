@@ -196,3 +196,5 @@ Hard rules: visually verify every screen, section and asset at every drawn
 width; never stop to wait, reorder the work; done = zero fails, or listed as
 unresolved with evidence; layout is exact, a mismatch is drift or a
 converter bug.
+
+Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask all site, structure and URL questionRounds back to back up front before implementation; never ask a later round during the build.

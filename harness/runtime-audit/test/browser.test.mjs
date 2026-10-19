@@ -8,7 +8,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import test from 'node:test';
-import { runPlan } from '../run.mjs';
+import { observeCompleteness, runPlan } from '../run.mjs';
 
 const FIXTURES = new URL('../fixtures/', import.meta.url);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -352,4 +352,33 @@ test('a page merged from two width frames is found by its per-width node ids', a
     server.close();
     await rm(out, { recursive: true, force: true });
   }
+});
+
+
+test('computed button backgrounds and every image resource are observed in Chromium', async () => {
+  const { chromium } = await import('playwright');
+  const { evaluateNoLowContrastText, evaluateImageLoaded, evaluateRenderedCompleteness } = await import('../checks.mjs');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.route('**/missing.svg', (route) => route.fulfill({ status: 404, body: '' }));
+    const good = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
+    await page.setContent(`<button style="color:white">Submit</button>
+      <div style="height:100px;background-image:url(https://example.test/missing.svg)"></div>
+      <img src='${good}'><img src="https://example.test/missing.svg" loading="lazy">
+      <style>body::before { content: ''; background-image: url(https://example.test/missing.svg); }</style>`);
+    const observed = await observeCompleteness(page, {}, 800);
+    assert.equal(evaluateNoLowContrastText({}, observed).status, 'fail');
+    const buttonBackground = await page.locator('button').evaluate((element) => getComputedStyle(element).backgroundColor);
+    assert.equal(observed.texts[0].backgrounds[0], buttonBackground);
+    assert.notEqual(buttonBackground, 'rgba(0, 0, 0, 0)');
+    assert.equal(observed.resources.length, 4);
+    assert.equal(observed.resources.filter((item) => !item.loaded).length, 3);
+    assert.equal(evaluateImageLoaded(observed).status, 'fail');
+    assert.equal(evaluateRenderedCompleteness({ frameHeight: 100 }, observed).status, 'fail');
+    await page.setContent(`<button style="color:white;background:black">Submit</button><img src='${good}'>`);
+    const fixed = await observeCompleteness(page, {}, 800);
+    assert.equal(evaluateNoLowContrastText({}, fixed).status, 'pass');
+    assert.equal(evaluateImageLoaded(fixed).status, 'pass');
+  } finally { await browser.close(); }
 });

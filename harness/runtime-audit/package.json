@@ -7,7 +7,7 @@
     "devup-runtime-audit": "run.mjs"
   },
   "scripts": {
-    "test": "node --test test/checks.test.mjs test/browser.test.mjs",
+    "test": "node --test test/checks.test.mjs test/browser.test.mjs test/layout.test.mjs",
     "test:unit": "node --test test/checks.test.mjs"
   },
   "dependencies": {

@@ -175,6 +175,9 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
     for plan in [&home.plan, &about.plan] {
         for kind in [
             "page-health",
+            "sequence-order",
+            "section-layout",
+            "rendered-completeness",
             "no-horizontal-overflow",
             "no-clipped-text",
             "bounds",
@@ -185,6 +188,18 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
         }
     }
     let checks = &home.plan.screens[0].checks;
+    for kind in ["no-low-contrast-text", "image-loaded"] {
+        assert!(checks.iter().any(|check| check.kind == kind && check.widths.is_empty()));
+    }
+    let completeness = checks.iter().filter(|check| check.kind == "rendered-completeness").collect::<Vec<_>>();
+    assert_eq!(completeness.len(), 2);
+    for check in completeness {
+        assert_eq!(check.widths.len(), 1);
+        let frame = check.completeness.as_ref().unwrap();
+        assert!(frame.frame_height > 0.0);
+        assert!(!frame.sections.is_empty());
+    }
+
     let captures = checks
         .iter()
         .filter_map(|check| {

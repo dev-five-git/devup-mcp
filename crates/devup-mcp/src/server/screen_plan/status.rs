@@ -1,5 +1,25 @@
 
 
+/// A page file on disk is only written. It is implemented once the browser
+/// rendered it complete (rendered-completeness passed) at every width its
+/// frame was drawn at.
+fn implemented_state(page_exists: bool, drawn: &Value, per_width: &[Value]) -> &'static str {
+    if !page_exists {
+        return "no";
+    }
+    let drawn = array(drawn)
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect::<Vec<_>>();
+    let complete = !drawn.is_empty()
+        && drawn.iter().all(|width| {
+            per_width.iter().any(|row| {
+                row["width"] == *width && row["result"] == "pass" && row["columns"]["completeness"] == "pass"
+            })
+        });
+    if complete { "yes" } else { "written-unverified" }
+}
+
 /// The pure half of `status`, so the not-run rule is tested on its own.
 pub(super) fn status_report(
     plan: &Value,
@@ -33,19 +53,10 @@ pub(super) fn status_report(
             .iter()
             .find(|(pattern, _)| pattern == url || super::navigation::matches_route(pattern, url))
             .map(|(_, page)| page.clone());
-        let mut row_widths = if audited {
-            widths.clone()
-        } else {
-            DEFAULT_WIDTHS
-                .iter()
-                .map(|width| u64::from(*width))
-                .chain(
-                    array(&route["drawnWidths"])
-                        .iter()
-                        .filter_map(Value::as_u64),
-                )
-                .collect::<Vec<_>>()
-        };
+        let mut row_widths = DEFAULT_WIDTHS.iter().map(|width| u64::from(*width))
+            .chain(widths.iter().copied())
+            .chain(array(&route["drawnWidths"]).iter().filter_map(Value::as_u64))
+            .collect::<Vec<_>>();
         row_widths.sort_unstable_by(|a, b| b.cmp(a));
         row_widths.dedup();
         let per_width = row_widths
@@ -83,7 +94,7 @@ pub(super) fn status_report(
             "figmaScreen": route["name"],
             "nodeIds": route["nodeIds"],
             "file": page.clone().map_or_else(|| route["file"].clone(), Value::from),
-            "implemented": if page.is_some() { "yes" } else { "no" },
+            "implemented": implemented_state(page.is_some(), &route["drawnWidths"], &per_width),
             "widths": per_width,
         }));
     }
@@ -137,10 +148,19 @@ pub(super) fn status_report(
             problems.push(format!("{} {kind} at {}", text(&row["url"]), at.join(", ")));
         }
     }
+    let written = rows
+        .iter()
+        .filter(|row| row["implemented"] == "written-unverified")
+        .count();
     let mut summary = format!(
         "{} URLs: {implemented} implemented, {verified} verified at all widths",
         rows.len()
     );
+    if written > 0 {
+        summary.push_str(&format!(
+            ", {written} written but not rendered complete at every drawn width"
+        ));
+    }
     for problem in &problems {
         summary.push_str(&format!(", {problem}"));
     }
@@ -186,10 +206,12 @@ pub(super) fn status_report(
             .filter(|width| width["result"] == "fail")
             .map(|width| width["width"].to_string())
             .collect::<Vec<_>>();
-        let state = if row["implemented"] != "yes" {
+        let state = if row["implemented"] == "no" {
             "not implemented".to_owned()
         } else if !failing.is_empty() {
             format!("fails at {}", failing.join(", "))
+        } else if row["implemented"] == "written-unverified" {
+            "written, not rendered complete".to_owned()
         } else if passed.len() == row_widths.len() {
             "verified".to_owned()
         } else {
@@ -295,7 +317,7 @@ pub(super) fn status_report(
         "designFixes": design_fixes,
         "excluded": excluded,
         "inventoryNote": evidence.inventory_note,
-        "rule": "A width without a runtime audit item is not-run, never pass. Implemented means an App Router page exists for the URL, not that it renders.",
+        "rule": "A width without a runtime audit item is not-run, never pass. Implemented requires rendered completeness at every drawn width; done requires every URL at every required width to pass.",
     })
 }
 

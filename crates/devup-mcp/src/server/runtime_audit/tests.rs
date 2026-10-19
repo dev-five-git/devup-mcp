@@ -354,6 +354,23 @@ mod tests {
     }
 
     #[test]
+    fn drawn_widths_need_completeness_before_they_can_pass() {
+        let mut screen = plan_input().screens.remove(0);
+        screen.figma = Some(serde_json::from_value(json!({"nodeId": "1:1", "drawnWidths": [1440]})).unwrap());
+        let viewport: ViewportInput = serde_json::from_value(json!({"width": 1440, "height": 900})).unwrap();
+        let mut missing = json!({"status": "pass", "reasons": []});
+        require_completeness(&mut missing, &screen, &viewport, &[]);
+        assert_eq!(missing["status"], "not-run");
+        let check: CheckInput = serde_json::from_value(json!({"kind": "rendered-completeness", "widths": [1440], "completeness": {"frameHeight": 2000}})).unwrap();
+        let mut complete = json!({"status": "pass"});
+        require_completeness(&mut complete, &screen, &viewport, &[("pass", &check)]);
+        assert_eq!(complete["status"], "pass");
+        let mut failed = json!({"status": "fail"});
+        require_completeness(&mut failed, &screen, &viewport, &[]);
+        assert_eq!(failed["status"], "fail");
+    }
+
+    #[test]
     fn the_new_check_kinds_take_what_they_measure() {
         let ok = |check: Value| {
             let mut plan = plan_input();
@@ -364,6 +381,23 @@ mod tests {
         };
         let node = |id: &str| json!({"css": format!("[data-figma-node-id=\"{id}\"]")});
         assert!(ok(json!({"kind": "page-health"})).is_ok());
+        for kind in ["no-low-contrast-text", "image-loaded"] {
+            assert!(ok(json!({"kind": kind})).is_ok());
+            assert!(ok(json!({"kind": kind, "subject": node("1:2")})).is_ok());
+            assert!(ok(json!({"kind": kind, "container": node("1:2")})).is_err());
+        }
+        assert!(ok(json!({"kind": "rendered-completeness", "widths": [1440], "completeness": {"frameHeight": 2000, "sections": ["1:2"], "images": ["1:3"]}})).is_ok());
+        for completeness in [
+            json!({"frameHeight": 0}),
+            json!({"frameHeight": 100, "minHeightRatio": 1.1}),
+            json!({"frameHeight": 100, "minContrast": 22}),
+            json!({"frameHeight": 100, "sections": ["1:2", "1:2"]}),
+            json!({"frameHeight": 100, "images": ["bad]id"]}),
+        ] {
+            assert!(ok(json!({"kind": "rendered-completeness", "widths": [1440], "completeness": completeness})).is_err());
+        }
+        assert!(ok(json!({"kind": "rendered-completeness", "completeness": {"frameHeight": 100}})).is_err());
+
         assert!(ok(json!({"kind": "no-clipped-text"})).is_ok());
         assert!(ok(json!({"kind": "interaction", "state": "hover"})).is_ok());
         assert!(

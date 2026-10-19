@@ -443,6 +443,7 @@ fn ingest_references(
                 &environment_errors,
                 &outcomes,
             );
+            require_completeness(&mut row, screen, viewport, &judged);
             row["columns"] = columns(screen, viewport, &judged, &row);
             // A screen that never rendered fails as a runtime error, not as
             // the checks that could not measure it.
@@ -916,6 +917,9 @@ fn array_text(value: &Value) -> String {
 pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
     match kind {
         "page-health" => "runtime-error",
+        "image-loaded" => "asset-mismatch",
+        "no-low-contrast-text" => "section-visual",
+        "rendered-completeness" => "page-visual",
         "no-horizontal-overflow" | "no-clipped-text" => "overflow",
         "bounds" if reason.starts_with("position") => "layout-position",
         "bounds" | "dimensions" | "visible" => "layout-size",

@@ -307,7 +307,12 @@ pub(super) fn url_plan(
 
     // Health and containment at every width.
     let mut checks = vec![
+        check(json!({"kind": "no-clipped-content", "label": "navigation and card content not cut off"})),
+        check(json!({"kind": "sequence-order", "label": "numbered cards in reading order"})),
+        check(json!({"kind": "section-layout", "label": "responsive sections and text columns"})),
         check(json!({"kind": "page-health", "label": "page health"})),
+        check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
+        check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),
         check(json!({"kind": "no-horizontal-overflow", "label": "no horizontal overflow"})),
         check(json!({"kind": "no-clipped-text", "label": "no clipped text"})),
     ];
@@ -342,6 +347,7 @@ pub(super) fn url_plan(
             continue;
         };
         let sections = visible_children(payload, frame_id);
+        let mut images = Vec::new();
         let mut renders_missing = Vec::new();
         for section in &sections {
             let name = name_of(payload, section);
@@ -366,6 +372,14 @@ pub(super) fn url_plan(
                     "subject": node(section), "container": node(frame_id), "nodeId": section}),
                 ));
             }
+            if !is_asset && bounds(payload, section).is_some_and(|section_box| section_box.width >= frame_box.width * 0.5) {
+                layout.push(check(json!({"kind": "section-layout", "label": format!("{name} remains a visible section"), "subject": node_at(*width, section), "container": node_at(*width, frame_id),
+                    "widths": viewports.iter().filter(|viewport| {
+                        target.frames.iter().filter(|(drawn, _, _)| *drawn <= viewport.width).max_by_key(|(drawn, _, _)| *drawn)
+                            .or_else(|| target.frames.iter().min_by_key(|(drawn, _, _)| *drawn))
+                            .is_some_and(|(drawn, _, _)| drawn == width)
+                    }).map(|viewport| viewport.width).collect::<Vec<_>>(), "nodeId": section})));
+            }
             if let Some(section_box) = bounds(payload, section) {
                 layout.push(bounds_check(
                     &name,
@@ -389,6 +403,9 @@ pub(super) fn url_plan(
                         }
                     }
                 }
+            }
+            if is_asset {
+                images.push(section.clone());
             }
             let scope = if is_asset { "asset" } else { "section" };
             match sources.native_render(section) {
@@ -419,9 +436,13 @@ pub(super) fn url_plan(
                 let is_asset = assets_everywhere.contains(&child)
                     || payload.snapshot.nodes[&child].typed_view().bool("isAsset") == Some(true);
                 if !is_asset {
+                    if let Some(alignment) = text_alignment_check(payload, &child, *width) {
+                        parts.push(alignment);
+                    }
                     stack.push((child, section.clone()));
                     continue;
                 }
+                images.push(child.clone());
                 let name = name_of(payload, &child);
                 if let (Some(section_box), Some(asset_box)) =
                     (bounds(payload, &section), bounds(payload, &child))
@@ -449,6 +470,14 @@ pub(super) fn url_plan(
                 }
             }
         }
+        checks.push(completeness_check(
+            *width,
+            frame_id,
+            frame_box.height,
+            &sections,
+            images,
+            &mut notes,
+        ));
         for batch in renders_missing.chunks(6) {
             missing.push(json!({"kind": "nativeRender", "frame": frame_id, "width": width, "nodeIds": batch,
                 "why": "No native-node PNG at scale 1 for these sections or assets, so their visual comparison cannot run.",

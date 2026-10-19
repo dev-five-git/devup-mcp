@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   GEOMETRY_ROUNDING_PX, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions, evaluateInteraction,
-  evaluatePageHealth, evaluateViewTransition, summarize,
+  evaluatePageHealth, evaluateNoLowContrastText, evaluateImageLoaded, evaluateRenderedCompleteness, evaluateViewTransition, summarize, textContrast,
 } from '../checks.mjs';
 import { validateDimensionsPlan } from '../run.mjs';
 
@@ -159,4 +159,58 @@ test('production builds lose the audit attributes; dev and audit builds keep the
   assert.equal(production.transform(source, '/app/src/app/page.tsx').code, stripped);
   assert.equal(production.transform(source, '/app/src/style.css'), null);
   assert.equal(keepsAttributes('build', {}), false);
+});
+
+test('a rendered page is complete only when tall enough, with every section, image and visible text', () => {
+  const completeness = { frameHeight: 2000, sections: ['1:2', '1:3'], images: ['1:4'] };
+  const shown = (id) => ({ id, count: 1, visible: true, width: 100, height: 50, broken: false });
+  const dark = { text: 'Hello', tag: 'p', color: 'rgb(17, 17, 17)', backgrounds: ['rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'], imageBehind: false, opacity: 1 };
+  const complete = { pageHeight: 1900, sections: [shown('1:2'), shown('1:3')], images: [shown('1:4')], texts: [dark] };
+  assert.equal(evaluateRenderedCompleteness(completeness, complete).status, 'pass');
+
+  const blank = evaluateRenderedCompleteness(completeness, { pageHeight: 900, sections: [{ id: '1:2', count: 0 }, shown('1:3')], images: [{ ...shown('1:4'), broken: true }], texts: [] });
+  assert.equal(blank.status, 'fail');
+  assert.match(blank.reason, /900px tall, under 90% of the 2000px frame/);
+  assert.match(blank.reason, /1 of 2 sections not rendered: 1:2/);
+  assert.match(blank.reason, /1 images did not load: 1:4/);
+
+  const whiteOnWhite = { ...dark, text: 'Ghost', color: 'rgb(255, 255, 255)' };
+  const ghost = evaluateRenderedCompleteness(completeness, { ...complete, texts: [dark, whiteOnWhite] });
+  assert.equal(ghost.status, 'fail');
+  assert.match(ghost.reason, /"Ghost" \(1:1\)/);
+  assert.equal(textContrast({ ...whiteOnWhite, imageBehind: true }), null, 'text over an image is not judged');
+  assert.ok(textContrast({ ...whiteOnWhite, backgrounds: ['rgb(0, 0, 0)'] }) > 20);
+  assert.ok(textContrast({ ...dark, opacity: 0 }) < 1.01, 'fully transparent text cannot be seen');
+});
+
+
+test('no-low-contrast-text composites ancestor backgrounds and translucent ink', () => {
+  const sample = { text: 'Submit', tag: 'button', color: 'rgb(255, 255, 255)', backgrounds: ['rgb(239, 239, 239)'] };
+  const check = (text) => evaluateNoLowContrastText({}, { texts: [text] });
+  assert.equal(check(sample).status, 'fail');
+  assert.equal(check({ ...sample, backgrounds: ['rgba(0, 0, 0, 0)', 'rgb(0, 0, 0)'] }).status, 'pass');
+  assert.equal(check({ ...sample, color: 'rgba(0, 0, 0, 0.01)' }).status, 'fail');
+  assert.equal(check({ ...sample, imageBehind: true }).status, 'inconclusive');
+  assert.equal(check({ ...sample, color: 'unsupported' }).status, 'inconclusive');
+});
+
+test('image-loaded fails for any undecoded img or background resource', () => {
+  const resources = [{ source: '/ok.png', kind: 'img', loaded: true }, { source: '/hero.png', kind: 'background', loaded: false }];
+  assert.equal(evaluateImageLoaded({ resources: resources.slice(0, 1) }).status, 'pass');
+  const broken = evaluateImageLoaded({ resources });
+  assert.equal(broken.status, 'fail');
+  assert.match(broken.reason, /hero.png/);
+  assert.equal(evaluateImageLoaded({ resources: [{ ...resources[0], loaded: false }] }).status, 'fail');
+});
+
+
+test('contrast composites opacity of text and background together through ancestor groups', () => {
+  const sample = { color: 'rgb(255, 255, 255)', layers: [{ color: 'rgb(0, 0, 0)', opacity: 0.01 }] };
+  assert.ok(textContrast(sample) < 1.5, 'a faded black button on white loses its white text');
+  assert.ok(textContrast({ ...sample, layers: [{ color: 'rgb(0, 0, 0)', opacity: 1 }] }) > 20);
+  assert.ok(textContrast({ color: 'rgb(0, 0, 0)', layers: [{ color: 'rgba(0, 0, 0, 0)', opacity: 1 }, { color: 'rgb(255, 255, 255)', opacity: 1 }] }) > 20);
+});
+
+test('transparent backgrounds use the browser canvas colour', () => {
+  assert.ok(textContrast({ color: 'rgb(255, 255, 255)', canvasColor: 'rgb(0, 0, 0)', backgrounds: ['rgba(0, 0, 0, 0)'] }) > 20);
 });

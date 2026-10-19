@@ -206,6 +206,10 @@ pub struct CheckInput {
     /// next screen should start from its own routePath. The plan writer
     /// moves it after the screen's other checks and the executor returns to
     /// the screen's URL after it, so order in the plan cannot break a run.
+    /// text-align: subject computed text alignment matches edge from Figma.
+    /// sequence-order: numbered siblings increase in visual reading order.
+    /// section-layout: visible sections span at least half their container.
+    /// no-clipped-content: internal clipped rows require an explicit carousel with controls.
     /// page-health: no error page text ("This page couldn't load",
     /// "Application error", ...), page error, console error or failed
     /// navigation while the screen was open.
@@ -221,7 +225,14 @@ pub struct CheckInput {
     /// something visible; without a subject, every visible link and button.
     /// capture: screenshot subject's element box for devup_visual_compare
     /// against `reference`; ingest turns it into a ready call.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden"]))]
+    /// no-low-contrast-text: text against effective computed background colours.
+    /// image-loaded: every img and CSS background URL decodes with naturalWidth > 0.
+    /// Both accept an optional subject scope.
+    /// rendered-completeness: at one drawn width, the page is at least
+    /// minHeightRatio of the frame's height, every listed section and image
+    /// renders (images decoded), and no text is invisible against what is
+    /// painted behind it. A drawn width without a passing one is not-run.
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -266,6 +277,10 @@ pub struct CheckInput {
     /// capture: what the element screenshot is compared with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<CaptureReferenceInput>,
+    /// rendered-completeness: what the frame drawn at this width says must be
+    /// on the page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completeness: Option<CompletenessInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -604,11 +619,11 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         Ok(())
     };
     match check.kind.as_str() {
-        "no-horizontal-overflow" | "page-health" => needs(false, false)?,
+        "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
-        "no-clipped-text" => {
+        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" => {
             if check.container.is_some() {
-                return Err(invalid("A no-clipped-text check takes no container."));
+                return Err(invalid(format!("A {} check takes no container.", check.kind)));
             }
         }
         "bounds" => {
@@ -673,6 +688,30 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
                 ));
             }
         }
+        "text-align" => {
+            needs(true, false)?;
+            if !matches!(check.edge.as_deref(), Some("left" | "right" | "center" | "justify")) {
+                return Err(invalid("A text-align check needs edge left, right, center or justify."));
+            }
+        }
+        "sequence-order" => needs(false, false)?,
+        "section-layout" => {
+            if check.subject.is_some() { needs(true, true)?; } else { needs(false, false)?; }
+        }
+        "rendered-completeness" => {
+            needs(false, false)?;
+            let Some(completeness) = &check.completeness else {
+                return Err(invalid(
+                    "A rendered-completeness check needs completeness {frameHeight, sections, images}.",
+                ));
+            };
+            validate_completeness(completeness)?;
+            if check.widths.len() != 1 {
+                return Err(invalid(
+                    "A rendered-completeness check holds one frame, so it names exactly one width.",
+                ));
+            }
+        }
         "contained" | "spans" => needs(true, true)?,
         "aligned" => {
             needs(true, true)?;
@@ -688,6 +727,11 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         ("expected", check.expected.is_some(), "bounds"),
         ("state", check.state.is_some(), "interaction"),
         ("reference", check.reference.is_some(), "capture"),
+        (
+            "completeness",
+            check.completeness.is_some(),
+            "rendered-completeness",
+        ),
     ] {
         if present && check.kind != kind {
             return Err(invalid(format!("{field} is only valid for {kind} checks.")));
@@ -870,7 +914,7 @@ fn columns(
     let health = if unreached {
         "fail"
     } else {
-        fold(&["page-health", "no-horizontal-overflow", "no-clipped-text"])
+        fold(&["page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded"])
     };
     let captures = |scope: &str| {
         let count = judged
@@ -903,9 +947,15 @@ fn columns(
         .figma
         .as_ref()
         .is_some_and(|figma| figma.drawn_widths.contains(&viewport.width));
+    let completeness = match fold(&["rendered-completeness"]) {
+        "-" if drawn => "not-run",
+        "-" => "not drawn",
+        other => other,
+    };
     json!({
         "health": health,
-        "geometry": fold(&["bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
+        "completeness": completeness,
+        "geometry": fold(&["text-align", "sequence-order", "section-layout", "text-align", "bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
         "interaction": fold(&["interaction", "view-transition"]),
         "page": if drawn { json!(if row["screenshot"].is_string() { "1 to compare" } else { "not captured" }) } else { json!("not drawn") },
         "section": captures("section"),

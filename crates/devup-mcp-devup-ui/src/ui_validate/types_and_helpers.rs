@@ -150,6 +150,18 @@ fn validate_source(
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));
+    for risk in crate::ui_layout::layout_risks(tsx, None)["risks"].as_array().into_iter().flatten() {
+        let rule = match risk["rule"].as_str() {
+            Some("narrow-fixed-columns") => "narrow-fixed-columns",
+            Some("column-reading-order") => "column-reading-order",
+            _ => continue,
+        };
+        violations.push(Violation { rule, severity: Severity::Warning, byte_range: [0, 0],
+            context: risk.as_object().cloned().unwrap_or_default(),
+            message: risk["message"].as_str().unwrap_or_default().to_owned(),
+            suggestion: Some("Use reading-order DOM and explicit narrow layout props, then run the runtime audit at every required width.".into()) });
+    }
+
     let elements = crate::provenance::attributes::opening_elements(tsx);
     for violation in &mut violations {
         let [start, end] = violation.byte_range;
