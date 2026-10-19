@@ -550,6 +550,29 @@ pub(super) fn push_style_props(
         tokens: length_tokens,
         viewport: drawn_viewport(snapshot, node),
     };
+    // Reset native faces even with transparent paint, including Figma button
+    // components that consumers render polymorphically.
+    let explicit_button = view.string("as") == Some("button")
+        || view.node_type().eq_ignore_ascii_case("button");
+    let button_name = |name: &str| {
+        name.split(|c: char| !c.is_alphanumeric())
+            .next()
+            .is_some_and(|word| word.eq_ignore_ascii_case("button"))
+    };
+    let named_button = component != "Text"
+        && (view.name().is_some_and(button_name)
+            || snapshot.nodes.values().any(|parent| {
+                let parent = parent.typed_view();
+                parent.node_type() == "COMPONENT_SET"
+                    && parent.name().is_some_and(button_name)
+                    && parent.child_ids().any(|id| id == node.id)
+            }));
+    if explicit_button || named_button || component.eq_ignore_ascii_case("button") {
+        if explicit_button {
+            string_prop(props, "as", "button");
+        }
+        string_prop(props, "appearance", "none");
+    }
     if view.bool("visible") == Some(false) {
         string_prop(props, "display", "none");
     }
@@ -805,6 +828,11 @@ pub(super) fn push_style_props(
     } else if let Some(background) = background_css(snapshot, node, used_tokens, style) {
         string_prop(props, "bg", background);
     }
+    if (explicit_button || named_button || component.eq_ignore_ascii_case("button"))
+        && !props.iter().any(|(name, _)| name == "bg")
+    {
+        string_prop(props, "bg", "transparent");
+    }
     if let Some(mode) = view
         .value("fills")
         .and_then(Value::as_array)
@@ -819,7 +847,6 @@ pub(super) fn push_style_props(
     {
         string_prop(props, "bgBlendMode", mode);
     }
-
     push_radius(&view, props);
     if component != "Text" {
         push_strokes(

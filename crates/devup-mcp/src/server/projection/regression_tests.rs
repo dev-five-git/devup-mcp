@@ -36,6 +36,7 @@ mod w1_regressions {
     include!("w1_regressions.rs");
     include!("w1_regressions_r4_export_exposes_placement_contract_without_diagnostic.rs");
     include!("w1_regressions_original_source_variant_and_css_map_resources_recover_w.rs");
+    include!("w1_regressions_hero_source.rs");
     include!("w1_regressions_r7_real_wquw118_layout_contracts_are_preserved.rs");
     include!("w1_regressions_w1_hidden_asset_is_warning_and_requested_failure_is_par.rs");
 }

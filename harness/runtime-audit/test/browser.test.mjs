@@ -382,3 +382,43 @@ test('computed button backgrounds and every image resource are observed in Chrom
     assert.equal(evaluateImageLoaded(fixed).status, 'pass');
   } finally { await browser.close(); }
 });
+
+test('white outline no-fill button overrides the reset and retains contrast over a dark hero', async () => {
+  const { chromium } = await import('playwright');
+  const { evaluateNoLowContrastText } = await import('../checks.mjs');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`<style>
+      button { -webkit-appearance: button; }
+      .hero { background: #101820; padding: 40px; }
+      .outline { color: white; border: 1px solid white; background: transparent;
+        appearance: none; font-size: 16px; padding: 12px 24px; }
+    </style><div class="hero"><button class="outline">Get started</button></div>`);
+    const style = await page.locator('button').evaluate((element) => {
+      const css = getComputedStyle(element);
+      return { appearance: css.appearance, webkitAppearance: css.webkitAppearance,
+        background: css.backgroundColor, border: css.borderTopWidth, color: css.color };
+    });
+    assert.deepEqual(style, { appearance: 'none', webkitAppearance: 'none',
+      background: 'rgba(0, 0, 0, 0)', border: '1px', color: 'rgb(255, 255, 255)' });
+    // Computed transparent alone did not establish what the native face painted.
+    // Sample the rendered padding, away from the white border and glyphs.
+    const pixels = await page.locator('button').screenshot();
+    const paintedBackground = await page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      return [...context.getImageData(4, 4, 1, 1).data];
+    }, pixels.toString('base64'));
+    assert.deepEqual(paintedBackground, [16, 24, 32, 255]);
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'pass');
+    await page.locator('.hero').evaluate((element) => { element.style.background = 'white'; });
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'fail');
+  } finally { await browser.close(); }
+});
