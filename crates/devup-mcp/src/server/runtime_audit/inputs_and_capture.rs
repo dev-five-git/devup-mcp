@@ -228,11 +228,15 @@ pub struct CheckInput {
     /// no-low-contrast-text: text against effective computed background colours.
     /// image-loaded: every img and CSS background URL decodes with naturalWidth > 0.
     /// Both accept an optional subject scope.
+    /// native-appearance: visible form controls (optional subject scope) have
+    /// computed appearance none, not the browser's native face.
+    /// stale-resources: no image, script, stylesheet, font or media response
+    /// while the screen was open has an HTTP error status.
     /// rendered-completeness: at one drawn width, the page is at least
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded"]))]
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -621,7 +625,8 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
     match check.kind.as_str() {
         "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
-        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" => {
+        "stale-resources" => needs(false, false)?,
+        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
             if check.container.is_some() {
                 return Err(invalid(format!("A {} check takes no container.", check.kind)));
             }
@@ -914,7 +919,7 @@ fn columns(
     let health = if unreached {
         "fail"
     } else {
-        fold(&["page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded"])
+        fold(&["page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
     };
     let captures = |scope: &str| {
         let count = judged

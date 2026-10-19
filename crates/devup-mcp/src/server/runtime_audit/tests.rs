@@ -386,7 +386,9 @@ mod tests {
         }
         assert!(ok(json!({"kind":"text-align", "subject":node("1:2"), "edge":"center"})).is_ok());
         assert!(ok(json!({"kind":"text-align", "subject":node("1:2"), "edge":"bad"})).is_err());
-        for kind in ["no-low-contrast-text", "image-loaded"] {
+        assert!(ok(json!({"kind": "stale-resources"})).is_ok());
+        assert!(ok(json!({"kind": "stale-resources", "subject": node("1:2")})).is_err());
+        for kind in ["no-low-contrast-text", "image-loaded", "native-appearance"] {
             assert!(ok(json!({"kind": kind})).is_ok());
             assert!(ok(json!({"kind": kind, "subject": node("1:2")})).is_ok());
             assert!(ok(json!({"kind": kind, "container": node("1:2")})).is_err());

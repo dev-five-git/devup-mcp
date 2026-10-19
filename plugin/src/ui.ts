@@ -41,7 +41,15 @@ interface ResultMessage {
   error?: string
 }
 
+declare const __PLUGIN_VERSION__: string
+
+interface ServerInfo {
+  version: string
+  buildId: string | null
+}
+
 const RETRY_MS = 2000
+let serverInfo: ServerInfo | null = null
 
 /** 이 창이 화면에 보이는지. Figma 가 가려지거나 최소화되면 거짓이 된다. */
 const inView = () => document.visibilityState === 'visible'
@@ -67,10 +75,14 @@ let served = 0
 const dot = document.getElementById('dot') as HTMLElement
 const line = document.getElementById('line') as HTMLElement
 const detail = document.getElementById('detail') as HTMLElement
+const versions = document.getElementById('versions') as HTMLElement
 
 function render(state: 'on' | 'off', text: string) {
   dot.className = `dot ${state}`
   line.textContent = text
+  versions.textContent = `플러그인 ${__PLUGIN_VERSION__} · ${
+    serverInfo ? `devup-mcp ${serverInfo.version}` : 'devup-mcp 버전 미확인'
+  }`
   detail.textContent = bridgeStatus
     ? `${bridgeStatus.fileName} · 처리 ${served}건`
     : '파일 정보를 읽는 중…'
@@ -100,6 +112,7 @@ function connect() {
       JSON.stringify({
         kind: 'hello',
         sessionId: SESSION_ID,
+        pluginVersion: __PLUGIN_VERSION__,
         fileKey: bridgeStatus?.fileKey ?? null,
         fileName: bridgeStatus?.fileName ?? '',
         currentPage: bridgeStatus?.currentPage ?? null,
@@ -122,12 +135,19 @@ function connect() {
     } catch {
       return
     }
+    const info = job as { kind?: string; version?: string; buildId?: string | null }
+    if (info?.kind === 'server-info') {
+      serverInfo = { version: String(info.version ?? ''), buildId: info.buildId ?? null }
+      render('on', 'devup-mcp 에 연결됨')
+      return
+    }
     // 작업은 그대로 메인 스레드로 넘긴다. UI 는 내용을 해석하지 않는다.
     parent.postMessage({ pluginMessage: job }, '*')
   }
 
   ws.onclose = () => {
     socket = null
+    serverInfo = null
     render('off', 'devup-mcp 연결 대기 중…')
     setTimeout(connect, RETRY_MS)
   }

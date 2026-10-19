@@ -114,6 +114,10 @@ pub struct PluginContext {
     /// 보고하기 전에 빌드된 플러그인은 `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_view: Option<bool>,
+    /// 플러그인 빌드의 버전. `hello` 에만 실려 오며, 이것을 보고하기 전에 빌드된
+    /// 플러그인은 `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_version: Option<String>,
 }
 
 impl PluginContext {
@@ -599,6 +603,19 @@ impl BridgeState {
                 .await;
         });
         Ok(())
+    }
+
+    /// 플러그인이 어느 devup-mcp 에 붙었는지 알 수 있게 먼저 밝힌다.
+    /// 모르는 메시지는 예전 플러그인이 무시한다.
+    fn announce_server(&self, outbox: &tokio::sync::mpsc::UnboundedSender<String>) {
+        let _ = outbox.send(
+            json!({
+                "kind": "server-info",
+                "version": self.link.me.version,
+                "buildId": self.link.me.build_id,
+            })
+            .to_string(),
+        );
     }
 
     /// 플러그인 목록이 바뀌었다. 세고, 중계들에게 알리고, 기다리는 쪽을 깨운다.

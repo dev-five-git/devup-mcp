@@ -207,6 +207,9 @@ fn serve(mut socket: Socket) -> Arc<Mutex<Vec<Value>>> {
     tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = socket.next().await {
             let job: Value = serde_json::from_str(&text).expect("a job is JSON");
+            if job["kind"] == "server-info" {
+                continue;
+            }
             let data = if job["script"] == "measureNodes" {
                 Ok(
                     json!({"kind":"devup-measure","schemaVersion":1,"coordinateSpace":"figma-logical",
@@ -243,6 +246,9 @@ fn serve_with_context(mut socket: Socket, context: Option<Value>) -> Arc<Mutex<V
     tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = socket.next().await {
             let job: Value = serde_json::from_str(&text).unwrap();
+            if job["kind"] == "server-info" {
+                continue;
+            }
             let data = if job["script"] == "bridgeContext" {
                 context.clone().ok_or("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
             } else {

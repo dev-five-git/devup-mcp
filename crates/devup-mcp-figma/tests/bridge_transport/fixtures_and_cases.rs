@@ -47,15 +47,20 @@ async fn connect_plugin(server: &BridgeServer) -> Plugin {
 
 /// 다음 작업 하나를 받아 요청 id 와 함께 돌려준다.
 async fn next_job(socket: &mut Plugin) -> Value {
-    let message = socket
-        .next()
-        .await
-        .expect("a job arrives")
-        .expect("the socket stays open");
-    let Message::Text(text) = message else {
-        panic!("jobs are sent as text");
-    };
-    serde_json::from_str(&text).expect("a job is JSON")
+    loop {
+        let message = socket
+            .next()
+            .await
+            .expect("a job arrives")
+            .expect("the socket stays open");
+        let Message::Text(text) = message else {
+            panic!("jobs are sent as text");
+        };
+        let value: Value = serde_json::from_str(&text).expect("a job is JSON");
+        if value["kind"] != "server-info" {
+            return value;
+        }
+    }
 }
 
 #[tokio::test]

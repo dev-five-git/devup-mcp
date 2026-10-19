@@ -4,9 +4,12 @@
 
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { DefinePlugin } from '@rspack/core'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const pluginVersion = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8')).version
 
 /** @type {import('@rspack/core').Configuration[]} */
 export default [
@@ -58,6 +61,7 @@ export default [
       ],
     },
     plugins: [
+      new DefinePlugin({ __PLUGIN_VERSION__: JSON.stringify(pluginVersion) }),
       new HtmlWebpackPlugin({
         template: resolve(here, 'src/ui.html'),
         filename: 'ui.html',

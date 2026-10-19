@@ -917,8 +917,8 @@ fn array_text(value: &Value) -> String {
 pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
     match kind {
         "page-health" => "runtime-error",
-        "image-loaded" => "asset-mismatch",
-        "no-low-contrast-text" => "section-visual",
+        "image-loaded" | "stale-resources" => "asset-mismatch",
+        "no-low-contrast-text" | "native-appearance" => "section-visual",
         "rendered-completeness" => "page-visual",
         "no-horizontal-overflow" | "no-clipped-text" => "overflow",
         "bounds" if reason.starts_with("position") => "layout-position",

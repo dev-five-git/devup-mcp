@@ -17,8 +17,11 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
-  evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateNoLowContrastText, evaluateImageLoaded, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
+  evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
 } from './checks.mjs';
+import {
+  evaluateImagesLoaded, evaluateNativeAppearance, evaluateStaleResources, freshLoad, guardOrigins, observeImages, observeNativeAppearance, snapshotLoad,
+} from './resource-checks.mjs';
 
 const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
@@ -485,7 +488,7 @@ async function checkExpectations(page, expect, timeout) {
 
 async function runViewport(browser, plan, viewport, out, deadline, references) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
-  const context = await browser.newContext({
+  const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor ?? 1,
     isMobile: Boolean(viewport.mobile),
@@ -493,27 +496,29 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
     locale: plan.locale ?? undefined,
     timezoneId: plan.timezone ?? undefined,
     serviceWorkers: 'block',
-  });
+  };
+  const context = await browser.newContext(contextOptions);
   const environmentErrors = [];
   const blocked = [];
-  await context.route('**/*', (route) => {
-    const url = route.request().url();
-    const protocol = url.slice(0, url.indexOf(':'));
-    if (['data', 'blob', 'about'].includes(protocol) || allowed.has(new URL(url).origin)) {
-      return route.continue();
-    }
-    blocked.push(url);
-    return route.abort('blockedbyclient');
-  });
+  await guardOrigins(context, allowed, blocked);
   await context.addInitScript(VIEW_TRANSITION_PROBE);
   const page = await context.newPage();
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
   page.on('console', (message) => {
     if (message.type() === 'error') environmentErrors.push({ kind: 'console-error', message: message.text() });
   });
+  const responseLog = [];
+  page.on('response', (response) => {
+    const type = response.request().resourceType();
+    if (['image', 'script', 'stylesheet', 'font', 'media'].includes(type)) {
+      responseLog.push({ url: response.url(), status: response.status(), type });
+    }
+  });
+  const failedLog = [];
   page.on('requestfailed', (request) => {
     const failure = request.failure()?.errorText ?? 'failed';
     if (failure.includes('ERR_BLOCKED_BY_CLIENT')) return;
+    if (request.resourceType() === 'image') failedLog.push({ url: request.url(), failure });
     environmentErrors.push({ kind: 'request-failed', message: `${request.url()}: ${failure}` });
   });
 
@@ -530,6 +535,8 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       const record = { id: screen.id, status: 'completed', checks: [] };
       run.screens.push(record);
       const errorsAtStart = environmentErrors.length;
+      const responsesAtStart = responseLog.length;
+      const failedAtStart = failedLog.length;
       const notMeasured = (status, reason) => {
         record.checks = screen.checks.map((check, index) => ({ index, kind: check.kind, label: check.label, status, reason, measured: {} }));
       };
@@ -622,14 +629,54 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
           record.checks.push({ ...item, ...evaluateHidden({ subjectCount, visible }) });
           continue;
         }
-        if (check.kind === 'no-low-contrast-text' || check.kind === 'image-loaded') {
+        if (check.kind === 'image-loaded') {
+          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+          if ((await scope.count()) !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          const requests = {
+            responses: responseLog.slice(responsesAtStart).filter((entry) => entry.type === 'image'),
+            failed: failedLog.slice(failedAtStart),
+            scoped: Boolean(check.subject),
+          };
+          record.checks.push({ ...item, ...evaluateImagesLoaded(await observeImages(scope), requests) });
+          continue;
+        }
+        if (check.kind === 'no-low-contrast-text') {
           if (check.subject && await locate(page, check.subject).count() !== 1) {
             record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
             continue;
           }
           const observed = await observeCompleteness(page, {}, viewport.width, check.subject);
-          const result = check.kind === 'image-loaded' ? evaluateImageLoaded(observed) : evaluateNoLowContrastText({}, observed);
+          const result = evaluateNoLowContrastText({}, observed);
           record.checks.push({ ...item, ...result });
+          continue;
+        }
+        if (check.kind === 'native-appearance') {
+          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+          if ((await scope.count()) !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          record.checks.push({ ...item, ...evaluateNativeAppearance(await observeNativeAppearance(scope)) });
+          continue;
+        }
+        if (check.kind === 'stale-resources') {
+          const responses = responseLog.slice(responsesAtStart);
+          const first = await snapshotLoad(page);
+          let second = null;
+          let reloadError = null;
+          try {
+            second = await freshLoad({
+              browser, contextOptions, url: page.url(), timeout: stepTimeout,
+              install: (fresh) => guardOrigins(fresh, allowed, blocked),
+              ready: (fresh) => waitReady(fresh, plan, stepTimeout),
+            });
+          } catch (error) {
+            reloadError = String(error?.message ?? error).split('\n')[0];
+          }
+          record.checks.push({ ...item, ...evaluateStaleResources({ responses, first, second, reloadError }) });
           continue;
         }
         if (check.kind === 'rendered-completeness') {

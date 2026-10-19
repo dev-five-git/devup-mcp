@@ -86,6 +86,7 @@ mod tests {
                 selection: selected.map(|count| (1..=count).map(node).collect()),
                 selection_count: selected,
                 in_view: Some(false),
+                plugin_version: Some("0.4.6".to_owned()),
                 ..Default::default()
             },
         }
@@ -218,6 +219,7 @@ mod tests {
         assert_eq!(file["selection"][0]["type"], "FRAME");
         // Out of view, status says so before a collection meets Figma's refusals.
         assert_eq!(file["inView"], false);
+        assert_eq!(file["pluginVersion"], "0.4.6");
         assert!(
             file["inViewNote"]
                 .as_str()

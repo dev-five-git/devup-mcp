@@ -313,6 +313,8 @@ pub(super) fn url_plan(
         check(json!({"kind": "page-health", "label": "page health"})),
         check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
         check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),
+        check(json!({"kind": "native-appearance", "label": "controls drawn without native browser chrome"})),
+        check(json!({"kind": "stale-resources", "label": "no stale or missing build resources"})),
         check(json!({"kind": "no-horizontal-overflow", "label": "no horizontal overflow"})),
         check(json!({"kind": "no-clipped-text", "label": "no clipped text"})),
     ];
