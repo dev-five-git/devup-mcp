@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Require complete URL-by-width runtime evidence, reading-order and responsive clipping checks before completion",
-  "date": "2026-10-19T08:11:39.299827700Z"
-}

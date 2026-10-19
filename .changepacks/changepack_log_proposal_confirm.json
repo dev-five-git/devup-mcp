@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "Accept tool arguments a client sent as strings where the schema wants a number, boolean, array or object. devup_screen_plan draft now returns `proposal` and `proposalMarkdown`, a single table of every open decision with the recommended answer, so the user confirms the whole plan in one question asked in their own language instead of answering decision by decision. confirm takes `acceptRecommended: true`: any applicable question left out of `answers` gets its recommended option. When confirm would put two screens on one URL it writes nothing and returns `details.conflict` and `details.retryAnswers`, which suggests a different URL to retry with.",
-  "date": "2026-10-19T00:00:00+09:00"
-}

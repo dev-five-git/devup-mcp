@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Show rendered completeness in per-width audit reports",
-  "date": "2026-10-19T08:14:14.391652Z"
-}
