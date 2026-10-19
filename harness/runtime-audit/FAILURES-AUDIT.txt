@@ -28,3 +28,5 @@ Validation
 
 Scope
    No apps/prime changes, no push, no PR and no branch merges. Prime itself was not rebuilt or visually re-audited; browser regressions use controlled fixtures. Patch changepacks were added and changes are committed on the requested branch.
+
+Generated-script parity also exposed concurrent generator writes. The generator now publishes complete files atomically and a dedicated concurrent-generation regression passes.
