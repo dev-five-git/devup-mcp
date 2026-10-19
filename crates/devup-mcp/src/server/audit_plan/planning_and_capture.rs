@@ -982,25 +982,3 @@ fn local_imports(source: &str) -> Vec<(String, String)> {
     }
     found
 }
-
-fn read_module(base: &Path, module: &str) -> Option<String> {
-    for suffix in [
-        "",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".mjs",
-        ".json",
-        "/index.ts",
-        "/index.js",
-    ] {
-        let path = base.join(format!("{module}{suffix}"));
-        if path.is_file()
-            && std::fs::metadata(&path).is_ok_and(|meta| meta.len() <= 512 * 1024)
-            && let Ok(text) = std::fs::read_to_string(&path)
-        {
-            return Some(text);
-        }
-    }
-    None
-}

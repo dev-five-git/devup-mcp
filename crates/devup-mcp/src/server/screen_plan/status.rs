@@ -76,14 +76,24 @@ pub(super) fn status_report(
                     return json!({"width": width, "result": "not-run",
                         "reasons": [if audited { "no runtime audit item for this URL at this width" } else { "no runtime audit report supplied" }]});
                 }
-                let result = matching
+                let mut result = matching
                     .iter()
                     .fold("pass", |acc, row| worst(acc, text(&row["status"])));
+                let mut reasons = matching.iter().flat_map(|row| array(&row["reasons"]).to_vec()).collect::<Vec<_>>();
+                let missing_reference = array(&plan["audit"]["plans"]).iter().filter(|entry| entry["url"] == url)
+                    .flat_map(|entry| array(&entry["missingReferences"]))
+                    .any(|reference| reference["width"].is_null() || reference["width"] == *width);
+                let pending_visual = array(&plan["audit"]["visualPending"]).iter()
+                    .any(|comparison| comparison["routePath"] == url && comparison["viewport"]["width"] == *width);
+                if missing_reference || pending_visual {
+                    if result == "pass" { result = "not-run"; }
+                    reasons.push(json!("Figma page, section or asset visual comparison missing, blocked or not yet judged"));
+                }
                 json!({
                     "width": width,
                     "result": result,
                     "columns": matching[0]["columns"],
-                    "reasons": matching.iter().flat_map(|row| array(&row["reasons"]).to_vec()).collect::<Vec<_>>(),
+                    "reasons": reasons,
                     "screenshots": matching.iter().filter_map(|row| row["screenshot"].as_str()).collect::<Vec<_>>(),
                 })
             })

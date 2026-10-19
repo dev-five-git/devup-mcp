@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout } from '../checks.mjs';
-import { observeSequence, observeSectionLayout, observeClippedContent } from '../run.mjs';
+import { observeSequence, observeSectionLayout, observeClippedContent, runPlan } from '../run.mjs';
 
 test('health rejects narrow documents and records vinext error text', () => {
   const healthy = { errorTexts: [], errors: [], viewportWidth: 858, documentWidth: 858 };
@@ -57,4 +57,34 @@ test('internal nav and thumbnail clipping fails even without page overflow', asy
 test('text alignment follows Figma even when its text box stays full width', () => {
   assert.equal(evaluateTextAlignment({ edge: 'center' }, { count: 1, visible: true, align: 'left', direction: 'ltr' }).status, 'fail');
   assert.equal(evaluateTextAlignment({ edge: 'center' }, { count: 1, visible: true, align: 'center', direction: 'ltr' }).status, 'pass');
+});
+
+test('runner executes the new checks at every required width', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const server = createServer((request, response) => {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(`<html style="width:300px"><body><main><section style="width:100px"><div>01</div><div>03</div><div>02</div><p>This page couldn't load</p><p data-testid="title" style="text-align:left">Title</p><div id="tech" style="overflow:hidden;width:80px"><div style="width:200px">Devup UI / Vespera</div></div></section><button style="color:white">Submit</button><div style="height:100px;background-image:url(/hero.png)"></div></main></body></html>`);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = await mkdtemp(join(tmpdir(), 'devup-layout-'));
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const path = join(dir, 'plan.json');
+    const checks = ['page-health','sequence-order','section-layout','no-clipped-content','no-low-contrast-text','image-loaded'].map((kind) => ({ kind, label: kind }));
+    checks.push({ kind: 'text-align', label: 'title alignment', subject: { testId: 'title' }, edge: 'center' });
+    await writeFile(path, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'layout', plan: { baseUrl, allowedOrigins: [baseUrl], viewports: [390,858,1100,1440].map((width) => ({ width, height: 900, deviceScaleFactor: 1 })), screens: [{ id: 'home', routePath: '/', checks }] } }));
+    const report = await runPlan({ plan: path, out: join(dir, 'out'), maxMinutes: 1 });
+    for (const run of report.runs) {
+      for (const check of run.screens[0].checks) assert.equal(check.status, 'fail', `${run.viewport.width}: ${JSON.stringify(check)}`);
+      const health = run.screens[0].checks.find((check) => check.kind === 'page-health');
+      assert.match(health.reason, /couldn't load/);
+      assert.match(health.reason, /300px wide/);
+    }
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
 });

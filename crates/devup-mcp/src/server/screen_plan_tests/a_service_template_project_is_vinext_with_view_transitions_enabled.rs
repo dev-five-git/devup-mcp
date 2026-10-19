@@ -570,7 +570,7 @@ async fn a_pending_decision_is_taken_at_the_end_and_a_destructive_one_is_left_un
     );
     assert!(
         text_report
-            .contains("| URL | width | health | geometry | drift / converter bugs | page | section | asset | interaction |")
+            .contains("| URL | width | result | completeness | health | geometry | drift / converter bugs | page | section | asset | interaction |")
     );
     assert!(text_report.contains("Dependencies: the update step has not been recorded."));
 }

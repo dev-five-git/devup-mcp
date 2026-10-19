@@ -472,6 +472,12 @@ pub(super) fn record_round(
             record["status"] = json!("resolved");
         }
     }
+    let mut visual_pending = plan["audit"]["visualPending"].as_array().cloned().unwrap_or_default();
+    visual_pending.retain(|comparison| !comparison["routePath"].as_str().zip(comparison["viewport"]["width"].as_u64())
+        .is_some_and(|(route, width)| audited.contains(&(route.to_owned(), width))));
+    visual_pending.extend(comparisons.iter().filter(|comparison| !visual.iter().any(|result|
+        comparison["id"] == result.id && matches!(result.verdict.as_str(), "pass" | "fail"))).cloned());
+    plan["audit"]["visualPending"] = json!(visual_pending);
     json!({"pendingComparisons": pending, "inconclusiveComparisons": inconclusive})
 }
 
@@ -600,7 +606,7 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
         other => other.to_string(),
     };
     let mut out = String::from(
-        "| URL | width | result | health | geometry | drift / converter bugs | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        "| URL | width | result | completeness | health | geometry | drift / converter bugs | page | section | asset | interaction | screenshot | diffs |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let records = plan["audit"]["findings"].as_object();
     for row in rows {
@@ -630,9 +636,10 @@ pub(super) fn final_report(plan: &Value, rows: &[Value], trailing: &str) -> Stri
                     .count()
             };
             out.push_str(&format!(
-                "| {url} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {url} | {} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |\n",
                 width["width"],
                 cell(&width["result"]),
+                cell(&columns["completeness"]),
                 cell(&columns["health"]),
                 cell(&columns["geometry"]),
                 count("code-drift"),
@@ -830,4 +837,26 @@ fn text_alignment_check(payload: &CollectedPayload, child: &str, width: u32) -> 
     if !["left", "right", "center", "justify"].contains(&edge.as_str()) { return None; }
     Some(check(json!({"kind":"text-align", "label":format!("{} text alignment", name_of(payload, child)),
         "subject":node_at(width, child), "nodeId":child, "edge":edge, "widths":[width]})))
+}
+
+fn read_module(base: &Path, module: &str) -> Option<String> {
+    for suffix in [
+        "",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".mjs",
+        ".json",
+        "/index.ts",
+        "/index.js",
+    ] {
+        let path = base.join(format!("{module}{suffix}"));
+        if path.is_file()
+            && std::fs::metadata(&path).is_ok_and(|meta| meta.len() <= 512 * 1024)
+            && let Ok(text) = std::fs::read_to_string(&path)
+        {
+            return Some(text);
+        }
+    }
+    None
 }

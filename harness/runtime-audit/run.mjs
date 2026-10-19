@@ -346,7 +346,7 @@ export async function observeSectionLayout(page, subject, container) {
     const parent = locate(page, container);
     const box = await target.count() === 1 ? await target.boundingBox() : null;
     const containerBox = await parent.count() === 1 ? await parent.boundingBox() : null;
-    return { sections: [{ name: JSON.stringify(subject), visible: Boolean(box), width: box?.width ?? 0, height: box?.height ?? 0, containerWidth: containerBox?.width ?? page.viewportSize().width }], texts: [] };
+    return { sections: [{ name: JSON.stringify(subject), visible: Boolean(box) && await target.evaluate((element) => element.checkVisibility({ opacityProperty: true, visibilityProperty: true })), width: box?.width ?? 0, height: box?.height ?? 0, containerWidth: containerBox?.width ?? page.viewportSize().width }], texts: [] };
   }
   return page.evaluate(() => {
     const shown = (element) => element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
@@ -354,7 +354,7 @@ export async function observeSectionLayout(page, subject, container) {
       const box = element.getBoundingClientRect();
       return { name: element.id || element.tagName, visible: shown(element), width: box.width, height: box.height, containerWidth: element.parentElement.getBoundingClientRect().width };
     });
-    const texts = [...document.querySelectorAll('p')].filter((element) => shown(element) && element.textContent.trim().length > 60).map((element) => ({ name: element.textContent.trim().slice(0, 60), width: element.getBoundingClientRect().width }));
+    const texts = [...document.querySelectorAll('body *')].filter((element) => shown(element) && [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').length > 24).map((element) => ({ name: element.textContent.trim().slice(0, 60), width: element.getBoundingClientRect().width }));
     return { sections, texts };
   });
 }

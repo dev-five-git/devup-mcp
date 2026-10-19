@@ -778,8 +778,8 @@ fn a_mismatch_with_the_code_still_equal_to_the_export_is_a_converter_bug_with_a_
     ];
     let queue = work_queue(&plan, &rows, &[]);
     assert_eq!(
-        queue[0]["done"], true,
-        "a filed converter bug does not hold the URL: {queue:?}"
+        queue[0]["done"], false,
+        "a filed converter bug remains reported, but a failing cell cannot be called done: {queue:?}"
     );
     assert_eq!(queue[0]["reported"][0]["converterBug"], "10:132");
     let report = final_report(&plan, &rows, "");
@@ -832,4 +832,16 @@ fn a_mismatch_without_an_export_record_keeps_its_class_and_says_why() {
             .unwrap()
             .contains("No export record")
     );
+}
+
+#[test]
+fn an_asset_capture_waiting_for_comparison_blocks_completion() {
+    let mut plan = json!({"audit":{}});
+    let audit = json!({"screenTable":[{"routePath":"/", "width":1440}], "visualComparisons":[
+        {"id":"home|asset|icon|1440", "routePath":"/", "viewport":{"width":1440}, "blockers":[]}
+    ]});
+    record_round(&mut plan, &audit, "run", &[], &BTreeMap::new(), 3);
+    assert_eq!(plan["audit"]["visualPending"].as_array().unwrap().len(), 1);
+    record_round(&mut plan, &audit, "run", &[VisualResultInput { id:"home|asset|icon|1440".into(), verdict:"pass".into(), changed_ratio:Some(0.0), diff_path:None, reason:None }], &BTreeMap::new(), 3);
+    assert!(plan["audit"]["visualPending"].as_array().unwrap().is_empty());
 }

@@ -524,7 +524,7 @@ pub(super) async fn audit_plan(
     for written in array(&result["plans"]) {
         entries.retain(|entry| entry["url"] != written["url"]);
         entries.push(json!({"url": written["url"], "screen": written["screen"],
-            "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
+            "missingReferences": written["missingReferences"], "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
     // A dynamic route sampled from its Figma frame is an assumption, and is
     // reported as one.

@@ -1,0 +1,30 @@
+Runtime failure coverage
+
+1. Error page / missing URL x width execution
+   page-health records vinext/Next error text, navigation failures, page and console errors, and a document narrower than the viewport. Screen status keeps default 1440/1100/858/390 widths plus drawn/reported widths even when a report is partial. Missing cells are not-run; written files are written-unverified until drawn-width completeness passes. Done requires every required cell to pass.
+
+2. Numbered cards in column order
+   Exports and devup_ui_validate flag column-reading-order risks rather than silently treating nested columns as responsive reading order. sequence-order checks numbered and STEP labels in visual row order at every width and names reversed elements. The converter reports the risk; it does not automatically rewrite every masonry layout.
+
+3. Narrow unstyled layouts and internal clipping
+   section-layout checks visible mapped top-level sections at every required width, requires at least half the container width, and rejects long text columns below 120px. Existing exact bounds, overflow and clipped-text checks remain. no-clipped-content catches clipped header navigation, technology lists and portfolio rows even when the document itself fits; carousel exceptions require an explicit audit marker and visible controls or scrollbar. Static warnings flag fixed multi-column rows and wide-only responsive sizing without a narrow layout rule.
+
+4. Flattened icons and wrong alignment
+   Generated plans compare each asset with its native Figma render at its drawn width. Pending comparisons and missing native references now block a passing cell. Text alignment is checked against Figma textAlignHorizontal in addition to geometry and section/page comparisons. Inspected commit 06241ab on devfive-relay-c70423/multicolor-icon-mask: its fill/stroke colour analysis covers purple outlines with light lavender fills and keeps them as Image; this fix is absent from main. No branch was merged.
+
+5. Questions during implementation
+   Draft already assembles site, structure and URL questions in its initial questions/questionRounds. Added a regression asserting all categories are covered and strengthened tool, usage-guide and /devup instructions to ask those rounds back to back before implementation, then make recorded conservative assumptions instead of asking again.
+
+Retained and completed the prior rendered-completeness work: frame height, visible sections/assets, decoded images and effective text contrast. Unsupported image/colour backgrounds remain inconclusive rather than passing.
+
+Validation
+   cargo fmt --check and cargo clippy --all-targets -- -D warnings pass.
+   npm test in harness/runtime-audit: 34 passed, including Chromium end-to-end checks at all four widths.
+   Serial Rust suite with the two known Windows symlink tests filtered: 1646 passed, 2 ignored, 2 filtered.
+   Final unfiltered cargo test -- --test-threads=1: 1648 passed, 2 ignored, 0 filtered.
+   Windows symlink tests retain their privilege checks and return early when the host cannot create symlinks (error 1314); those checks remain unavailable on this host.
+   Generator concurrency regression: 1 passed; concurrent wrapper publication is now atomic and avoids rewriting identical output.
+   An unrelated asset-job timeout test failed once under contention, passed alone, and passed in the serial full-suite run. A second existing race exposed partially written generated JavaScript modules; atomic publication and a concurrent import/generation regression fix that failure.
+
+Scope
+   No apps/prime changes, no push, no PR and no branch merges. Prime itself was not rebuilt or visually re-audited; browser regressions use controlled fixtures. Patch changepacks were added and changes are committed on the requested branch.

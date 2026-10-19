@@ -916,3 +916,13 @@ fn site_structure_and_url_questions_are_all_in_the_initial_rounds() {
     assert!(ids.iter().any(|id| id.starts_with("split-route:")));
     assert_rounds_cover(&plan);
 }
+
+#[test]
+fn visual_comparisons_and_missing_asset_references_block_a_passing_cell() {
+    let mut plan = confirmed_plan();
+    plan["audit"] = json!({"visualPending":[{"routePath":"/", "viewport":{"width":1440}}]});
+    let audit = json!({"widthTable":[{"width":1440}],"screenTable":[{"routePath":"/", "width":1440,"status":"pass","columns":{"completeness":"pass"}}]});
+    assert_eq!(status_report(&plan, &evidence(), Some(&audit))["rows"][0]["widths"][0]["result"], "not-run");
+    plan["audit"] = json!({"plans":[{"url":"/", "missingReferences":[{"width":1440,"kind":"nativeRender"}]}]});
+    assert_eq!(status_report(&plan, &evidence(), Some(&audit))["rows"][0]["widths"][0]["result"], "not-run");
+}

@@ -258,7 +258,14 @@ impl Collector<'_> {
             .iter()
             .filter(|child| pixels(child.attrs.get("w")).is_some())
             .count();
-        if row && !wraps && fixed_children >= 2 {
+        let wide_only = std::iter::once(parent).chain(children).any(|element| {
+            element.attrs.values().any(|value| {
+                (value.trim_start().starts_with("[null")
+                    || value.trim_start().starts_with("[undefined"))
+                    && value.contains("px")
+            })
+        });
+        if row && !wraps && (fixed_children >= 2 || wide_only) {
             self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal,
                 "message":"A multi-column row keeps fixed child widths without a narrow column or wrap rule. Supply narrow responsive layout props and verify section-layout, overflow and clipped text at 390/858px."}));
         }
