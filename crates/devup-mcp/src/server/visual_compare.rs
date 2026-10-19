@@ -837,7 +837,15 @@ mod tests {
         let f = fixture();
         let outside = fixture();
         #[cfg(windows)]
-        std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")).unwrap();
+        if let Err(error) = std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")) {
+            // Non-admin Windows sessions without Developer Mode cannot
+            // create symlinks (ERROR_PRIVILEGE_NOT_HELD).
+            if error.raw_os_error() == Some(1314) {
+                eprintln!("symlink test unavailable: {error}");
+                return;
+            }
+            panic!("cannot create test symlink: {error}");
+        }
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside.0, f.0.join("escape")).unwrap();
         assert!(
