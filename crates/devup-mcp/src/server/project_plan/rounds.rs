@@ -75,6 +75,18 @@ pub(super) fn answers(
     }
     Ok(())
 }
+pub(super) fn accept_recommended(plan: &mut Value) -> Result<(), DevupError> {
+    let fill = array(&plan["questions"])
+        .iter()
+        .filter(|q| plan["answers"][text(&q["id"])].is_null())
+        .filter_map(|q| {
+            array(&q["resolve"])
+                .first()
+                .map(|r| (text(&q["id"]).to_owned(), r["label"].clone()))
+        })
+        .collect::<BTreeMap<_, _>>();
+    answers(plan, &fill)
+}
 pub(super) fn require_answers(plan: &Value) -> Result<(), DevupError> {
     let missing = array(&plan["questions"])
         .iter()

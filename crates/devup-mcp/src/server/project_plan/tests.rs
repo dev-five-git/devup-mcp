@@ -122,6 +122,19 @@ async fn figma_erd_confirm_writes_schema_valid_models() {
 
 }
 #[tokio::test]
+async fn accepting_the_proposal_confirms_without_answers() {
+    let dir = TestDir::new();
+    let (mut i, policy, draft) = drafted(dir.path(), true).await;
+    assert_eq!(
+        array(&draft["proposal"]).len(),
+        array(&draft["plan"]["questions"]).len()
+    );
+    i.answers.clear();
+    i.accept_recommended = true;
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["state"], "confirmed");
+}
+#[tokio::test]
 async fn many_to_many_join_table_and_gapped_roles_validate() {
     let dir = TestDir::new();
     let (mut i, policy, r) = drafted(dir.path(), true).await;

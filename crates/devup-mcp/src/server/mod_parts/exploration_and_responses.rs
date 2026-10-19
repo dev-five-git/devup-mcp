@@ -62,6 +62,8 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
     response
 }
 
+#[path = "../coerce_args.rs"]
+mod coerce_args;
 #[path = "../handlers/devup_feature_trace.rs"]
 mod devup_feature_trace_handler;
 #[path = "../handlers/devup_figma_auth.rs"]
@@ -740,6 +742,12 @@ impl ServerHandler for DevupServer {
             && let Some(peer) = context.peer.peer_info()
         {
             let _ = self.client_name.set(peer.client_info.name.clone());
+        }
+        let mut request = request;
+        if let (Some(tool), Some(arguments)) =
+            (self.tool_router.get(request.name.as_ref()), request.arguments.as_mut())
+        {
+            coerce_args::coerce_stringified_arguments(&tool.input_schema, arguments);
         }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
         let mut response = match self.tool_router.call(call).await {
