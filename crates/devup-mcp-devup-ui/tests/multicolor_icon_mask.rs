@@ -157,3 +157,15 @@ fn an_image_paint_inside_an_icon_stays_an_image() {
 
     assert!(!tsx.contains("maskImage"), "{tsx}");
 }
+
+#[test]
+fn purple_outline_with_light_lavender_fill_exports_as_image() {
+    let (r, g, b) = PURPLE;
+    let mut nodes = icon(vec![solid(0.941, 0.925, 1.0, 1.0)]);
+    nodes[1]["fields"]["strokes"] = json!([solid(r, g, b, 1.0)]);
+    nodes[1]["fields"]["strokeWeight"] = json!(2.0);
+    let tsx = generate("1:find", nodes);
+    assert!(tsx.contains("<Image"), "{tsx}");
+    assert!(tsx.contains("src=\"/icons/find.svg\""), "{tsx}");
+    assert!(!tsx.contains("maskImage"), "{tsx}");
+}
