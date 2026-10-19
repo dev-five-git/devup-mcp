@@ -837,7 +837,16 @@ mod tests {
         let f = fixture();
         let outside = fixture();
         #[cfg(windows)]
-        std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")).unwrap();
+        // Like output_policy's directory-symlink test, this requires the host
+        // to allow symlink creation. Windows reports missing privilege as 1314
+        // (ErrorKind::Uncategorized on some toolchains), not PermissionDenied.
+        if let Err(error) = std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")) {
+            if error.raw_os_error() == Some(1314) {
+                eprintln!("symlink escape test unavailable: Windows symlink privilege is missing");
+                return;
+            }
+            panic!("could not create test symlink: {error}");
+        }
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside.0, f.0.join("escape")).unwrap();
         assert!(
