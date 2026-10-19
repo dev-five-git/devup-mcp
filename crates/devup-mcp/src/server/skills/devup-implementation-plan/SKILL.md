@@ -378,6 +378,13 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    with the app running. If the runner cannot be installed, call status with
    `auditPlanPath` and `toolingUnavailable: "<why>"`: that URL's audit is
    inconclusive and the rest of the work goes on.
+   This real-browser step is required before claiming any page is done: build
+   and serve the actual generated app, not a hand-written stand-in. Static
+   checks and TSX snapshots cannot detect missing background images, wrong
+   colors or assets that never load. Run `image-loaded` and `page-health`, read
+   the browser report, and retain screenshots with their viewport and reference
+   identities. A report's `completed` means execution finished; a capture check's
+   `pass` means only that pixels were captured. Neither is a visual verdict.
 9. **Read the status, fix, re-run.** `devup_screen_plan` `action: "status"`
    with `auditPlanPath` and `auditReportPath`. Run every `visualComparisons`
    call (`devup_visual_compare`, each with its `threshold` and `diffPath`)
@@ -421,10 +428,15 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    with `assume` (`about`: the decision id, `decision`: the recommended
    option). A destructive one (deleting, overwriting, reaching outside the
    project) stays unbuilt and is listed in the report.
-11. **Done means zero fails.** A URL is done when every check and comparison
-   passes at its drawn widths and health and overflow pass at every width -
-   or when each remaining finding is a converter bug with its repro filed, or
-   listed as unresolved with its evidence. Before reporting done, also:
+11. **Done means zero fails.** A URL is done only after its actual Chromium
+   screenshots have been compared with independently exported Figma originals,
+   every check and comparison passes at its drawn widths, and health and
+   overflow pass at every width. Inspect the page/section/asset diffs for
+   background images, colors and loaded assets; feed every result back to
+   status. Missing references, unavailable browser tooling, not-run comparisons,
+   converter bugs and unresolved findings remain incomplete with evidence.
+   Preserve screenshots, reports, Figma reference identities and diffs.
+   Before reporting done, also:
 
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
@@ -453,7 +465,8 @@ Hard rules, after confirm:
 
 - Visually verify every screen, section and asset at every drawn width.
 - Never stop to wait; reorder the work.
-- Done = zero fails, or listed as unresolved with evidence.
+- Done = a real browser render and zero failed or missing comparisons;
+  unresolved findings are reported as incomplete with evidence.
 - Layout is exact; a mismatch is drift or a converter bug, never tuned.
 
 ## What the questions mean

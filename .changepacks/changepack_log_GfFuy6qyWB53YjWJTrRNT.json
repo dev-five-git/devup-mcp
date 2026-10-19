@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "Require real Chromium rendering and pinned Figma pixel comparisons before page completion; cover generated DevupUI pages, missing backgrounds, wrong colors and failed assets in CI.",
+  "date": "2026-10-19T14:17:11.350699200Z"
+}
