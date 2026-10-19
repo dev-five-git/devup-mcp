@@ -1,16 +1,13 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-
 use devup_mcp_figma::{DevupError, ErrorCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-
 use super::artifacts::ArtifactStore;
 use super::output::{OutputPolicy, OutputTransaction};
-
 pub(crate) const PLAN_KIND: &str = "devup-runtime-audit-plan";
 pub(crate) const REPORT_KIND: &str = "devup-runtime-audit-report";
 const SCHEMA_VERSION: u64 = 1;
@@ -30,7 +27,6 @@ const MAX_SCREENSHOTS: usize = 400;
 const MAX_LISTED: usize = 50;
 // Keep complete per-width rows in the response without unbounded duplication.
 const MAX_DIMENSION_ROWS: usize = 100;
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
@@ -57,7 +53,6 @@ pub struct RuntimeAuditInput {
     #[serde(default)]
     pub report_path: Option<String>,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
@@ -85,7 +80,6 @@ pub struct PlanInput {
     #[serde(default)]
     pub step_timeout_ms: Option<u64>,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
@@ -99,11 +93,9 @@ pub struct ViewportInput {
     #[serde(default)]
     pub touch: bool,
 }
-
 fn default_scale() -> f64 {
     1.0
 }
-
 fn default_viewports() -> Vec<ViewportInput> {
     [1440, 1100, 858, 390]
         .into_iter()
@@ -116,7 +108,6 @@ fn default_viewports() -> Vec<ViewportInput> {
         })
         .collect()
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
@@ -140,7 +131,6 @@ pub struct ScreenInput {
     #[serde(default)]
     pub figma: Option<FigmaAnchorInput>,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
@@ -236,8 +226,13 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
     pub kind: String,
+    /// links-resolve: confirmed URL patterns and routes found on disk.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub planned_targets: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub existing_routes: Vec<String>,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
     #[serde(default)]
@@ -623,7 +618,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         Ok(())
     };
     match check.kind.as_str() {
-        "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
+        "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
         "stale-resources" => needs(false, false)?,
         "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
@@ -919,7 +914,7 @@ fn columns(
     let health = if unreached {
         "fail"
     } else {
-        fold(&["page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
+        fold(&["links-resolve", "page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
     };
     let captures = |scope: &str| {
         let count = judged

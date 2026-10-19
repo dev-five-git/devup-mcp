@@ -549,3 +549,5 @@ evidence and replaces the question it would otherwise take:
 - Geometry has no tolerance to configure; it is exact.
 - `visualThresholds` sets the changed-pixel ratio the comparisons allow:
   `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.
+
+Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.

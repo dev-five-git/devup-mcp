@@ -27,6 +27,57 @@ const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
 const DEFAULT_STEP_TIMEOUT = 10_000;
 
+// Resolve each concrete URL once across all widths. GET also detects soft error pages.
+export async function resolveLinks(request, anchors, check, cache = new Map()) {
+  const matches = (pattern, path) => {
+    const a = pattern.split('/').filter(Boolean), b = path.split('/').filter(Boolean);
+    for (const [i, part] of a.entries()) {
+      if (part.startsWith('[[...') && i === a.length - 1) return b.length >= i;
+      if (part.startsWith('[...') && i === a.length - 1) return b.length > i;
+      if (b[i] == null || (!part.startsWith('[') && part !== b[i])) return false;
+    }
+    return a.length === b.length;
+  };
+  const rows = [];
+  for (const anchor of anchors) {
+    const target = new URL(anchor.href, anchor.from);
+    target.hash = '';
+    const planned = (check.plannedTargets ?? []).some((path) => matches(path, target.pathname));
+    const existing = (check.existingRoutes ?? []).some((path) => matches(path, target.pathname));
+    if (!cache.has(target.href)) cache.set(target.href, (async () => {
+      try {
+        // Follow redirects manually: never send requests outside the original origin.
+        let url = target.href;
+        for (let redirects = 0; redirects < 10; redirects += 1) {
+          const response = await request.get(url, { maxRedirects: 0, timeout: DEFAULT_STEP_TIMEOUT });
+          const code = response.status();
+          if (code >= 300 && code < 400) {
+            const location = response.headers().location;
+            if (!location) return {status:'fail', reason:`HTTP ${code} without location`};
+            const next = new URL(location, url);
+            if (next.origin !== target.origin) return {status:'fail', reason:'redirect outside origin'};
+            url = next.href;
+            continue;
+          }
+          const text = (await response.text()).replaceAll("?", "'");
+          const error = ERROR_PAGE_TEXT.find((needle) => text.includes(needle));
+          return {status: code >= 200 && code < 300 && !error ? 'pass' : 'fail', httpStatus:code, reason:error ? `page error: ${error}` : `HTTP ${code}`};
+        }
+        return {status:'fail', reason:'redirect limit'};
+      } catch (error) { return {status:'fail', reason:String(error.message ?? error)}; }
+    })());
+    const result = await cache.get(target.href);
+    rows.push({...anchor, ...result, planned, ...(planned || existing ? {} : {status:'fail', reason:'unplanned-target'})});
+  }
+  return rows;
+}
+
+export function linkMarkdown(rows) {
+  const cell = (value) => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
+  return '| from | label | href | status | planned? |\n|---|---|---|---|---|\n'
+    + rows.map((row) => `| ${[row.from,row.label,row.href,row.status,row.planned ? 'yes' : 'no'].map(cell).join(' | ')} |`).join('\n');
+}
+
 export function parseArgs(argv) {
   const args = { maxMinutes: 10 };
   for (let index = 0; index < argv.length; index += 1) {
@@ -486,7 +537,7 @@ async function checkExpectations(page, expect, timeout) {
   return null;
 }
 
-async function runViewport(browser, plan, viewport, out, deadline, references) {
+async function runViewport(browser, plan, viewport, out, deadline, references, linkCache = new Map()) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
   const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
@@ -590,6 +641,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
         if (check.kind === 'view-transition') continue;
         if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
         const item = { index, kind: check.kind, label: check.label };
+        if (check.kind === 'links-resolve') continue;
         if (check.kind === 'page-health') {
           const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
           const errors = environmentErrors
@@ -732,15 +784,19 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
       // Links on this page, so a dynamic route ([slug]) can be audited at the
       // URLs the site itself links to.
-      record.links = await page.evaluate(() => {
-        const seen = new Set();
-        for (const anchor of document.querySelectorAll('a[href]')) {
-          const url = new URL(anchor.getAttribute('href'), location.href);
-          if (url.origin === location.origin) seen.add(url.pathname);
-          if (seen.size >= 200) break;
-        }
-        return [...seen];
-      }).catch(() => []);
+      const anchors = await page.evaluate(() => [...document.querySelectorAll('a[href]')].flatMap((anchor) => {
+        try {
+          const href = anchor.getAttribute('href');
+          const url = new URL(href, location.href);
+          return url.origin === location.origin ? [{from:location.href, label:anchor.getAttribute('aria-label') || anchor.textContent.trim(), href, pathname:url.pathname, width:innerWidth}] : [];
+        } catch { return []; }
+      }));
+      record.links = [...new Set(anchors.map((anchor) => anchor.pathname))];
+      for (const [index, check] of screen.checks.entries()) {
+        if (check.kind !== 'links-resolve' || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
+        record.linkTable = await resolveLinks(context.request, anchors, check, linkCache);
+        record.checks.push({index, kind:check.kind, label:check.label, status:record.linkTable.some((row) => row.status !== 'pass') ? 'fail' : 'pass', reason:'same-origin links resolved', measured:{linkTable:record.linkTable}});
+      }
       for (const [index, check] of screen.checks.entries()) {
         if (check.kind !== 'view-transition') continue;
         if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
@@ -801,8 +857,11 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
   const writeReport = async () => {
     report.finishedAt = new Date().toISOString();
     report.summary = summarize(report.runs);
+    report.linkTable = report.runs.flatMap((run) => run.screens.flatMap((screen) => screen.linkTable ?? []));
+    report.linkTableMarkdown = linkMarkdown(report.linkTable);
     await writeFile(join(outDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   };
+  const linkCache = new Map();
   let aborted = false;
   const onSignal = () => {
     aborted = true;
@@ -813,7 +872,7 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
   try {
     for (const viewport of plan.viewports) {
       if (aborted || Date.now() > deadline) break;
-      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? []));
+      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], linkCache));
     }
     const ranEverything = report.runs.length === plan.viewports.length
       && report.runs.every((run) => run.screens.every((screen) => screen.status === 'completed'));

@@ -1,5 +1,4 @@
 
-
 fn write_plan(
     input: PlanInput,
     policy: &OutputPolicy,
@@ -57,6 +56,7 @@ fn write_plan(
     if let Some(directory) = template_path {
         transaction.refuse_existing();
         for (name, bytes) in [
+            ("resource-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/resource-checks.mjs").as_slice()),
             (
                 "run.mjs",
                 include_bytes!("../../../../../harness/runtime-audit/run.mjs").as_slice(),
@@ -112,7 +112,6 @@ fn write_plan(
     });
     Ok(result)
 }
-
 fn read_json(
     policy: &OutputPolicy,
     path: &str,
@@ -124,7 +123,6 @@ fn read_json(
         .map_err(|error| invalid(format!("{path} is not valid JSON: {error}")))?;
     Ok((bytes, value, target.display_path().to_path_buf()))
 }
-
 fn rejected(reason: &str, details: Value) -> Value {
     json!({
         "verdict": "rejected",
@@ -133,12 +131,10 @@ fn rejected(reason: &str, details: Value) -> Value {
         "note": "Nothing in this report was counted. A report that cannot be tied to the plan it claims to run is not evidence of that plan.",
     })
 }
-
 #[cfg(test)]
 fn ingest(policy: &OutputPolicy, plan_path: &str, report_path: &str) -> Result<Value, DevupError> {
     ingest_references(policy, plan_path, report_path, None)
 }
-
 pub(crate) async fn ingest_with_artifacts(
     policy: &OutputPolicy,
     plan_path: &str,
@@ -165,7 +161,6 @@ pub(crate) async fn ingest_with_artifacts(
     .await
     .map_err(|_| invalid("The report could not be read to the end."))?
 }
-
 fn ingest_references(
     policy: &OutputPolicy,
     plan_path: &str,
@@ -219,7 +214,6 @@ fn ingest_references(
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_default();
-
     let mut counts = BTreeMap::<&str, usize>::new();
     let mut failures = Vec::new();
     let mut runs = Vec::new();
@@ -231,6 +225,7 @@ fn ingest_references(
     let mut screen_rows = Vec::new();
     let mut findings = Vec::new();
     let mut missing_nodes = Vec::new();
+    let mut link_table = Vec::<Value>::new();
     let mut links = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
     for viewport in &plan.viewports {
         let matching_runs = report["runs"]
@@ -305,6 +300,11 @@ fn ingest_references(
                         .take(200)
                         .map(str::to_owned),
                 );
+            }
+            if let Some(reported) = reported {
+                for check in reported["checks"].as_array().into_iter().flatten().filter(|check| check["kind"] == "links-resolve") {
+                    link_table.extend(check["measured"]["linkTable"].as_array().into_iter().flatten().cloned());
+                }
             }
             let mut outcomes = Vec::new();
             let mut judged = Vec::new();
@@ -571,6 +571,7 @@ fn ingest_references(
         "findings": findings,
         "missingNodes": missing_nodes,
         "links": links,
+        "linkTable": link_table,
         "screenTable": screen_rows,
         "widthTable": plan.viewports.iter().map(|viewport| json!({
             "width": viewport.width, "height": viewport.height,
@@ -600,7 +601,6 @@ fn ingest_references(
         },
     }))
 }
-
 /// One screen at one width, folded from its checks, its own record and the
 /// environment errors the run could pin on it. This is the row a person reads
 /// to learn whether `/about` works at 390; `failures` and `runs` say the same
@@ -690,7 +690,6 @@ fn screen_row(
         "screenshot": reported.and_then(|screen| screen["screenshot"]["path"].as_str()),
     })
 }
-
 #[allow(clippy::too_many_arguments)]
 fn dimension_row(
     screen: &ScreenInput,
@@ -796,19 +795,16 @@ fn dimension_row(
     }
     row
 }
-
 enum Integrity {
     Tampered(String),
     Unverified(String),
 }
-
 struct VerifiedShot {
     path: String,
     sha256: String,
     width: u32,
     height: u32,
 }
-
 fn verify_screenshot(
     policy: &OutputPolicy,
     report_dir: &Path,
