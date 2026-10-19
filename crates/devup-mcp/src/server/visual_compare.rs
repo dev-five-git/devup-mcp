@@ -837,7 +837,13 @@ mod tests {
         let f = fixture();
         let outside = fixture();
         #[cfg(windows)]
-        std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")).unwrap();
+        if let Err(error) = std::os::windows::fs::symlink_dir(&outside.0, f.0.join("escape")) {
+            if error.raw_os_error() == Some(1314) {
+                eprintln!("Skipping symlink escape test: Windows symlink privilege is unavailable.");
+                return;
+            }
+            panic!("create escape symlink: {error}");
+        }
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside.0, f.0.join("escape")).unwrap();
         assert!(

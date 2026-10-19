@@ -1,5 +1,3 @@
-
-
 /// `confirm`: every question that applies answered, in one call, or nothing
 /// changes.
 pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
@@ -277,6 +275,14 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     {
         row["hostUrl"] = json!(screen_routes.get(text(&row["hostScreen"])));
     }
+    let node_routes = routes
+        .iter()
+        .flat_map(|route| {
+            array(&route["nodeIds"])
+                .iter()
+                .map(move |node| (text(node).to_owned(), route["url"].clone()))
+        })
+        .collect::<BTreeMap<_, _>>();
     if let Some(rows) = plan["screens"].as_array_mut() {
         for screen in rows {
             let id = text(&screen["id"]).to_owned();
@@ -287,7 +293,30 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                     link["resolved"] =
                         json!({"url": action["link"], "evidence": "confirmed answer"});
                 } else if let Some(target) = link["resolved"]["screen"].as_str() {
-                    link["resolved"]["url"] = json!(screen_routes.get(target));
+                    link["resolved"]["url"] =
+                        if let Some(node) = link["resolved"]["nodeId"].as_str() {
+                            node_routes.get(node).cloned().unwrap_or(Value::Null)
+                        } else {
+                            let urls = routes
+                                .iter()
+                                .filter(|route| {
+                                    screens
+                                        .iter()
+                                        .find(|screen| screen["id"] == target)
+                                        .is_some_and(|screen| {
+                                            array(&screen["frames"]).iter().any(|frame| {
+                                                array(&route["nodeIds"]).contains(&frame["nodeId"])
+                                            })
+                                        })
+                                })
+                                .filter_map(|route| route["url"].as_str())
+                                .collect::<BTreeSet<_>>();
+                            if urls.len() == 1 {
+                                json!(urls.first())
+                            } else {
+                                Value::Null
+                            }
+                        };
                 }
                 resolved.push(link);
             }
@@ -326,6 +355,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     plan["designFixes"] = json!(design_fixes);
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
+    refresh_inventory_checks(&mut plan);
     if !plan["assumptions"].is_array() {
         plan["assumptions"] = json!([]);
     }
@@ -335,6 +365,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "planId": plan["planId"],
         "routes": routes,
         "markdownTable": route_markdown(&routes),
+        "frameInventory": plan["frameInventory"],
+        "linkLabelCheck": plan["linkLabelCheck"],
         "excluded": excluded,
         "designFixes": design_fixes,
         "site": plan["site"],
@@ -632,6 +664,33 @@ fn markdown(plan: &Value) -> String {
             cell(&screen["sharedParts"]),
             cell(&screen["openDecisions"]),
         ));
+    }
+    if plan["frameInventory"].is_object() {
+        out.push_str(
+            "\n## Frame inventory\n\n| Frame | nodeId | disposition | route |\n|---|---|---|---|\n",
+        );
+        for frame in array(&plan["frameInventory"]["frames"]) {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                cell(&frame["name"]),
+                cell(&frame["nodeId"]),
+                cell(&frame["disposition"]),
+                cell(&frame["route"])
+            ));
+        }
+        out.push_str(&format!("\n{}\n", text(&plan["frameInventory"]["rule"])));
+        out.push_str(
+            "\n## Link labels\n\n| On frame | Label | state | resolved |\n|---|---|---|---|\n",
+        );
+        for label in array(&plan["linkLabelCheck"]["labels"]) {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                cell(&label["on"]),
+                cell(&label["label"]),
+                cell(&label["state"]),
+                cell(&label["resolved"])
+            ));
+        }
     }
     let questions = array(&plan["questions"]);
     if !questions.is_empty() {

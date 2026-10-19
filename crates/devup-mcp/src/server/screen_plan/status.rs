@@ -294,6 +294,8 @@ pub(super) fn status_report(
         "defaults": plan["defaults"],
         "designFixes": design_fixes,
         "excluded": excluded,
+        "frameInventory": plan["frameInventory"],
+        "linkLabelCheck": plan["linkLabelCheck"],
         "inventoryNote": evidence.inventory_note,
         "rule": "A width without a runtime audit item is not-run, never pass. Implemented means an App Router page exists for the URL, not that it renders.",
     })

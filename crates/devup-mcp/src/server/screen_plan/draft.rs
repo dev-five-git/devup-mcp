@@ -443,6 +443,8 @@ pub(super) async fn draft_with(
         "heuristics": plan["heuristics"],
         "excluded": plan["excluded"],
         "outOfScope": plan["outOfScope"],
+        "frameInventory": plan["frameInventory"],
+        "linkLabelCheck": plan["linkLabelCheck"],
         "config": plan["config"],
         "unverifiedRoutes": unverified,
         "inventoryNote": plan["inventoryNote"],
