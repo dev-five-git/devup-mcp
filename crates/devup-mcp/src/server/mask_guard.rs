@@ -168,7 +168,7 @@ fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     }
 }
 
-fn percent_decode(path: &str) -> String {
+pub(super) fn percent_decode(path: &str) -> String {
     let bytes = path.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -190,7 +190,7 @@ fn percent_decode(path: &str) -> String {
 
 /// `<root>/public` first, then any other `public` directory the project's
 /// packages have, as the authoritative scan finds them.
-fn public_dirs_of(root: &Path) -> Vec<PathBuf> {
+pub(super) fn public_dirs_of(root: &Path) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let top = root.join("public");
     if top.is_dir() {

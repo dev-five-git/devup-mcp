@@ -105,6 +105,27 @@ impl DevupServer {
             report.ok = false;
         }
         report.violations.extend(masks);
+        // A reference with no file behind it renders an empty box, which only
+        // the disk shows.
+        let missing = asset_guard::violations(&sources, input.project_root.as_deref());
+        if !missing.is_empty() {
+            report.ok = false;
+        }
+        report.violations.extend(missing);
+        if let Some(coverage) = &input.section_coverage {
+            if coverage.node_ids.len() + coverage.asset_urls.len() > 4096 {
+                return Err(invalid("sectionCoverage exceeds 4096 entries.".into()));
+            }
+            let mut missing = asset_guard::coverage_violations(&sources, &coverage.node_ids);
+            missing.extend(asset_guard::asset_coverage_violations(
+                &sources,
+                &coverage.asset_urls,
+            ));
+            if !missing.is_empty() {
+                report.ok = false;
+            }
+            report.violations.extend(missing);
+        }
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three

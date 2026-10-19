@@ -160,6 +160,7 @@ pub(super) async fn finalize_export_delivery(
     }
     let mut value = Value::Object(std::mem::take(&mut result));
     rewrite_result_asset_references(&mut value, &replacements);
+    super::super::asset_guard::refresh_export_asset_urls(&mut value);
     audit_delivered_properties(&mut value);
     super::super::interactions::attach(&mut value, &payload.snapshot);
     attach_diagnostic_screens(&mut value, &owners);

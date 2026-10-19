@@ -537,6 +537,10 @@ async fn project_operation(
                 section_tsx_projected,
             ) = project_section_frames::project_section_frames(
                 project_section_frames::SectionFrames {
+                    annotate_node_ids: theme_options
+                        .project_root
+                        .as_deref()
+                        .is_some_and(super::screen_plan::node_ids_enabled),
                     failures,
                     design_fingerprints: &design_fingerprints,
                     payload,

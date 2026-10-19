@@ -351,6 +351,11 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    /// Copy outputResults.tsx.sectionCoverage (or a Section frame's equivalent)
+    /// from devup_figma_export to check that captured sections/assets remain.
+    /// This is static JSX identity coverage, not proof of runtime visibility.
+    #[serde(default)]
+    pub section_coverage: Option<SectionCoverageInput>,
     /// Actual acquisition policies keyed by assetId, including public assetPath
     /// and effectsBaked. Missing baking evidence remains unverified.
     #[serde(default)]
@@ -403,6 +408,15 @@ pub struct UiValidateInput {
     /// parent states no px width of its own.
     #[serde(default)]
     pub reference_width: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SectionCoverageInput {
+    pub node_ids: Vec<String>,
+    /// Asset references in the original generated output, including masks and backgrounds.
+    #[serde(default)]
+    pub asset_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

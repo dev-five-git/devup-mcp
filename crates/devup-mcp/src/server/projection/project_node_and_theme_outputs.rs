@@ -102,8 +102,25 @@ pub(super) fn project_node_and_theme_outputs(
             }
             .with_payload_tokens(payload),
         )?;
+        if let Some(root) = theme_options.project_root.as_deref()
+            && super::super::screen_plan::node_ids_enabled(root)
+        {
+            let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
+            result.insert("figmaNodeIds".to_owned(), annotated);
+        }
+        let coverage = super::super::asset_guard::export_coverage(
+            &payload.snapshot,
+            node_id,
+            &mut output,
+            true,
+            theme_options
+                .project_root
+                .as_deref()
+                .is_some_and(super::super::screen_plan::node_ids_enabled),
+        );
         scope_output(&mut output, "tsx");
         result.entry("outputResults").or_insert_with(|| json!({}))["tsx"] = output_result(&output);
+        result["outputResults"]["tsx"]["sectionCoverage"] = coverage;
         result.insert(
             "widthBehavior".to_owned(),
             devup_mcp_devup_ui::codegen::width::width_behavior(&payload.snapshot, node_id, &output),
@@ -111,12 +128,6 @@ pub(super) fn project_node_and_theme_outputs(
         projection_diagnostics.extend(output.diagnostics.iter().cloned());
         fidelity_reports.push(output.fidelity_report.clone());
         generated_output_target = "tsx";
-        if let Some(root) = theme_options.project_root.as_deref()
-            && super::super::screen_plan::node_ids_enabled(root)
-        {
-            let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
-            result.insert("figmaNodeIds".to_owned(), annotated);
-        }
         tsx_source_map = Some(output.source_map.clone());
         if keep_tsx && output_paths.contains_key("tsx") {
             pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
@@ -161,9 +172,20 @@ pub(super) fn project_node_and_theme_outputs(
         );
         match output {
             Ok(mut output) => {
+                let coverage = super::super::asset_guard::export_coverage(
+                    &payload.snapshot,
+                    node_id,
+                    &mut output,
+                    false,
+                    theme_options
+                        .project_root
+                        .as_deref()
+                        .is_some_and(super::super::screen_plan::node_ids_enabled),
+                );
                 scope_output(&mut output, "componentTsx");
                 result.entry("outputResults").or_insert_with(|| json!({}))["componentTsx"] =
                     output_result(&output);
+                result["outputResults"]["componentTsx"]["sectionCoverage"] = coverage;
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
                 if tsx_source_map.is_none() {
