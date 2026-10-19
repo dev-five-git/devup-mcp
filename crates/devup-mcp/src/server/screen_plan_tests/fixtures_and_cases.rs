@@ -868,3 +868,61 @@ async fn reviewing_heuristics_asks_each_one_in_the_same_batch() {
     let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
     assert_eq!(confirmed["routes"][0]["url"], "/home");
 }
+
+#[tokio::test]
+async fn accepting_the_proposal_confirms_with_no_answers() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &main_widths()).await;
+    confirm_input.accept_recommended = true;
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    assert_eq!(confirmed["routes"][0]["url"], "/");
+    assert_eq!(confirmed["routes"][0]["nodeIds"], json!(["12:1", "12:2"]));
+}
+
+#[tokio::test]
+async fn two_screens_on_one_url_return_a_retry_that_confirms() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(
+        &fixture,
+        &[
+            screen("1:2", "Pricing", 1440.0),
+            screen("1:3", "Plans", 1440.0),
+        ],
+    )
+    .await;
+    confirm_input.accept_recommended = true;
+    confirm_input.answers = answers(&[("route:1:2", "/pricing"), ("route:1:3", "/pricing")]);
+    let error = confirm(&confirm_input, &fixture.policy()).unwrap_err();
+    assert_eq!(error.details["url"], "/pricing");
+    assert_eq!(array(&error.details["conflict"]).len(), 2);
+    let retry = error.details["retryAnswers"].as_object().unwrap();
+    assert_eq!(retry.len(), 1);
+    let (id, url) = retry.iter().next().unwrap();
+    assert!(id.starts_with("route:"));
+    assert_ne!(url, "/pricing");
+    confirm_input
+        .answers
+        .insert(id.clone(), AnswerInput::One(text(url).to_owned()));
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    assert_eq!(array(&confirmed["routes"]).len(), 2);
+}
+
+#[tokio::test]
+async fn draft_returns_one_proposal_row_per_question() {
+    let fixture = Fixture::new();
+    let drafted = draft(
+        &input(&fixture, "draft"),
+        &main_widths(),
+        json!({}),
+        &fixture.policy(),
+    )
+    .await
+    .unwrap();
+    let rows = array(&drafted["proposal"]);
+    assert_eq!(rows.len(), array(&drafted["questions"]).len());
+    assert!(rows.iter().all(|row| row["recommended"].is_string()));
+    assert!(
+        text(&drafted["proposalMarkdown"]).starts_with("| # | topic | decision | recommended")
+    );
+    assert_eq!(drafted["nextAction"]["arguments"]["acceptRecommended"], true);
+}

@@ -35,6 +35,10 @@ pub struct ProjectPlanInput {
     #[serde(default)]
     #[schemars(extend("additionalProperties" = json!({})))]
     pub answers: BTreeMap<String, Value>,
+    /// draft/confirm: the user accepted the proposal table; every question
+    /// missing from `answers` takes its recommended option.
+    #[serde(default)]
+    pub accept_recommended: bool,
     #[serde(default)]
     pub features: Vec<Feature>,
     /// Explicit ERD models in vespertide wire format; confirm may refine the draft.
@@ -174,7 +178,10 @@ fn response(plan: Value) -> Value {
         .filter(|q| plan["answers"][text(&q["id"])].is_null())
         .cloned()
         .collect::<Vec<_>>();
+    let proposal = screen_plan::proposal(&questions);
     json!({"planId":plan["planId"], "state":plan["state"],
+        "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
+        "proposal":proposal,
         "questions":screen_plan::ask_shape(&questions),
         "questionRounds":screen_plan::question_rounds(&questions, 4),
         "instruction": if plan["state"] == "confirmed" { include_str!("../text/mod-response-22d8f704.md") } else { screen_plan::ASK_INSTRUCTION },
@@ -221,6 +228,9 @@ pub(super) async fn run(
                 return Err(invalid("Confirmed plans cannot be redrafted"));
             }
             rounds::answers(&mut plan, &input.answers)?;
+            if input.accept_recommended {
+                rounds::accept_recommended(&mut plan)?;
+            }
             rounds::require_answers(&plan)?;
             for ev in &input.evidence {
                 if ev.source.trim().is_empty() {
@@ -259,6 +269,9 @@ pub(super) async fn run(
                 return Err(invalid("Draft the complete plan before confirm"));
             }
             rounds::answers(&mut plan, &input.answers)?;
+            if input.accept_recommended {
+                rounds::accept_recommended(&mut plan)?;
+            }
             rounds::require_answers(&plan)?;
             if plan["answers"]
                 .as_object()

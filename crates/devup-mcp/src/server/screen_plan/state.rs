@@ -102,6 +102,11 @@ pub struct ScreenPlanInput {
     /// multiple), or custom text.
     #[serde(default)]
     pub answers: BTreeMap<String, AnswerInput>,
+    /// confirm: the user accepted the proposal table. Every applicable
+    /// question missing from `answers` takes its recommended option, so only
+    /// the rows the user changed need to be sent.
+    #[serde(default)]
+    pub accept_recommended: bool,
     /// status: the runtime audit plan JSON, together with auditReportPath.
     #[serde(default)]
     pub audit_plan_path: Option<String>,
