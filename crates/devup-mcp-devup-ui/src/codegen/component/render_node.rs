@@ -179,7 +179,10 @@ fn render_node(
                 .and_then(serde_json::Value::as_str)
         })
     };
-    let component = if asset == Some(style::AssetKind::SvgMask) {
+    let reading_grid = layout::reading_grid(snapshot, node);
+    let component = if reading_grid.is_some() {
+        "Grid"
+    } else if asset == Some(style::AssetKind::SvgMask) {
         "Box"
     } else if asset.is_some() {
         "Image"
@@ -311,6 +314,8 @@ fn render_node(
             )
         });
     }
+    if let Some(grid) = &reading_grid { layout::reading_grid_props(grid, &mut props); }
+    layout::reading_card_props(snapshot, node, &mut props);
     let indent = "  ".repeat(depth);
     let instance_properties =
         (context.inline_instances && view.node_type() == "INSTANCE").then(|| {
@@ -352,8 +357,10 @@ fn render_node(
                 "omitted",
             ));
         }
-        view.child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
+        reading_grid.as_ref().map_or_else(
+            || view.child_ids().filter_map(|id| snapshot.nodes.get(id)).collect::<Vec<_>>(),
+            |grid| grid.cards.clone(),
+        ).into_iter()
             .filter(|child| child.typed_view().bool("visible") != Some(false))
             .map(|child| render_node(snapshot, child, depth + 1, context, visiting))
             .collect::<Result<Vec<_>, _>>()
@@ -362,6 +369,11 @@ fn render_node(
         context.instance_boolean_properties.pop();
     }
     let mut children = children_result?;
+    if reading_grid.is_some() {
+        for column in view.child_ids() {
+            children.insert(0, mark_node(column, String::new()));
+        }
+    }
     if asset.is_none()
         && component != "Text"
         && let Some(layers) = super::image::render_paint_layers(
@@ -591,7 +603,8 @@ pub(super) fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
 /// `propsToString` makes the same exception, and it is how devup-ui's
 /// `keyframes` is meant to be written.
 pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
-    if name == "animationName" && value.starts_with("keyframes(") {
+    if (value.starts_with('[') && serde_json::from_str::<Vec<Option<String>>>(value).is_ok())
+        || (name == "animationName" && value.starts_with("keyframes(")) {
         return format!("{name}={{{value}}}");
     }
     let mut escaped = String::with_capacity(value.len());

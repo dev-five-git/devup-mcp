@@ -88,6 +88,10 @@ pub(crate) fn property_derivations(
     props.into_iter().filter_map(|(name, PropValue::String(value))| {
         let stage = origins.get(&name)?;
         let (fields, calculation): (Vec<&str>, &str) = match name.as_str() {
+            "w" | "h" | "maxW" | "minW" | "gap" | "gridTemplateColumns" | "gridTemplateRows" | "gridColumn" | "gridRow"
+                if layout::in_reading_grid(snapshot, node) =>
+                (vec!["absoluteBoundingBox", "childrenIds", "parentId", "layoutMode", "characters"],
+                "reading_grid: contiguous numbered cards from transparent vertical column wrappers sorted into DOM sequence; measured bounds define grid tracks and placement at wide widths, mobile-first arrays reset to one column and auto rows. Descendants are bounded by their card width."),
             "flexShrink" => (vec!["layoutSizingHorizontal", "layoutSizingVertical", "layoutGrow", "parentId", "width", "height"],
                 "push_layout_props: preserve the fixed primary-axis size in the parent flex layout by disabling shrink."),
             "wordBreak" => (vec!["styledTextSegments"], "push_text_props: Korean segment text uses keep-all word breaking."),

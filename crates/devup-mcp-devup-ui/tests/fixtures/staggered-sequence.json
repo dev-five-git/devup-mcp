@@ -1,0 +1,329 @@
+{
+  "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+  "version": null,
+  "roots": [
+    "root"
+  ],
+  "nodes": {
+    "root": {
+      "id": "root",
+      "type": "FRAME",
+      "fields": {
+        "name": "root",
+        "x": 0,
+        "y": 0,
+        "width": 1100,
+        "height": 420,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 1100,
+          "height": 420
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "left",
+          "right"
+        ],
+        "layoutMode": "HORIZONTAL",
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL"
+        },
+        "itemSpacing": 40
+      }
+    },
+    "left": {
+      "id": "left",
+      "type": "FRAME",
+      "fields": {
+        "name": "left",
+        "x": 0,
+        "y": 0,
+        "width": 500,
+        "height": 360,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 360
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "card1",
+          "card3"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "root"
+      }
+    },
+    "right": {
+      "id": "right",
+      "type": "FRAME",
+      "fields": {
+        "name": "right",
+        "x": 600,
+        "y": 60,
+        "width": 500,
+        "height": 360,
+        "absoluteBoundingBox": {
+          "x": 600,
+          "y": 60,
+          "width": 500,
+          "height": 360
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "card2",
+          "card4"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "root"
+      }
+    },
+    "card1": {
+      "id": "card1",
+      "type": "FRAME",
+      "fields": {
+        "name": "card1",
+        "x": 0,
+        "y": 0,
+        "width": 500,
+        "height": 160,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 160
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "text1"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "left"
+      }
+    },
+    "text1": {
+      "id": "text1",
+      "type": "TEXT",
+      "fields": {
+        "name": "text1",
+        "x": 0,
+        "y": 0,
+        "width": 500,
+        "height": 30,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 30
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "parentId": "card1",
+        "characters": "01",
+        "textAutoResize": "HEIGHT"
+      }
+    },
+    "card3": {
+      "id": "card3",
+      "type": "FRAME",
+      "fields": {
+        "name": "card3",
+        "x": 0,
+        "y": 200,
+        "width": 500,
+        "height": 160,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 200,
+          "width": 500,
+          "height": 160
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "text3"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "left"
+      }
+    },
+    "text3": {
+      "id": "text3",
+      "type": "TEXT",
+      "fields": {
+        "name": "text3",
+        "x": 0,
+        "y": 200,
+        "width": 500,
+        "height": 30,
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 200,
+          "width": 500,
+          "height": 30
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "parentId": "card3",
+        "characters": "03",
+        "textAutoResize": "HEIGHT"
+      }
+    },
+    "card2": {
+      "id": "card2",
+      "type": "FRAME",
+      "fields": {
+        "name": "card2",
+        "x": 600,
+        "y": 60,
+        "width": 500,
+        "height": 160,
+        "absoluteBoundingBox": {
+          "x": 600,
+          "y": 60,
+          "width": 500,
+          "height": 160
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "text2"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "right"
+      }
+    },
+    "text2": {
+      "id": "text2",
+      "type": "TEXT",
+      "fields": {
+        "name": "text2",
+        "x": 600,
+        "y": 60,
+        "width": 500,
+        "height": 30,
+        "absoluteBoundingBox": {
+          "x": 600,
+          "y": 60,
+          "width": 500,
+          "height": 30
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "parentId": "card2",
+        "characters": "02",
+        "textAutoResize": "HEIGHT"
+      }
+    },
+    "card4": {
+      "id": "card4",
+      "type": "FRAME",
+      "fields": {
+        "name": "card4",
+        "x": 600,
+        "y": 260,
+        "width": 500,
+        "height": 160,
+        "absoluteBoundingBox": {
+          "x": 600,
+          "y": 260,
+          "width": 500,
+          "height": 160
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "childrenIds": [
+          "text4"
+        ],
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "itemSpacing": 40,
+        "parentId": "right"
+      }
+    },
+    "text4": {
+      "id": "text4",
+      "type": "TEXT",
+      "fields": {
+        "name": "text4",
+        "x": 600,
+        "y": 260,
+        "width": 500,
+        "height": 30,
+        "absoluteBoundingBox": {
+          "x": 600,
+          "y": 260,
+          "width": 500,
+          "height": 30
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxWidth": null,
+        "maxHeight": null,
+        "fills": [],
+        "parentId": "card4",
+        "characters": "04",
+        "textAutoResize": "HEIGHT"
+      }
+    }
+  },
+  "diagnostics": []
+}
