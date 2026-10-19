@@ -21,12 +21,10 @@ Validation
    cargo fmt --check and cargo clippy --all-targets -- -D warnings pass.
    npm test in harness/runtime-audit: 34 passed, including Chromium end-to-end checks at all four widths.
    Serial Rust suite with the two known Windows symlink tests filtered: 1646 passed, 2 ignored, 2 filtered.
-   Final unfiltered cargo test -- --test-threads=1: 1648 passed, 2 ignored, 0 filtered.
+   Final unfiltered cargo test -j 2 --no-fail-fast -- --test-threads=1: 1648 passed, 0 failed, 2 ignored, 0 filtered.
    Windows symlink tests retain their privilege checks and return early when the host cannot create symlinks (error 1314); those checks remain unavailable on this host.
    Generator concurrency regression: 1 passed; concurrent wrapper publication is now atomic and avoids rewriting identical output.
    An unrelated asset-job timeout test failed once under contention, passed alone, and passed in the serial full-suite run. A second existing race exposed partially written generated JavaScript modules; atomic publication and a concurrent import/generation regression fix that failure.
 
 Scope
    No apps/prime changes, no push, no PR and no branch merges. Prime itself was not rebuilt or visually re-audited; browser regressions use controlled fixtures. Patch changepacks were added and changes are committed on the requested branch.
-
-Generated-script parity also exposed concurrent generator writes. The generator now publishes complete files atomically and a dedicated concurrent-generation regression passes.
