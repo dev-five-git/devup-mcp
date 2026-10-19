@@ -75,6 +75,7 @@ pub(super) fn screen_from_explore(node: &Value) -> Option<PlanScreenInput> {
         visible: node["visible"].as_bool(),
         opacity: node["opacity"].as_f64(),
         breadcrumb,
+        navigation_content_width: node["navigationContentWidth"].as_f64(),
         ..PlanScreenInput::default()
     })
 }

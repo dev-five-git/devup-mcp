@@ -85,14 +85,18 @@ pub(crate) fn property_derivations(
         &options.length_tokens,
         &mut tokens,
     );
+    let in_reading_grid = layout::in_reading_grid(snapshot, node);
+    let in_wrapping_row = layout::in_wrapping_row(snapshot, node);
     props.into_iter().filter_map(|(name, PropValue::String(value))| {
         let stage = origins.get(&name)?;
         let (fields, calculation): (Vec<&str>, &str) = match name.as_str() {
-            "w" | "h" | "maxW" | "flexWrap" | "flexShrink" if layout::in_wrapping_row(snapshot,node) =>
+            "data-navigation-width" => (vec!["name", "layoutMode", "childrenIds", "itemSpacing", "width"],
+                "navigation_width: measured visible child widths plus row gaps expose a header/nav/GNB content-fit requirement to export and validation."),
+            "w" | "h" | "maxW" | "minH" | "flexWrap" | "flexShrink" if in_wrapping_row =>
                 (vec!["layoutMode", "layoutSizingHorizontal", "width", "height", "childrenIds", "parentId", "itemSpacing"],
-                "fixed_row_props: a row of fixed-width items wider than 390px wraps in available width; the drawn item widths and gap remain exact, descendants stay within their card and the row height follows wrapped content."),
+                "fixed_row_props: wrap fixed items in available width, preserve drawn item widths/gaps, bound oversized descendants and let row height follow content."),
             "w" | "h" | "maxW" | "minW" | "gap" | "gridTemplateColumns" | "gridTemplateRows" | "gridColumn" | "gridRow"
-                if layout::in_reading_grid(snapshot, node) =>
+                if in_reading_grid =>
                 (vec!["absoluteBoundingBox", "childrenIds", "parentId", "layoutMode", "characters"],
                 "reading_grid: contiguous numbered cards from transparent vertical column wrappers sorted into DOM sequence; measured bounds define grid tracks and placement at wide widths, mobile-first arrays reset to one column and auto rows. Descendants are bounded by their card width."),
             "flexShrink" => (vec!["layoutSizingHorizontal", "layoutSizingVertical", "layoutGrow", "parentId", "width", "height"],

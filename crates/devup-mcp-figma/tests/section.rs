@@ -392,6 +392,7 @@ fn packing_index(weights: &[usize]) -> SectionIndex {
                 node_type: "FRAME".to_owned(),
                 text_preview: String::new(),
                 text_preview_state: None,
+                navigation_content_width: None,
                 visible: true,
                 bounds: ExploreBounds {
                     y: index as f64 * 120.0,

@@ -60,7 +60,7 @@ test('generated 160px tech items, six 180px columns and three cards fit 390 and 
     const root=snapshot.nodes.root;
     snapshot.nodes={root};
     root.fields.childrenIds=Array.from({length:count},(_,i)=>`item${i}`);
-    Object.assign(root.fields,{width:drawn,height:100,itemSpacing:20,inferredAutoLayout:{layoutMode:'HORIZONTAL',itemSpacing:20},absoluteBoundingBox:{x:0,y:0,width:drawn,height:100}});
+    Object.assign(root.fields,{width:drawn,height:140,layoutSizingVertical:'FIXED',itemSpacing:20,inferredAutoLayout:{layoutMode:'HORIZONTAL',itemSpacing:20},absoluteBoundingBox:{x:0,y:0,width:drawn,height:140}});
     for(const id of root.fields.childrenIds) snapshot.nodes[id]={id,type:'FRAME',fields:{parentId:'root',width:itemWidth,height:100,layoutSizingHorizontal:'FIXED',layoutSizingVertical:'FIXED',maxWidth:null,maxHeight:null}};
     await rendered(snapshot,async(browser,url)=> {
       for(const width of [390,drawn]) {
@@ -70,6 +70,7 @@ test('generated 160px tech items, six 180px columns and three cards fit 390 and 
         const items=await Promise.all(root.fields.childrenIds.map((id)=>page.locator(`[data-figma-node-id="${id}"]`).boundingBox()));
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);
         assert.ok(items.every((box)=>box.x+box.width<=width+0.5));
+        if(width===drawn) assert.equal((await page.locator('[data-figma-node-id="root"]').boundingBox()).height,140);
         if(width===drawn) for(const [i,box] of items.entries()) {
           assert.equal(box.x,i*(itemWidth+20)); assert.equal(box.y,0); assert.equal(box.width,itemWidth);
         }

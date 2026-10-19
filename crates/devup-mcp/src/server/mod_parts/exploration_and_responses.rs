@@ -529,6 +529,7 @@ fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidat
             child_count: candidate.direct_child_count,
             text_preview: candidate.text_preview.clone(),
             text_preview_state: candidate.text_preview_state.clone(),
+            navigation_content_width: candidate.navigation_content_width,
             parent_id: candidate.parent_id.clone(),
             kind: ExploreKind::Screen,
             visible: candidate.visible,

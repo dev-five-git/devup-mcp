@@ -46,6 +46,35 @@ function bounds(node) {
   return { x: value.x, y: value.y, width: value.width, height: value.height };
 }
 
+// Carry a small measured navigation summary into screen planning, before a
+// full page export. Missing measurements remain unknown rather than guessed.
+function navigationContentWidth(root) {
+  const queue = [root];
+  let visited = 0;
+  let width = null;
+  while (queue.length && visited++ < 400) {
+    const node = queue.shift();
+    if (("visible" in node) && node.visible === false) continue;
+    const children = "children" in node ? node.children.filter((child) => !("visible" in child) || child.visible !== false) : [];
+    if (/header|nav|gnb/i.test(node.name || "") && children.length >= 2
+      && ("layoutMode" in node) && node.layoutMode === "HORIZONTAL") {
+      const sizes = children.map(bounds);
+      if (sizes.every(Boolean)) {
+        const measured = sizes.reduce((sum, box) => sum + box.width, 0) + (Number(node.itemSpacing) || 0) * (sizes.length - 1);
+        width = Math.max(width || 0, measured);
+      }
+    }
+    queue.push(...children.slice(0, 80));
+  }
+  return width;
+}
+
+function navigationSummary(root) {
+  const width = navigationContentWidth(root);
+  return width === null ? {} : { navigationContentWidth: width };
+}
+
+
 function horizontalOverlap(left, right) {
   return Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
 }
@@ -201,6 +230,7 @@ const compact = [...included.values()]
       childCount: "children" in node ? node.children.length : 0,
       // Select the structural projection before spending space on previews.
       textPreview: "",
+      ...navigationSummary(node),
       pageChildIndex: pageChildIndex >= 0 ? pageChildIndex : null,
       // A page or the document itself has no `visible`, and Figma throws on
       // reading a property a node does not have rather than returning

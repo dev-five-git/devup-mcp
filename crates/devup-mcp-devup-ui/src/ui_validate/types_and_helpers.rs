@@ -154,6 +154,7 @@ fn validate_source(
         let rule = match risk["rule"].as_str() {
             Some("narrow-fixed-columns") => "narrow-fixed-columns",
             Some("column-reading-order") => "column-reading-order",
+            Some("navigation-fit") => "navigation-fit",
             _ => continue,
         };
         violations.push(Violation { rule, severity: Severity::Warning, byte_range: [0, 0],

@@ -88,3 +88,17 @@ test('runner executes the new checks at every required width', async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test('390px header navigation clipping fails until the narrow menu replaces it',async()=> {
+  const {chromium}=await import('playwright');
+  const browser=await chromium.launch();
+  try {
+    const page=await browser.newPage({viewport:{width:390,height:900}});
+    await page.setContent('<body style="margin:0"><header style="width:390px;overflow:hidden"><nav id="header-nav" style="display:flex;width:600px"><a href="/">Home</a><a href="/company">Company</a><a href="/services">Services</a></nav></header></body>');
+    assert.ok((await observeClippedContent(page)).clipped.length>0);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
+    await page.setContent('<header><button aria-expanded="false" aria-controls="drawer">Menu</button><nav id="drawer" hidden><a href="/">Home</a><a href="/company">Company</a></nav></header>');
+    assert.equal((await observeClippedContent(page)).clipped.length,0);
+  } finally {await browser.close();}
+});

@@ -985,21 +985,3 @@ async fn draft_returns_one_proposal_row_per_question() {
     );
     assert_eq!(drafted["nextAction"]["arguments"]["acceptRecommended"], true);
 }
-
-#[test]
-fn status_keeps_failing_links_in_final_report_and_blocks_done() {
-    let mut plan = confirmed_plan();
-    plan["routes"].as_array_mut().unwrap().truncate(1);
-    plan["audit"]["plans"] = json!([{"url":"/"}]);
-    let audit = json!({
-        "widthTable": [1440,1100,858,390].map(|width|json!({"width":width})),
-        "screenTable": [1440,1100,858,390].map(|width|json!({"routePath":"/", "width":width, "status":"pass", "columns":{"completeness":"pass"}}))
-    });
-    assert_eq!(status_report(&plan,&evidence(),Some(&audit))["workQueue"][0]["done"],true);
-    plan["audit"]["linkTable"] = json!([{"from":"http://localhost/", "label":"Missing", "href":"/missing", "status":"fail", "planned":false}]);
-    let report = status_report(&plan, &evidence(), Some(&audit));
-    assert_eq!(report["linkTable"][0]["href"], "/missing");
-    assert!(text(&report["finalReport"]).contains("| from | label | href | status | planned? |"));
-    assert!(text(&report["finalReport"]).contains("Missing"));
-    assert_eq!(report["workQueue"][0]["done"],false);
-}

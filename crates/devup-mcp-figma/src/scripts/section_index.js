@@ -1,3 +1,32 @@
+// Carry a small measured navigation summary into screen planning, before a
+// full page export. Missing measurements remain unknown rather than guessed.
+function navigationContentWidth(root) {
+  const queue = [root];
+  let visited = 0;
+  let width = null;
+  while (queue.length && visited++ < 400) {
+    const node = queue.shift();
+    if (("visible" in node) && node.visible === false) continue;
+    const children = "children" in node ? node.children.filter((child) => !("visible" in child) || child.visible !== false) : [];
+    if (/header|nav|gnb/i.test(node.name || "") && children.length >= 2
+      && ("layoutMode" in node) && node.layoutMode === "HORIZONTAL") {
+      const sizes = children.map(bounds);
+      if (sizes.every(Boolean)) {
+        const measured = sizes.reduce((sum, box) => sum + box.width, 0) + (Number(node.itemSpacing) || 0) * (sizes.length - 1);
+        width = Math.max(width || 0, measured);
+      }
+    }
+    queue.push(...children.slice(0, 80));
+  }
+  return width;
+}
+
+function navigationSummary(root) {
+  const width = navigationContentWidth(root);
+  return width === null ? {} : { navigationContentWidth: width };
+}
+
+
 // Figma's own MCP runs scripts with hidden layers inside instances left out
 // of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
 // here so the direct path and the Devup Bridge read the same document.
@@ -268,6 +297,7 @@ const candidates = selected.map(({ node, box }) => {
       breadcrumb: breadcrumb(node),
       directChildCount: "children" in node ? node.children.length : 0,
       textPreview: preview.text,
+      ...navigationSummary(node),
       textPreviewState: preview.state,
       subtreeNodeCount: estimate.subtreeNodeCount,
       estimatedSerializedBytes: estimate.estimatedSerializedBytes,

@@ -322,6 +322,7 @@ pub(super) fn status_report(
         "pendingDecisions": plan["pendingDecisions"],
         "finalReport": final_report,
         "linkTable": link_table,
+        "mobileNavigation": plan["mobileNavigation"],
         "linkTableMarkdown": link_markdown,
         "doneWhen": DONE_RULE,
         "status": "confirmed",

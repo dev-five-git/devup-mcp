@@ -330,4 +330,19 @@ mod w5_tests {
         assert_eq!(parts.stats.figma_tool_calls, 1);
         assert_eq!(parts.scope, CollectionScope::Node);
     }
+
+    #[test]
+    fn exploration_carries_measured_header_navigation_into_screen_planning() {
+        let setup = format!("{TREE}\nframe.width=1440; frame.height=900; const nav=node('nav','FRAME','Header navigation',frame); nav.layoutMode='HORIZONTAL'; nav.itemSpacing=24; for(let i=0;i<3;i++){{const item=node('item'+i,'TEXT','Link',nav);item.width=160;item.height=24;}}");
+        for (script, key, options) in [
+            (include_str!("../scripts/explore.js"), "__DEVUP_EXPLORE__", json!({"projectionLimit":200})),
+            (include_str!("../scripts/section_index.js"), "__DEVUP_ROOT_IDS__", json!([])),
+        ] {
+            let output = run_script(script, &setup, key, options);
+            let frame = output["nodes"].as_array().unwrap().iter().find(|node|node["id"] == "3:1").unwrap();
+            assert_eq!(frame["fields"]["navigationContentWidth"], 528);
+            let raw: RawNode = serde_json::from_value(frame.clone()).unwrap();
+            assert_eq!(crate::ExploreNode::try_from(&raw).unwrap().navigation_content_width, Some(528.0));
+        }
+    }
 }

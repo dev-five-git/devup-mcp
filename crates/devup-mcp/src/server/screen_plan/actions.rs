@@ -326,6 +326,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             screen["links"] = json!(resolved);
         }
     }
+    plan["mobileNavigation"] = actions.get("mobile-menu").cloned().unwrap_or(Value::Null);
     plan["answers"] = json!(input.answers);
     plan["customAnswers"] = json!(custom);
     plan["heuristicsAccepted"] = json!(accepted);
@@ -375,6 +376,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "site": plan["site"],
         "defaults": plan["defaults"],
         "extraAnswers": plan["extraAnswers"],
+        "mobileNavigation": plan["mobileNavigation"],
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
