@@ -9,7 +9,9 @@
 // 그래서 감싸기만 하면 그대로 동작한다. eval 은 쓰지 않는다 — Figma 플러그인
 // 샌드박스에서 동적 코드 실행은 막혀 있고, 번들러가 정적으로 볼 수 있어야 한다.
 
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { setTimeout as delay } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -145,6 +147,32 @@ export declare const SCRIPTS: Record<
 `
 
 mkdirSync(dirname(outFile), { recursive: true })
-writeFileSync(`${outFile}.js`, js, 'utf8')
-writeFileSync(`${outFile}.d.ts`, dts, 'utf8')
+// Several cargo/Node tests generate these wrappers concurrently. Readers
+// must see a complete module, never the empty file between truncate/write.
+async function publish(path, content) {
+  try {
+    if (readFileSync(path, 'utf8') === content) return
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporary, content, { encoding: 'utf8', flag: 'wx' })
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        renameSync(temporary, path)
+        break
+      } catch (error) {
+        // Windows readers and concurrent replacements can briefly hold the
+        // destination open. Retry the rename without truncating that file.
+        if (attempt >= 40 || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) throw error
+        await delay(25)
+      }
+    }
+  } finally {
+    rmSync(temporary, { force: true })
+  }
+}
+await publish(`${outFile}.js`, js)
+await publish(`${outFile}.d.ts`, dts)
 console.log(`generated ${files.length} scripts -> ${outFile}.{js,d.ts}`)
