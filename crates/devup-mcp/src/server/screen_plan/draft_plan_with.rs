@@ -9,6 +9,23 @@ pub(super) fn draft_plan_with(
     source: Value,
     notes: Option<&str>,
 ) -> Result<Value, DevupError> {
+    if ["projection", "candidates", "atCeiling"]
+        .iter()
+        .any(|field| source["truncation"][field] == true)
+    {
+        return Err(invalid(
+            "The frame inventory is incomplete: exploration was truncated or reached its ceiling. Explore a smaller Section or supply the complete frame list before drafting.",
+        ));
+    }
+    let mut ids = BTreeSet::new();
+    if screens
+        .iter()
+        .any(|screen| screen.node_id.trim().is_empty() || !ids.insert(&screen.node_id))
+    {
+        return Err(invalid(
+            "Frame inventory requires a non-empty, unique nodeId for every frame.",
+        ));
+    }
     if screens.is_empty() {
         return Err(invalid(
             "draft found no screens. Link a Section or frame, or pass screens from devup_figma_explore.",
@@ -520,12 +537,15 @@ pub(super) fn draft_plan_with(
     {
         *asked = with_when(asked.clone(), &base_when);
     }
-    let body = json!({"source": source, "screens": rows, "questions": questions, "notes": notes});
+    let inventory = frame_inventory(screens, &out_of_scope, &excluded_rows, &kept);
+    let labels = link_label_check(screens, &out_of_scope, &excluded_rows, &kept);
+    let body = json!({"source": source, "screens": rows, "questions": questions, "notes": notes,
+        "frameInventory": inventory, "linkLabelCheck": labels});
     let plan_id = format!(
         "sp-{}",
         &sha256(&serde_json::to_vec(&body).unwrap_or_default())[..16]
     );
-    Ok(json!({
+    let mut plan = json!({
         "kind": PLAN_KIND,
         "schemaVersion": SCHEMA_VERSION,
         "planId": plan_id,
@@ -539,6 +559,8 @@ pub(super) fn draft_plan_with(
         "heuristics": heuristics,
         "excluded": excluded_rows,
         "outOfScope": out_of_scope,
+        "frameInventory": body["frameInventory"],
+        "linkLabelCheck": body["linkLabelCheck"],
         "site": site,
         "defaults": defaults,
         "apps": evidence.apps.iter().map(super::framework::App::json).collect::<Vec<_>>(),
@@ -548,5 +570,216 @@ pub(super) fn draft_plan_with(
         "answers": {},
         "routes": [],
         "assumptions": [],
-    }))
+    });
+    refresh_inventory_checks(&mut plan);
+    Ok(plan)
+}
+
+/// What became of one listed frame: planned, excluded, outOfScope or
+/// siteAsset (a logo or share image taken out of the page list).
+fn disposition_of(
+    node_id: &str,
+    out_of_scope: &[Value],
+    excluded_rows: &[Value],
+    kept: &[PlanScreenInput],
+) -> &'static str {
+    let listed = |rows: &[Value]| rows.iter().any(|row| text(&row["nodeId"]) == node_id);
+    if listed(out_of_scope) {
+        "outOfScope"
+    } else if listed(excluded_rows) {
+        "excluded"
+    } else if kept.iter().any(|screen| screen.node_id == node_id) {
+        "planned"
+    } else {
+        "siteAsset"
+    }
+}
+
+/// The rule every inventory and label check carries, so an agent reading
+/// either one alone still meets it.
+const ABSENCE_RULE: &str = "Say a screen does not exist only after searching frameInventory and running devup_figma_search for its name. A name missing from this list was not seen, which is not the same as absent: report it as unverified. outOfScope frames exist in the file but sit outside the linked node.";
+
+/// Every frame the explore listed and what became of it, so "there is no
+/// screen for X" is answered from a list that stays in the plan file and in
+/// `status`, never from memory of an earlier call.
+fn frame_inventory(
+    screens: &[PlanScreenInput],
+    out_of_scope: &[Value],
+    excluded_rows: &[Value],
+    kept: &[PlanScreenInput],
+) -> Value {
+    let frames = screens
+        .iter()
+        .map(|screen| {
+            json!({"nodeId": screen.node_id, "name": screen.name, "width": screen.width,
+                "section": screen.section_name.clone().or_else(|| screen.section.clone()),
+                "disposition": disposition_of(&screen.node_id, out_of_scope, excluded_rows, kept)})
+        })
+        .collect::<Vec<_>>();
+    json!({"total": frames.len(), "frames": frames, "rule": ABSENCE_RULE})
+}
+
+/// Whether a link label names a frame: the same words with widths and
+/// device words dropped, or the same letters once spacing is removed.
+fn label_names_frame(label: &str, frame: &str) -> bool {
+    let label_compact = compact(label);
+    if label_compact.is_empty() {
+        return false;
+    }
+    let label_words = base_words(label);
+    let frame_words = base_words(frame);
+    (!label_words.is_empty() && label_words == frame_words)
+        || compact(&frame_words.join("")) == compact(&label_words.join(""))
+        || compact(frame) == label_compact
+}
+
+/// Link and menu labels with no URL. A tab "Core technology" with no
+/// destination hints that a frame for it exists somewhere in the file, so
+/// each label is matched against every frame the explore listed, in scope or
+/// not. An unresolved label is never pointed at `/`.
+fn link_label_check(
+    screens: &[PlanScreenInput],
+    out_of_scope: &[Value],
+    excluded_rows: &[Value],
+    kept: &[PlanScreenInput],
+) -> Value {
+    let mut rows = Vec::new();
+    for screen in screens {
+        for link in screen.links.iter().filter(|link| link.url.is_none()) {
+            if compact(&link.label).is_empty() {
+                continue;
+            }
+            let matches = screens
+                .iter()
+                .filter(|other| {
+                    match link.destination_node_id.as_deref() {
+                        Some(destination) => destination == other.node_id,
+                        None => label_names_frame(&link.label, &other.name),
+                    }
+                })
+                .map(|other| {
+                    json!({"nodeId": other.node_id, "name": other.name,
+                        "disposition": disposition_of(&other.node_id, out_of_scope, excluded_rows, kept)})
+                })
+                .collect::<Vec<_>>();
+            let state = if !matches.is_empty() {
+                "frame-found"
+            } else if link.destination_node_id.is_some() {
+                "destination-not-listed"
+            } else {
+                "unverified"
+            };
+            let next = match state {
+                "frame-found" => {
+                    "Plan the matched frame, or bind the label to its route with navigationTargets."
+                }
+                "destination-not-listed" => {
+                    "The prototype names a destination the explore did not list: export or search that node before deciding anything about it."
+                }
+                _ => {
+                    "Run devup_figma_search for this label before saying no screen exists; until then report it as unverified and leave the link unresolved."
+                }
+            };
+            rows.push(json!({"on": screen.node_id, "onName": screen.name,
+                "label": link.label, "destinationNodeId": link.destination_node_id,
+                "state": state, "frames": matches, "next": next}));
+        }
+    }
+    let unresolved = rows
+        .iter()
+        .filter(|row| row["state"] != "route-bound")
+        .count();
+    json!({"labels": rows, "unresolved": unresolved,
+        "rule": "A link or menu label with no URL remains unresolved until it is bound to a route or explicitly left unlinked. Search for a matching frame with devup_figma_search before claiming it is absent. Not listed means unverified, not absent. Never point an unresolved label at / or any other guessed route."})
+}
+
+/// Reconcile draft diagnostics with confirmed placements and actual link URLs.
+fn refresh_inventory_checks(plan: &mut Value) {
+    if !plan["frameInventory"].is_object() {
+        return;
+    }
+    let confirmed = plan["status"] == "confirmed";
+    let screens = array(&plan["screens"]).to_vec();
+    let routes = array(&plan["routes"]).to_vec();
+    let excluded = array(&plan["excluded"]).to_vec();
+    let fixes = array(&plan["designFixes"]).to_vec();
+    if confirmed && let Some(frames) = plan["frameInventory"]["frames"].as_array_mut() {
+        for frame in frames {
+            let node = frame["nodeId"].clone();
+            if frame["disposition"] == "outOfScope" || frame["disposition"] == "siteAsset" {
+                continue;
+            }
+            let placement = routes
+                .iter()
+                .find(|route| array(&route["nodeIds"]).contains(&node));
+            frame["disposition"] = json!(if let Some(route) = placement {
+                text(&route["implementation"])
+            } else if excluded.iter().any(|row| row["nodeId"] == node) {
+                "excluded"
+            } else if fixes.iter().any(|fix| array(&fix["frames"])
+                .iter()
+                .any(|row| row["nodeId"] == node))
+            {
+                "designFix"
+            } else {
+                "notBuilt"
+            });
+            frame["route"] = placement.map_or(Value::Null, |route| route["url"].clone());
+        }
+    }
+    let inventory = array(&plan["frameInventory"]["frames"]).to_vec();
+    if let Some(labels) = plan["linkLabelCheck"]["labels"].as_array_mut() {
+        for label in labels.iter_mut() {
+            let mut matches = array(&label["frames"]).to_vec();
+            for frame in &mut matches {
+                if let Some(current) = inventory
+                    .iter()
+                    .find(|row| row["nodeId"] == frame["nodeId"])
+                {
+                    frame["disposition"] = current["disposition"].clone();
+                    frame["route"] = current["route"].clone();
+                }
+            }
+            label["frames"] = json!(matches);
+            label["state"] = json!(if !array(&label["frames"]).is_empty() {
+                "frame-found"
+            } else if label["destinationNodeId"].is_string() {
+                "destination-not-listed"
+            } else {
+                "unverified"
+            });
+            label["next"] = json!(
+                "Bind the label to a verified route or leave it unlinked. Run devup_figma_search before claiming that no destination frame exists."
+            );
+            let link = screens
+                .iter()
+                .find(|screen| {
+                    array(&screen["frames"])
+                        .iter()
+                        .any(|frame| frame["nodeId"] == label["on"])
+                })
+                .and_then(|screen| {
+                    array(&screen["links"]).iter().find(|link| {
+                        link["label"] == label["label"]
+                            && link["destinationNodeId"] == label["destinationNodeId"]
+                    })
+                });
+            label["resolved"] = link.map_or(Value::Null, |link| link["resolved"].clone());
+            if confirmed
+                && link.is_some_and(|link| link["resolved"]["evidence"] == "confirmed answer")
+                && (label["resolved"]["url"].is_null() || label["resolved"]["url"] == "remove")
+            {
+                label["state"] = json!("left-unlinked");
+                label["next"] = json!("Keep this label unlinked as confirmed.");
+            } else if label["resolved"]["url"].is_string() {
+                label["state"] = json!("route-bound");
+                label["next"] = json!("Use the resolved URL for this label.");
+            }
+        }
+        let unresolved = labels
+            .iter()
+            .filter(|label| label["state"] != "route-bound" && label["state"] != "left-unlinked")
+            .count();
+        plan["linkLabelCheck"]["unresolved"] = json!(unresolved);
+    }
 }
