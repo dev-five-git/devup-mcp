@@ -72,5 +72,8 @@ rendered from the generated code or updated by the test. This deterministic
 offline contract proves the gate detects rendering failures; verification of an
 actual Figma page requires that page's exported original as described above.
 
-Set `DEVUP_KEEP_RENDER_EVIDENCE=1` to retain regression artifacts under `out/`;
-CI uploads them even on failure.
+Set `DEVUP_KEEP_RENDER_EVIDENCE=1` to retain regression artifacts under `out/`
+for diagnosis or upload by a CI caller. Run `npm ci`,
+`npx playwright install --with-deps chromium`, and `npm test` to use this suite
+in Linux CI. The repository workflow is not wired to this browser suite yet:
+the GitHub proxy rejected pushes containing that workflow-file modification.
