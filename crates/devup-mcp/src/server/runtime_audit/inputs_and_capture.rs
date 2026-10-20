@@ -200,6 +200,8 @@ pub struct CheckInput {
     /// sequence-order: numbered siblings increase in visual reading order.
     /// section-layout: visible sections span at least half their container.
     /// no-clipped-content: internal clipped rows require an explicit carousel with controls.
+    /// styles-applied: every class name on the rendered page has a CSS rule;
+    /// a page served before its own CSS arrived (cold dev server) fails.
     /// page-health: no error page text ("This page couldn't load",
     /// "Application error", ...), page error, console error or failed
     /// navigation while the screen was open.
@@ -226,7 +228,7 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
     pub kind: String,
     /// links-resolve: confirmed URL patterns and routes found on disk.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -620,7 +622,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
     match check.kind.as_str() {
         "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
-        "stale-resources" => needs(false, false)?,
+        "stale-resources" | "styles-applied" => needs(false, false)?,
         "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
             if check.container.is_some() {
                 return Err(invalid(format!("A {} check takes no container.", check.kind)));
@@ -914,7 +916,7 @@ fn columns(
     let health = if unreached {
         "fail"
     } else {
-        fold(&["links-resolve", "page-health", "no-horizontal-overflow", "no-clipped-content", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
+        fold(&["links-resolve", "page-health", "no-horizontal-overflow", "no-clipped-content", "styles-applied", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
     };
     let captures = |scope: &str| {
         let count = judged

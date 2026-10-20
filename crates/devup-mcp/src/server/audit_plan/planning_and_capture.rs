@@ -312,6 +312,7 @@ pub(super) fn url_plan(
         check(json!({"kind": "sequence-order", "label": "numbered cards in reading order"})),
         check(json!({"kind": "section-layout", "label": "responsive sections and text columns"})),
         check(json!({"kind": "page-health", "label": "page health"})),
+        check(json!({"kind": "styles-applied", "label": "page styles delivered"})),
         check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
         check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),
         check(json!({"kind": "native-appearance", "label": "controls drawn without native browser chrome"})),

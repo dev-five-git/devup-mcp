@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './dev-environment.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
-  evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
+  evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
 } from './checks.mjs';
 import {
   evaluateImagesLoaded, evaluateNativeAppearance, evaluateStaleResources, freshLoad, guardOrigins, observeImages, observeNativeAppearance, snapshotLoad,
@@ -376,23 +376,93 @@ export function observeCompleteness(page, completeness, width, subject) {
   }, { sections: completeness.sections ?? [], images: completeness.images ?? [], width });
 }
 
+// Numbered labels are grouped by their label form ("01" or "STEP 1") within
+// the nearest section, then split at the smallest ancestor holding each run
+// 1..n once, so two sequences in one <main> stay two groups instead of
+// cancelling each other out. Labels that never form a group are reported, so
+// an empty observation is never mistaken for a page in reading order.
 export function observeSequence(page) {
   return page.evaluate(() => {
-    const groups = new Map();
+    const labels = [];
     for (const element of document.querySelectorAll('body *')) {
       if (element.children.length || !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const label = element.textContent.trim();
-      const match = /^(?:STEP\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
+      const match = /^(?:(STEP)\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
       if (!match) continue;
-      const number = Number(match[1] ?? match[2]);
-      const scope = element.closest('section, [data-sequence-group], main') ?? document.body;
       const box = element.getBoundingClientRect();
       if (!box.width || !box.height) continue;
-      const group = groups.get(scope) ?? [];
-      group.push({ number, name: `${label} <${element.tagName.toLowerCase()}>`, x: box.x, y: box.y });
-      groups.set(scope, group);
+      const form = match[1] ? 'step' : match[3].length === 2 && match[3][0] === '0' ? 'padded' : 'plain';
+      labels.push({ element, form, number: Number(match[2] ?? match[3]), name: `${label} <${element.tagName.toLowerCase()}>`, x: box.x, y: box.y + scrollY });
     }
-    return { groups: [...groups.values()].filter((group) => group.length > 1 && new Set(group.map((item) => item.number)).size === group.length) };
+    const buckets = new Map();
+    for (const item of labels) {
+      const scope = item.element.closest('[data-sequence-group]') ?? item.element.closest('section, main') ?? document.body;
+      const key = buckets.get(scope) ?? new Map();
+      const list = key.get(item.form) ?? [];
+      list.push(item);
+      key.set(item.form, list);
+      buckets.set(scope, key);
+    }
+    const groups = [];
+    let ungrouped = 0;
+    const common = (items) => {
+      let node = items[0].element.parentElement;
+      while (node && !items.every((item) => node.contains(item.element))) node = node.parentElement;
+      return node;
+    };
+    for (const forms of buckets.values()) {
+      for (const list of forms.values()) {
+        // Split a repeated numbering (1..4, 1..4) into runs in DOM order.
+        const runs = [];
+        let run = [];
+        for (const item of list) {
+          if (run.some((other) => other.number === item.number)) { runs.push(run); run = []; }
+          run.push(item);
+        }
+        runs.push(run);
+        for (const items of runs) {
+          if (items.length > 1 && common(items)) groups.push(items.map(({ element, form, ...rest }) => rest));
+          else ungrouped += items.length;
+        }
+      }
+    }
+    return { labels: labels.length, ungrouped, groups };
+  });
+}
+
+// Class tokens on rendered elements against the selectors of every readable
+// stylesheet. A cold dev server can serve the HTML before a route's own CSS
+// exists; the page then shows raw document flow with HTTP 200.
+export function observeStylesApplied(page) {
+  return page.evaluate(() => {
+    const selectors = new Set();
+    let unreadableSheets = 0;
+    const walk = (rules) => {
+      for (const rule of rules) {
+        if (rule.selectorText) {
+          for (const match of rule.selectorText.matchAll(/\.((?:\\.|[\w-])+)/g)) selectors.add(match[1].replace(/\\(.)/g, '$1'));
+        }
+        if (rule.cssRules) walk(rule.cssRules);
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      try { walk(sheet.cssRules); } catch { if (new URL(sheet.href ?? location.href).origin === location.origin) unreadableSheets += 1; }
+    }
+    const classes = new Set();
+    let elements = 0;
+    let styledElements = 0;
+    for (const element of document.querySelectorAll('body *')) {
+      elements += 1;
+      if (!element.classList.length) continue;
+      let styled = false;
+      for (const name of element.classList) {
+        classes.add(name);
+        if (selectors.has(name)) styled = true;
+      }
+      if (styled) styledElements += 1;
+    }
+    const unmatched = [...classes].filter((name) => !selectors.has(name));
+    return { classes: classes.size, unmatched, unreadableSheets, styledElements, elements };
   });
 }
 
@@ -510,7 +580,47 @@ async function pageMetrics(page) {
   });
 }
 
+// A cold dev server can inject a route's stylesheets after `load`. Wait until
+// every stylesheet link has loaded and the set of sheets has stopped changing
+// for a quiet period, so checks never measure a half-styled document.
+export async function waitStylesStable(page, { quietMs = 400, maxMs = 8000 } = {}) {
+  return page.evaluate(async ({ quietMs, maxMs }) => {
+    const signature = () => {
+      const links = [...document.querySelectorAll('link[rel~="stylesheet"]')];
+      const pending = links.filter((link) => !link.sheet).length;
+      let rules = 0;
+      for (const sheet of document.styleSheets) { try { rules += sheet.cssRules.length; } catch { rules += 1; } }
+      return { key: `${document.styleSheets.length}:${rules}:${links.length}`, pending };
+    };
+    const started = performance.now();
+    let last = signature();
+    let since = performance.now();
+    while (performance.now() - started < maxMs) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const now = signature();
+      if (now.key !== last.key || now.pending) { last = now; since = performance.now(); continue; }
+      if (performance.now() - since >= quietMs) return { stable: true, waitedMs: Math.round(performance.now() - started) };
+    }
+    return { stable: false, waitedMs: Math.round(performance.now() - started) };
+  }, { quietMs, maxMs });
+}
+
+// Geometry of the page's top-level blocks. Compared before the checks and
+// after the screenshot: a difference means the layout changed while it was
+// being measured (late CSS, a reload), so the measurements are not one page.
+export function layoutFingerprint(page) {
+  return page.evaluate(() => {
+    const blocks = [...document.querySelectorAll('main > *, body > header, body > footer, main section')].slice(0, 200);
+    const sheets = document.styleSheets.length;
+    return JSON.stringify({ sheets, width: document.documentElement.scrollWidth, blocks: blocks.map((element) => {
+      const box = element.getBoundingClientRect();
+      return [Math.round(box.x), Math.round(box.y + scrollY), Math.round(box.width), Math.round(box.height)];
+    }) });
+  });
+}
+
 async function waitReady(page, plan, timeout) {
+  await waitStylesStable(page).catch(() => null);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => undefined)));
@@ -585,9 +695,20 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
   const stepTimeout = plan.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT;
   let reached = true;
   try {
-    for (const screen of plan.screens) {
+    screens: for (const screen of plan.screens) {
+     // A screen directly reached by URL is measured once more when the dev
+     // server reloaded or its layout moved during the first measurement; only
+     // a second unstable attempt leaves it inconclusive.
+     for (let attempt = 0; ; attempt += 1) {
       const record = { id: screen.id, status: 'completed', checks: [] };
-      run.screens.push(record);
+      if (attempt) {
+        record.attempts = attempt + 1;
+        record.retriedAfter = run.screens[run.screens.length - 1].reason;
+        run.screens[run.screens.length - 1] = record;
+        await page.waitForTimeout(1000);
+      } else {
+        run.screens.push(record);
+      }
       const errorsAtStart = environmentErrors.length;
       const responsesAtStart = responseLog.length;
       const failedAtStart = failedLog.length;
@@ -598,13 +719,13 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         record.status = 'skipped';
         record.reason = 'the run reached its time limit';
         notMeasured('skipped', record.reason);
-        continue;
+        continue screens;
       }
       if (!screen.routePath && !reached) {
         record.status = 'skipped';
         record.reason = 'the previous screen was not reached, so its steps cannot start';
         notMeasured('skipped', record.reason);
-        continue;
+        continue screens;
       }
       try {
         try {
@@ -628,10 +749,11 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           record.reason = `${failure.kind}: ${failure.message.split('\n')[0]}`;
           reached = false;
           notMeasured('inconclusive', `the screen was not reached (${failure.kind})`);
-          continue;
+          continue screens;
         }
         reached = true;
         record.url = page.url();
+        const layoutBefore = await layoutFingerprint(page);
         const metrics = await pageMetrics(page);
         if (metrics.viewportWidth !== viewport.width) {
           environmentErrors.push({ kind: 'viewport-mismatch', message: `innerWidth ${metrics.viewportWidth} for a ${viewport.width}px viewport` });
@@ -668,6 +790,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'sequence-order') {
             record.checks.push({ ...item, ...evaluateSequenceOrder(await observeSequence(page)) });
+            continue;
+          }
+          if (check.kind === 'styles-applied') {
+            record.checks.push({ ...item, ...evaluateStylesApplied(await observeStylesApplied(page)) });
             continue;
           }
           if (check.kind === 'section-layout') {
@@ -786,6 +912,12 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         });
         await writeFile(join(out, name), bytes);
         record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
+        // Late CSS or a reload changed the layout while it was measured: the
+        // checks above did not all see the same page.
+        const layoutAfter = await layoutFingerprint(page).catch(() => null);
+        if (layoutAfter !== layoutBefore) {
+          environmentErrors.push({ kind: 'layout-unstable', message: `${screen.id}: layout changed between measurement and screenshot` });
+        }
         // Links on this page, so a dynamic route ([slug]) can be audited at the
         // URLs the site itself links to.
         const anchors = await page.evaluate(() => [...document.querySelectorAll('a[href]')].flatMap((anchor) => {
@@ -830,6 +962,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         environmentErrors.push(...await readServerLog());
         if (invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) reached = false;
       }
+      // One more measurement of a URL screen the dev server disturbed.
+      if (record.status === 'skipped' && attempt === 0 && screen.routePath && Date.now() < deadline) continue;
+      break;
+     }
     }
   } finally {
     run.finishedAt = new Date().toISOString();

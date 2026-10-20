@@ -313,9 +313,10 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
 3. **Show the plan, then ask everything.** Show the user the `screens` table
    (Figma screen, widths, proposed route, evidence, existing file, shared
    parts, open decisions), the `heuristics` list and the `excluded` list, then
-   ask the questions - the flat list in one call, or the rounds back to back -
-   exactly as returned, the site questions included. Do not reword the options; the labels are what confirm
-   reads.
+   show `proposalMarkdown` (every open decision, site questions included, with
+   its recommended answer) and ask ONE question: accept the table, or name the
+   rows to change. Never ask the rows one section or topic at a time. Keep the
+   original option labels in `answers`; they are what confirm reads.
 4. **Confirm.** Call `devup_screen_plan` with `action: "confirm"`, the
    `planId`, and `answers` keyed by question id (the chosen label, with or
    without " (Recommended)", or the user's custom text) for every question

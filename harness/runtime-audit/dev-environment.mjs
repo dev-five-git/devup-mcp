@@ -54,7 +54,7 @@ export async function serverLogReader(path) {
 }
 
 export function invalidateReloadedScreen(record, errors) {
-  if (!errors.some((error) => ['dev-server-reload', 'dev-reoptimization-reload'].includes(error.kind))) return false;
+  if (!errors.some((error) => ['dev-server-reload', 'dev-reoptimization-reload', 'layout-unstable'].includes(error.kind))) return false;
   record.status = 'skipped';
   record.reason = 'dev server reloaded during measurement; stabilize dependencies and rerun this screen';
   for (const check of record.checks) {

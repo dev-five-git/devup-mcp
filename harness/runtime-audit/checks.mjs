@@ -476,7 +476,36 @@ export function evaluateSequenceOrder(observed) {
       if (ordered[index].number < ordered[index - 1].number) failures.push(`${ordered[index - 1].name} before ${ordered[index].name}`);
     }
   }
-  return { status: failures.length ? 'fail' : 'pass', reason: failures.length ? `sequence out of visual order: ${failures.join('; ')}` : 'numbered siblings follow increasing visual order', measured: observed };
+  if (failures.length) return { status: 'fail', reason: `sequence out of visual order: ${failures.join('; ')}`, measured: observed };
+  // Numbered labels that formed no group were never compared: an empty
+  // observation is not evidence of reading order.
+  if (!observed.groups.length && (observed.labels ?? 0) > 0) {
+    return { status: 'inconclusive', reason: `${observed.labels} numbered labels found but none formed a comparable sequence`, measured: observed };
+  }
+  if (!observed.groups.length) return { status: 'pass', reason: 'no numbered labels on this page', measured: observed };
+  return { status: 'pass', reason: `${observed.groups.length} numbered sequences follow increasing visual order`, measured: observed };
+}
+
+/**
+ * Whether the page's own styles arrived. A class token that no stylesheet rule
+ * mentions means its CSS was never delivered (a cold dev server, a missing
+ * per-file chunk); the page then renders as raw document flow.
+ */
+export function evaluateStylesApplied(observed) {
+  const { classes = 0, unmatched = [], unreadableSheets = 0, styledElements = 0, elements = 0 } = observed;
+  if (!elements) return { status: 'inconclusive', reason: 'the page has no elements to judge', measured: observed };
+  if (unmatched.length) {
+    const status = unreadableSheets ? 'inconclusive' : 'fail';
+    return {
+      status,
+      reason: `${unmatched.length} of ${classes} class names have no CSS rule${unreadableSheets ? ` (${unreadableSheets} stylesheets could not be read)` : ''}: ${unmatched.slice(0, 8).join(', ')}`,
+      measured: { ...observed, unmatched: unmatched.slice(0, 40) },
+    };
+  }
+  if (classes > 0 && styledElements === 0) {
+    return { status: 'fail', reason: 'no element received a style from its classes', measured: observed };
+  }
+  return { status: 'pass', reason: `${classes} class names all have CSS rules`, measured: observed };
 }
 
 export function evaluateSectionLayout(observed) {

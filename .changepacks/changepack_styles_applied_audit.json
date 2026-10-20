@@ -1,0 +1,1 @@
+{"changes":{"Cargo.toml":"Patch"},"note":"Runtime audit: add styles-applied check, split numbered sequences per label form and report unformed sequences as inconclusive, wait for stylesheet stability, flag layout-unstable measurements and retry a disturbed URL screen once; screen-plan guidance asks every decision as one proposal table","date":"2026-10-20T00:00:00Z"}
