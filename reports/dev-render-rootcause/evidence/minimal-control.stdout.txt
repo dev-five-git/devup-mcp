@@ -1,0 +1,26 @@
+
+  VITE v8.2.2  ready in 700 ms
+
+  ➜  Local:   http://127.0.0.1:4318/
+오전 4:15:30 [vite] (rsc) connected.
+ GET /about 308 in 664ms
+오전 4:15:30 [vite] (ssr) connected.
+ GET /about/ 200 in 268ms (compile: 15ms, render: 248ms)
+ GET /seo-geo 308 in 101ms
+ GET /seo-geo/ 200 in 156ms (compile: 131ms, render: 25ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 9ms (compile: 1ms, render: 7ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 10ms (compile: 2ms, render: 7ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 12ms (compile: 1ms, render: 9ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 11ms (compile: 4ms, render: 5ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 12ms (compile: 2ms, render: 9ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 8ms (compile: 2ms, render: 6ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 17ms (compile: 2ms, render: 15ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 9ms (compile: 2ms, render: 6ms)

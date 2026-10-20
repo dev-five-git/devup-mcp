@@ -1,0 +1,12 @@
+오전 4:05:47 [vite] (rsc) warning: client component dependency is inconsistently optimized. It's recommended to add the dependency to 'optimizeDeps.exclude'.
+  Plugin: rsc:use-client
+  File: C:/Users/devfivedevleader/orca/workspaces/devfive-center/margate/node_modules/.bun/@devup-ui+react@1.0.40/node_modules/@devup-ui/react/dist/hooks/use-theme.js?v=84ead664
+오전 4:05:47 [vite] (rsc) warning: client component dependency is inconsistently optimized. It's recommended to add the dependency to 'optimizeDeps.exclude'.
+  Plugin: rsc:use-client
+  File: C:/Users/devfivedevleader/orca/workspaces/devfive-center/margate/node_modules/.bun/@devup-ui+react@1.0.40/node_modules/@devup-ui/react/dist/utils/get-theme.js?v=84ead664
+오전 4:05:47 [vite] (rsc) warning: client component dependency is inconsistently optimized. It's recommended to add the dependency to 'optimizeDeps.exclude'.
+  Plugin: rsc:use-client
+  File: C:/Users/devfivedevleader/orca/workspaces/devfive-center/margate/node_modules/.bun/@devup-ui+react@1.0.40/node_modules/@devup-ui/react/dist/utils/init-theme.js?v=84ead664
+오전 4:05:47 [vite] (rsc) warning: client component dependency is inconsistently optimized. It's recommended to add the dependency to 'optimizeDeps.exclude'.
+  Plugin: rsc:use-client
+  File: C:/Users/devfivedevleader/orca/workspaces/devfive-center/margate/node_modules/.bun/@devup-ui+react@1.0.40/node_modules/@devup-ui/react/dist/utils/set-theme.js?v=84ead664

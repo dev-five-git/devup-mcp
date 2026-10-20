@@ -15,6 +15,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './dev-environment.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
@@ -86,11 +87,12 @@ export function parseArgs(argv) {
     if (flag === '--plan') args.plan = value;
     else if (flag === '--out') args.out = value;
     else if (flag === '--max-minutes') args.maxMinutes = Number(value);
+    else if (flag === '--server-log') args.serverLog = value;
     else throw new Error(`unknown argument ${flag}`);
     index += 1;
   }
   if (!args.plan || !args.out || !(args.maxMinutes > 0)) {
-    throw new Error('usage: node run.mjs --plan <plan.json> --out <dir> [--max-minutes N]');
+    throw new Error('usage: node run.mjs --plan <plan.json> --out <dir> [--max-minutes N] [--server-log <file>]');
   }
   return args;
 }
@@ -537,7 +539,7 @@ async function checkExpectations(page, expect, timeout) {
   return null;
 }
 
-async function runViewport(browser, plan, viewport, out, deadline, references, linkCache = new Map()) {
+async function runViewport(browser, plan, viewport, out, deadline, references, readServerLog, linkCache = new Map()) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
   const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
@@ -554,6 +556,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, l
   await guardOrigins(context, allowed, blocked);
   await context.addInitScript(VIEW_TRANSITION_PROBE);
   const page = await context.newPage();
+  observeDevServer(page, environmentErrors);
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
   page.on('console', (message) => {
     if (message.type() === 'error') environmentErrors.push({ kind: 'console-error', message: message.text() });
@@ -604,218 +607,229 @@ async function runViewport(browser, plan, viewport, out, deadline, references, l
         continue;
       }
       try {
-        if (screen.routePath) {
-          const response = await page.goto(new URL(screen.routePath, plan.baseUrl).toString(), { waitUntil: 'load', timeout: stepTimeout });
-          if (response && !response.ok()) {
-            environmentErrors.push({ kind: 'navigation-failed', message: `${screen.routePath}: HTTP ${response.status()}` });
-          }
-        }
-        for (const step of screen.steps ?? []) {
-          const target = locate(page, step.target);
-          const timeout = step.timeoutMs ?? stepTimeout;
-          if (step.action === 'click') await target.click({ timeout });
-          else await target.fill(step.value, { timeout });
-        }
-        await checkExpectations(page, screen.expect, stepTimeout);
-        await waitReady(page, plan, stepTimeout);
-      } catch (error) {
-        const failure = classifyStepError(error);
-        record.status = 'failed';
-        record.reason = `${failure.kind}: ${failure.message.split('\n')[0]}`;
-        reached = false;
-        notMeasured('inconclusive', `the screen was not reached (${failure.kind})`);
-        continue;
-      }
-      reached = true;
-      record.url = page.url();
-      const metrics = await pageMetrics(page);
-      if (metrics.viewportWidth !== viewport.width) {
-        environmentErrors.push({ kind: 'viewport-mismatch', message: `innerWidth ${metrics.viewportWidth} for a ${viewport.width}px viewport` });
-      }
-      for (const family of await missingFonts(page, plan.fonts)) {
-        environmentErrors.push({ kind: 'font-missing', message: `${family} is not loaded` });
-      }
-      for (const [index, check] of screen.checks.entries()) {
-        // A view-transition check navigates away, so it runs after every
-        // other check and the screenshot have seen this screen.
-        if (check.kind === 'view-transition') continue;
-        if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
-        const item = { index, kind: check.kind, label: check.label };
-        if (check.kind === 'links-resolve') continue;
-        if (check.kind === 'page-health') {
-          const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
-          const errors = environmentErrors
-            .slice(errorsAtStart)
-            .filter((error) => ['page-error', 'console-error', 'navigation-failed'].includes(error.kind));
-          record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.replaceAll("?", "'").includes(needle)), errors, documentWidth: metrics.documentWidth, viewportWidth: metrics.viewportWidth }) });
-          continue;
-        }
-        if (check.kind === 'text-align') {
-          const target = locate(page, check.subject);
-          const count = await target.count();
-          const observed = count === 1 ? await target.evaluate((element) => ({ count: 1, visible: element.checkVisibility({ opacityProperty: true, visibilityProperty: true }), align: getComputedStyle(element).textAlign, direction: getComputedStyle(element).direction })) : { count };
-          record.checks.push({ ...item, ...evaluateTextAlignment(check, observed) });
-          continue;
-        }
-        if (check.kind === 'no-clipped-content') {
-          const observed = await observeClippedContent(page);
-          record.checks.push({ ...item, status: observed.clipped.length ? 'fail' : 'pass', reason: observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
-          continue;
-        }
-        if (check.kind === 'sequence-order') {
-          record.checks.push({ ...item, ...evaluateSequenceOrder(await observeSequence(page)) });
-          continue;
-        }
-        if (check.kind === 'section-layout') {
-          record.checks.push({ ...item, ...evaluateSectionLayout(await observeSectionLayout(page, check.subject, check.container)) });
-          continue;
-        }
-        if (check.kind === 'hidden') {
-          const target = locate(page, check.subject);
-          const subjectCount = await target.count();
-          const visible = subjectCount === 1 && await target.evaluate((element) => {
-            const rect = element.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0
-              && (!element.checkVisibility || element.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
-          });
-          record.checks.push({ ...item, ...evaluateHidden({ subjectCount, visible }) });
-          continue;
-        }
-        if (check.kind === 'image-loaded') {
-          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
-          if ((await scope.count()) !== 1) {
-            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
-            continue;
-          }
-          const requests = {
-            responses: responseLog.slice(responsesAtStart).filter((entry) => entry.type === 'image'),
-            failed: failedLog.slice(failedAtStart),
-            scoped: Boolean(check.subject),
-          };
-          record.checks.push({ ...item, ...evaluateImagesLoaded(await observeImages(scope), requests) });
-          continue;
-        }
-        if (check.kind === 'no-low-contrast-text') {
-          if (check.subject && await locate(page, check.subject).count() !== 1) {
-            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
-            continue;
-          }
-          const observed = await observeCompleteness(page, {}, viewport.width, check.subject);
-          const result = evaluateNoLowContrastText({}, observed);
-          record.checks.push({ ...item, ...result });
-          continue;
-        }
-        if (check.kind === 'native-appearance') {
-          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
-          if ((await scope.count()) !== 1) {
-            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
-            continue;
-          }
-          record.checks.push({ ...item, ...evaluateNativeAppearance(await observeNativeAppearance(scope)) });
-          continue;
-        }
-        if (check.kind === 'stale-resources') {
-          const responses = responseLog.slice(responsesAtStart);
-          const first = await snapshotLoad(page);
-          let second = null;
-          let reloadError = null;
-          try {
-            second = await freshLoad({
-              browser, contextOptions, url: page.url(), timeout: stepTimeout,
-              install: (fresh) => guardOrigins(fresh, allowed, blocked),
-              ready: (fresh) => waitReady(fresh, plan, stepTimeout),
-            });
-          } catch (error) {
-            reloadError = String(error?.message ?? error).split('\n')[0];
-          }
-          record.checks.push({ ...item, ...evaluateStaleResources({ responses, first, second, reloadError }) });
-          continue;
-        }
-        if (check.kind === 'rendered-completeness') {
-          record.checks.push({ ...item, ...evaluateRenderedCompleteness(check.completeness, await observeCompleteness(page, check.completeness, viewport.width)) });
-          continue;
-        }
-        if (check.kind === 'no-clipped-text') {
-          record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
-          continue;
-        }
-        if (check.kind === 'interaction') {
-          const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
-          record.checks.push({ ...item, ...(observed.error
-            ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
-            : evaluateInteraction(check, observed)) });
-          continue;
-        }
-        if (check.kind === 'capture') {
-          const target = locate(page, check.subject);
-          const count = await target.count();
-          if (count !== 1) {
-            record.checks.push({ ...item, status: 'inconclusive', reason: count === 0 ? 'subject matched no element' : `subject matched ${count} elements; a check needs exactly one`, measured: {} });
-            continue;
-          }
-          const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-c${index}.png`;
-          const bytes = await target.screenshot({ animations: 'disabled', caret: 'hide' });
-          await writeFile(join(out, shot), bytes);
-          record.checks.push({ ...item, status: 'pass', reason: 'captured for the server to compare with its Figma render', measured: {}, screenshot: { path: shot, sha256: sha256(bytes), bytes: bytes.length } });
-          continue;
-        }
-        const subject = await measureBox(page, check.subject, check.measure);
-        const container = await measureBox(page, check.container);
-        const result = subject.error
-          ? { status: 'inconclusive', reason: subject.error, measured: {} }
-          : (check.kind === 'dimensions' ? evaluateDimensions : check.kind === 'bounds' ? evaluateBounds : evaluateCheck)(check, {
-              page: metrics,
-              subject: subject.box,
-              subjectCount: subject.count,
-              subjectVisible: subject.visible,
-              container: container.box,
-              containerCount: container.count,
-            }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
-        record.checks.push({ index, kind: check.kind, label: check.label, ...result });
-      }
-      const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
-      const bytes = await page.screenshot({
-        fullPage: true,
-        clip: { x: 0, y: 0, width: metrics.viewportWidth, height: metrics.fullHeight },
-        animations: 'disabled',
-        caret: 'hide',
-      });
-      await writeFile(join(out, name), bytes);
-      record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
-      // Links on this page, so a dynamic route ([slug]) can be audited at the
-      // URLs the site itself links to.
-      const anchors = await page.evaluate(() => [...document.querySelectorAll('a[href]')].flatMap((anchor) => {
         try {
-          const href = anchor.getAttribute('href');
-          const url = new URL(href, location.href);
-          return url.origin === location.origin ? [{from:location.href, label:anchor.getAttribute('aria-label') || anchor.textContent.trim(), href, pathname:url.pathname, width:innerWidth}] : [];
-        } catch { return []; }
-      }));
-      record.links = [...new Set(anchors.map((anchor) => anchor.pathname))];
-      for (const [index, check] of screen.checks.entries()) {
-        if (check.kind !== 'links-resolve' || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
-        record.linkTable = await resolveLinks(context.request, anchors, check, linkCache);
-        record.checks.push({index, kind:check.kind, label:check.label, status:record.linkTable.some((row) => row.status !== 'pass') ? 'fail' : 'pass', reason:'same-origin links resolved', measured:{linkTable:record.linkTable}});
-      }
-      for (const [index, check] of screen.checks.entries()) {
-        if (check.kind !== 'view-transition') continue;
-        if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
-        const returnTo = page.url();
-        const observed = await observeViewTransition(page, check, stepTimeout).catch((error) => ({
-          subjectCount: 1, supported: true, navigated: false, calls: 0, error: String(error?.message ?? error),
-        }));
-        const result = observed.error
-          ? { status: 'inconclusive', reason: `the subject could not be followed: ${observed.error.split('\n')[0]}`, measured: {} }
-          : evaluateViewTransition(observed);
-        record.checks.push({ index, kind: check.kind, label: check.label, ...result });
-        // Back to where the check started, so a following screen reached by
-        // steps starts from this screen whatever order the plan has.
-        if (page.url() !== returnTo) {
-          await page.goto(returnTo, { waitUntil: 'load', timeout: stepTimeout }).catch(() => {});
-          await waitReady(page, plan, stepTimeout).catch(() => {});
+          if (screen.routePath) {
+            const response = await page.goto(new URL(screen.routePath, plan.baseUrl).toString(), { waitUntil: 'load', timeout: stepTimeout });
+            if (response && !response.ok()) {
+              environmentErrors.push({ kind: 'navigation-failed', message: `${screen.routePath}: HTTP ${response.status()}` });
+            }
+          }
+          for (const step of screen.steps ?? []) {
+            const target = locate(page, step.target);
+            const timeout = step.timeoutMs ?? stepTimeout;
+            if (step.action === 'click') await target.click({ timeout });
+            else await target.fill(step.value, { timeout });
+          }
+          await checkExpectations(page, screen.expect, stepTimeout);
+          await waitReady(page, plan, stepTimeout);
+        } catch (error) {
+          const failure = classifyStepError(error);
+          record.status = 'failed';
+          record.reason = `${failure.kind}: ${failure.message.split('\n')[0]}`;
+          reached = false;
+          notMeasured('inconclusive', `the screen was not reached (${failure.kind})`);
+          continue;
         }
+        reached = true;
+        record.url = page.url();
+        const metrics = await pageMetrics(page);
+        if (metrics.viewportWidth !== viewport.width) {
+          environmentErrors.push({ kind: 'viewport-mismatch', message: `innerWidth ${metrics.viewportWidth} for a ${viewport.width}px viewport` });
+        }
+        for (const family of await missingFonts(page, plan.fonts)) {
+          environmentErrors.push({ kind: 'font-missing', message: `${family} is not loaded` });
+        }
+        for (const [index, check] of screen.checks.entries()) {
+          // A view-transition check navigates away, so it runs after every
+          // other check and the screenshot have seen this screen.
+          if (check.kind === 'view-transition') continue;
+          if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
+          const item = { index, kind: check.kind, label: check.label };
+          if (check.kind === 'links-resolve') continue;
+          if (check.kind === 'page-health') {
+            const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
+            const errors = environmentErrors
+              .slice(errorsAtStart)
+              .filter((error) => ['page-error', 'console-error', 'navigation-failed'].includes(error.kind));
+            record.checks.push({ ...item, ...evaluatePageHealth({ errorTexts: ERROR_PAGE_TEXT.filter((needle) => text.replaceAll("?", "'").includes(needle)), errors, documentWidth: metrics.documentWidth, viewportWidth: metrics.viewportWidth }) });
+            continue;
+          }
+          if (check.kind === 'text-align') {
+            const target = locate(page, check.subject);
+            const count = await target.count();
+            const observed = count === 1 ? await target.evaluate((element) => ({ count: 1, visible: element.checkVisibility({ opacityProperty: true, visibilityProperty: true }), align: getComputedStyle(element).textAlign, direction: getComputedStyle(element).direction })) : { count };
+            record.checks.push({ ...item, ...evaluateTextAlignment(check, observed) });
+            continue;
+          }
+          if (check.kind === 'no-clipped-content') {
+            const observed = await observeClippedContent(page);
+            record.checks.push({ ...item, status: observed.clipped.length ? 'fail' : 'pass', reason: observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
+            continue;
+          }
+          if (check.kind === 'sequence-order') {
+            record.checks.push({ ...item, ...evaluateSequenceOrder(await observeSequence(page)) });
+            continue;
+          }
+          if (check.kind === 'section-layout') {
+            record.checks.push({ ...item, ...evaluateSectionLayout(await observeSectionLayout(page, check.subject, check.container)) });
+            continue;
+          }
+          if (check.kind === 'hidden') {
+            const target = locate(page, check.subject);
+            const subjectCount = await target.count();
+            const visible = subjectCount === 1 && await target.evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0
+                && (!element.checkVisibility || element.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+            });
+            record.checks.push({ ...item, ...evaluateHidden({ subjectCount, visible }) });
+            continue;
+          }
+          if (check.kind === 'image-loaded') {
+            const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+            if ((await scope.count()) !== 1) {
+              record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+              continue;
+            }
+            const requests = {
+              responses: responseLog.slice(responsesAtStart).filter((entry) => entry.type === 'image'),
+              failed: failedLog.slice(failedAtStart),
+              scoped: Boolean(check.subject),
+            };
+            record.checks.push({ ...item, ...evaluateImagesLoaded(await observeImages(scope), requests) });
+            continue;
+          }
+          if (check.kind === 'no-low-contrast-text') {
+            if (check.subject && await locate(page, check.subject).count() !== 1) {
+              record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+              continue;
+            }
+            const observed = await observeCompleteness(page, {}, viewport.width, check.subject);
+            const result = evaluateNoLowContrastText({}, observed);
+            record.checks.push({ ...item, ...result });
+            continue;
+          }
+          if (check.kind === 'native-appearance') {
+            const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+            if ((await scope.count()) !== 1) {
+              record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+              continue;
+            }
+            record.checks.push({ ...item, ...evaluateNativeAppearance(await observeNativeAppearance(scope)) });
+            continue;
+          }
+          if (check.kind === 'stale-resources') {
+            const responses = responseLog.slice(responsesAtStart);
+            const first = await snapshotLoad(page);
+            let second = null;
+            let reloadError = null;
+            try {
+              second = await freshLoad({
+                browser, contextOptions, url: page.url(), timeout: stepTimeout,
+                install: (fresh) => guardOrigins(fresh, allowed, blocked),
+                ready: (fresh) => waitReady(fresh, plan, stepTimeout),
+              });
+            } catch (error) {
+              reloadError = String(error?.message ?? error).split('\n')[0];
+            }
+            record.checks.push({ ...item, ...evaluateStaleResources({ responses, first, second, reloadError }) });
+            continue;
+          }
+          if (check.kind === 'rendered-completeness') {
+            record.checks.push({ ...item, ...evaluateRenderedCompleteness(check.completeness, await observeCompleteness(page, check.completeness, viewport.width)) });
+            continue;
+          }
+          if (check.kind === 'no-clipped-text') {
+            record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
+            continue;
+          }
+          if (check.kind === 'interaction') {
+            const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
+            record.checks.push({ ...item, ...(observed.error
+              ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
+              : evaluateInteraction(check, observed)) });
+            continue;
+          }
+          if (check.kind === 'capture') {
+            const target = locate(page, check.subject);
+            const count = await target.count();
+            if (count !== 1) {
+              record.checks.push({ ...item, status: 'inconclusive', reason: count === 0 ? 'subject matched no element' : `subject matched ${count} elements; a check needs exactly one`, measured: {} });
+              continue;
+            }
+            const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-c${index}.png`;
+            const bytes = await target.screenshot({ animations: 'disabled', caret: 'hide' });
+            await writeFile(join(out, shot), bytes);
+            record.checks.push({ ...item, status: 'pass', reason: 'captured for the server to compare with its Figma render', measured: {}, screenshot: { path: shot, sha256: sha256(bytes), bytes: bytes.length } });
+            continue;
+          }
+          const subject = await measureBox(page, check.subject, check.measure);
+          const container = await measureBox(page, check.container);
+          const result = subject.error
+            ? { status: 'inconclusive', reason: subject.error, measured: {} }
+            : (check.kind === 'dimensions' ? evaluateDimensions : check.kind === 'bounds' ? evaluateBounds : evaluateCheck)(check, {
+                page: metrics,
+                subject: subject.box,
+                subjectCount: subject.count,
+                subjectVisible: subject.visible,
+                container: container.box,
+                containerCount: container.count,
+              }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
+          record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+        }
+        const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
+        const bytes = await page.screenshot({
+          fullPage: true,
+          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: metrics.fullHeight },
+          animations: 'disabled',
+          caret: 'hide',
+        });
+        await writeFile(join(out, name), bytes);
+        record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
+        // Links on this page, so a dynamic route ([slug]) can be audited at the
+        // URLs the site itself links to.
+        const anchors = await page.evaluate(() => [...document.querySelectorAll('a[href]')].flatMap((anchor) => {
+          try {
+            const href = anchor.getAttribute('href');
+            const url = new URL(href, location.href);
+            return url.origin === location.origin ? [{from:location.href, label:anchor.getAttribute('aria-label') || anchor.textContent.trim(), href, pathname:url.pathname, width:innerWidth}] : [];
+          } catch { return []; }
+        }));
+        record.links = [...new Set(anchors.map((anchor) => anchor.pathname))];
+        for (const [index, check] of screen.checks.entries()) {
+          if (check.kind !== 'links-resolve' || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
+          record.linkTable = await resolveLinks(context.request, anchors, check, linkCache);
+          record.checks.push({index, kind:check.kind, label:check.label, status:record.linkTable.some((row) => row.status !== 'pass') ? 'fail' : 'pass', reason:'same-origin links resolved', measured:{linkTable:record.linkTable}});
+        }
+        for (const [index, check] of screen.checks.entries()) {
+          if (check.kind !== 'view-transition') continue;
+          if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
+          const returnTo = page.url();
+          const observed = await observeViewTransition(page, check, stepTimeout).catch((error) => ({
+            subjectCount: 1, supported: true, navigated: false, calls: 0, error: String(error?.message ?? error),
+          }));
+          const result = observed.error
+            ? { status: 'inconclusive', reason: `the subject could not be followed: ${observed.error.split('\n')[0]}`, measured: {} }
+            : evaluateViewTransition(observed);
+          record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+          // Back to where the check started, so a following screen reached by
+          // steps starts from this screen whatever order the plan has.
+          if (page.url() !== returnTo) {
+            await page.goto(returnTo, { waitUntil: 'load', timeout: stepTimeout }).catch(() => {});
+            await waitReady(page, plan, stepTimeout).catch(() => {});
+          }
+        }
+        record.checks.sort((a, b) => a.index - b.index);
+      } catch (error) {
+        // A reload can destroy an execution context anywhere in measurement,
+        // including screenshots. Unrelated executor errors still abort.
+        environmentErrors.push(...await readServerLog());
+        if (!invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) throw error;
+        notMeasured('inconclusive', record.reason);
+      } finally {
+        environmentErrors.push(...await readServerLog());
+        if (invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) reached = false;
       }
-      record.checks.sort((a, b) => a.index - b.index);
     }
   } finally {
     run.finishedAt = new Date().toISOString();
@@ -827,13 +841,14 @@ async function runViewport(browser, plan, viewport, out, deadline, references, l
   return run;
 }
 
-export async function runPlan({ plan: planPath, out, maxMinutes }) {
+export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
   const planBytes = await readFile(planPath);
   const document = JSON.parse(planBytes.toString('utf8'));
   if (document.kind !== PLAN_KIND || document.schemaVersion !== 1 || !document.plan) {
     throw new Error(`${planPath} is not a devup runtime audit plan; create one with devup_runtime_audit action plan`);
   }
   const plan = document.plan;
+  const readServerLog = await serverLogReader(serverLog);
   validateDimensionsPlan(plan);
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new Error('maxMinutes must be finite and positive');
   const outDir = resolve(out);
@@ -872,7 +887,7 @@ export async function runPlan({ plan: planPath, out, maxMinutes }) {
   try {
     for (const viewport of plan.viewports) {
       if (aborted || Date.now() > deadline) break;
-      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], linkCache));
+      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], readServerLog, linkCache));
     }
     const ranEverything = report.runs.length === plan.viewports.length
       && report.runs.every((run) => run.screens.every((screen) => screen.status === 'completed'));

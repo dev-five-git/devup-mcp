@@ -1,0 +1,1 @@
+{"changes":{"Cargo.toml":"Patch"},"note":"Classify vinext/Vite dev reloads as environment errors in the runtime audit and clarify devup-ui dev guidance","date":"2026-10-20T00:00:00Z"}

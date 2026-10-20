@@ -1,5 +1,20 @@
 # Real-render verification
 
+For a dev server, capture its stdout/stderr to a log and pass
+`--server-log /absolute/path/server.log` to `run.mjs` (or `serverLog` to
+`runPlan`). The file must already exist. Only output appended during the audit
+is considered. Vite's `new dependencies optimized, reloading` and
+`optimized dependencies changed. reloading` messages become
+`dev-reoptimization-reload` environment errors. SSR `program reload` and browser
+HMR `full-reload` messages become `dev-server-reload`; a WebSocket reload alone
+does not establish that the optimizer caused it.
+
+Affected screens are skipped with inconclusive checks and their captures are
+withheld from visual comparison. The report is partial; stabilize the server
+and rerun. Later independent routes still run. Console optimizer messages are
+also recognized without a log, but Vite normally prints optimizer and SSR
+reload diagnostics only on the server, so browser-only observation is incomplete.
+
 Static validation and a successful screenshot capture do not establish visual
 correctness. With the generated app running, execute its runtime audit, compare
 the actual Chromium screenshots against the independently acquired Figma PNGs,
