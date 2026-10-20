@@ -306,4 +306,4 @@ Never stop to wait; reorder the work: a decision after confirm goes to
 with evidence after `maxFixAttempts` as incomplete.
 
 Before reporting done, run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read the report, fix failures and rerun until every cell passes. Missing cells are not-run and block completion. At drawn widths require rendered completeness and page, section and asset visual comparisons. Check sequence-order and section-layout at every width.
-Ask all site, structure and URL questions from the draft questions/questionRounds together up front, back to back before implementing. Never ask another round during the build; record conservative assumptions after confirmation.
+Ask all site, structure and URL decisions up front as ONE proposal table and ONE question (accept, or name the rows to change) before implementing. Never split them into per-section or per-topic rounds, and never ask another question during the build; record conservative assumptions after confirmation.

@@ -1,0 +1,36 @@
+
+  VITE v8.2.2  ready in 696 ms
+
+  ➜  Local:   http://127.0.0.1:4318/
+오전 4:14:51 [vite] (rsc) connected.
+ GET /about 308 in 701ms
+오전 4:14:52 [vite] (ssr) connected.
+ GET /about/ 200 in 287ms (compile: 19ms, render: 265ms)
+ GET /seo-geo 308 in 31ms
+오전 4:14:52 [vite] (rsc) hmr update /@id/__x00__virtual:vinext-rsc-entry
+오전 4:14:52 [vite] (ssr) page reload df/devup-ui/devup-ui.css
+오전 4:14:52 [vite] (ssr) program reload
+오전 4:14:52 [vite] (client) hmr update /df/devup-ui/devup-ui.css?direct&t=17924372922602268, /df/devup-ui/devup-ui.css?direct&t=17924372924862311
+오전 4:14:52 [vite] (rsc) hot updated: \0virtual:vinext-rsc-entry
+오전 4:14:52 [vite] (rsc) hmr update /@id/__x00__virtual:vinext-rsc-entry
+오전 4:14:52 [vite] (ssr) page reload df/devup-ui/devup-ui.css
+오전 4:14:52 [vite] (ssr) program reload
+오전 4:14:52 [vite] (client) hmr update /df/devup-ui/devup-ui.css?direct&t=17924372922602268, /df/devup-ui/devup-ui.css?direct&t=17924372924862311
+오전 4:14:52 [vite] (rsc) hot updated: \0virtual:vinext-rsc-entry
+ GET /seo-geo/ 500 in 183ms (compile: 153ms, render: 26ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 57ms (compile: 2ms, render: 54ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 17ms (compile: 10ms, render: 6ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 22ms (compile: 2ms, render: 19ms)
+ GET /seo-geo 308 in 3ms
+ GET /seo-geo/ 200 in 11ms (compile: 4ms, render: 7ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 12ms (compile: 1ms, render: 9ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 9ms (compile: 1ms, render: 6ms)
+ GET /about 308 in 1ms
+ GET /about/ 200 in 12ms (compile: 1ms, render: 9ms)
+ GET /seo-geo 308 in 1ms
+ GET /seo-geo/ 200 in 9ms (compile: 3ms, render: 6ms)

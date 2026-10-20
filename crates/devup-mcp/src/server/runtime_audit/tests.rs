@@ -63,7 +63,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 5);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 6);
         assert_eq!(planned["template"]["executed"], false);
         assert_eq!(
             std::fs::read(dir.join("runner/run.mjs")).unwrap(),
@@ -276,9 +276,13 @@ mod tests {
     }
 
     fn root() -> (std::path::PathBuf, OutputPolicy) {
+        // Windows clocks tick in 100ns steps, so parallel tests can read the
+        // same timestamp; the counter keeps their directories apart.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let dir = std::env::temp_dir().join(format!(
-            "devup-runtime-audit-{}-{}",
+            "devup-runtime-audit-{}-{}-{}",
             std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -381,9 +385,10 @@ mod tests {
         };
         let node = |id: &str| json!({"css": format!("[data-figma-node-id=\"{id}\"]")});
         assert!(ok(json!({"kind": "page-health"})).is_ok());
-        for kind in ["sequence-order", "section-layout", "no-clipped-content"] {
+        for kind in ["sequence-order", "section-layout", "no-clipped-content", "styles-applied"] {
             assert!(ok(json!({"kind": kind})).is_ok());
         }
+        assert!(ok(json!({"kind": "styles-applied", "subject": node("1:2")})).is_err());
         assert!(ok(json!({"kind":"text-align", "subject":node("1:2"), "edge":"center"})).is_ok());
         assert!(ok(json!({"kind":"text-align", "subject":node("1:2"), "edge":"bad"})).is_err());
         assert!(ok(json!({"kind": "stale-resources"})).is_ok());

@@ -174,7 +174,9 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
     .unwrap();
     for plan in [&home.plan, &about.plan] {
         for kind in [
+            "links-resolve",
             "page-health",
+            "styles-applied",
             "sequence-order",
             "section-layout",
             "rendered-completeness",

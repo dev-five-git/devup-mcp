@@ -299,8 +299,17 @@ pub(super) fn status_report(
             }
         }
     }
-    let queue = super::audit_plan::work_queue(plan, &rows, &[]);
-    let final_report = super::audit_plan::final_report(plan, &rows, &trailing);
+    let link_table = array(&plan["audit"]["linkTable"]);
+    let links_fail = link_table.iter().any(|row| row["status"] != "pass");
+    let mut link_markdown = String::from("\n| from | label | href | status | planned? |\n|---|---|---|---|---|\n");
+    for row in link_table {
+        link_markdown.push_str(&format!("| {} | {} | {} | {} | {} |\n", cell(&row["from"]), cell(&row["label"]), cell(&row["href"]), cell(&row["status"]), cell(&row["planned"])));
+    }
+    let mut queue = super::audit_plan::work_queue(plan, &rows, &[]);
+    if links_fail {
+        for item in &mut queue { item["done"] = json!(false); }
+    }
+    let final_report = super::audit_plan::final_report(plan, &rows, &trailing) + &link_markdown;
     let converter_bugs = plan["audit"]["converterBugs"]
         .as_object()
         .map(|bugs| bugs.values().cloned().collect::<Vec<_>>())
@@ -312,6 +321,9 @@ pub(super) fn status_report(
         "workQueue": queue,
         "pendingDecisions": plan["pendingDecisions"],
         "finalReport": final_report,
+        "linkTable": link_table,
+        "mobileNavigation": plan["mobileNavigation"],
+        "linkTableMarkdown": link_markdown,
         "doneWhen": DONE_RULE,
         "status": "confirmed",
         "planId": plan["planId"],

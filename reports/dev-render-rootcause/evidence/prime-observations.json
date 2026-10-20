@@ -1,0 +1,888 @@
+{
+  "no-exclude": {
+    "results": [
+      {
+        "width": 1440,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려"
+      },
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 230,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1210,
+              "bottom": 239.390625,
+              "left": 230
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI"
+      },
+      {
+        "width": 1100,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 1100,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 60,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1040,
+              "bottom": 239.390625,
+              "left": 60
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 858,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 858,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 818,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 838,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 600,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 600,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 560,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 580,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 390,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 350,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 370,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      }
+    ],
+    "events": []
+  },
+  "exclude": {
+    "results": [
+      {
+        "width": 1440,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 43,
+        "title": [],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려"
+      },
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 230,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1210,
+              "bottom": 239.390625,
+              "left": 230
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI"
+      },
+      {
+        "width": 1100,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 43,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 1100,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 60,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1040,
+              "bottom": 239.390625,
+              "left": 60
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 858,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 43,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 858,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 818,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 838,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 600,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 43,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 600,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 560,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 580,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 390,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 43,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 350,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 370,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      }
+    ],
+    "events": []
+  },
+  "exclude-fast1": {
+    "results": [
+      {
+        "width": 1440,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려"
+      },
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "status": 500,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 1,
+        "title": [],
+        "text": "This page couldn’t load\n\nReload to try again, or go back.\n\nReload\nBack"
+      },
+      {
+        "width": 1100,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 1100,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 60,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1040,
+              "bottom": 239.390625,
+              "left": 60
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 858,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 858,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 818,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 838,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 600,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 600,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 560,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 580,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 390,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "bl-f typo-h1 bl-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 350,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 370,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      }
+    ],
+    "events": [
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "type": "http-error",
+        "status": 500,
+        "url": "http://127.0.0.1:4317/seo-geo/"
+      }
+    ]
+  },
+  "no-exclude-fast-mobile": {
+    "results": [
+      {
+        "width": 390,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "status": 500,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 1,
+        "title": [],
+        "text": "This page couldn’t load\n\nReload to try again, or go back.\n\nReload\nBack"
+      },
+      {
+        "width": 600,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 600,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 560,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 580,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 858,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 858,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 818,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 838,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 1100,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 1100,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 60,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1040,
+              "bottom": 239.390625,
+              "left": 60
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 1440,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려"
+      },
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 17,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 230,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1210,
+              "bottom": 239.390625,
+              "left": 230
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI"
+      }
+    ],
+    "events": [
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "type": "http-error",
+        "status": 500,
+        "url": "http://127.0.0.1:4317/seo-geo/"
+      }
+    ]
+  },
+  "exclude-fast-unwatch2": {
+    "results": [
+      {
+        "width": 1440,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려"
+      },
+      {
+        "width": 1440,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1440,
+        "bodyWidth": 1440,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 230,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1210,
+              "bottom": 239.390625,
+              "left": 230
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "프라임이란\n홈페이지제작\n포트폴리오\nSEO · GEO\n고객센터\n유지관리\n회사소개\n견적문의\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI"
+      },
+      {
+        "width": 1100,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 1100,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 1100,
+        "bodyWidth": 1100,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 60,
+              "y": 177,
+              "width": 980,
+              "height": 62.390625,
+              "top": 177,
+              "right": 1040,
+              "bottom": 239.390625,
+              "left": 60
+            },
+            "font": "48px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 858,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 858,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 858,
+        "bodyWidth": 858,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 818,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 838,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 600,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 600,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 600,
+        "bodyWidth": 600,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 560,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 580,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      },
+      {
+        "width": 390,
+        "route": "/about",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 42,
+        "title": [],
+        "text": "견적문의\n☰\n홈\n프라임이란\n프라임이란\n왜 프라임에 맡겨야 하는지 알려드립니다.\n“기관·대학·기업의 이야기를 가장 정확하게 전하는 홈페이지”\n프라"
+      },
+      {
+        "width": 390,
+        "route": "/seo-geo",
+        "status": 200,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "stylesheetCount": 16,
+        "title": [
+          {
+            "class": "i-f typo-h1 i-b",
+            "rect": {
+              "x": 20,
+              "y": 152.5,
+              "width": 350,
+              "height": 46.796875,
+              "top": 152.5,
+              "right": 370,
+              "bottom": 199.296875,
+              "left": 20
+            },
+            "font": "36px"
+          }
+        ],
+        "text": "견적문의\n☰\n홈\nSEO · GEO\nSEO·GEO 진단\n검색엔진과 AI 검색에 우리 홈페이지가 잘 보이는지 확인하세요.\n무료 간단 진단\n홈페이지 "
+      }
+    ],
+    "events": []
+  }
+}

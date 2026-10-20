@@ -68,6 +68,8 @@ pub struct ExploreNode {
     pub text_preview: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_preview_state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub navigation_content_width: Option<f64>,
     pub parent_id: Option<String>,
     pub kind: ExploreKind,
     pub visible: bool,
@@ -163,6 +165,7 @@ impl TryFrom<&RawNode> for ExploreNode {
             child_count,
             text_preview: view.string("textPreview").unwrap_or_default().to_owned(),
             text_preview_state: view.string("textPreviewState").map(str::to_owned),
+            navigation_content_width: view.number("navigationContentWidth"),
             parent_id: view.string("parentId").map(str::to_owned),
             kind: ExploreKind::Unknown,
             visible: view.bool("visible").unwrap_or(true),

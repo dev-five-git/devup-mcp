@@ -1332,3 +1332,7 @@ App selection keyword overrides in `.devup/screen-plan.config.json`:
 ```
 Each supplied category replaces its defaults; omitted categories retain the
 vendored defaults. An empty category explicitly disables its keyword matches.
+
+Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.
+
+Header navigation wider than a narrow viewport emits a `navigation-fit` risk and a validation warning. Exploration carries measured navigation widths into the screen plan; without a mobile-menu frame, draft proposes a drawer behind a menu button below the navigation content-fit breakpoint.

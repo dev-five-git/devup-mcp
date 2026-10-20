@@ -455,6 +455,9 @@ pub struct PlanScreenInput {
     /// Shared part names the caller saw in this screen, e.g. Header, Footer.
     #[serde(default)]
     pub parts: Vec<String>,
+    /// Measured navigation content width from exploration, before export.
+    #[serde(default)]
+    pub navigation_content_width: Option<f64>,
     /// Links the caller saw in this screen, e.g. prototype destinations.
     #[serde(default)]
     pub links: Vec<PlanLinkInput>,

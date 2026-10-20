@@ -1,0 +1,187 @@
+오전 4:06:41 [vite] (client) [console.error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RedirectErrorBoundary>
+      <LayoutSegmentProvider providerId="page:/seo-..." segmentMap={{children:[...]}}>
+        <Slot id="page:/seo-...">
+          <BfcacheSlotBoundary id="page:/seo-..." content={<Context>}>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <RemoveDuplicateServerCss>
+            <PageInvoker>
+              <AwaitAppRenderDependencies>
+                <SeoGeoPage>
+                  <div className="a b bl-an ...">
+                    <Header>
+                    <div>
+                    <div className="a c d bl-y...">
+                      <div className="a c d bl-i...">
+                        <div>
+                        <DiagnosisForm>
+                          <div className="a b ay-d a...">
+                            <div>
+                            <div className="a b ay-z a...">
+                              <input
+                                onChange={function t3}
+                                placeholder="https://"
+                                value=""
+                                className="ay-f ay-i ay-j ay-k ay-l ay-m ay-n ay-o ay-h"
+-                               style={{caret-color:"transparent"}}
+                              >
+                              ...
+                    ...
+
+오전 4:06:41 [vite] (client) [console.error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RedirectErrorBoundary>
+      <LayoutSegmentProvider providerId="page:/seo-..." segmentMap={{children:[...]}}>
+        <Slot id="page:/seo-...">
+          <BfcacheSlotBoundary id="page:/seo-..." content={<Context>}>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <RemoveDuplicateServerCss>
+            <PageInvoker>
+              <AwaitAppRenderDependencies>
+                <SeoGeoPage>
+                  <div className="a b bl-an ...">
+                    <Header>
+                    <div>
+                    <div className="a c d bl-y...">
+                      <div className="a c d bl-i...">
+                        <div>
+                        <DiagnosisForm>
+                          <div className="a b ay-d a...">
+                            <div>
+                            <div className="a b ay-z a...">
+                              <input
+                                onChange={function t3}
+                                placeholder="https://"
+                                value=""
+                                className="ay-f ay-i ay-j ay-k ay-l ay-m ay-n ay-o ay-h"
+-                               style={{caret-color:"transparent"}}
+                              >
+                              ...
+                    ...
+
+오전 4:06:42 [vite] (client) [console.error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RedirectErrorBoundary>
+      <LayoutSegmentProvider providerId="page:/seo-..." segmentMap={{children:[...]}}>
+        <Slot id="page:/seo-...">
+          <BfcacheSlotBoundary id="page:/seo-..." content={<Context>}>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <RemoveDuplicateServerCss>
+            <PageInvoker>
+              <AwaitAppRenderDependencies>
+                <SeoGeoPage>
+                  <div className="a b bl-an ...">
+                    <Header>
+                    <div>
+                    <div className="a c d bl-y...">
+                      <div className="a c d bl-i...">
+                        <div>
+                        <DiagnosisForm>
+                          <div className="a b ay-d a...">
+                            <div>
+                            <div className="a b ay-z a...">
+                              <input
+                                onChange={function t3}
+                                placeholder="https://"
+                                value=""
+                                className="ay-f ay-i ay-j ay-k ay-l ay-m ay-n ay-o ay-h"
+-                               style={{caret-color:"transparent"}}
+                              >
+                              ...
+                    ...
+
+오전 4:06:43 [vite] (client) [console.error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RedirectErrorBoundary>
+      <LayoutSegmentProvider providerId="page:/seo-..." segmentMap={{children:[...]}}>
+        <Slot id="page:/seo-...">
+          <BfcacheSlotBoundary id="page:/seo-..." content={<Context>}>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <link>
+            <RemoveDuplicateServerCss>
+            <PageInvoker>
+              <AwaitAppRenderDependencies>
+                <SeoGeoPage>
+                  <div className="a b bl-an ...">
+                    <Header>
+                    <div>
+                    <div className="a c d bl-y...">
+                      <div className="a c d bl-i...">
+                        <div>
+                        <DiagnosisForm>
+                          <div className="a b ay-d a...">
+                            <div>
+                            <div className="a b ay-z a...">
+                              <input
+                                onChange={function t3}
+                                placeholder="https://"
+                                value=""
+                                className="ay-f ay-i ay-j ay-k ay-l ay-m ay-n ay-o ay-h"
+-                               style={{caret-color:"transparent"}}
+                              >
+                              ...
+                    ...

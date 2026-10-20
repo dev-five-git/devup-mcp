@@ -222,6 +222,20 @@ pub(super) fn draft_plan_with(
         }
         None => true,
     });
+    let mobile_menu_frame = kept.iter().any(|screen| {
+        let name = screen.name.to_lowercase();
+        name.contains("drawer") || (name.contains("mobile") && name.contains("menu"))
+    });
+    let navigation_risk = kept.iter().any(|screen| screen.navigation_content_width.is_some_and(|width| width > 390.0))
+        || evidence.sources.iter().filter_map(|path| std::fs::read_to_string(evidence.root.join(path)).ok())
+            .any(|source| array(&devup_mcp_devup_ui::ui_layout::layout_risks(&source, None)["risks"])
+                .iter().any(|risk| risk["rule"] == "navigation-fit"));
+    if navigation_risk && !mobile_menu_frame {
+        questions.push(with_when(question("mobile-menu".into(), "Mobile menu".into(),
+            "The measured header navigation exceeds the narrow viewport and no mobile menu frame was supplied. Which mobile navigation should be built?".into(),
+            vec![choice("Drawer behind a menu button (Recommended)", "Below the navigation content-fit breakpoint, show a menu button opening an accessible drawer.", json!({"mobileMenu":"drawer", "breakpoint":"navigation-content-fit"})),
+                choice("Request a mobile menu design", "Leave mobile navigation pending a Figma menu frame.", json!({"mobileMenu":"design-required"}))], "mobile-menu"), &base_when));
+    }
     for asked in extra_questions(extra)? {
         questions.push(with_when(asked, &base_when));
     }

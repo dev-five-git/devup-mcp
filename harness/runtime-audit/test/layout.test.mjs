@@ -1,7 +1,44 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout } from '../checks.mjs';
-import { observeSequence, observeSectionLayout, observeClippedContent, runPlan } from '../run.mjs';
+import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied } from '../checks.mjs';
+import { observeSequence, observeSectionLayout, observeClippedContent, observeStylesApplied, runPlan } from '../run.mjs';
+
+test('numbered cards and STEP labels in one <main> are judged as two sequences', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    const cards = (order) => order.map((n) => `<div><span>0${n}</span></div>`).join('');
+    const steps = [1, 2, 3, 4].map((n) => `<div><span>STEP ${n}</span></div>`).join('');
+    await page.setContent(`<main><div>${cards([1, 3, 2, 4])}</div><div>${steps}</div></main>`);
+    const out = evaluateSequenceOrder(await observeSequence(page));
+    assert.equal(out.status, 'fail');
+    assert.match(out.reason, /03 <span> before 02/);
+    await page.setContent(`<main><div>${cards([1, 2, 3, 4])}</div><div>${steps}</div></main>`);
+    const ok = await observeSequence(page);
+    assert.equal(ok.groups.length, 2);
+    assert.equal(evaluateSequenceOrder(ok).status, 'pass');
+  } finally { await browser.close(); }
+});
+
+test('numbered labels that form no sequence are inconclusive, not a pass', () => {
+  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'inconclusive');
+  assert.equal(evaluateSequenceOrder({ labels: 0, ungrouped: 0, groups: [] }).status, 'pass');
+});
+
+test('styles-applied fails when class names have no CSS rule', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    await page.setContent('<style>.a{display:flex}</style><div class="a"><span class="b c">x</span></div>');
+    const bad = evaluateStylesApplied(await observeStylesApplied(page));
+    assert.equal(bad.status, 'fail');
+    assert.match(bad.reason, /2 of 3 class names/);
+    await page.setContent('<style>.a{display:flex}@media (max-width:500px){.b{color:red}}</style><div class="a"><span class="b">x</span></div>');
+    assert.equal(evaluateStylesApplied(await observeStylesApplied(page)).status, 'pass');
+  } finally { await browser.close(); }
+});
 
 test('health rejects narrow documents and records vinext error text', () => {
   const healthy = { errorTexts: [], errors: [], viewportWidth: 858, documentWidth: 858 };
@@ -87,4 +124,18 @@ test('runner executes the new checks at every required width', async () => {
     await new Promise((resolve) => server.close(resolve));
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+
+test('390px header navigation clipping fails until the narrow menu replaces it',async()=> {
+  const {chromium}=await import('playwright');
+  const browser=await chromium.launch();
+  try {
+    const page=await browser.newPage({viewport:{width:390,height:900}});
+    await page.setContent('<body style="margin:0"><header style="width:390px;overflow:hidden"><nav id="header-nav" style="display:flex;width:600px"><a href="/">Home</a><a href="/company">Company</a><a href="/services">Services</a></nav></header></body>');
+    assert.ok((await observeClippedContent(page)).clipped.length>0);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
+    await page.setContent('<header><button aria-expanded="false" aria-controls="drawer">Menu</button><nav id="drawer" hidden><a href="/">Home</a><a href="/company">Company</a></nav></header>');
+    assert.equal((await observeClippedContent(page)).clipped.length,0);
+  } finally {await browser.close();}
 });

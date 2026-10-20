@@ -824,6 +824,10 @@ pub(super) fn push_layout_props(
             string_prop(props, "transformOrigin", "top left");
         }
     }
+    if let Some(grid) = reading_grid(snapshot, node) { reading_grid_props(&grid, props); }
+    reading_card_props(snapshot, node, props);
+    fixed_row_props(snapshot, node, props);
+    if let Some(width) = navigation_width(snapshot, node) { string_prop(props, "data-navigation-width", format_number(width)); }
 }
 
 pub(crate) fn vertical_fill_container(snapshot: &Snapshot, node: &RawNode) -> bool {

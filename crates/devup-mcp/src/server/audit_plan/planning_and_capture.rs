@@ -307,10 +307,12 @@ pub(super) fn url_plan(
 
     // Health and containment at every width.
     let mut checks = vec![
+        check(json!({"kind":"links-resolve", "label":"all connected URLs resolve", "plannedTargets":[target.url]})),
         check(json!({"kind": "no-clipped-content", "label": "navigation and card content not cut off"})),
         check(json!({"kind": "sequence-order", "label": "numbered cards in reading order"})),
         check(json!({"kind": "section-layout", "label": "responsive sections and text columns"})),
         check(json!({"kind": "page-health", "label": "page health"})),
+        check(json!({"kind": "styles-applied", "label": "page styles delivered"})),
         check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
         check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),
         check(json!({"kind": "native-appearance", "label": "controls drawn without native browser chrome"})),
@@ -676,6 +678,7 @@ pub(super) async fn write(
         thresholds,
     } = *request;
     let (sources, expired) = Sources::load(artifact_ids, store).await;
+    let evidence = super::screen_plan::project_evidence(root).await?;
     let routes = plan["routes"]
         .as_array()
         .into_iter()
@@ -778,7 +781,13 @@ pub(super) async fn write(
             hidden,
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
-        let built = url_plan(&target, base, &sources, thresholds)?;
+        let mut built = url_plan(&target, base, &sources, thresholds)?;
+        for check in &mut built.plan.screens[0].checks {
+            if check.kind == "links-resolve" {
+                check.planned_targets = routes.iter().filter_map(|route| route["url"].as_str().map(str::to_owned)).collect();
+                check.existing_routes = evidence.routes.iter().map(|(route, _)| route.clone()).collect();
+            }
+        }
         let plan_path = Path::new(root)
             .join(AUDIT_DIR)
             .join(&screen)

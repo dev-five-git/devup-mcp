@@ -326,6 +326,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             screen["links"] = json!(resolved);
         }
     }
+    plan["mobileNavigation"] = actions.get("mobile-menu").cloned().unwrap_or(Value::Null);
     plan["answers"] = json!(input.answers);
     plan["customAnswers"] = json!(custom);
     plan["heuristicsAccepted"] = json!(accepted);
@@ -375,6 +376,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "site": plan["site"],
         "defaults": plan["defaults"],
         "extraAnswers": plan["extraAnswers"],
+        "mobileNavigation": plan["mobileNavigation"],
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
@@ -884,6 +886,11 @@ pub(super) async fn status(
             for (route, hrefs) in audit["links"].as_object().into_iter().flatten() {
                 plan["audit"]["links"][route] = hrefs.clone();
             }
+            let mut link_table = array(&plan["audit"]["linkTable"]).iter()
+                .filter(|row| !row["from"].as_str().and_then(|from| url::Url::parse(from).ok()).and_then(|url| normalize_route(url.path())).is_some_and(|route| routes.contains(&route)))
+                .cloned().collect::<Vec<_>>();
+            link_table.extend(array(&audit["linkTable"]).iter().cloned());
+            plan["audit"]["linkTable"] = json!(link_table);
             let max = plan["audit"]["maxFixAttempts"]
                 .as_u64()
                 .and_then(|max| u32::try_from(max).ok())

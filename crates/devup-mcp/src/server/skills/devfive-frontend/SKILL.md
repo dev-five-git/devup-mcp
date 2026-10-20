@@ -191,6 +191,12 @@ Do not add `include`, `optimizeDeps.exclude` or `ssr.noExternal` entries for it.
 They are redundant, and writing them teaches the next reader that a devup-ui
 package needs wiring when none does.
 
+This applies to reset-css setup. A separately reproduced `rsc:use-client`
+warning about `@devup-ui/react` needs its own versioned diagnosis; its exclusion
+does not fix generated-CSS writes triggering an SSR `program reload` during
+cold navigation. Capture server output with runtime audit `--server-log` and
+rerun affected screens after the dev server settles before changing page CSS.
+
 ### What decides static extraction
 
 One rule explains every case below:
@@ -626,3 +632,5 @@ export { default } from 'eslint-plugin-devup/oxlint-config'
 - **[Anti-Patterns](references/anti-patterns.md)** - What NOT to do
 - **[Theme Colors](references/theme-colors.md)** - Project theme color tokens
 - **[Common Patterns](references/common-patterns.md)** - Common UI patterns (Modal, Toast, etc.)
+
+Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.

@@ -250,6 +250,44 @@ impl Collector<'_> {
                     .attrs
                     .get("gridTemplateColumns")
                     .is_some_and(|value| value.contains(" ") || value.contains("repeat"));
+        let navigation = matches!(parent.tag.as_str(), "nav" | "header")
+            || parent
+                .attrs
+                .get("as")
+                .is_some_and(|tag| matches!(tag.as_str(), "nav" | "header"))
+            || parent
+                .attrs
+                .get("role")
+                .is_some_and(|role| role == "navigation")
+            || parent.attrs.contains_key("data-navigation-width");
+        let measured_navigation = parent
+            .attrs
+            .get("data-navigation-width")
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or_else(|| {
+                children
+                    .iter()
+                    .filter_map(|child| {
+                        pixels(child.attrs.get("w").or_else(|| child.attrs.get("boxSize")))
+                    })
+                    .sum::<f64>()
+                    + pixels(parent.attrs.get("gap")).unwrap_or(0.0)
+                        * children.len().saturating_sub(1) as f64
+            });
+        let mobile_alternative = parent
+            .attrs
+            .get("display")
+            .is_some_and(|value| value.contains("none"))
+            || parent
+                .attrs
+                .get("flexWrap")
+                .is_some_and(|value| value.contains("wrap"))
+            || direction(parent).is_some_and(|value| value.starts_with("[\"column\""));
+        if navigation && measured_navigation > 390.0 && !mobile_alternative {
+            self.risks.push(json!({"rule":"navigation-fit", "confidence":"high", "elementIndex":parent.ordinal,
+                "contentWidth":measured_navigation, "narrowViewport":390,
+                "message":"Header navigation cannot fit a narrow container. With no mobile menu frame, propose a drawer behind a menu button below the content-fit breakpoint; verify no-clipped-content at every width."}));
+        }
         let wraps = parent
             .attrs
             .get("flexWrap")
