@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Runtime audit width table: list text-align once in the geometry column fold",
+  "date": "2026-10-20T00:00:00+09:00"
+}
