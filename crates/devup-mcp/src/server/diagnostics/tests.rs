@@ -238,6 +238,16 @@ mod tests {
             direct_only["nextAction"]["requiredArguments"],
             json!(["url"])
         );
+        let summary = direct_only["summary"].as_str().unwrap();
+        assert!(summary.contains("metered direct path"), "{summary}");
+        assert!(!summary.contains("disconnected"), "{summary}");
+        assert!(
+            bridge_only["summary"]
+                .as_str()
+                .unwrap()
+                .contains("no Figma allowance spent")
+        );
+
 
         let neither = connection_report(
             AuthStatus::Disconnected,
@@ -247,6 +257,11 @@ mod tests {
         assert_eq!(neither["connected"], false);
         assert_eq!(neither["status"], "disconnected");
         assert!(neither["activePath"].is_null());
+        assert!(
+            neither["summary"]
+                .as_str()
+                .is_some_and(|s| s.starts_with("Neither"))
+        );
         let options = neither["nextAction"]["options"].as_array().unwrap();
         assert_eq!(options[0]["path"], "bridge");
         assert_eq!(options[1]["path"], "direct");

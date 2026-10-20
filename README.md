@@ -1181,6 +1181,14 @@ artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인
 오류의 `details.recovery`는 `mode`(`recollect` | `reproject` | `reread-manifest` | `fix-uri`), `cause`, `reprojectable`, `requiresOriginalUrl`을 줍니다. resource 읽기 실패는 계속 `resource not found`이지만 data에 같은 `recovery`가 실립니다 — artifact가 살아 있는데 output이 없으면 `reproject`, 청크 번호가 범위 밖이면 `chunkCount`·`manifestUri`와 함께 `reread-manifest`입니다. artifact의 capability가 요청한 output을 덮지 못해 거절할 때는 `recovery.missing`이 빠진 것(`referencePng`, `asset-captures` 등)을, `nextAction`이 `artifactId` 대신 원래 url로 다시 부르는 인자를 담습니다. 성공 응답의 `cache.reuse`는 이 artifactId로 Figma 호출 없이 더 투영할 수 있는 output(`withArtifactId`)과 원래 url이 필요한 것(`needsUrl`)을 미리 나열합니다.
 
 
+### 큰 응답·큰 노드를 다루는 법 (클라이언트 가이드)
+
+- **`responseLimit`/`responseOffset`은 이미 수집된 결과를 자르는 반환 한도**입니다(`compact.rs`가 수집된 노드 목록에 `skip/take`). Figma를 얼마나 읽는지는 바꾸지 않으므로 수집 비용의 상한이 아닙니다. 매우 큰 노드(`outputs:["outline"]`이 오래 걸리는 경우)는 값을 조절하지 말고 `devup_figma_explore`로 내부 프레임을 찾아 그 프레임만 export하거나, 치수만 필요하면 `devup_figma_measure`를 쓰세요. 오래 걸리는 작업은 `jobAction:"cancel"`로 취소할 수 있습니다.
+- **짧은 상태 조회:** 폴링에 `responseFields`를 붙이면 필요한 부분만 받습니다. 예: `{"jobId":"<id>","responseFields":["exportJob.state","exportJob.elapsedMs","exportJob.completedCalls","exportJob.nextAction"]}`. 필드 이름은 실제 응답의 키를 따르므로 먼저 한 번 전체 응답으로 확인하세요. `devup_figma_auth`의 `status`는 최상위 `summary` 한 줄이 지금 쓰는 경로(브리지/metered direct)와 비용을 먼저 말합니다.
+- **resource 소비:** `delivery:"resource"`(또는 자동 전환)의 결과는 `devup://artifact/{artifactId}/outputs/{outputId}/manifest`를 먼저 읽고, manifest의 `chunkUris`를 순서대로 읽어 이어 붙입니다. 청크 번호가 범위 밖이면 오류의 `recovery`가 manifest를 다시 읽으라고 안내합니다.
+- **문자열/객체 반환 차이:** 도구 결과는 `content`의 JSON 텍스트와 `structuredContent`로 같은 내용이 함께 올 수 있고, `read_mcp_resource`의 반환형은 호스트 어댑터마다 `contents[0].text`(문자열)이거나 이미 파싱된 객체일 수 있습니다. `typeof raw === "string" ? JSON.parse(raw) : raw`처럼 정규화해서 읽으세요. 이 차이는 서버가 아니라 호스트 어댑터 몫일 수 있으며, 서버 버그로 확정된 사례는 없습니다.
+- **연결 상태 읽기:** `activePath:"direct"`이면서 `paths.bridge.available:false`는 서버 접속 실패가 아니라 "플러그인이 연결되지 않아 metered direct로 읽는 중"이라는 뜻입니다. `summary`와 `paths.bridge.reason`을 보세요.
+
 ### R9 sourceMap 필드와 resolution
 
 TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. `elementIndex`는 그 항목이 매핑한 JSX 여는 태그의 문서 순서 번호(0부터)이고, `devup_ui_validate`가 위반에 붙이는 번호와 같습니다 — 오프셋 없이 둘을 잇는 키입니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
