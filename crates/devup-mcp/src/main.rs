@@ -9,6 +9,13 @@ async fn main() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+    if action == devup_mcp::CliAction::Install {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&devup_mcp::install::install()?)?
+        );
+        return Ok(());
+    }
     if action == devup_mcp::CliAction::SelfCheck {
         println!("{}", serde_json::to_string(&devup_mcp::self_check())?);
         return Ok(());
