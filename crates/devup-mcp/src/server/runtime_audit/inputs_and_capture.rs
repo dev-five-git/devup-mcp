@@ -957,7 +957,7 @@ fn columns(
     json!({
         "health": health,
         "completeness": completeness,
-        "geometry": fold(&["text-align", "sequence-order", "section-layout", "text-align", "bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
+        "geometry": fold(&["text-align", "sequence-order", "section-layout", "bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
         "interaction": fold(&["interaction", "view-transition"]),
         "page": if drawn { json!(if row["screenshot"].is_string() { "1 to compare" } else { "not captured" }) } else { json!("not drawn") },
         "section": captures("section"),
