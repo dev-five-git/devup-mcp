@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Make runtime audit image-loaded, native-appearance and stale-resources checks fail on unpainted images, native button chrome and differences from a fresh cache-free load",
-  "date": "2026-10-19T09:00:00.000000000Z"
-}

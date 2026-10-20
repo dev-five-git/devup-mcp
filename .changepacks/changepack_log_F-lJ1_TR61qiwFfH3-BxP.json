@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Report missing public assets and omitted Figma sections and asset references during export and UI validation",
-  "date": "2026-10-19T08:09:42.879273700Z"
-}

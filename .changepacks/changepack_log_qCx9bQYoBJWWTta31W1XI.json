@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Verify rendered completeness, effective text contrast, and loaded image resources in runtime audits",
-  "date": "2026-10-19T08:04:41.792494500Z"
-}
