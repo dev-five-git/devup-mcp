@@ -1,4 +1,5 @@
 pub mod asset_batches;
+pub mod install;
 pub mod server;
 pub mod skills;
 
@@ -115,6 +116,7 @@ pub enum CliAction {
     Version,
     SelfCheck,
     MergeAssetBatches(Vec<PathBuf>),
+    Install,
     InstallSkills(SkillCommandConfig),
     CheckSkills(SkillCommandConfig),
     Serve(ServerConfig),
@@ -162,6 +164,9 @@ where
             }
             Some("--self-check") if no_other_options_yet && arguments.peek().is_none() => {
                 return Ok(CliAction::SelfCheck);
+            }
+            Some("--install") if no_other_options_yet && arguments.peek().is_none() => {
+                return Ok(CliAction::Install);
             }
             Some("--merge-asset-batches") if no_other_options_yet => {
                 let paths: Vec<_> = arguments.map(PathBuf::from).collect();
@@ -314,7 +319,7 @@ where
         "--skill-dir requires --install-skills or --check-skills."
     );
     if roots.is_empty() {
-        roots.push(std::env::current_dir()?);
+        roots.push(default_write_root(&std::env::current_dir()?));
     }
     Ok(CliAction::Serve(ServerConfig {
         allowed_write_roots: roots,
@@ -323,6 +328,18 @@ where
         figma_callback_port,
         figma_client_name,
     }))
+}
+
+/// Default write root without `--allow-write-root`: the enclosing git checkout
+/// (nearest ancestor with `.git`, directory or worktree file), so a host started
+/// in `apps/front` can still write the repository's `.devup/`. Falls back to
+/// `start` outside a checkout.
+pub fn default_write_root(start: &std::path::Path) -> PathBuf {
+    start
+        .ancestors()
+        .find(|directory| directory.join(".git").exists())
+        .unwrap_or(start)
+        .to_path_buf()
 }
 
 pub fn self_check() -> SelfCheckReport {

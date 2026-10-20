@@ -44,6 +44,7 @@ sha2 = "0.11"
 subtle = "2"
 syn = { version = "2.0.119", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
+toml_edit = "0.25"
 # The version axum's `ws` feature already builds, so the bridge relay's client
 # and the tests' stand-in plugin add no second WebSocket implementation.
 tokio-tungstenite = "0.29"

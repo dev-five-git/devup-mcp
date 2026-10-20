@@ -1,6 +1,9 @@
 use std::{ffi::OsString, fs, process::Command};
 
-use devup_mcp::{CliAction, ClientCredentialSource, parse_cli_args, resolve_figma_direct_config};
+use devup_mcp::{
+    CliAction, ClientCredentialSource, default_write_root, parse_cli_args,
+    resolve_figma_direct_config,
+};
 
 #[path = "../build_identity.rs"]
 mod build_identity;
@@ -235,12 +238,41 @@ fn skill_commands_accept_repeated_explicit_dirs_and_reject_mixed_modes() -> anyh
 }
 
 #[test]
+fn default_write_root_is_the_enclosing_checkout() -> anyhow::Result<()> {
+    let base = std::env::temp_dir().join(format!("devup-mcp-cli-checkout-{}", std::process::id()));
+    let repo = base.join("repo");
+    let nested = repo.join("apps").join("front");
+    let worktree = base.join("worktree");
+    let worktree_nested = worktree.join("src");
+    let loose = base.join("loose").join("deeper");
+    fs::create_dir_all(repo.join(".git"))?;
+    fs::create_dir_all(&nested)?;
+    fs::create_dir_all(&worktree_nested)?;
+    fs::write(worktree.join(".git"), b"gitdir: elsewhere")?;
+    fs::create_dir_all(&loose)?;
+
+    assert_eq!(default_write_root(&nested), repo);
+    assert_eq!(default_write_root(&repo), repo);
+    assert_eq!(default_write_root(&worktree_nested), worktree);
+    let temp_is_outside_any_checkout = !base.ancestors().any(|dir| dir.join(".git").exists());
+    if temp_is_outside_any_checkout {
+        assert_eq!(default_write_root(&loose), loose);
+    }
+
+    fs::remove_dir_all(base)?;
+    Ok(())
+}
+
+#[test]
 fn no_arguments_use_the_startup_current_directory() -> anyhow::Result<()> {
     let action = parse_cli_args(std::iter::empty::<OsString>())?;
     let CliAction::Serve(config) = action else {
         panic!("no arguments must start the server")
     };
-    assert_eq!(config.allowed_write_roots, vec![std::env::current_dir()?]);
+    assert_eq!(
+        config.allowed_write_roots,
+        vec![default_write_root(&std::env::current_dir()?)]
+    );
     assert_eq!(config.figma_client_id, None);
     assert_eq!(config.figma_client_secret, None);
     assert_eq!(config.figma_callback_port, None);
