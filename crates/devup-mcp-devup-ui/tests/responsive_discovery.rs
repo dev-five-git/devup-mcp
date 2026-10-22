@@ -134,3 +134,27 @@ fn unrelated_numbered_screens_are_not_breakpoint_labels() {
         None
     );
 }
+
+#[test]
+fn r36_device_names_with_width_labels_merge_as_one_family() {
+    let frames = [
+        ("73:8149", "Desktop 1440", 1440.0),
+        ("73:8302", "Mobile 390", 390.0),
+    ];
+    assert!(
+        devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(
+            &frames
+                .iter()
+                .map(|(_, name, width)| (*name, *width))
+                .collect::<Vec<_>>()
+        )
+    );
+    assert_eq!(merged_slots(&frames), Some(vec![0, 4]));
+    assert_eq!(
+        merged_slots(&[
+            ("a", "Desktop 1440", 1440.0),
+            ("b", "Profile Mobile 390", 390.0)
+        ]),
+        None
+    );
+}

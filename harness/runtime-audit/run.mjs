@@ -255,6 +255,14 @@ async function clippedText(page, subject) {
 export function observeClippedContent(page) {
   return page.evaluate(() => {
     const clipped = [];
+    // Headless Chromium hides every scrollbar (--hide-scrollbars), so a missing
+    // scrollbar gutter there says nothing about what a user sees. In that case
+    // only a scrollbar the page itself hid (scrollbar-width: none) counts.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
+    document.body.append(probe);
+    const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
+    probe.remove();
     for (const element of document.querySelectorAll('body *')) {
       if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const style = getComputedStyle(element);
@@ -264,7 +272,16 @@ export function observeClippedContent(page) {
       const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
       if (!horizontal && !vertical) continue;
       if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
-      const scrollbar = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const gutter = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const scrollbar = gutter || (browserHidesScrollbars && style.scrollbarWidth !== 'none');
+      // A scroller is reachable content only when the user can see it scrolls.
+      if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
+      if (element.closest('[aria-hidden="true"]')) continue;
+      const animated = [element, ...element.querySelectorAll('*')].some((node) => {
+        const s = getComputedStyle(node);
+        return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
+      });
+      if (animated) continue;
       const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
       if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
       clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
@@ -309,7 +326,7 @@ export function observeCompleteness(page, completeness, width, subject) {
     for (let index = 0; index < walker.length; index += 1) {
       const element = walker[index];
       const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').trim();
-      if (!own || !shown(element)) continue;
+      if (!own || !shown(element) || element.closest('[aria-hidden="true"]')) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
       const style = getComputedStyle(element);
@@ -553,7 +570,8 @@ async function pageMetrics(page) {
       let inScroller = false;
       while (scroller && scroller !== document.body) {
         const overflowX = getComputedStyle(scroller).overflowX;
-        if (overflowX === 'auto' || overflowX === 'scroll') {
+        const scrollerRight = scroller.getBoundingClientRect().right + window.scrollX;
+        if (overflowX === 'auto' || overflowX === 'scroll' || ((overflowX === 'hidden' || overflowX === 'clip') && scrollerRight <= viewportWidth + 1)) {
           inScroller = true;
           break;
         }

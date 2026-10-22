@@ -21,8 +21,11 @@ test('numbered cards and STEP labels in one <main> are judged as two sequences',
   } finally { await browser.close(); }
 });
 
-test('numbered labels that form no sequence are inconclusive, not a pass', () => {
-  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'inconclusive');
+test('numbered labels that form no sequence are not applicable', () => {
+  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'pass');
+  const at = (number, y) => ({ number, name: String(number), x: 0, y });
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(30, 0), at(4, 10), at(3, 20)]] }).status, 'pass');
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(6, 0), at(5, 10), at(4, 20)]] }).status, 'pass');
   assert.equal(evaluateSequenceOrder({ labels: 0, ungrouped: 0, groups: [] }).status, 'pass');
 });
 
@@ -87,6 +90,10 @@ test('internal nav and thumbnail clipping fails even without page overflow', asy
     assert.deepEqual(observed.clipped.map((item) => item.name), ['nav','tech']);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 858);
     await page.setContent('<div><button aria-label="Next">Next</button><div data-audit-carousel="true" style="width:200px;overflow:auto"><div style="width:600px">Thumbnails</div></div></div>');
+    assert.equal((await observeClippedContent(page)).clipped.length, 0);
+    // Headless Chromium draws no scrollbar gutter, yet a user's browser shows
+    // one on a plain overflow:auto tab strip, so it stays reachable content.
+    await page.setContent('<nav id="tabs" style="width:300px;overflow-x:auto"><div style="width:700px;white-space:nowrap">Tabs</div></nav>');
     assert.equal((await observeClippedContent(page)).clipped.length, 0);
   } finally { await browser.close(); }
 });

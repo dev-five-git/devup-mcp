@@ -57,6 +57,10 @@ pub struct ProjectPlanInput {
     pub decisions: Vec<Decision>,
     #[serde(default)]
     pub unit_updates: Vec<UnitUpdate>,
+    /// summary (default) answers with state, open questions, next action, ERD and
+    /// unit DAG; full also returns the whole plan.
+    #[schemars(extend("enum" = ["summary", "full"]))]
+    pub detail: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -76,6 +80,9 @@ pub struct Feature {
     pub screens: Vec<String>,
     #[serde(default)]
     pub acceptance: Vec<String>,
+    /// Tables this feature reads or writes; split makes one model unit per table.
+    #[serde(default)]
+    pub entities: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -172,19 +179,129 @@ fn confirmed(plan: &Value) -> Result<(), DevupError> {
     }
     Ok(())
 }
-fn response(plan: Value) -> Value {
+/// Saves decisions without dropping earlier ones; a decision with the same id
+/// is replaced. Used by draft and confirm as well as defer/assume.
+fn record_decisions(
+    plan: &mut Value,
+    decisions: &[Decision],
+    state: &str,
+) -> Result<(), DevupError> {
+    for d in decisions {
+        if d.id.trim().is_empty() || d.reason.trim().is_empty() || d.recommended.trim().is_empty()
+        {
+            return Err(invalid("Decisions need id, reason and recommended option"));
+        }
+        let list = plan["decisions"].as_array_mut().unwrap();
+        list.retain(|v| v["id"] != d.id);
+        let mut value = json!(d);
+        value["state"] = json!(state);
+        list.push(value);
+    }
+    Ok(())
+}
+fn figma_url(plan: &Value) -> String {
+    let figma = &plan["facts"]["figma"];
+    figma
+        .as_str()
+        .or_else(|| array(figma).first().and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_owned()
+}
+fn screen_blockers(plan: &Value, root: &str) -> Vec<String> {
+    if figma_url(plan).is_empty() {
+        return vec![];
+    }
+    match screen_plan::read_plan(root) {
+        Ok(Some(s)) if s["state"] == "confirmed" || s["status"] == "confirmed" => vec![],
+        _ => vec!["screenPlan: not confirmed".to_owned()],
+    }
+}
+fn screen_plan_hint(plan: &Value, root: &str) -> String {
+    format!(
+        "Run {} first.",
+        json!({"tool":"devup_screen_plan","arguments":{"action":"draft","url":figma_url(plan),"projectRoot":root}})
+    )
+}
+fn next_action(plan: &Value, root: &str) -> Value {
+    let args = |action: &str| json!({"action":action, "planId":plan["planId"], "projectRoot":root});
+    if matches!(plan["state"].as_str(), Some("intake" | "draft"))
+        && !screen_blockers(plan, root).is_empty()
+    {
+        return json!({
+            "tool":"devup_screen_plan",
+            "arguments":{"action":"draft","url":figma_url(plan),"projectRoot":root},
+            "how":"Figma sources need a confirmed screen plan before project confirm; run it first and ask its questions together with this plan's."});
+    }
+    match plan["state"].as_str() {
+        Some("confirmed") if array(&plan["units"]).is_empty() => json!({
+            "tool":"devup_project_plan","arguments":args("split"),
+            "how":"Models are written and unitDag is empty until split; run backendCommands in modelsWorkingDirectory first."}),
+        Some("draft") => json!({
+            "tool":"devup_project_plan","arguments":args("confirm"),
+            "how":"Ask unanswered questions with the question tool, then confirm (acceptRecommended fills the rest)."}),
+        _ => Value::Null,
+    }
+}
+fn unit_rows(plan: &Value) -> Vec<Value> {
+    array(&plan["units"])
+        .iter()
+        .map(|u| {
+            json!({"id":u["id"],"layer":u["layer"],"state":u["state"],
+                "dependencies":u["dependencies"],
+                "brief":format!(".devup/units/{}.md", text(&u["id"]))})
+        })
+        .collect()
+}
+/// Questions of an unconfirmed screen plan, so one round covers both plans.
+fn open_screen_questions(root: &str) -> Vec<Value> {
+    match screen_plan::read_plan(root) {
+        Ok(Some(s)) if s["state"] != "confirmed" && s["status"] != "confirmed" => array(&s["questions"]).to_vec(),
+        _ => vec![],
+    }
+}
+fn response(plan: Value, root: &str, full: bool) -> Value {
     let questions = array(&plan["questions"])
         .iter()
         .filter(|q| plan["answers"][text(&q["id"])].is_null())
         .cloned()
         .collect::<Vec<_>>();
+    let screen_open = open_screen_questions(root);
+    let screen_ids = screen_open.iter().map(|q| q["id"].clone()).collect::<Vec<_>>();
+    let questions = [questions, screen_open].concat();
     let proposal = screen_plan::proposal(&questions);
+    let instruction = if plan["state"] == "confirmed" {
+        include_str!("../text/mod-response-22d8f704.md")
+    } else {
+        screen_plan::ASK_INSTRUCTION
+    };
+    if !full {
+        return json!({"planId":plan["planId"], "state":plan["state"], "detail":"summary",
+            "openQuestionCount":questions.len(),
+            "openQuestionIds":questions.iter().map(|q| q["id"].clone()).collect::<Vec<_>>(),
+            "screenPlanQuestionIds":screen_ids,
+            "blockers":screen_blockers(&plan, root),
+            "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
+            "questionRounds":screen_plan::question_rounds(&questions, 4),
+            "instruction":instruction,
+            "nextAction":next_action(&plan, root),
+            "erdMermaid":erd::mermaid(array(&plan["entities"])),
+            "unitDag":units::dag(array(&plan["units"])),
+            "units":unit_rows(&plan),
+            "decisions":plan["decisions"],
+            "backendCommands":plan["backendCommands"],
+            "backendNotes":plan["backendNotes"],
+            "modelsWorkingDirectory":plan["modelsWorkingDirectory"],
+            "how":"Summary only. Pass detail \"full\" to read the whole plan."});
+    }
     json!({"planId":plan["planId"], "state":plan["state"],
+        "blockers":screen_blockers(&plan, root),
         "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
         "proposal":proposal,
+        "screenPlanQuestionIds":screen_ids,
         "questions":screen_plan::ask_shape(&questions),
         "questionRounds":screen_plan::question_rounds(&questions, 4),
-        "instruction": if plan["state"] == "confirmed" { include_str!("../text/mod-response-22d8f704.md") } else { screen_plan::ASK_INSTRUCTION },
+        "instruction":instruction,
+        "nextAction":next_action(&plan, root),
         "erdMermaid":erd::mermaid(array(&plan["entities"])),
         "unitDag":units::dag(array(&plan["units"])),
         "finalReport":{"units":plan["units"], "decisions":plan["decisions"], "completion":"unverified until supervisor reruns all verification and stack diff reports no drift"},
@@ -198,6 +315,14 @@ pub(super) async fn run(
     if input.project_root.trim().is_empty() {
         return Err(invalid("projectRoot is required"));
     }
+    if input
+        .detail
+        .as_deref()
+        .is_some_and(|d| !["summary", "full"].contains(&d))
+    {
+        return Err(invalid("detail must be summary or full"));
+    }
+    let full = input.detail.as_deref() == Some("full");
     // Apply the same root boundary to reads and writes, even for status.
     policy.resolve(&Path::new(&input.project_root).join(FILE).to_string_lossy())?;
     let mut tx = OutputTransaction::new();
@@ -216,11 +341,17 @@ pub(super) async fn run(
         rounds::answers(&mut plan, &input.answers)?;
         write(&mut tx, policy, &input.project_root, &plan)?;
         tx.commit()?;
-        return Ok(response(plan));
+        return Ok(response(plan, &input.project_root, full));
     }
     let mut plan = read(&input.project_root)?;
-    if input.plan_id.as_deref() != plan["planId"].as_str() {
-        return Err(invalid("planId is missing or stale"));
+    // status is a read: it may omit planId and reads it from the plan file.
+    let provided = input.plan_id.is_some() || input.action != "status";
+    if provided && input.plan_id.as_deref() != plan["planId"].as_str() {
+        return Err(invalid(format!(
+            "planId is missing or stale; current planId {} state {}",
+            text(&plan["planId"]),
+            text(&plan["state"])
+        )));
     }
     match input.action.as_str() {
         "draft" => {
@@ -231,7 +362,9 @@ pub(super) async fn run(
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
-            rounds::require_answers(&plan)?;
+            // Open questions no longer block draft: new evidence, features and
+            // decisions are saved first and only confirm requires every answer.
+            record_decisions(&mut plan, &input.decisions, "pending")?;
             for ev in &input.evidence {
                 if ev.source.trim().is_empty() {
                     return Err(invalid("Evidence needs a source"));
@@ -273,6 +406,7 @@ pub(super) async fn run(
                 rounds::accept_recommended(&mut plan)?;
             }
             rounds::require_answers(&plan)?;
+            record_decisions(&mut plan, &input.decisions, "pending")?;
             if plan["answers"]
                 .as_object()
                 .unwrap()
@@ -287,13 +421,17 @@ pub(super) async fn run(
             // Figma remains its own confirmation gate and is retained in every brief.
             if let Some(screen) = screen_plan::read_plan(&input.project_root)? {
                 if screen["state"] != "confirmed" && screen["status"] != "confirmed" {
-                    return Err(invalid("Confirm the Figma screen plan first"));
+                    return Err(invalid(format!(
+                        "Confirm the Figma screen plan first. {}",
+                        screen_plan_hint(&plan, &input.project_root)
+                    )));
                 }
                 plan["screenPlan"] = screen;
-            } else if !array(&plan["facts"]["figma"]).is_empty() {
-                return Err(invalid(
-                    "Figma sources require a confirmed devup_screen_plan",
-                ));
+            } else if !figma_url(&plan).is_empty() {
+                return Err(invalid(format!(
+                    "Figma sources require a confirmed devup_screen_plan. {}",
+                    screen_plan_hint(&plan, &input.project_root)
+                )));
             }
             erd::write_models(&mut tx, policy, &input.project_root, &plan)?;
             plan["state"] = json!("confirmed");
@@ -347,5 +485,5 @@ pub(super) async fn run(
     }
     write(&mut tx, policy, &input.project_root, &plan)?;
     tx.commit()?;
-    Ok(response(plan))
+    Ok(response(plan, &input.project_root, full))
 }

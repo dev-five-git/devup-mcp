@@ -281,7 +281,7 @@ pub fn is_breakpoint_name(name: &str) -> bool {
 
 /// Explicit width suffixes can describe one named screen. No fuzzy matching.
 pub fn family_name(name: &str) -> String {
-    let name = name.trim().to_ascii_lowercase();
+    let name = strip_width_label(name.trim().to_ascii_lowercase());
     if is_breakpoint_name(&name) {
         return "@breakpoint-labels".into();
     }

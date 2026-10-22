@@ -36,6 +36,9 @@ fn exclusion_reason(
         return Some("zero opacity in Figma".into());
     }
     let mut names = vec![("frame", screen.name.as_str())];
+    if let Some(page) = screen.page_name.as_deref() {
+        names.push(("page", page));
+    }
     if let Some(section) = screen.section_name.as_deref() {
         names.push(("section", section));
     }
@@ -74,6 +77,8 @@ pub(super) fn screen_from_explore(node: &Value) -> Option<PlanScreenInput> {
         ancestors: parent.into_iter().collect(),
         visible: node["visible"].as_bool(),
         opacity: node["opacity"].as_f64(),
+        page_id: node["pageId"].as_str().map(str::to_owned),
+        page_name: node["pageName"].as_str().map(str::to_owned).or_else(|| breadcrumb.first().cloned()),
         breadcrumb,
         navigation_content_width: node["navigationContentWidth"].as_f64(),
         ..PlanScreenInput::default()
@@ -641,5 +646,12 @@ fn per_round(plan: &Value) -> usize {
 fn required(question: &Value, actions: &BTreeMap<String, Value>) -> bool {
     array(&question["when"])
         .iter()
-        .all(|condition| actions.get(text(&condition["question"])) == Some(&condition["action"]))
+        .all(|condition| {
+            let actual = actions.get(text(&condition["question"]));
+            actual == Some(&condition["action"])
+                || (condition["action"]["structure"] == "placed"
+                    && actual.is_some_and(|action| {
+                        matches!(text(&action["structure"]), "keep" | "states")
+                    }))
+        })
 }

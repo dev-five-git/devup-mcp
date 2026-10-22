@@ -844,3 +844,29 @@ async fn plan_for(root: &str) -> (ProjectEvidence, Value) {
     .unwrap();
     (evidence, plan)
 }
+#[tokio::test]
+async fn assume_can_remap_a_planned_frame_to_another_url() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(
+        &fixture,
+        &[
+            screen("13:1", "Pricing", 1440.0),
+            screen("13:2", "Careers", 1440.0),
+        ],
+    )
+    .await;
+    confirm_input.answers = answers(&[
+        ("route:13:1", "/pricing (Recommended)"),
+        ("route:13:2", "/careers (Recommended)"),
+    ]);
+    confirm(&confirm_input, &fixture.policy()).unwrap();
+    let mut remap = input(&fixture, "assume");
+    remap.navigation_targets = BTreeMap::from([("13:2".to_owned(), "/pricing".to_owned())]);
+    let recorded = assume(&remap, &fixture.policy()).unwrap();
+    assert_eq!(recorded["remapped"][0]["to"], "/pricing");
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let routes = array(&plan["routes"]);
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0]["url"], "/pricing");
+    assert_eq!(array(&routes[0]["nodeIds"]).len(), 2);
+}

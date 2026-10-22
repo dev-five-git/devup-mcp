@@ -32,6 +32,8 @@ include!("screen_plan/routes.rs");
 include!("screen_plan/app_select.rs");
 include!("screen_plan/draft.rs");
 include!("screen_plan/actions.rs");
+include!("screen_plan/remap.rs");
 include!("screen_plan/status.rs");
 include!("screen_plan/draft_plan_with.rs");
 include!("screen_plan/plan_route_group.rs");
+include!("screen_plan/state_variants.rs");

@@ -426,7 +426,33 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 json!({}),
             ));
         }
-        choices.truncate(MAX_OPTIONS - 1);
+        let state_host = page_screens
+            .iter()
+            .filter(|other| **other != index)
+            .map(|other| &drafts[*other])
+            .map(|host| {
+                let shared = host
+                    .words
+                    .iter()
+                    .filter(|word| screen.words.contains(word))
+                    .count();
+                (shared, host)
+            })
+            .filter(|(shared, _)| *shared > 0)
+            .max_by_key(|(shared, _)| *shared)
+            .map(|(_, host)| host);
+        choices.truncate(MAX_OPTIONS - 1 - usize::from(state_host.is_some()));
+        if let Some(host) = state_host {
+            choices.push(choice(
+                format!("State on {}", truncate(host.name(), 40)),
+                format!(
+                    "A different state of the page built from {} ({}); no URL of its own.",
+                    host.name(),
+                    host.id()
+                ),
+                json!({"state": host.id()}),
+            ));
+        }
         choices.push(choice(
             SKIP,
             "Leave it out of this build.",

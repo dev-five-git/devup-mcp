@@ -9,13 +9,33 @@ pub(super) fn draft_plan_with(
     source: Value,
     notes: Option<&str>,
 ) -> Result<Value, DevupError> {
-    if ["projection", "candidates", "atCeiling"]
+    let hit = ["projection", "candidates", "atCeiling"]
         .iter()
-        .any(|field| source["truncation"][field] == true)
-    {
-        return Err(invalid(
-            "The frame inventory is incomplete: exploration was truncated or reached its ceiling. Explore a smaller Section or supply the complete frame list before drafting.",
-        ));
+        .filter(|field| source["truncation"][**field] == true)
+        .copied()
+        .collect::<Vec<_>>();
+    if !hit.is_empty() {
+        let mut sections = Vec::<String>::new();
+        for screen in screens {
+            let label = match (screen.section_name.as_deref(), screen.section.as_deref()) {
+                (Some(name), Some(id)) => format!("\"{name}\" ({id})"),
+                (Some(name), None) => format!("\"{name}\""),
+                (None, Some(id)) => id.to_owned(),
+                _ => continue,
+            };
+            if !sections.contains(&label) {
+                sections.push(label);
+            }
+        }
+        let listed = if sections.is_empty() {
+            "none of the returned frames sits in a Section".to_owned()
+        } else {
+            sections.join(", ")
+        };
+        return Err(invalid(format!(
+            "The frame inventory is incomplete: exploration was truncated or reached its ceiling ({}). Sections seen so far: {listed}. Call draft with one Section link at a time (devup_figma_search lists the page's top-level SECTION/FRAME nodes) or supply the complete frame list before drafting.",
+            hit.join(", ")
+        )));
     }
     let mut ids = BTreeSet::new();
     if screens
@@ -205,6 +225,8 @@ pub(super) fn draft_plan_with(
         .map(|(screen, reason)| {
             json!({"nodeId": screen.node_id, "name": screen.name, "width": screen.width,
                 "section": screen.section_name.clone().or_else(|| screen.section.clone()),
+                "pageId": screen.page_id,
+                "pageName": screen.page_name.clone().or_else(|| screen.breadcrumb.first().cloned()),
                 "reason": reason})
         })
         .collect::<Vec<_>>();
@@ -333,26 +355,18 @@ pub(super) fn draft_plan_with(
                 "{} Is that intended, or should the Figma file be fixed? This plan does not decide which frame is right.",
                 oddity.facts
             ),
-            vec![
-                choice(
-                    oddity.keep,
-                    oddity.keep_description.clone(),
-                    json!({"structure": "keep"}),
-                ),
-                choice(
-                    FIX_FIGMA,
-                    "These frames are not built. They are listed under Design fixes requested; everything else goes on.",
-                    json!({"designFix": true}),
-                ),
-            ],
+            structure_choices(&oddity),
             "structure",
         );
         asked["fix"] = json!({"frames": frames, "text": oddity.fix});
         questions.push(with_when(asked, &base_when));
         for index in &oddity.screens {
-            drafts[*index]
-                .extra_when
-                .push(when(&id, oddity.keep, json!({"structure": "keep"})));
+            let placed = oddity.states.is_some() && *index == oddity.screens[0];
+            drafts[*index].extra_when.push(when(
+                &id,
+                oddity.keep,
+                json!({"structure": if placed { "placed" } else { "keep" }}),
+            ));
             drafts[*index].structure.push(id.clone());
         }
     }
@@ -379,7 +393,9 @@ pub(super) fn draft_plan_with(
             owners.entry(route.clone()).or_default().push(index);
         }
     }
-    for indices in owners.values().filter(|indices| indices.len() > 1) {
+    let mut route_conflicts = Vec::new();
+    for (route, indices) in owners.iter().filter(|(_, indices)| indices.len() > 1) {
+        route_conflicts.push(json!({"url": route, "screens": indices.iter().map(|index| drafts[*index].id().to_owned()).collect::<Vec<_>>(), "names": indices.iter().map(|index| drafts[*index].name().to_owned()).collect::<Vec<_>>()}));
         for index in indices {
             if let Some((route, _)) = decided[*index].1.take() {
                 screen_notes[*index].push(format!(
@@ -581,6 +597,7 @@ pub(super) fn draft_plan_with(
         "targetApp": evidence.target_app.as_ref().map(super::framework::App::json),
         "siteAssets": site_assets.iter().map(|(node, name, kind)| json!({"nodeId": node, "name": name, "kind": kind})).collect::<Vec<_>>(),
         "questions": body["questions"],
+        "routeConflicts": route_conflicts,
         "answers": {},
         "routes": [],
         "assumptions": [],
@@ -627,6 +644,8 @@ fn frame_inventory(
         .map(|screen| {
             json!({"nodeId": screen.node_id, "name": screen.name, "width": screen.width,
                 "section": screen.section_name.clone().or_else(|| screen.section.clone()),
+                "pageId": screen.page_id,
+                "pageName": screen.page_name.clone().or_else(|| screen.breadcrumb.first().cloned()),
                 "disposition": disposition_of(&screen.node_id, out_of_scope, excluded_rows, kept)})
         })
         .collect::<Vec<_>>();

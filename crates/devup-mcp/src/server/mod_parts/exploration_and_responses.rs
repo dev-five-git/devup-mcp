@@ -516,7 +516,31 @@ fn with_project_checks(
             "Every token the generated TSX references exists in this project's devup.json."
         },
     });
+    if any_unknown {
+        let action = theme_sync_action(&result, project_root);
+        result["projectThemeValidation"]["nextAction"] = action.clone();
+        if result.get("nextAction").is_none_or(Value::is_null) {
+            result["nextAction"] = action;
+        }
+    }
     result
+}
+
+fn theme_sync_action(result: &Value, project_root: &str) -> Value {
+    let mut arguments = json!({
+        "outputs": ["devupJson"],
+        "devupJsonMode": "missing-only",
+        "projectRoot": project_root,
+        "scope": "file",
+    });
+    if let Some(url) = result.get("url").filter(|url| url.is_string()) {
+        arguments["url"] = url.clone();
+    }
+    json!({
+        "tool": "devup_figma_export",
+        "arguments": arguments,
+        "how": "The generated code references tokens missing from this project's devup.json. Sync devup.json with this call (additions only; existing tokens are kept) before using the tsx.",
+    })
 }
 
 fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidate {

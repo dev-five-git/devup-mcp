@@ -50,3 +50,25 @@ async fn confirming_the_menu_recommendation_keeps_its_implementation_decision() 
     assert_eq!(plan["mobileNavigation"]["mobileMenu"],"drawer");
     assert_eq!(status_report(&plan,&evidence(),None)["mobileNavigation"]["breakpoint"],"navigation-content-fit");
 }
+
+#[tokio::test]
+async fn near_identical_widths_in_one_section_can_be_states_of_one_url() {
+    let fixture = Fixture::new();
+    let screens = [
+        sectioned("30:1", "News", 1440.0, "Board"),
+        sectioned("30:2", "News", 1441.0, "Board"),
+        sectioned("30:3", "News", 1442.0, "Board"),
+    ];
+    let mut confirm_input = drafted(&fixture, &screens).await;
+    let plan: Value =
+        serde_json::from_slice(&std::fs::read(fixture.0.join(".devup/screen-plan.json")).unwrap())
+            .unwrap();
+    let asked = find(&plan, "structure:duplicate:30:1");
+    assert_eq!(first_label(asked), format!("{STATES}{RECOMMENDED}"));
+    confirm_input.accept_recommended = true;
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let routes = array(&confirmed["routes"]);
+    assert_eq!(routes.len(), 1, "{confirmed}");
+    assert_eq!(array(&routes[0]["states"]).len(), 2);
+    assert_eq!(routes[0]["states"][0]["nodeId"], "30:2");
+}

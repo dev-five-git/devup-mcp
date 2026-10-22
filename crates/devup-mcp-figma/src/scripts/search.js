@@ -38,6 +38,8 @@ function levenshtein(left, right) {
 }
 
 function score(name) {
+  const trimmed = options.query.trim();
+  if (trimmed === "" || trimmed === "*") return 100;
   if (name === options.query) return 400;
   if (options.matchKind === "exact") return null;
   const candidate = normalize(name);

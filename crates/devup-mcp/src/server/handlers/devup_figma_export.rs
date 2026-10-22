@@ -11,6 +11,14 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut input = workflow.input;
+        if !input.asset_requests.is_empty()
+            && !input
+                .outputs
+                .iter()
+                .any(|o| matches!(o.as_str(), "assetManifest" | "pageScaffold"))
+        {
+            input.outputs.push("assetManifest".into());
+        }
         if input.preset.as_deref() == Some("web-ready-images") {
             for output in ["assetManifest", "imageAudit"] {
                 if !input.outputs.iter().any(|o| o == output) {
@@ -228,18 +236,7 @@ impl DevupServer {
             input.previous_design_fingerprints.as_deref(),
         )
         .map_err(to_mcp_error)?;
-        if !input.asset_requests.is_empty()
-            && !input
-                .outputs
-                .iter()
-                .any(|output| matches!(output.as_str(), "assetManifest" | "pageScaffold"))
-        {
-            return Err(to_mcp_error(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "Using assetRequests requires assetManifest in outputs.",
-                false,
-            )));
-        }
+
         let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
             let target = if let Some(url) = &input.url {

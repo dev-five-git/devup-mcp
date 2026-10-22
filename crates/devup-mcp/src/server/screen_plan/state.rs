@@ -89,7 +89,8 @@ pub struct ScreenPlanInput {
     #[serde(default)]
     pub screens: Vec<PlanScreenInput>,
     /// draft: explicit Figma node id -> route bindings. The only way to name a
-    /// route that no page or nav link already shows.
+    /// route that no page or nav link already shows. assume: remaps those frames
+    /// onto the named URL in the confirmed plan.
     #[serde(default)]
     pub navigation_targets: BTreeMap<String, String>,
     /// draft: free text recorded in the plan, never interpreted.
@@ -444,6 +445,13 @@ pub struct PlanScreenInput {
     /// trash, archive and draft areas.
     #[serde(default)]
     pub breadcrumb: Vec<String>,
+    /// The Figma page that owns the frame (not the page the viewer has open),
+    /// by id. Taken from the node itself; the name falls back to readcrumb[0].
+    #[serde(default)]
+    pub page_id: Option<String>,
+    /// The owning Figma page's name.
+    #[serde(default)]
+    pub page_name: Option<String>,
     /// Ancestor node ids, nearest first, when known.
     #[serde(default)]
     pub ancestors: Vec<String>,

@@ -526,7 +526,7 @@ async fn an_export_without_url_reads_the_selection_through_the_bridge() -> anyho
         "nothing was requested by key: {source}"
     );
     assert_eq!(source["fileName"], "Landing");
-    assert_eq!(source["pageName"], "Page 1");
+    assert_eq!(source["viewerPageName"], "Page 1");
     assert_eq!(source["nodeId"], "1:2");
     assert!(source["bridgeReads"].as_u64().unwrap_or_default() > 0);
     assert!(!shows_a_routing_key(&output), "{output}");

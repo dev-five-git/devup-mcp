@@ -25,6 +25,7 @@ fn input(root: &Path, action: &str) -> ProjectPlanInput {
 async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Value) {
     let policy = OutputPolicy::from_roots(vec![root.to_path_buf()]).unwrap();
     let mut i = input(root, "intake");
+    i.detail = Some("full".into());
     i.evidence = vec![serde_json::from_str(include_str!("../../../tests/fixtures/project-plan/figma.json")).unwrap()];
     let r = run(&i, &policy).await.unwrap();
     i.plan_id = r["planId"].as_str().map(str::to_owned);
@@ -47,6 +48,7 @@ async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Val
         scope: "Post authoring".into(),
         screens: vec!["Post list".into()],
         acceptance: vec!["Authenticated authors publish posts".into()],
+        entities: vec![],
     }];
     i.evidence.push(serde_json::from_value(json!({"source":"repo defaults","facts":{
         "goal":"Source defaults cannot replace the selected goal",
@@ -246,4 +248,84 @@ async fn feature_split_and_decisions_and_state_gates() {
     i.action = "status".into();
     i.plan_id = Some("stale".into());
     assert!(run(&i, &policy).await.is_err());
+}
+fn kept(decisions: &Value, id: &str) -> bool {
+    array(decisions)
+        .iter()
+        .any(|d| d["id"] == id && d["state"] == "pending")
+}
+fn decision(id: &str) -> Decision {
+    Decision {
+        id: id.into(),
+        reason: "Needs the user".into(),
+        recommended: "Keep".into(),
+        destructive: false,
+    }
+}
+#[tokio::test]
+async fn draft_keeps_decisions() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    i.action = "draft".into();
+    i.answers.clear();
+    i.decisions = vec![decision("d-draft")];
+    let r = run(&i, &policy).await.unwrap();
+    assert!(kept(&r["plan"]["decisions"], "d-draft"));
+}
+#[tokio::test]
+async fn confirm_keeps_decisions() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    i.decisions = vec![decision("d-confirm")];
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["state"], "confirmed");
+    assert!(kept(&r["plan"]["decisions"], "d-confirm"));
+}
+#[tokio::test]
+async fn status_works_without_plan_id_and_next_action_follows_confirm() {
+    let dir = TestDir::new();
+    let (i, policy, _) = drafted(dir.path(), false).await;
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["nextAction"]["arguments"]["action"], "split");
+    let mut status = i.clone();
+    status.action = "status".into();
+    status.plan_id = None;
+    status.answers.clear();
+    let r = run(&status, &policy).await.unwrap();
+    assert_eq!(r["plan"]["state"], "confirmed");
+}
+#[test]
+fn no_erd_questions_when_entities_are_empty() {
+    let plan = json!({"facts":{"parts":"front + admin + API"},"entities":[],"issues":[],
+        "features":[{"id":"news","scope":"News list","screens":["List"],"acceptance":[]}]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    assert!(questions.iter().all(|q| q["id"] != "erd" && q["id"] != "tenancy"));
+}
+#[test]
+fn question_headers_have_no_leading_colon() {
+    for q in rounds::intake(&json!({})) {
+        assert!(!text(&q["header"]).starts_with(':'), "{}", q["header"]);
+    }
+}
+
+#[tokio::test]
+async fn status_lists_open_screen_plan_questions_in_the_proposal() {
+    let dir = TestDir::new();
+    let (i, policy, _) = drafted(dir.path(), false).await;
+    let mut status = i.clone();
+    status.action = "status".into();
+    status.answers.clear();
+    std::fs::create_dir_all(dir.path().join(".devup")).unwrap();
+    std::fs::write(
+        dir.path().join(".devup/screen-plan.json"),
+        json!({"kind":"devup-screen-plan","schemaVersion":1,"state":"draft","questions":[
+            {"id":"route:9:1","header":"Route","question":"Which URL?","options":[
+                {"label":"/a (Recommended)","description":"a"},{"label":"/b","description":"b"}]}
+        ]})
+        .to_string(),
+    )
+    .unwrap();
+    let r = run(&status, &policy).await.unwrap();
+    assert_eq!(r["screenPlanQuestionIds"], json!(["route:9:1"]));
+    assert!(text(&r["proposalMarkdown"]).contains("Which URL?"));
 }

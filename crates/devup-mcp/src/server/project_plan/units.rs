@@ -11,6 +11,75 @@ fn unit(
         "layer":layer,"state":"pending","verification":[],
         "checklist":["build", "lint", "typecheck", "tests", "devup_ui_validate", "runtime/visual audit", "devup_stack_diff: zero drift"]})
 }
+fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
+    if !erd::api(plan) {
+        return vec![];
+    }
+    let explicit = array(&feature["entities"])
+        .iter()
+        .map(|v| text(v).to_owned())
+        .collect::<Vec<_>>();
+    if !explicit.is_empty() {
+        return explicit;
+    }
+    let haystack = format!(
+        "{} {} {}",
+        text(&feature["id"]),
+        text(&feature["scope"]),
+        feature["acceptance"]
+    )
+    .to_lowercase();
+    array(&plan["entities"])
+        .iter()
+        .map(|e| text(&e["name"]).to_owned())
+        .filter(|name| haystack.contains(&name.to_lowercase()))
+        .collect()
+}
+fn belongs(key: &str, owner: &str) -> bool {
+    !key.contains('.') || key.starts_with(&format!("{owner}."))
+}
+fn unit_owner(u: &Value) -> String {
+    let feature = text(&u["feature"]);
+    if feature.is_empty() { text(&u["id"]) } else { feature }.to_owned()
+}
+fn pick(source: &Value, owner: &str, only: &[&str]) -> Value {
+    let map = source.as_object().cloned().unwrap_or_default();
+    Value::Object(
+        map.into_iter()
+            .filter(|(k, _)| belongs(k, owner) && (only.is_empty() || only.contains(&k.as_str()) || k.contains('.')))
+            .collect(),
+    )
+}
+fn slim_context(plan: &Value, u: &Value) -> Value {
+    let owner = unit_owner(u);
+    json!({
+        "fullPlan": ".devup/project-plan.json",
+        "answers": pick(&plan["answers"], &owner, &[]),
+        "facts": pick(&plan["facts"], &owner, &["goal", "parts", "workType"]),
+        "decisions": plan["decisions"],
+        "backendCommands": plan["backendCommands"],
+        "backendNotes": plan["backendNotes"],
+        "modelsWorkingDirectory": plan["modelsWorkingDirectory"],
+    })
+}
+fn unit_entities(plan: &Value, u: &Value) -> Vec<Value> {
+    let names = array(&u["entities"]);
+    array(&plan["entities"])
+        .iter()
+        .filter(|e| names.is_empty() || names.contains(&e["name"]))
+        .cloned()
+        .collect()
+}
+fn slim_screens(screen: &Value) -> Value {
+    if screen.is_null() {
+        return Value::Null;
+    }
+    let routes = array(&screen["routes"])
+        .iter()
+        .map(|r| json!({"url": r["url"], "nodeIds": r["nodeIds"], "file": r["file"]}))
+        .collect::<Vec<_>>();
+    json!({"fullPlan": ".devup/screen-plan.json", "state": screen["state"], "routes": routes})
+}
 fn safe_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 80
@@ -76,24 +145,46 @@ pub(super) fn split(
             json!(["Shared foundations verified"]),
             "shared",
         ));
+        let mut model_units = std::collections::BTreeSet::new();
         for feature in array(&plan["features"]) {
             let id = text(&feature["id"]);
-            let mut previous = "shared".to_owned();
-            let layers = if erd::api(plan) {
-                vec!["models", "api", "client", "front"]
-            } else {
+            let used = feature_entities(plan, feature);
+            let mut previous = vec!["shared".to_owned()];
+            if !used.is_empty() {
+                for name in &used {
+                    let mid = format!("model-{name}");
+                    if model_units.insert(mid.clone()) {
+                        let mut u = unit(
+                            mid.clone(),
+                            format!("Table {name}: model, migration and entity"),
+                            vec!["shared".into()],
+                            json!(["Model validates and migrates"]),
+                            "models",
+                        );
+                        u["entities"] = json!([name]);
+                        units.push(u);
+                    }
+                }
+                previous = used.iter().map(|n| format!("model-{n}")).collect();
+            }
+            let layers = if used.is_empty() {
                 vec!["front"]
+            } else {
+                vec!["api", "client", "front"]
             };
             for layer in layers {
                 let uid = format!("{id}-{layer}");
-                units.push(unit(
+                let mut u = unit(
                     uid.clone(),
                     format!("{}: {layer}", text(&feature["scope"])),
-                    vec![previous],
+                    previous,
                     feature["acceptance"].clone(),
                     layer,
-                ));
-                previous = uid;
+                );
+                u["feature"] = json!(id);
+                u["entities"] = json!(used);
+                units.push(u);
+                previous = vec![uid];
             }
         }
     }
@@ -111,9 +202,9 @@ pub(super) fn split(
             text(&u["scope"]),
             u["dependencies"],
             text(&plan["unitQuestions"]),
-            json!({"answers":plan["answers"],"facts":plan["facts"],"decisions":plan["decisions"],"backendCommands":plan["backendCommands"],"modelsWorkingDirectory":plan["modelsWorkingDirectory"]}),
-            erd::mermaid(array(&plan["entities"])),
-            screen_context,
+            slim_context(plan, u),
+            erd::mermaid(&unit_entities(plan, u)),
+            slim_screens(&screen_context),
             json!({"acceptance":u["acceptance"],"checklist":u["checklist"]})
         );
         stage(

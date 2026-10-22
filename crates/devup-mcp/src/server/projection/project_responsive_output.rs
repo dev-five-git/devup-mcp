@@ -242,11 +242,26 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
     if outputs.iter().any(|output| output == "responsiveTsx")
         && !result.contains_key("responsiveTsx")
     {
-        return Err(unavailable_output(
+        let mut error = unavailable_output(
             payload,
             "responsiveTsx",
             "The snapshot has no mergeable breakpoint frames. Request tsx for individual screens, or re-collect a screen with its breakpoint siblings.",
-        ));
+        );
+        let widths: Vec<_> = payload
+            .snapshot
+            .roots
+            .iter()
+            .filter_map(|id| {
+                let node = payload.snapshot.nodes.get(id)?;
+                Some(json!({"nodeId": id, "width": node.typed_view().number("width")}))
+            })
+            .collect();
+        error.details["collectedFrames"] = json!(widths);
+        error.details["mergeRefusal"] = json!("Frames merge only when the collected roots are siblings drawn at distinct widths; a confirmed screen plan grouping does not change that.");
+        error.details["nextAction"] = json!({"tool": "devup_figma_export",
+            "arguments": {"frameIds": payload.snapshot.roots, "outputs": ["tsx"]},
+            "how": "Export each collected frame as tsx and combine them by hand, or re-collect the Section so both breakpoint frames are captured."});
+        return Err(error);
     }
     Ok((
         result,

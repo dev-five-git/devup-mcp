@@ -276,9 +276,10 @@ pub struct FigmaAssetRequestInput {
     /// Emit name.webp (1x) and name@2x.webp, capped at source resolution.
     #[serde(default)]
     pub srcset: bool,
-    #[serde(default = "default_asset_format")]
+    /// Omitted: raster image fills (original-source) become WebP q85, anything else PNG.
+    #[serde(default)]
     #[schemars(extend("enum" = super::validation::ASSET_FORMATS))]
-    pub format: String,
+    pub format: Option<String>,
     #[serde(default = "default_asset_scale")]
     #[schemars(extend("exclusiveMinimum" = 0, "maximum" = 4))]
     pub scale: f64,
@@ -500,10 +501,6 @@ fn default_true() -> bool {
 /// answering a question nobody asks while enlarging every response.
 fn default_outputs() -> Vec<String> {
     vec!["tsx".to_owned()]
-}
-
-fn default_asset_format() -> String {
-    "png".to_owned()
 }
 
 fn default_asset_scale() -> f64 {

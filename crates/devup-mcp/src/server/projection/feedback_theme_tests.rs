@@ -253,6 +253,14 @@ fn feedback_theme_mode_validation_is_additive_and_rejects_unprovable_requests() 
     assert!(validate("unknown", &["devupJson".into()], None).is_err());
 }
 
+#[test]
+fn r38_missing_only_accepts_a_file_wide_devup_json_without_code_output() {
+    use theme_export::validate;
+    assert!(validate("missing-only", &["devupJson".into()], Some("/p")).is_ok());
+    assert!(validate("missing-only", &["devupJson".into()], None).is_err());
+    assert!(validate("used-only", &["devupJson".into()], Some("/p")).is_err());
+}
+
 #[tokio::test]
 async fn feedback_theme_resource_retry_preserves_mode_and_required_code_outputs() {
     let mut op = operation(&["tsx", "devupJson"]);

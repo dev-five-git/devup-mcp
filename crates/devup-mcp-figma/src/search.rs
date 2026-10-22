@@ -30,6 +30,34 @@ pub struct SearchResult {
     pub canonical_url: String,
     pub match_kind: String,
     pub score: u32,
+    /// Set when the page or an ancestor name marks the node as trash,
+    /// archive, draft or copy: the keyword that matched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excluded: Option<String>,
+}
+
+const EXCLUDED_KEYWORDS: &[&str] = &[
+    "trash",
+    "archive",
+    "draft",
+    "copy",
+    "휴지통",
+    "보관",
+    "초안",
+    "복사",
+];
+
+fn excluded_reason(breadcrumb: &[String], page_name: Option<&str>) -> Option<String> {
+    page_name
+        .into_iter()
+        .chain(breadcrumb.iter().map(String::as_str))
+        .find_map(|name| {
+            let lowered = name.to_lowercase();
+            EXCLUDED_KEYWORDS
+                .iter()
+                .find(|keyword| lowered.contains(*keyword))
+                .map(|keyword| format!("{keyword} ({name})"))
+        })
 }
 
 pub fn search_snapshot(
@@ -38,10 +66,11 @@ pub fn search_snapshot(
     options: &SearchOptions,
 ) -> Result<Vec<SearchResult>, DevupError> {
     let query = options.query.trim();
-    if query.is_empty() {
+    let list_by_type = query.is_empty() || query == "*";
+    if list_by_type && options.node_types.is_empty() {
         return Err(DevupError::new(
-            ErrorCode::DevupFigmaNodeNotFound,
-            "Search query cannot be empty.",
+            ErrorCode::DevupInvalidInput,
+            "Search query cannot be empty unless nodeTypes is given. Pass nodeTypes (for example [\"SECTION\"]) with an empty query or \"*\" to list every node of those types.",
             false,
         ));
     }
@@ -82,11 +111,16 @@ pub fn search_snapshot(
         .filter(|node| types.iter().any(|node_type| node_type == &node.node_type))
         .filter_map(|node| {
             let name = node.typed_view().name()?;
-            let (kind, score) =
-                match_score(name, query, &normalized_query, options.match_kind.as_str())?;
+            let (kind, score) = if list_by_type {
+                ("type", 100)
+            } else {
+                match_score(name, query, &normalized_query, options.match_kind.as_str())?
+            };
             let breadcrumb = breadcrumb(snapshot, &parents, &node.id);
             let page_name = ancestor_page(snapshot, &parents, &node.id);
+            let excluded = excluded_reason(&breadcrumb, page_name.as_deref());
             Some(SearchResult {
+                excluded,
                 node_id: node.id.clone(),
                 name: name.to_owned(),
                 node_type: node.node_type.clone(),
@@ -99,9 +133,10 @@ pub fn search_snapshot(
         })
         .collect::<Vec<_>>();
     results.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
+        left.excluded
+            .is_some()
+            .cmp(&right.excluded.is_some())
+            .then_with(|| right.score.cmp(&left.score))
             .then_with(|| left.name.cmp(&right.name))
             .then_with(|| left.node_id.cmp(&right.node_id))
     });
@@ -290,6 +325,119 @@ mod tests {
         assert_eq!(results[0].page_name.as_deref(), Some("Screens"));
         assert_eq!(results[0].breadcrumb, ["Screens", "A : STORY-F-PROOFREAD"]);
         assert!(results[0].canonical_url.ends_with("node-id=1-1"));
+    }
+
+    fn typed_snapshot() -> (Snapshot, FigmaTarget) {
+        let nodes = [
+            ("0:1", "PAGE", "Screens", vec!["1:1", "1:2"]),
+            ("1:1", "SECTION", "About", vec![]),
+            ("1:2", "FRAME", "Home", vec![]),
+        ]
+        .into_iter()
+        .map(|(id, node_type, name, children)| {
+            (
+                id.to_owned(),
+                RawNode {
+                    id: id.to_owned(),
+                    node_type: node_type.to_owned(),
+                    fields: serde_json::from_value(json!({
+                        "name": name,
+                        "childrenIds": children,
+                    }))
+                    .unwrap(),
+                    extra: Default::default(),
+                    field_errors: Default::default(),
+                },
+            )
+        })
+        .collect();
+        let snapshot = Snapshot {
+            file_key: "key".to_owned(),
+            version: None,
+            roots: vec!["0:1".to_owned()],
+            nodes,
+            diagnostics: Vec::new(),
+        };
+        let target = FigmaTarget {
+            file_key: snapshot.file_key.clone(),
+            node_id: None,
+            branch_key: None,
+        };
+        (snapshot, target)
+    }
+
+    fn options(query: &str, node_types: &[&str]) -> SearchOptions {
+        SearchOptions {
+            query: query.to_owned(),
+            node_types: node_types.iter().map(|t| (*t).to_owned()).collect(),
+            match_kind: "normalized".to_owned(),
+            limit: 20,
+        }
+    }
+
+    #[test]
+    fn an_empty_or_star_query_with_node_types_lists_every_node_of_that_type() {
+        let (snapshot, target) = typed_snapshot();
+        for query in ["", " ", "*"] {
+            let results =
+                search_snapshot(&snapshot, &target, &options(query, &["section"])).unwrap();
+            assert_eq!(results.len(), 1, "query {query:?}");
+            assert_eq!(results[0].node_id, "1:1");
+            assert_eq!(results[0].match_kind, "type");
+        }
+    }
+
+    #[test]
+    fn matches_under_a_trash_page_are_flagged_and_sorted_last() {
+        let nodes = [
+            ("0:1", "PAGE", "휴지통", vec!["1:1"]),
+            ("0:2", "PAGE", "디자인 시스템", vec!["1:2"]),
+            ("1:1", "FRAME", "특허", vec![]),
+            ("1:2", "FRAME", "특허", vec![]),
+        ]
+        .into_iter()
+        .map(|(id, node_type, name, children)| {
+            (
+                id.to_owned(),
+                RawNode {
+                    id: id.to_owned(),
+                    node_type: node_type.to_owned(),
+                    fields: serde_json::from_value(json!({
+                        "name": name,
+                        "childrenIds": children,
+                    }))
+                    .unwrap(),
+                    extra: Default::default(),
+                    field_errors: Default::default(),
+                },
+            )
+        })
+        .collect();
+        let snapshot = Snapshot {
+            file_key: "key".to_owned(),
+            version: None,
+            roots: vec!["0:1".to_owned(), "0:2".to_owned()],
+            nodes,
+            diagnostics: Vec::new(),
+        };
+        let target = FigmaTarget {
+            file_key: "key".to_owned(),
+            node_id: None,
+            branch_key: None,
+        };
+        let results = search_snapshot(&snapshot, &target, &options("특허", &[])).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].node_id, "1:2");
+        assert!(results[0].excluded.is_none());
+        assert_eq!(results[1].node_id, "1:1");
+        assert!(results[1].excluded.as_deref().unwrap().contains("휴지통"));
+    }
+
+    #[test]
+    fn an_empty_query_without_node_types_is_invalid_input() {
+        let (snapshot, target) = typed_snapshot();
+        let error = search_snapshot(&snapshot, &target, &options("", &[])).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupInvalidInput);
     }
 
     #[test]

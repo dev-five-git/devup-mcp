@@ -25,8 +25,14 @@ fn size(width: Option<f64>, height: Option<f64>) -> Value {
 }
 
 fn filename_part(name: &str) -> String {
+    let decoded = name
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'");
     let mut slug = String::new();
-    for c in name.nfc() {
+    for c in decoded.nfc() {
         if c.is_alphanumeric() {
             slug.extend(c.to_lowercase());
         } else if !slug.is_empty() && !slug.ends_with('-') {

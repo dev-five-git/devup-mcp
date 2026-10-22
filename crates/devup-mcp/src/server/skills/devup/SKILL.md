@@ -196,7 +196,7 @@ the full rules; these are the steps.
     converter bugs and unresolved findings with evidence as incomplete. Also: every
     URL implemented, the production build free of `data-figma-node-id` (the
     strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
-    nothing), `bun run build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
+    nothing), `bun run build`, `bun run lint:fix` first (never hand-sort props or run bare prettier; formatting is owned by oxlint's devup rule), `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
     per changed app, `bun test` (on Windows `bun test` and `cargo test`),
     `devup_ui_validate` without errors, site completeness filled.
 13. **Final report.** End with status's `finalReport` and `summary`: URL x
@@ -210,3 +210,23 @@ report unresolved cells with evidence as incomplete; layout is exact, a mismatch
 converter bug.
 
 Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask all site, structure and URL decisions up front as ONE proposal table and ONE question before implementation; never split them into per-section rounds and never ask during the build.
+
+## Staged execution and shared work first
+
+`devup_project_plan split` is staged, not one flat chain per feature:
+
+1. Stage 0, supervisor alone: shared parts that repeat across routes (Header, Footer, a hero or sub-navigation that appears on many frames, navigation data), the `devup.json` tokens, one export of every shared asset, and the backend foundation (vespertide models, entities, migrations, `openapi.json`, client). Nothing else starts before it is merged.
+2. Stage 1, parallel: one worker per top-level menu or Figma group. A feature that uses tables gets one `model-<table>` unit per table (shared by every feature that uses it), then api, client and front units. A feature with no tables gets only a front unit. Never run two units that edit the same table at once.
+3. Stage 2, supervisor: front-to-API wiring check, `devup_stack_diff` with zero drift, runtime audit, visual compare.
+
+Run only as many workers at once as there are independent groups, not as many as there are routes. Each brief must be usable on its own: the frames to export with their URLs, the exports already done, the shared components to import (path and props), what the worker must not change, and the checks to rerun. A worker that needs a shared component changed does not edit it; it reports a shared-change request (what, why, diff) to the supervisor, who applies it once and tells every unit that depends on it.
+
+## ERD and endpoint contract before the front
+
+Confirm the ERD together with the screens, before any page is written. From the Figma frames derive the data each screen needs: repeating cards or table rows (list endpoint with page, sort, category and query parameters), detail layouts (detail endpoint), forms (create endpoint and field rules), search boxes, filters, sorts and page numbers. Show the user one table of entities and columns, the endpoint contract per screen, and the Mermaid ERD, and confirm it once.
+
+A screen is not finished while its data is a hard-coded array, a `TODO` or "replace when API exists" comment, a control with no handler, or a form that changes local state without a network call. If the user answers "wire to the API now", record the `operationId` and check that it exists in `openapi.json` before you call the screen done; if it does not, say the screen is unfinished instead of faking it. Anything left on a fixture must be recorded with `defer` and listed as unfinished in the final report. A public asset a page references that is missing from `public/` is a failure to fix by exporting it, not something to skip.
+
+## Decisions go through the question tool
+
+Any decision that needs the user, before or after confirm, is asked with the runtime question tool, never as numbered prose such as "tell me which numbers to change". Show the evidence table first, then ask. Put the recommended option first, labelled "(Recommended)", with two or three concrete alternatives (for example "category as a kind column / as an enum column / as a free text column"). A header is at most 30 characters and a question has two to four options. Keep the confirmation of a table separate from the decisions inside it: the table is one approve-or-change question, each real decision gets its own entry in the same question call. Record each answer with `devup_project_plan defer` or `assume` (id, reason, recommended) so it survives in the plan; a decision that changes a model is applied to `models/*.json` and the next action says so.

@@ -6,6 +6,38 @@ pub(super) fn api(plan: &Value) -> bool {
         .to_ascii_lowercase()
         .contains("api")
 }
+const COMPLEX_KINDS: [&str; 5] = ["varchar", "char", "numeric", "enum", "custom"];
+const SIMPLE_TYPES: [&str; 19] = [
+    "small_int",
+    "integer",
+    "big_int",
+    "real",
+    "double_precision",
+    "text",
+    "boolean",
+    "date",
+    "time",
+    "timestamp",
+    "timestamptz",
+    "interval",
+    "bytea",
+    "uuid",
+    "json",
+    "inet",
+    "cidr",
+    "macaddr",
+    "xml",
+];
+fn unsupported_type(t: &Value) -> Option<String> {
+    match t {
+        Value::String(s) => (!SIMPLE_TYPES.contains(&s.as_str())).then(|| s.clone()),
+        Value::Object(_) => {
+            let kind = text(&t["kind"]);
+            (!COMPLEX_KINDS.contains(&kind)).then(|| kind.to_owned())
+        }
+        _ => None,
+    }
+}
 fn ident(s: &str) -> bool {
     !s.is_empty()
         && s.as_bytes()[0].is_ascii_lowercase()
@@ -234,6 +266,11 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
         "vespertide revision -m \"confirmed project plan\"",
         "vespertide export --orm seaorm"
     ]);
+    plan["backendNotes"] = json!([
+        "Before cargo check, make sure the API Cargo.toml depends on serde (derive) and serde_json; exported entities use them.",
+        "Add `mod models;` to the API main.rs; export does not wire the generated src/models.",
+        "Right after export, cargo clippy -- -D warnings reports never-constructed ModelEx structs until routes use them; that is expected before the route units."
+    ]);
     Ok(())
 }
 pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
@@ -253,6 +290,14 @@ pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
                 return Err(invalid(
                     "Columns need unique snake_case names, type and nullable",
                 ));
+            }
+            if let Some(bad) = unsupported_type(&c["type"]) {
+                let hint = if bad == "jsonb" { "; use json" } else { "" };
+                return Err(invalid(format!(
+                    "Column {}.{} has type {bad}, which vespertide cannot parse{hint}",
+                    text(&e["name"]),
+                    text(&c["name"])
+                )));
             }
             if !c["foreign_key"].is_null() && c["index"].is_null() {
                 return Err(invalid("Foreign keys require inline indexes"));

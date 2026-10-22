@@ -787,4 +787,24 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&project);
     }
+
+    /// A project whose package.json has `lint:fix` must hear that formatting
+    /// and prop order belong to that script, not to hand edits.
+    #[test]
+    fn a_lint_fix_script_is_reported_as_an_obligation() {
+        let project = scratch("lint-fix");
+        std::fs::write(project.join("package.json"), r#"{"scripts":{"lint":"oxlint"}}"#).unwrap();
+        assert!(report(&unknown_client(&project))["repoObligations"]["lintFix"].is_null());
+
+        std::fs::write(
+            project.join("package.json"),
+            r#"{"scripts":{"lint:fix":"oxlint --fix"}}"#,
+        )
+        .unwrap();
+        let found = report(&unknown_client(&project))["repoObligations"]["lintFix"].clone();
+        assert_eq!(found["runFirst"], "bun run lint:fix");
+        assert_eq!(found["script"], "oxlint --fix");
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }

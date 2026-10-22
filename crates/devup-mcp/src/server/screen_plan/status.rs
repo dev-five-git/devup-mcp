@@ -103,6 +103,7 @@ pub(super) fn status_report(
             "screen": route["screen"],
             "figmaScreen": route["name"],
             "nodeIds": route["nodeIds"],
+            "figmaPages": route["pages"],
             "file": page.clone().map_or_else(|| route["file"].clone(), Value::from),
             "implemented": implemented_state(page.is_some(), &route["drawnWidths"], &per_width),
             "widths": per_width,
@@ -184,6 +185,11 @@ pub(super) fn status_report(
             assumptions.len(),
             if assumptions.len() == 1 { "" } else { "s" }
         ));
+    }
+    let mut warnings = assumption_warnings(plan);
+    warnings.extend(page_warnings(plan));
+    for warning in &warnings {
+        summary.push_str(&format!("; WARNING: {warning}"));
     }
     let design_fixes = array(&plan["designFixes"]);
     if !design_fixes.is_empty() {
@@ -337,6 +343,7 @@ pub(super) fn status_report(
         "siteCompleteness": completeness,
         "defaults": plan["defaults"],
         "designFixes": design_fixes,
+        "warnings": warnings,
         "excluded": excluded,
         "frameInventory": plan["frameInventory"],
         "linkLabelCheck": plan["linkLabelCheck"],
@@ -493,7 +500,20 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
     if !gated && request.scaffold_route.is_none() {
         return Ok(Gate::Open);
     }
-    let plan = match read_plan(request.project_root)? {
+    let mut found = read_plan(request.project_root)?;
+    if found.is_none() {
+        for ancestor in std::path::Path::new(request.project_root)
+            .ancestors()
+            .skip(1)
+            .take(4)
+        {
+            if let Some(plan) = read_plan(&ancestor.to_string_lossy())? {
+                found = Some(plan);
+                break;
+            }
+        }
+    }
+    let plan = match found {
         Some(plan) if plan["status"] == "confirmed" => plan,
         Some(plan) if gated => {
             return Ok(plan_required(
@@ -634,3 +654,56 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
 #[cfg(test)]
 #[path = "../screen_plan_tests.rs"]
 mod tests;
+
+/// Frame ids (`12:34`) mentioned in free text.
+fn node_ids_in(value: &str) -> Vec<String> {
+    let chars = value.chars().collect::<Vec<_>>();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() && (i == 0 || !chars[i - 1].is_alphanumeric()) {
+            let start = i;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i + 1 < chars.len() && chars[i] == ':' && chars[i + 1].is_ascii_digit() {
+                i += 1;
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    i += 1;
+                }
+                out.push(chars[start..i].iter().collect());
+            }
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// An assumption that names a planned frame no confirmed URL builds
+/// contradicts the mapping: say so loudly instead of leaving it silent.
+fn assumption_warnings(plan: &Value) -> Vec<String> {
+    let built = array(&plan["routes"])
+        .iter()
+        .flat_map(|route| array(&route["nodeIds"]))
+        .map(|node| text(node).to_owned())
+        .collect::<BTreeSet<_>>();
+    let known = array(&plan["screens"])
+        .iter()
+        .flat_map(|screen| array(&screen["frames"]))
+        .map(|frame| text(&frame["nodeId"]).to_owned())
+        .collect::<BTreeSet<_>>();
+    let mut out = Vec::new();
+    for assumption in array(&plan["assumptions"]) {
+        let about = format!("{} {}", text(&assumption["about"]), text(&assumption["decision"]));
+        for node in node_ids_in(&about) {
+            if known.contains(&node) && !built.contains(&node) {
+                let excluded = array(&plan["excluded"]).iter().any(|row| row["nodeId"] == node.as_str());
+                if !excluded {
+                    out.push(format!("assumption {about:?} names frame {node}, but the confirmed plan builds no URL from it; the frame mapping was not changed. Re-run assume with navigationTargets {{\"{node}\": \"/url\"}} to remap it"));
+                }
+            }
+        }
+    }
+    out
+}

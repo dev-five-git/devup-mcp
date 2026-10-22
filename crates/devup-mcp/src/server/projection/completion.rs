@@ -24,6 +24,7 @@ pub(super) async fn complete_operation(
         .filter(|source| source.is_object())
     {
         attach_bridge_source(source, payload);
+        attach_node_page(source, payload);
     }
     // What this export wrote for each marked node, so the audit can tell
     // code drift from a converter bug later.
@@ -97,8 +98,59 @@ fn attach_bridge_source(source: &mut Value, payload: &CollectedPayload) {
         }
     }
     source["fileName"] = json!(served.file_name);
-    source["pageName"] = json!(served.page_name);
+    // The page the user has open in Figma - not the page the node lives on.
+    // `nodePage` (when the snapshot reaches it) says where the node is.
+    source["viewerPageName"] = json!(served.page_name);
     source["bridgeReads"] = json!(served.reads);
+}
+
+/// The page the requested node actually belongs to, walked up from the
+/// snapshot's parent links, with a note when it is not the page the viewer has
+/// open or when its name says trash/archive/draft.
+fn attach_node_page(source: &mut Value, payload: &CollectedPayload) {
+    let Some(start) = payload.target.node_id.as_deref() else {
+        return;
+    };
+    let mut current = Some(start.to_owned());
+    let mut visited = std::collections::BTreeSet::new();
+    let mut page: Option<(String, String)> = None;
+    while let Some(id) = current {
+        if !visited.insert(id.clone()) {
+            break;
+        }
+        let Some(node) = payload.snapshot.nodes.get(&id) else {
+            break;
+        };
+        if node.node_type == "PAGE" {
+            page = Some((
+                node.id.clone(),
+                node.typed_view().name().unwrap_or_default().to_owned(),
+            ));
+            break;
+        }
+        current = node.typed_view().string("parentId").map(str::to_owned);
+    }
+    let Some((id, name)) = page else {
+        return;
+    };
+    source["nodePage"] = json!({"id": id, "name": name});
+    let lowered = name.to_lowercase();
+    if ["trash", "archive", "draft", "휴지통", "보관", "초안"]
+        .iter()
+        .any(|keyword| lowered.contains(keyword))
+    {
+        source["nodePageNote"] = json!(format!(
+            "The node lives on the page \"{name}\", whose name marks it as trash, archive or draft."
+        ));
+    } else if source
+        .get("viewerPageName")
+        .and_then(Value::as_str)
+        .is_some_and(|viewer| viewer != name)
+    {
+        source["nodePageNote"] = json!(format!(
+            "viewerPageName is the page open in Figma; the node itself lives on \"{name}\"."
+        ));
+    }
 }
 
 /// The file key an answer may state: the plugin's own report when the bridge
@@ -110,3 +162,77 @@ fn vouched_file_key(payload: &CollectedPayload) -> Option<&str> {
     }
 }
 
+
+#[cfg(test)]
+mod node_page_tests {
+    use super::*;
+    use devup_mcp_figma::{
+        CollectionScope, CollectionStats, FigmaTarget, PayloadCompleteness, RawNode, Snapshot,
+    };
+
+    fn payload_on_page(page_name: &str) -> CollectedPayload {
+        let nodes = [("0:1", "PAGE", page_name, None), ("1:1", "FRAME", "Home", Some("0:1"))]
+            .into_iter()
+            .map(|(id, node_type, name, parent)| {
+                (
+                    id.to_owned(),
+                    RawNode {
+                        id: id.to_owned(),
+                        node_type: node_type.to_owned(),
+                        fields: serde_json::from_value(json!({"name": name, "parentId": parent}))
+                            .unwrap(),
+                        extra: Default::default(),
+                        field_errors: Default::default(),
+                    },
+                )
+            })
+            .collect();
+        CollectedPayload {
+            target: FigmaTarget {
+                file_key: "k".into(),
+                node_id: Some("1:1".into()),
+                branch_key: None,
+            },
+            scope: CollectionScope::Node,
+            metadata: json!({}),
+            snapshot: Snapshot {
+                file_key: "k".into(),
+                version: None,
+                roots: vec!["0:1".into()],
+                nodes,
+                diagnostics: vec![],
+            },
+            variables: None,
+            styles: None,
+            completeness: PayloadCompleteness::ResolvedValuesOnly,
+            source_version: None,
+            stats: CollectionStats::default(),
+            assets: vec![],
+            reference_png: None,
+            failures: vec![],
+        }
+    }
+
+    #[test]
+    fn a_trash_page_is_named_and_flagged() {
+        let mut source = json!({"viewerPageName": "Trash old"});
+        attach_node_page(&mut source, &payload_on_page("Trash old"));
+        assert_eq!(source["nodePage"], json!({"id": "0:1", "name": "Trash old"}));
+        assert!(source["nodePageNote"].as_str().unwrap().contains("trash, archive or draft"));
+    }
+
+    #[test]
+    fn a_node_off_the_viewer_page_says_so() {
+        let mut source = json!({"viewerPageName": "Cover"});
+        attach_node_page(&mut source, &payload_on_page("Screens"));
+        assert_eq!(source["nodePage"]["name"], "Screens");
+        assert!(source["nodePageNote"].as_str().unwrap().contains("lives on \"Screens\""));
+    }
+
+    #[test]
+    fn the_viewer_page_needs_no_note() {
+        let mut source = json!({"viewerPageName": "Screens"});
+        attach_node_page(&mut source, &payload_on_page("Screens"));
+        assert!(source.get("nodePageNote").is_none());
+    }
+}

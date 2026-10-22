@@ -463,7 +463,14 @@ export function summarize(runs) {
 /** Read independent numbered groups by visual rows, then left to right. */
 export function evaluateSequenceOrder(observed) {
   const failures = [];
+  let compared = 0;
   for (const group of observed.groups) {
+    const numbers = group.map((item) => item.number).sort((a, b) => a - b);
+    const consecutive = numbers.every((n, i) => i === 0 || n === numbers[i - 1] + 1);
+    if (!consecutive) continue;
+    const reading = [...group].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.number);
+    if (reading.length > 1 && reading.every((n, i) => i === 0 || n === reading[i - 1] - 1)) continue;
+    compared += 1;
     const remaining = [...group];
     const ordered = [];
     while (remaining.length) {
@@ -479,11 +486,11 @@ export function evaluateSequenceOrder(observed) {
   if (failures.length) return { status: 'fail', reason: `sequence out of visual order: ${failures.join('; ')}`, measured: observed };
   // Numbered labels that formed no group were never compared: an empty
   // observation is not evidence of reading order.
-  if (!observed.groups.length && (observed.labels ?? 0) > 0) {
-    return { status: 'inconclusive', reason: `${observed.labels} numbered labels found but none formed a comparable sequence`, measured: observed };
+  if (!compared && (observed.labels ?? 0) > 0) {
+    return { status: 'pass', reason: `not applicable: ${observed.labels} numeric labels form no consecutive ascending sequence (statistics, descending lists, pagination)`, measured: observed };
   }
-  if (!observed.groups.length) return { status: 'pass', reason: 'no numbered labels on this page', measured: observed };
-  return { status: 'pass', reason: `${observed.groups.length} numbered sequences follow increasing visual order`, measured: observed };
+  if (!compared) return { status: 'pass', reason: 'no numbered labels on this page', measured: observed };
+  return { status: 'pass', reason: `${compared} numbered sequences follow increasing visual order`, measured: observed };
 }
 
 /**

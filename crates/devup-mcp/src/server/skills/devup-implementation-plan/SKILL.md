@@ -552,3 +552,14 @@ evidence and replaces the question it would otherwise take:
   `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.
 
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.
+
+## Staged split, contract-first data and decisions
+
+These rules apply to every plan this workflow produces.
+
+- Split into stages. Stage 0 (supervisor): shared layout and repeated components such as Header, Footer, PageHero and SubNav (a component repeated across frames with the same structure and different text is shared), `devup.json` tokens, shared assets, backend foundation. Stage 1 (parallel workers): one worker per top-level menu or Figma group, each with its model, API, client and pages together. Stage 2 (supervisor): API wiring, `devup_stack_diff` zero drift, runtime audit, visual compare. Parallelism is the number of independent groups, not the number of routes.
+- Shared change requests: a worker never edits a shared component; it sends a request (what, why, diff) and the supervisor applies it once.
+- Confirm the ERD and the per-screen endpoint contract (list with page/sort/category/query, detail, create with field rules) in the same plan, before writing any page that shows data.
+- Done means real data, real handlers and no leftovers: no hard-coded fixture arrays standing in for an endpoint, no `TODO` or "replace when" comments, no inputs without a handler, no form submit without a network call, every referenced public asset present. A "wire to the API now" answer needs an `operationId` that exists in `openapi.json`; otherwise the screen is reported unfinished.
+- Ask every decision with the question tool: recommended option first, two or three concrete alternatives, header up to 30 characters, never "tell me the numbers to change". Record answers with `defer` or `assume`.
+- After editing code, run `bun run lint:fix` first and fix by hand only what it cannot fix; do not re-sort JSX props or reformat by hand, and do not run a bare `prettier`.
