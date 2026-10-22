@@ -238,10 +238,25 @@ pub(super) async fn apply_delivery(
         ),
     );
     // Resource promotion must also bound the final metadata envelope.
-    if let Err(error) =
+    if let Err(mut error) =
         choose_delivery_for_result(DeliveryMode::Inline, &Value::Object(result.clone()), &[])
     {
         reservation.rollback();
+        let mut sizes = result
+            .iter()
+            .map(|(key, value)| (key.clone(), value.to_string().len()))
+            .collect::<Vec<_>>();
+        sizes.sort_by(|a, b| b.1.cmp(&a.1));
+        sizes.truncate(8);
+        if !error.details.is_object() {
+            error.details = json!({});
+        }
+        error.details["envelopeFields"] = json!(
+            sizes
+                .into_iter()
+                .map(|(field, bytes)| json!({"field": field, "bytes": bytes}))
+                .collect::<Vec<_>>()
+        );
         return Err(error);
     }
     Ok(Some(DeliveryAttachment { reservation }))
