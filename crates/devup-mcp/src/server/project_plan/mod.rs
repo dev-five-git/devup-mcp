@@ -5,6 +5,7 @@ mod rounds;
 #[cfg(test)]
 mod tests;
 mod units;
+mod wiring;
 
 use super::{
     output::{OutputPolicy, OutputTransaction},
@@ -57,6 +58,10 @@ pub struct ProjectPlanInput {
     pub decisions: Vec<Decision>,
     #[serde(default)]
     pub unit_updates: Vec<UnitUpdate>,
+    /// Records the operationId each feature's pages wire to ("Wire to the API
+    /// now"); status checks every id against openapi.json.
+    #[serde(default)]
+    pub api_wiring: Vec<ApiWiring>,
     /// summary (default) answers with state, open questions, next action, ERD and
     /// unit DAG; full also returns the whole plan.
     #[schemars(extend("enum" = ["summary", "full"]))]
@@ -121,14 +126,33 @@ pub struct Decision {
     #[serde(default)]
     pub destructive: bool,
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct UnitUpdate {
     pub id: String,
+    #[serde(default)]
     pub state: String,
     #[serde(default)]
     pub verification: Vec<String>,
+    /// "shared-change-request": a worker asks the supervisor to change a stage 0
+    /// file. Needs file and reason; state "resolved" closes requests for that file.
+    pub kind: Option<String>,
+    pub file: Option<String>,
+    pub reason: Option<String>,
+    pub diff: Option<String>,
+}
+/// Binds a feature to the API operation its pages call. `defer` records the
+/// explicit decision to use no API yet; it is reported as unfinished.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ApiWiring {
+    pub feature: String,
+    pub operation_id: Option<String>,
+    #[serde(default)]
+    pub defer: bool,
+    pub reason: Option<String>,
 }
 
 fn read(root: &str) -> Result<Value, DevupError> {
@@ -233,6 +257,9 @@ fn next_action(plan: &Value, root: &str) -> Value {
             "how":"Figma sources need a confirmed screen plan before project confirm; run it first and ask its questions together with this plan's."});
     }
     match plan["state"].as_str() {
+        Some("confirmed") if !units::open_requests(plan).is_empty() => json!({
+            "tool":"devup_project_plan","arguments":args("status"),
+            "how":"Apply the open sharedChangeRequests to the stage 0 files, then send a unitUpdates entry of kind shared-change-request, state resolved and the file; merged units that depend on stage 0 go back to verifying."}),
         Some("confirmed") if array(&plan["units"]).is_empty() => json!({
             "tool":"devup_project_plan","arguments":args("split"),
             "how":"Models are written and unitDag is empty until split; run backendCommands in modelsWorkingDirectory first."}),
@@ -253,13 +280,95 @@ fn unit_rows(plan: &Value) -> Vec<Value> {
         .collect()
 }
 /// Questions of an unconfirmed screen plan, so one round covers both plans.
-fn open_screen_questions(root: &str) -> Vec<Value> {
+fn open_screen_plan(root: &str) -> Option<Value> {
     match screen_plan::read_plan(root) {
-        Ok(Some(s)) if s["state"] != "confirmed" && s["status"] != "confirmed" => array(&s["questions"]).to_vec(),
-        _ => vec![],
+        Ok(Some(s)) if s["state"] != "confirmed" && s["status"] != "confirmed" => Some(s),
+        _ => None,
     }
 }
+fn open_screen_questions(root: &str) -> Vec<Value> {
+    open_screen_plan(root)
+        .map(|s| array(&s["questions"]).to_vec())
+        .unwrap_or_default()
+}
+/// Answers addressed to screen-plan questions are not project-plan answers:
+/// they are split off and returned as the devup_screen_plan confirm call that
+/// carries them, so the user answers one merged round.
+fn forward_screen_answers(
+    root: &str,
+    answers: &BTreeMap<String, Value>,
+    accept_recommended: bool,
+) -> (BTreeMap<String, Value>, Value) {
+    let Some(screen) = open_screen_plan(root) else {
+        return (answers.clone(), Value::Null);
+    };
+    let ids = array(&screen["questions"])
+        .iter()
+        .map(|q| text(&q["id"]).to_owned())
+        .collect::<std::collections::BTreeSet<_>>();
+    let (screen_answers, own): (BTreeMap<_, _>, BTreeMap<_, _>) = answers
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .partition(|(k, _)| ids.contains(k));
+    if screen_answers.is_empty() && !(accept_recommended && !ids.is_empty()) {
+        return (own, Value::Null);
+    }
+    let forward = json!({"tool":"devup_screen_plan","arguments":{
+        "action":"confirm","planId":screen["planId"],"projectRoot":root,
+        "answers":screen_answers,"acceptRecommended":accept_recommended},
+        "how":"These answers belong to the screen plan: send them with this call. The user was asked once, in the merged proposal."});
+    (own, forward)
+}
+fn without_screens(plan: &Value) -> Vec<Value> {
+    array(&plan["features"])
+        .iter()
+        .filter(|f| array(&f["screens"]).is_empty())
+        .map(|f| f["id"].clone())
+        .collect()
+}
+const DATA_UI: [&str; 9] = [
+    "list", "detail", "form", "search", "inquiry", "filter", "pagination", "board", "table",
+];
+/// Set when the project plan has screens that read or write data but its ERD is
+/// not confirmed yet; page writes are refused until then.
+pub(crate) fn erd_required(root: &str) -> Option<Value> {
+    let plan = read(root).ok()?;
+    if plan["state"] == "confirmed" || !erd::api(&plan) {
+        return None;
+    }
+    let data_ui = !array(&plan["entities"]).is_empty()
+        || array(&plan["features"]).iter().any(|f| {
+            let haystack = format!("{} {} {}", text(&f["scope"]), f["acceptance"], f["screens"])
+                .to_lowercase();
+            !array(&f["entities"]).is_empty() || DATA_UI.iter().any(|k| haystack.contains(k))
+        });
+    data_ui.then(|| json!({"planId":plan["planId"],"state":plan["state"]}))
+}
+fn blockers(plan: &Value, root: &str) -> Vec<String> {
+    [screen_blockers(plan, root), wiring::blockers(plan, root)].concat()
+}
+fn extras(plan: &Value, root: &str) -> Value {
+    let no_screens = without_screens(plan);
+    let mut extra = json!({
+        "sharedChangeRequests": units::open_requests(plan),
+        "apiWiring": wiring::report(plan, root),
+        "backendChecks": wiring::backend_checks(plan, root),
+    });
+    if !no_screens.is_empty() {
+        extra["featuresWithoutScreens"] = json!({"features":no_screens,
+            "how":"These features list no screens. Pass features[].screens (page or route names) in draft; no screens question is asked."});
+    }
+    extra
+}
 fn response(plan: Value, root: &str, full: bool) -> Value {
+    let extra = extras(&plan, root);
+    let mut out = base_response(plan, root, full);
+    if let (Some(o), Some(e)) = (out.as_object_mut(), extra.as_object()) {
+        o.extend(e.clone());
+    }
+    out
+}
+fn base_response(plan: Value, root: &str, full: bool) -> Value {
     let questions = array(&plan["questions"])
         .iter()
         .filter(|q| plan["answers"][text(&q["id"])].is_null())
@@ -279,7 +388,7 @@ fn response(plan: Value, root: &str, full: bool) -> Value {
             "openQuestionCount":questions.len(),
             "openQuestionIds":questions.iter().map(|q| q["id"].clone()).collect::<Vec<_>>(),
             "screenPlanQuestionIds":screen_ids,
-            "blockers":screen_blockers(&plan, root),
+            "blockers":blockers(&plan, root),
             "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
             "questionRounds":screen_plan::question_rounds(&questions, 4),
             "instruction":instruction,
@@ -294,7 +403,7 @@ fn response(plan: Value, root: &str, full: bool) -> Value {
             "how":"Summary only. Pass detail \"full\" to read the whole plan."});
     }
     json!({"planId":plan["planId"], "state":plan["state"],
-        "blockers":screen_blockers(&plan, root),
+        "blockers":blockers(&plan, root),
         "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
         "proposal":proposal,
         "screenPlanQuestionIds":screen_ids,
@@ -353,12 +462,17 @@ pub(super) async fn run(
             text(&plan["state"])
         )));
     }
+    let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
+        forward_screen_answers(&input.project_root, &input.answers, input.accept_recommended)
+    } else {
+        (input.answers.clone(), Value::Null)
+    };
     match input.action.as_str() {
         "draft" => {
             if plan["state"] == "confirmed" {
                 return Err(invalid("Confirmed plans cannot be redrafted"));
             }
-            rounds::answers(&mut plan, &input.answers)?;
+            rounds::answers(&mut plan, &answers)?;
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
@@ -401,7 +515,7 @@ pub(super) async fn run(
             if plan["state"] != "draft" {
                 return Err(invalid("Draft the complete plan before confirm"));
             }
-            rounds::answers(&mut plan, &input.answers)?;
+            rounds::answers(&mut plan, &answers)?;
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
@@ -483,7 +597,12 @@ pub(super) async fn run(
             ));
         }
     }
+    wiring::record(&mut plan, &input.api_wiring)?;
     write(&mut tx, policy, &input.project_root, &plan)?;
     tx.commit()?;
-    Ok(response(plan, &input.project_root, full))
+    let mut out = response(plan, &input.project_root, full);
+    if !forward.is_null() {
+        out["screenPlanForward"] = forward;
+    }
+    Ok(out)
 }

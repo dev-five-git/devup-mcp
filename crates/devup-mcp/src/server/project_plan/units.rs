@@ -9,6 +9,7 @@ fn unit(
 ) -> Value {
     json!({"id":id,"scope":scope,"dependencies":dependencies,"acceptance":acceptance,
         "layer":layer,"state":"pending","verification":[],
+        "stage":if matches!(layer, "shared" | "models") {0} else {1},
         "checklist":["build", "lint", "typecheck", "tests", "devup_ui_validate", "runtime/visual audit", "devup_stack_diff: zero drift"]})
 }
 fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
@@ -218,9 +219,48 @@ pub(super) fn split(
     plan["units"] = json!(units);
     Ok(())
 }
+pub(super) fn open_requests(plan: &Value) -> Vec<Value> {
+    array(&plan["sharedChangeRequests"])
+        .iter()
+        .filter(|r| r["state"] == "open")
+        .cloned()
+        .collect()
+}
+fn shared_request(plan: &mut Value, update: &UnitUpdate) -> Result<(), DevupError> {
+    let file = update.file.as_deref().unwrap_or_default().trim();
+    if file.is_empty() {
+        return Err(invalid("shared-change-request needs file"));
+    }
+    if !plan["sharedChangeRequests"].is_array() {
+        plan["sharedChangeRequests"] = json!([]);
+    }
+    if update.state == "resolved" {
+        for r in plan["sharedChangeRequests"].as_array_mut().unwrap() {
+            if r["file"] == file && r["state"] == "open" {
+                r["state"] = json!("resolved");
+            }
+        }
+        for u in plan["units"].as_array_mut().unwrap() {
+            if u["state"] == "merged" && u["stage"] == 1 {
+                u["state"] = json!("verifying");
+            }
+        }
+        return Ok(());
+    }
+    if update.reason.as_deref().is_none_or(|r| r.trim().is_empty()) {
+        return Err(invalid("shared-change-request needs reason"));
+    }
+    plan["sharedChangeRequests"].as_array_mut().unwrap().push(json!({
+        "unit":update.id,"file":file,"reason":update.reason,"diff":update.diff,"state":"open"}));
+    Ok(())
+}
 pub(super) fn update(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), DevupError> {
     for update in &input.unit_updates {
         confirmed(plan)?;
+        if update.kind.as_deref() == Some("shared-change-request") {
+            shared_request(plan, update)?;
+            continue;
+        }
         let current = array(&plan["units"])
             .iter()
             .find(|u| u["id"] == update.id)
