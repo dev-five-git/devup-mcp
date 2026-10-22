@@ -462,16 +462,31 @@ pub(super) async fn finalize_export_delivery(
         } else {
             super::super::compact::select(&mut result, summary, &response_selection)
         };
-        selected.map_err(|mut error| {
-        let mut recovery=recovery_arguments.clone();
-        recovery.as_object_mut().unwrap().remove("path");
-        recovery.as_object_mut().unwrap().remove("responseFields");
-        if outputs.iter().all(|o|o=="outline") { recovery["responseLimit"]=json!(response_selection.response_limit.min(25)); }
-        error.details=json!({"artifactId":artifact.artifact_id,"maxSelectedBytes":65536,
-            "nextAction":{"tool":"devup_figma_export","arguments":recovery,
-                "how":"Read original outputs as bounded resources, or select a narrower path or lower responseLimit against this same artifact. Scalar values are never silently truncated."}});
-        error
-    })?
+        match selected {
+            Ok(details) => details,
+            Err(mut error) => {
+                let mut recovery = recovery_arguments.clone();
+                recovery.as_object_mut().unwrap().remove("path");
+                recovery.as_object_mut().unwrap().remove("responseFields");
+                if outputs.iter().all(|o| o == "outline") {
+                    recovery["responseLimit"] = json!(response_selection.response_limit.min(25));
+                }
+                let next = json!({"tool":"devup_figma_export","arguments":recovery,
+                    "how":"Read original outputs as bounded resources, or select a narrower path or lower responseLimit against this same artifact. Scalar values are never silently truncated."});
+                if error.code != ErrorCode::DevupFigmaResponseTooLarge {
+                    error.details = json!({"artifactId":artifact.artifact_id,"maxSelectedBytes":65536,"nextAction":next});
+                    return Err(error);
+                }
+                transaction.commit()?;
+                let paths = result
+                    .get("outputPaths")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                return Ok(json!({"status":"complete","written":true,
+                    "artifactId":artifact.artifact_id,"outputPaths":paths,
+                    "responseTruncated":{"reason":error.message,"maxSelectedBytes":65536,"nextAction":next}}));
+            }
+        }
     } else {
         None
     };
