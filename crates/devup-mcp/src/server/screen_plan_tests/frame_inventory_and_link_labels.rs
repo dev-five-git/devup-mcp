@@ -500,3 +500,27 @@ async fn route_question_offers_state_on_a_similar_page() {
         "{routes:?}"
     );
 }
+#[test]
+fn r14_navigation_targets_are_routes_not_route_questions() {
+    let targets = BTreeMap::from([
+        ("73:1".to_owned(), "/ko/technology/patents".to_owned()),
+        ("73:3".to_owned(), "/ko/news/company".to_owned()),
+    ]);
+    let plan = draft_plan(
+        &[
+            sectioned("73:1", "Patents", 1440.0, "Tech"),
+            sectioned("73:3", "Company news", 1440.0, "News"),
+        ],
+        &targets,
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let rows = array(&plan["screens"]);
+    assert_eq!(rows[0]["proposedRoute"], "/ko/technology/patents");
+    assert_eq!(rows[0]["routeEvidence"], "navigationTargets[73:1]");
+    assert_eq!(rows[1]["proposedRoute"], "/ko/news/company");
+    let ids = question_ids(&plan);
+    assert!(!ids.iter().any(|id| id.starts_with("route:")), "{ids:?}");
+}
