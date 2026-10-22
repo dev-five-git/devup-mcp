@@ -135,10 +135,14 @@ fn attach_node_page(source: &mut Value, payload: &CollectedPayload) {
     };
     source["nodePage"] = json!({"id": id, "name": name});
     let lowered = name.to_lowercase();
-    if ["trash", "archive", "draft", "휴지통", "보관", "초안"]
-        .iter()
-        .any(|keyword| lowered.contains(keyword))
+    if let Some(keyword) = [
+        "trash", "archive", "draft", "copy", "pdf", "export", "휴지통", "보관", "초안", "복사",
+        "저장용", "출력",
+    ]
+    .iter()
+    .find(|keyword| lowered.contains(*keyword))
     {
+        source["nodePage"]["excluded"] = json!(format!("{keyword} ({name})"));
         source["nodePageNote"] = json!(format!(
             "The node lives on the page \"{name}\", whose name marks it as trash, archive or draft."
         ));
@@ -217,8 +221,21 @@ mod node_page_tests {
     fn a_trash_page_is_named_and_flagged() {
         let mut source = json!({"viewerPageName": "Trash old"});
         attach_node_page(&mut source, &payload_on_page("Trash old"));
-        assert_eq!(source["nodePage"], json!({"id": "0:1", "name": "Trash old"}));
+        assert_eq!(
+            source["nodePage"],
+            json!({"id": "0:1", "name": "Trash old", "excluded": "trash (Trash old)"})
+        );
         assert!(source["nodePageNote"].as_str().unwrap().contains("trash, archive or draft"));
+    }
+
+    #[test]
+    fn a_trash_page_sets_the_excluded_marker_on_node_page() {
+        let mut source = json!({});
+        attach_node_page(&mut source, &payload_on_page("PDF 저장용"));
+        assert!(source["nodePage"]["excluded"].as_str().unwrap().contains("pdf"));
+        let mut source = json!({});
+        attach_node_page(&mut source, &payload_on_page("Screens"));
+        assert!(source["nodePage"].get("excluded").is_none());
     }
 
     #[test]

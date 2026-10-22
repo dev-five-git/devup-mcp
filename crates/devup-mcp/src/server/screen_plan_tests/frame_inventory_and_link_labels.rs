@@ -351,6 +351,43 @@ fn device_only_names_do_not_group_across_sections() {
 }
 
 #[test]
+fn device_only_frames_take_their_screen_name_from_the_section() {
+    let plan = draft_plan(
+        &[
+            sectioned("62:1", "Desktop", 1440.0, "Main"),
+            sectioned("62:2", "Mobile", 360.0, "Main"),
+            sectioned("62:3", "Desktop", 1440.0, "About"),
+            sectioned("62:4", "Mobile", 360.0, "About"),
+        ],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert_eq!(array(&plan["screens"]).len(), 2);
+    assert!(!question_ids(&plan).iter().any(|id| id.starts_with("sections:")));
+}
+
+#[test]
+fn a_navigation_target_settles_the_route_without_a_question() {
+    let targets = BTreeMap::from([("73:8589".to_owned(), "/ko/technology/patents".to_owned())]);
+    let plan = draft_plan(
+        &[screen("73:8589", "Patents", 1440.0)],
+        &targets,
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert!(
+        !question_ids(&plan).iter().any(|id| id.starts_with("route:")),
+        "{:?}",
+        question_ids(&plan)
+    );
+}
+
+#[test]
 fn a_truncated_inventory_names_the_limit_and_the_next_step() {
     let error = draft_plan_with(
         &[screen("61:1", "Home", 1440.0)],

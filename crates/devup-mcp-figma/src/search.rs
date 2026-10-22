@@ -45,6 +45,10 @@ const EXCLUDED_KEYWORDS: &[&str] = &[
     "보관",
     "초안",
     "복사",
+    "pdf",
+    "저장용",
+    "export",
+    "출력",
 ];
 
 fn excluded_reason(breadcrumb: &[String], page_name: Option<&str>) -> Option<String> {
@@ -431,6 +435,14 @@ mod tests {
         assert!(results[0].excluded.is_none());
         assert_eq!(results[1].node_id, "1:1");
         assert!(results[1].excluded.as_deref().unwrap().contains("휴지통"));
+    }
+
+    #[test]
+    fn pdf_and_export_pages_are_flagged_as_excluded() {
+        for page in ["PDF", "저장용", "Export", "출력본"] {
+            assert!(excluded_reason(&[], Some(page)).is_some(), "{page}");
+        }
+        assert!(excluded_reason(&[], Some("디자인 시스템")).is_none());
     }
 
     #[test]
