@@ -102,14 +102,15 @@ pub fn image_fill_path(
 /// share a name and a file, as the same icon at three widths should.
 pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
     let view = node.typed_view();
-    let name = view.name().unwrap_or("Asset");
+    let name = layer_name(node);
+    let name = name.as_str();
     let identity = asset_identity(node);
     let raster_instance =
         view.node_type() == "INSTANCE" && asset_kind(snapshot, node) == Some(AssetKind::Png);
     let shared = per_node
         || snapshot.nodes.values().any(|other| {
             other.id != node.id
-                && other.typed_view().name() == Some(name)
+                && layer_name(other) == name
                 && (asset_identity(other) != identity
                     || raster_instance
                     || (fills(node).is_some_and(|fs| fs.iter().any(|p| p["type"] == "IMAGE"))
@@ -129,6 +130,20 @@ pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) ->
         Some(variant) => format!("{name}={variant}"),
         None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
     }
+}
+
+/// The layer name with HTML entities decoded: Figma text may arrive as
+/// `R&amp;D`, which must not leak `amp` into a file name.
+fn layer_name(node: &RawNode) -> String {
+    node.typed_view()
+        .name()
+        .unwrap_or("Asset")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .replace(['(', ')'], "")
 }
 
 /// What makes an instance the thing it is: its variant, as `chart` or

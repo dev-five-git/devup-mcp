@@ -77,3 +77,14 @@ fn raster_instances_with_same_variant_name_and_different_images_have_distinct_co
         );
     }
 }
+
+#[test]
+fn html_entities_in_layer_names_do_not_leak_into_asset_paths() {
+    let snapshot: Snapshot = serde_json::from_value(json!({"fileKey":"fixture","version":null,"roots":["root"],"diagnostics":[],
+        "nodes":{"root":{"id":"root","type":"FRAME","fields":{"name":"Page","width":100,"height":100,"childrenIds":["img"]}},
+        "img":{"id":"img","type":"RECTANGLE","fields":{"name":"R&amp;D","parentId":"root","isAsset":true,"width":40,"height":50,
+            "fills":[{"type":"IMAGE","imageHash":"a","scaleMode":"CROP"}]}}}})).unwrap();
+    let path = image_fill_path(&snapshot, "img", 0, false).unwrap();
+    assert_eq!(path, "/images/R&D.png");
+    assert!(!path.contains("amp"));
+}
