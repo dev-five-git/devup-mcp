@@ -246,7 +246,7 @@ pub(super) async fn apply_delivery(
             .iter()
             .map(|(key, value)| (key.clone(), value.to_string().len()))
             .collect::<Vec<_>>();
-        sizes.sort_by(|a, b| b.1.cmp(&a.1));
+        sizes.sort_by_key(|a| std::cmp::Reverse(a.1));
         sizes.truncate(8);
         if !error.details.is_object() {
             error.details = json!({});
