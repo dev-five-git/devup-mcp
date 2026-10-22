@@ -148,6 +148,32 @@ pub fn search_snapshot(
     Ok(results)
 }
 
+/// One warning per name that appears both on an excluded page (trash, archive,
+/// PDF copy...) and on a normal page, so callers do not pick the discarded copy.
+pub fn excluded_duplicate_warnings(results: &[SearchResult]) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for excluded in results.iter().filter(|result| result.excluded.is_some()) {
+        let key = normalize(&excluded.name);
+        let normal = results
+            .iter()
+            .find(|other| other.excluded.is_none() && normalize(&other.name) == key);
+        if let Some(normal) = normal
+            && seen.insert(key)
+        {
+            warnings.push(format!(
+                "\"{}\" exists on a normal page ({}, node {}) and on an excluded page ({}, node {}). Prefer the normal one; the excluded copy is trash, archive, draft or an export copy.",
+                excluded.name,
+                normal.page_name.as_deref().unwrap_or("?"),
+                normal.node_id,
+                excluded.excluded.as_deref().unwrap_or("excluded"),
+                excluded.node_id,
+            ));
+        }
+    }
+    warnings
+}
+
 fn match_score<'a>(
     name: &str,
     query: &str,
@@ -435,6 +461,31 @@ mod tests {
         assert!(results[0].excluded.is_none());
         assert_eq!(results[1].node_id, "1:1");
         assert!(results[1].excluded.as_deref().unwrap().contains("휴지통"));
+    }
+
+    #[test]
+    fn a_name_on_both_an_excluded_and_a_normal_page_gets_one_warning() {
+        let make = |id: &str, page: &str, excluded: Option<&str>| SearchResult {
+            node_id: id.to_owned(),
+            name: "특허".to_owned(),
+            node_type: "FRAME".to_owned(),
+            page_name: Some(page.to_owned()),
+            breadcrumb: Vec::new(),
+            canonical_url: String::new(),
+            match_kind: "exact".to_owned(),
+            score: 400,
+            excluded: excluded.map(str::to_owned),
+        };
+        let results = [
+            make("1:2", "디자인 시스템", None),
+            make("1:1", "휴지통", Some("휴지통 (휴지통)")),
+            make("1:3", "PDF", Some("pdf (PDF)")),
+        ];
+        let warnings = excluded_duplicate_warnings(&results);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("1:2") && warnings[0].contains("1:1"));
+        assert!(excluded_duplicate_warnings(&results[..1]).is_empty());
+        assert!(excluded_duplicate_warnings(&results[1..]).is_empty());
     }
 
     #[test]
