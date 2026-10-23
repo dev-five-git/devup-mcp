@@ -350,6 +350,8 @@ fn blockers(plan: &Value, root: &str) -> Vec<String> {
 fn extras(plan: &Value, root: &str) -> Value {
     let no_screens = without_screens(plan);
     let mut extra = json!({
+        "writtenTo": plan["writtenTo"],
+        "unitState": if array(&plan["units"]).is_empty() {"not-split"} else {"split"},
         "sharedChangeRequests": units::open_requests(plan),
         "apiWiring": wiring::report(plan, root),
         "backendChecks": wiring::backend_checks(plan, root),
@@ -559,6 +561,11 @@ pub(super) async fn run(
                 )));
             }
             erd::write_models(&mut tx, policy, &input.project_root, &plan)?;
+            plan["writtenTo"] = json!(if erd::api(&plan) {
+                array(&plan["entities"]).iter()
+                    .map(|entity| format!("{}/{}.json", text(&plan["modelsDir"]), text(&entity["name"])))
+                    .collect::<Vec<_>>()
+            } else { vec![] });
             plan["state"] = json!("confirmed");
             plan["confirmedAt"] = json!(now());
         }

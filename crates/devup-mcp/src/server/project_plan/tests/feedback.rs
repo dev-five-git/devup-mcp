@@ -1,6 +1,22 @@
 use super::*;
 
 #[tokio::test]
+async fn confirm_reports_written_models_and_backend_commands_in_summary() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), true).await;
+    request.detail = None;
+    let confirmed = run(&request, &policy).await.unwrap();
+    assert_eq!(confirmed["nextAction"]["arguments"]["action"], "split");
+    assert_eq!(confirmed["writtenTo"], json!(["models/user.json", "models/post.json"]));
+    assert_eq!(confirmed["backendCommands"][0], "vespertide diff");
+    assert_eq!(confirmed["modelsWorkingDirectory"], ".");
+    assert_eq!(confirmed["unitState"], "not-split");
+    for path in array(&confirmed["writtenTo"]) {
+        assert!(dir.path().join(text(path)).is_file());
+    }
+}
+
+#[tokio::test]
 async fn confirm_rejects_jsonb_before_writing_any_models() {
     let dir = TestDir::new();
     let (mut request, policy, draft) = drafted(dir.path(), true).await;
