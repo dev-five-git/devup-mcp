@@ -1,5 +1,20 @@
 use super::*;
 
+#[tokio::test]
+async fn draft_decisions_survive_an_answers_only_redraft() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.action = "draft".into();
+    request.decisions = vec![decision("session-expiry"), decision("upload-limit")];
+    run(&request, &policy).await.unwrap();
+    request.decisions.clear();
+    request.answers.clear();
+    request.answers.insert("posts.states".into(), json!("Show an empty list"));
+    let draft = run(&request, &policy).await.unwrap();
+    assert!(kept(&draft["plan"]["decisions"], "session-expiry"));
+    assert!(kept(&draft["plan"]["decisions"], "upload-limit"));
+}
+
 
 #[tokio::test]
 async fn intake_discovers_korean_spec_documents_without_extracting_contents() {
