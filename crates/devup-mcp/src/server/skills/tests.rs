@@ -5,6 +5,19 @@ mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
 
+    #[test]
+    fn user_decisions_override_never_wait_without_prose_questions() {
+        let text = include_str!("devup/SKILL.md");
+        for required in [
+            "This rule takes precedence over",
+            "OpenCode `question` or Claude Code `AskUserQuestion`",
+            "Do not invent a project-plan `ask` action",
+            "Record the chosen answer, not an unaccepted recommendation",
+        ] {
+            assert!(text.contains(required), "missing decision guidance: {required}");
+        }
+    }
+
     /// /devup per runtime: Claude Code gets it as the devup skill, OpenCode as
     /// a command file, and a runtime with no verified command location is
     /// told so instead of given a guessed path.
