@@ -331,7 +331,7 @@ fn served(dirs: &[PathBuf], url: &str) -> bool {
 
 /// Root-relative asset URLs with their byte ranges: the quoted value of a
 /// `src` prop or property, and the inside of every `url(...)`.
-fn asset_urls(source: &str) -> Vec<(String, [usize; 2])> {
+pub(super) fn asset_urls(source: &str) -> Vec<(String, [usize; 2])> {
     #[derive(Default)]
     struct Literals {
         src: Vec<[usize; 2]>,

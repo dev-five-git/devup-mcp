@@ -71,13 +71,24 @@ fn has_line_height(value: &Value) -> bool {
 }
 
 fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
-    let placeholders = response["assetManifest"]["assets"].as_array().into_iter().flatten()
-        .filter(|asset| asset["status"] != "exported" || asset["outputPath"].is_null())
-        .filter_map(|asset| asset["path"].as_str())
+    let sources = ["tsx", "componentTsx", "responsiveTsx"].into_iter()
+        .filter_map(|field| response[field].as_str()).collect::<Vec<_>>();
+    let referenced = sources.iter().flat_map(|source| super::asset_guard::asset_urls(source).into_iter().map(|(url, _)| url))
         .collect::<std::collections::BTreeSet<_>>();
+    let written = response["assetManifest"]["assets"].as_array().into_iter().flatten()
+        .filter(|asset| asset["status"] == "exported" && asset["outputPath"].is_string())
+        .filter_map(|asset| asset["path"].as_str()).collect::<std::collections::BTreeSet<_>>();
+    let mut placeholders = response["assetManifest"]["assets"].as_array().into_iter().flatten()
+        .filter(|asset| asset["status"] != "exported" || asset["outputPath"].is_null())
+        .filter_map(|asset| asset["path"].as_str().map(str::to_owned))
+        .collect::<std::collections::BTreeSet<_>>();
+    placeholders.extend(referenced.iter().filter(|url| !written.contains(url.as_str())).cloned());
+    if !sources.is_empty() {
+        placeholders.extend(written.iter().filter(|url| !referenced.contains(**url)).map(|url| (*url).to_owned()));
+    }
     if !placeholders.is_empty() {
         out.push(json!({"severity":"required","scope":scope,"code":"ASSET_PLACEHOLDERS",
-            "paths":placeholders,"what":"Generated asset URLs are placeholders without a committed output file.",
+            "paths":placeholders,"what":"Asset URLs lack a committed output file or a matching generated code reference.",
             "how":"Export the assets with outputPath and assetPublicRoot before using the generated code."}));
     }
     for item in response["responsiveReviewChecklist"]["items"]
@@ -201,6 +212,24 @@ mod tests {
         assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
         assert_eq!(value["reviewChecklist"][0]["severity"], "required");
         assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/images/main-hero.webp"]));
+    }
+
+    #[test]
+    fn code_only_export_requires_each_unwritten_asset_url() {
+        let mut value = json!({"tsx":r#"export const Page = () => <><Image src="/images/photo.webp" /><Box maskImage="url('/icons/arrow.svg')" /><Box bgImage="url(/images/back.webp)" /></>;"#});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["severity"], "required");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/icons/arrow.svg", "/images/back.webp", "/images/photo.webp"]));
+    }
+
+    #[test]
+    fn written_file_without_matching_code_url_requires_review() {
+        let mut value = json!({"tsx":r#"export const Page = () => <Image src="/images/placeholder.png" />;"#,
+            "assetManifest":{"assets":[{"status":"exported","path":"/images/photo.webp","outputPath":"public/images/photo.webp"}]}});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/images/photo.webp", "/images/placeholder.png"]));
     }
 
     #[test]
