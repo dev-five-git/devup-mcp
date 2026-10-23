@@ -25,6 +25,7 @@ fn operation_ids(path: &Path) -> std::collections::BTreeSet<String> {
         .into_iter()
         .flatten()
         .flat_map(|(_, item)| item.as_object().into_iter().flatten())
+        .filter(|(method, _)| matches!(method.as_str(), "get" | "post" | "put" | "patch" | "delete" | "head" | "options" | "trace"))
         .filter_map(|(_, op)| op["operationId"].as_str().map(str::to_owned))
         .collect()
 }
@@ -57,6 +58,11 @@ pub(super) fn report(plan: &Value, root: &str) -> Value {
     let path = openapi_path(root);
     let ids = path.as_deref().map(operation_ids).unwrap_or_default();
     let (mut wired, mut missing, mut deferred) = (vec![], vec![], vec![]);
+    for feature in array(&plan["features"]).iter().filter(|feature| !array(&feature["entities"]).is_empty()) {
+        if !array(&plan["apiWiring"]).iter().any(|w| w["feature"] == feature["id"]) {
+            missing.push(json!({"feature":feature["id"],"operationId":null,"reason":"Data feature has no operationId binding"}));
+        }
+    }
     for w in array(&plan["apiWiring"]) {
         if w["defer"] == true {
             deferred.push(json!({"feature":w["feature"],"reason":w["reason"]}));
@@ -75,9 +81,6 @@ pub(super) fn report(plan: &Value, root: &str) -> Value {
 }
 
 pub(super) fn blockers(plan: &Value, root: &str) -> Vec<String> {
-    if array(&plan["apiWiring"]).is_empty() {
-        return vec![];
-    }
     let r = report(plan, root);
     let missing = array(&r["missing"]).iter().map(|m| {
         format!(

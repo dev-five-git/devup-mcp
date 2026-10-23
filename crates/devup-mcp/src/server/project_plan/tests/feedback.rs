@@ -1,5 +1,21 @@
 use super::*;
 
+#[test]
+fn api_contract_report_requires_bindings_and_real_http_operations() {
+    let dir = TestDir::new();
+    std::fs::write(dir.path().join("openapi.json"), json!({"paths":{
+        "/posts":{"get":{"operationId":"listPosts"},"parameters":{"operationId":"notAnOperation"}}
+    }}).to_string()).unwrap();
+    let mut plan = json!({"features":[{"id":"news","entities":["post"]}],"apiWiring":[]});
+    let root = dir.path().to_string_lossy();
+    assert_eq!(wiring::report(&plan, &root)["missing"][0]["feature"], "news");
+    plan["apiWiring"] = json!([{"feature":"news","operationId":"notAnOperation"}]);
+    assert_eq!(array(&wiring::report(&plan, &root)["missing"]).len(), 1);
+    plan["apiWiring"][0]["operationId"] = json!("listPosts");
+    assert!(array(&wiring::report(&plan, &root)["missing"]).is_empty());
+    assert_eq!(array(&wiring::report(&plan, &root)["wired"]).len(), 1);
+}
+
 #[tokio::test]
 async fn split_adds_supervisor_integration_after_all_workers() {
     let dir = TestDir::new();
