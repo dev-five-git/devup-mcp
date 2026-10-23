@@ -93,7 +93,7 @@ fn cropped_export_background_maps_to_its_actual_fill_and_asset() {
     let mut wrong = output.clone();
     wrong.tsx = wrong
         .tsx
-        .replace("/images/Portrait-1.png", "/images/unrelated.png");
+        .replace("/images/portrait-1.png", "/images/unrelated.png");
     let report =
         devup_mcp_devup_ui::provenance::validate_fidelity(&snapshot, "picture", &wrong).unwrap();
     assert!(!report.assets.complete());

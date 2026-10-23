@@ -421,9 +421,33 @@ fn r39_identical_bytes_are_marked_duplicate_and_substeps_count_once() {
     let response = job.response().unwrap();
     let rows = response["exportJob"]["assets"].as_array().unwrap();
     assert!(rows[0].get("duplicateOf").is_none());
-    assert_eq!(rows[1]["duplicateOf"], "1:2:node");
+    assert!(rows[1].get("duplicateOf").is_none());
     assert!(rows[2].get("duplicateOf").is_none());
     assert_eq!(rows[3]["duplicateOf"], "1:2:node");
     assert_eq!(response["exportJob"]["assetProgress"]["total"], 3);
     assert_eq!(response["exportJob"]["assetProgress"]["substeps"], 4);
+}
+
+#[test]
+fn r39_node_request_adopts_written_source_fill_evidence() {
+    let path = std::env::temp_dir().join(format!("devup-r39-{}.webp", rand::random::<u64>()));
+    std::fs::write(&path, b"source").unwrap();
+    let hash = Sha256::digest(b"source").iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let job = AssetJob {
+        id: "source".into(), key: "source".into(), budget: json!({}), started: Instant::now(),
+        resume: Notify::new(), cancellation: Notify::new(),
+        cancelled: std::sync::atomic::AtomicBool::new(false), delivery: Default::default(),
+        paths: BTreeMap::new(),
+        state: Mutex::new(JobState { state: "running", stage: "projection-and-write", calls: vec![],
+            completed_calls: 0, error: None, result: None, finished: None,
+            assets: vec![json!({"assetId":"44:1558:node","status":"pending"})] }),
+    };
+    job.finish(Ok(json!({"assetManifest":{"assets":[{"assetId":"44:1558:fills:0","status":"exported","sha256":hash}]},
+        "outputPaths":{"asset:44:1558:node":path}})));
+    let response = job.response().unwrap();
+    assert_eq!(response["exportJob"]["state"], "complete");
+    assert_eq!(response["exportJob"]["assets"][0]["status"], "exported");
+    assert_eq!(response["exportJob"]["assets"][0]["fileState"], "written");
+    assert_eq!(response["exportJob"]["assetProgress"]["total"], 1);
+    std::fs::remove_file(path).unwrap();
 }

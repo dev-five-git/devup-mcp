@@ -8,7 +8,7 @@ expression: actual
   bg="#FFF"
   boxSize="24px"
   h="48px"
-  maskImage="url(/icons/status=error.svg)"
+  maskImage="url(/icons/status-error.svg)"
   maskPos="center"
   maskRepeat="no-repeat"
   maskSize="contain"

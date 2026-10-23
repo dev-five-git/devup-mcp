@@ -4,5 +4,5 @@ expression: actual
 ---
 
 "<Box bg="#F00" boxSize="24px">
-  <Image boxSize="24px" src="/icons/ChildVector.svg" />
+  <Image boxSize="24px" src="/icons/childvector.svg" />
 </Box>"

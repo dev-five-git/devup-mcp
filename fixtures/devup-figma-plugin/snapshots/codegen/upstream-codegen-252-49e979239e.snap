@@ -20,7 +20,7 @@ expression: actual
       <Box
         bg="#C8A46B"
         left="-183.93px"
-        maskImage="url(/icons/backgroundImage.svg)"
+        maskImage="url(/icons/backgroundimage.svg)"
         maskPos="center"
         maskRepeat="no-repeat"
         maskSize="contain"
@@ -112,8 +112,8 @@ expression: actual
             제주국제관악제 최신 소식 확인하기
           </Text>
           <Flex gap="30px">
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/instagram_15713420 1.svg" />
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/facebook_1384053 1.svg" />
+            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/instagram-15713420-1.svg" />
+            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/facebook-1384053-1.svg" />
             <Box
               aspectRatio="1"
               bg="#FFF"
@@ -122,7 +122,7 @@ expression: actual
               overflow="hidden"
               pos="relative"
             >
-              <Image boxSize="32px" src="/icons/Layer 2.svg" />
+              <Image boxSize="32px" src="/icons/youtube-3991722-1-layer-2.svg" />
             </Box>
           </Flex>
           <Text

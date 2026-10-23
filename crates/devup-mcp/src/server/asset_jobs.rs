@@ -11,7 +11,7 @@ use devup_mcp_figma::{
 };
 use serde_json::{Value, json};
 
-use super::asset_job_progress::request_progress;
+use super::asset_job_progress::{request_key, request_progress};
 use sha2::{Digest, Sha256};
 use tokio::{sync::Notify, time::Instant};
 
@@ -324,7 +324,12 @@ impl AssetJob {
                 )
                 .collect::<Vec<_>>();
             for progress in &mut state.assets {
-                if let Some(asset) = assets.iter().find(|a| a["assetId"] == progress["assetId"]) {
+                if let Some(asset) = assets.iter().find(|a| a["assetId"] == progress["assetId"])
+                    .or_else(|| assets.iter().find(|a| {
+                        progress["assetId"].as_str().is_some_and(|id| id.ends_with(":node"))
+                            && a["assetId"].as_str().zip(progress["assetId"].as_str())
+                                .is_some_and(|(actual, requested)| request_key(actual) == request_key(requested))
+                    })) {
                     for field in [
                         "status",
                         "byteLength",
@@ -470,7 +475,8 @@ impl AssetJob {
             .iter()
             .map(|asset| {
                 let mut asset = asset.clone();
-                if let Some(first) = asset["assetId"].as_str().and_then(|id| duplicates.get(id)) {
+                if let Some(first) = asset["assetId"].as_str().and_then(|id| duplicates.get(id))
+                    .filter(|first| asset["assetId"].as_str().is_some_and(|id| request_key(id) != request_key(first))) {
                     asset["duplicateOf"] = json!(first);
                 }
                 let path = asset["assetId"].as_str().and_then(|id| self.paths.get(id));

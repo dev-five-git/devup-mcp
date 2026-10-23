@@ -525,6 +525,32 @@ pub(super) fn placement_evidence(snapshot: &Snapshot, node_id: &str) -> Value {
     original
 }
 
+fn stable_diagnostic_colors(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            if ["r", "g", "b"]
+                .iter()
+                .all(|key| object.get(*key).is_some_and(Value::is_number))
+            {
+                for key in ["r", "g", "b", "a"] {
+                    if let Some(channel) = object.get_mut(key)
+                        && channel.as_number().is_some_and(serde_json::Number::is_f64)
+                        && let Some(number) = channel.as_f64()
+                    {
+                        *channel = json!((number * 1e12).round() / 1e12);
+                    }
+                }
+            } else {
+                for child in object.values_mut() {
+                    stable_diagnostic_colors(child);
+                }
+            }
+        }
+        Value::Array(array) => array.iter_mut().for_each(stable_diagnostic_colors),
+        _ => {}
+    }
+}
+
 fn geometry(node: &devup_mcp_figma::RawNode) -> Value {
     let view = node.typed_view();
     let mut value = json!({"nodeId":node.id,"nodeType":node.node_type});
@@ -567,6 +593,9 @@ fn geometry(node: &devup_mcp_figma::RawNode) -> Value {
         "fills",
     ] {
         value[field] = view.value(field).cloned().unwrap_or(Value::Null);
+        if matches!(field, "fills" | "effects") {
+            stable_diagnostic_colors(&mut value[field]);
+        }
     }
     let missing: Vec<_> = [
         "x",
@@ -595,5 +624,26 @@ pub(super) fn fallback_original(snapshot: &Snapshot, node_id: &str, property: &s
             .and_then(|n| n.typed_view().value(property))
             .cloned()
             .unwrap_or(Value::Null),
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_color_tests {
+    use super::*;
+
+    #[test]
+    fn geometry_color_diagnostics_ignore_last_bit_parse_differences() {
+        let diagnostic = |blue| {
+            let node = serde_json::from_value(json!({"id":"icon","type":"VECTOR","fields":{
+                "width":24.000000000001,"fills":[{"type":"SOLID","color":{"r":1,"g":0,"b":blue}}]
+            }}))
+            .unwrap();
+            geometry(&node)
+        };
+        let first = diagnostic(0.9244915843009948);
+        let second = diagnostic(0.9244915843009949);
+        assert_eq!(first, second);
+        assert_eq!(first["fills"][0]["color"]["b"], json!(0.924491584301));
+        assert_eq!(first["width"], json!(24.000000000001));
     }
 }

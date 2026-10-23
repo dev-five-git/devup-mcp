@@ -152,7 +152,7 @@ impl CollectorSession {
                             scale: 2.0,
                             render_mode: crate::AssetRenderMode::OriginalSource,
                             quality: Some(85),
-                            lossless: Some(false),
+                            lossless: None,
                         })
                         .collect();
                     for (index, asset) in census.iter().enumerate() {
@@ -175,7 +175,7 @@ impl CollectorSession {
                         failure.scale = Some(2.0);
                         failure.max_width = self.request.asset_selections[index].max_width;
                         failure.quality = Some(85);
-                        failure.lossless = Some(false);
+                        failure.lossless = None;
                         self.asset_results.push(failure);
                     }
                 }

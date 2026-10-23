@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use serde_json::Value;
 
-fn request_key(asset_id: &str) -> &str {
+pub(super) fn request_key(asset_id: &str) -> &str {
     let id = asset_id.split(":fills:").next().unwrap_or(asset_id);
     ["node", "visible", "fill"]
         .iter()

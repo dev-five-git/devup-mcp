@@ -31,7 +31,7 @@ expression: actual
           minW="0"
           objectFit="cover"
           objectPos="center"
-          src="/images/image.png"
+          src="/images/maxw-image.png"
           w="100%"
         />
       </Center>

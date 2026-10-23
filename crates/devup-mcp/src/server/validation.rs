@@ -302,8 +302,9 @@ pub(super) fn parse_asset_requests(
                 false,
             ));
         }
-        let defaulted_webp = request.format.is_none() && request.render_mode == "original-source";
-        let format = match request.format.as_deref().unwrap_or(if defaulted_webp { "webp" } else { "png" }) {
+        let defaulted_source = request.format.is_none() && request.render_mode == "original-source";
+        let format = match request.format.as_deref().unwrap_or(if defaulted_source { "auto" } else { "png" }) {
+            "auto" if defaulted_source => AssetFormat::Auto,
             "png" => AssetFormat::Png,
             "webp" => AssetFormat::Webp,
             "jpg" | "jpeg" => AssetFormat::Jpg,
@@ -334,7 +335,7 @@ pub(super) fn parse_asset_requests(
                 ));
             }
         };
-        let quality = request.quality.or(defaulted_webp.then_some(85));
+        let quality = request.quality;
         devup_mcp_figma::validate_webp_options(format, quality, request.lossless)?;
         if render_mode == devup_mcp_figma::AssetRenderMode::Fill
             && (!matches!(
@@ -931,13 +932,13 @@ mod r30_tests {
     use super::*;
 
     #[test]
-    fn omitted_format_defaults_original_source_to_webp_q85_and_explicit_formats_are_kept() {
+    fn omitted_source_format_is_deferred_and_explicit_formats_are_kept() {
         let parse = |v: serde_json::Value| {
             parse_asset_requests(&[serde_json::from_value(v).unwrap()]).unwrap()
         };
         let (defaulted, _) = parse(json!({"assetId":"picture:fills:0"}));
-        assert_eq!(defaulted[0].format, AssetFormat::Webp);
-        assert_eq!(defaulted[0].quality, Some(85));
+        assert_eq!(defaulted[0].format, AssetFormat::Auto);
+        assert_eq!(defaulted[0].quality, None);
         let (png, _) = parse(json!({"assetId":"picture:fills:0","format":"png"}));
         assert_eq!(png[0].format, AssetFormat::Png);
         assert_eq!(png[0].quality, None);

@@ -125,6 +125,15 @@ async fn project_operation(
             // Keep requested file destinations and capture reporting attached
             // to the resolved asset rather than the convenience node alias.
             for capture in &mut asset_captures {
+                if capture.format == devup_mcp_figma::AssetFormat::Auto {
+                    let resolved = devup_mcp_figma::resolve_asset_selections(&payload.snapshot, std::slice::from_ref(capture))?.remove(0);
+                    capture.format = resolved.format;
+                    capture.quality = resolved.quality;
+                    capture.render_mode = resolved.render_mode;
+                    if let Some(path) = asset_output_paths.get_mut(&capture.asset_id) {
+                        *path = std::path::Path::new(path).with_extension(resolved.format.extension()).to_string_lossy().into_owned();
+                    }
+                }
                 if !matches!(capture.render_mode, devup_mcp_figma::AssetRenderMode::OriginalSource | devup_mcp_figma::AssetRenderMode::Auto) {
                     continue;
                 }
