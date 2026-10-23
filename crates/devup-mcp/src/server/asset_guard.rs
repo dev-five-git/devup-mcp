@@ -290,6 +290,12 @@ pub(super) fn violations(sources: &[(&str, &str)], project_root: Option<&str>) -
             let mut context = Map::new();
             context.insert("assetUrl".into(), json!(url));
             context.insert("publicDirs".into(), json!(looked_in));
+            context.insert("nextAction".into(), json!({
+                "tool": "devup_figma_export",
+                "how": "Use the original Figma URL and the discovered icon nodeId in assetRequests; set outputPath under public/ to serve this assetUrl. Do not invent node IDs or replace the missing icon with a placeholder.",
+                "assetUrl": url,
+                "requiredInputs": ["url", "assetRequests[].nodeId", "assetRequests[].outputPath"]
+            }));
             if !name.is_empty() {
                 context.insert("sourceName".into(), json!(name));
             }

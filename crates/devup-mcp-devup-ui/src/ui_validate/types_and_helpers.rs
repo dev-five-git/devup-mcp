@@ -4,6 +4,8 @@ use std::collections::BTreeSet;
 mod blur_layers;
 #[path = "site.rs"]
 pub mod site;
+#[path = "wiring.rs"]
+pub mod wiring;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -147,6 +149,7 @@ fn validate_source(
     };
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
+    violations.extend(wiring::findings(tsx));
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));
