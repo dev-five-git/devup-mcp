@@ -400,6 +400,30 @@ pub fn merge_breakpoints(
     options: &CodegenOptions,
 ) -> Result<Option<MergedScreen>, DevupError> {
     let found = breakpoints(snapshot);
+    merge_discovered_breakpoints(snapshot, options, &found)
+}
+
+pub fn merge_confirmed_breakpoints(
+    snapshot: &Snapshot,
+    options: &CodegenOptions,
+) -> Result<Option<MergedScreen>, DevupError> {
+    let widths = snapshot.roots.iter().filter_map(|id| {
+        Some(("confirmed", snapshot.nodes.get(id)?.typed_view().number("width")?))
+    }).collect::<Vec<_>>();
+    if widths.len() != snapshot.roots.len() || !breakpoint_family_is_possible(&widths) {
+        return Ok(None);
+    }
+    let found = snapshot.roots.iter().enumerate().map(|(rank, id)| Breakpoint {
+        rank, node_id: id.clone(),
+    }).collect::<Vec<_>>();
+    merge_discovered_breakpoints(snapshot, options, &found)
+}
+
+fn merge_discovered_breakpoints(
+    snapshot: &Snapshot,
+    options: &CodegenOptions,
+    found: &[Breakpoint],
+) -> Result<Option<MergedScreen>, DevupError> {
     if found.len() < 2 {
         return Ok(None);
     }

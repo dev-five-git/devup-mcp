@@ -98,3 +98,24 @@ fn generate_collected_component(
     }
     generate_component(&payload.snapshot, node_id, options)
 }
+
+fn component_definition_actions(
+    payload: &CollectedPayload,
+    tsx: &str,
+    result: &Map<String, Value>,
+) -> Vec<Value> {
+    payload.snapshot.nodes.values()
+        .filter(|node| node.node_type == "COMPONENT_SET")
+        .filter_map(|node| {
+            let name = node.typed_view().name()?;
+            let name = devup_mcp_devup_ui::codegen::normalize_component_name(name);
+            tsx.contains(&format!("from \"@/components/{name}\"" )).then(|| json!({
+                "name": name, "nodeId": node.id,
+                "nextAction": {"tool":"devup_figma_export", "arguments":{
+                    "artifactId":result["cache"]["artifactId"],
+                    "frameIds":[node.id], "outputs":["componentTsx"]
+                }}
+            }))
+        })
+        .collect()
+}

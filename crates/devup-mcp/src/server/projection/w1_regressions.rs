@@ -1,6 +1,7 @@
 
 include!("design_drift_tests.rs");
 include!("feedback_theme_tests.rs");
+include!("feedback_codegen_tests.rs");
 use super::super::artifacts::ArtifactRequestKey;
 use super::*;
 use devup_mcp_figma::{CollectionRequest, CollectionScope};
