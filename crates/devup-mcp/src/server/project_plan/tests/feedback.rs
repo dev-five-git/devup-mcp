@@ -1,6 +1,21 @@
 use super::*;
 
 #[tokio::test]
+async fn split_scope_prioritizes_confirmed_feature_answers() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), false).await;
+    run(&request, &policy).await.unwrap();
+    let mut plan = read(&request.project_root).unwrap();
+    plan["features"][0]["scope"] = json!("Posts with /ko prefix");
+    plan["answers"]["posts.locale"] = json!("No locale prefix");
+    let mut tx = OutputTransaction::new();
+    units::split(&request, &mut plan, &mut tx, &policy).unwrap();
+    let front = array(&plan["units"]).iter().find(|u| u["id"] == "posts-front").unwrap();
+    assert_eq!(front["scopeOverrides"]["posts.locale"], "No locale prefix");
+    assert_eq!(front["scopePrecedence"], json!(["answers", "decisions", "scope"]));
+}
+
+#[tokio::test]
 async fn split_briefs_contain_only_owned_route_and_worker_files() {
     let dir = TestDir::new();
     let (request, policy, _) = drafted(dir.path(), false).await;

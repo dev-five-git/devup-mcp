@@ -56,6 +56,8 @@ fn slim_context(plan: &Value, u: &Value) -> Value {
     json!({
         "fullPlan": ".devup/project-plan.json",
         "answers": pick(&plan["answers"], &owner, &[]),
+        "scopePrecedence": u["scopePrecedence"],
+        "scopeOverrides": u["scopeOverrides"],
         "facts": pick(&plan["facts"], &owner, &["goal", "parts", "workType"]),
         "decisions": plan["decisions"],
         "backendCommands": plan["backendCommands"],
@@ -199,6 +201,8 @@ pub(super) fn split(
     }
     for u in &mut units {
         let owner = unit_owner(u);
+        u["scopeOverrides"] = pick(&plan["answers"], &owner, &[]);
+        u["scopePrecedence"] = json!(["answers", "decisions", "scope"]);
         let screens = array(&plan["features"]).iter().find(|feature| feature["id"] == owner)
             .map(|feature| array(&feature["screens"])).unwrap_or_default();
         let screen_slice = slim_screens(&screen_context, screens);
