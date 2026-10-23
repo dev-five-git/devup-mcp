@@ -1,6 +1,48 @@
 use super::*;
 
 #[tokio::test]
+async fn screen_data_contracts_survive_confirm_split_and_check_openapi_fields() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), true).await;
+    request.action = "draft".into();
+    request.answers.clear();
+    request.features = vec![Feature {id:"catalog".into(),scope:"Catalog".into(),screens:vec!["9:1".into()],acceptance:vec![],entities:vec![]}];
+    request.evidence = vec![serde_json::from_value(json!({"source":"Figma","facts":{"screens":[
+        {"nodeId":"9:1","name":"Post management","parts":["PostTable","DetailPanel","CreateForm","EditForm"]}
+    ]}})).unwrap()];
+    let draft = run(&request, &policy).await.unwrap();
+    assert_eq!(draft["dataMappings"][0]["candidateEntities"], json!(["post"]));
+    assert_eq!(array(&draft["endpointContracts"]).len(), 4);
+    request.action = "confirm".into();
+    request.accept_recommended = true;
+    request.evidence.clear();
+    request.detail = None;
+    let confirmed = run(&request, &policy).await.unwrap();
+    assert_eq!(confirmed["endpointContracts"], draft["endpointContracts"]);
+    let create = array(&confirmed["endpointContracts"]).iter().find(|contract| contract["operation"] == "create").unwrap();
+    assert_eq!(create["method"], "POST");
+    assert_eq!(create["path"], "/posts");
+    assert!(!array(&create["requestFields"]).iter().any(|field| field["name"] == "id"));
+    assert!(array(&create["requestFields"]).iter().any(|field| field["name"] == "title" && field["type"] == "text" && field["required"] == true));
+    std::fs::write(dir.path().join("openapi.json"), json!({"paths":{
+        "/posts":{"get":{"operationId":"listPosts","responses":{"200":{"content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/Post"}}}}}}},
+        "post":{"operationId":"createPost","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}}}}},
+        },"components":{"schemas":{"Post":{"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"user_id":{"type":"integer"}}}}}
+    }).to_string()).unwrap();
+    request.action = "split".into();
+    let split = run(&request, &policy).await.unwrap();
+    assert_eq!(array(&split["apiWiring"]["contractMissing"]).len(), 2);
+    let brief = std::fs::read_to_string(dir.path().join(".devup/units/catalog-domain.md")).unwrap();
+    assert!(brief.contains("requestFields") && brief.contains("/posts/{id}"));
+    let mut doc: Value = serde_json::from_slice(&std::fs::read(dir.path().join("openapi.json")).unwrap()).unwrap();
+    doc["components"]["schemas"]["Post"]["properties"].as_object_mut().unwrap().remove("title");
+    std::fs::write(dir.path().join("openapi.json"), doc.to_string()).unwrap();
+    request.action = "status".into();
+    let status = run(&request, &policy).await.unwrap();
+    assert!(array(&status["apiWiring"]["contractMissing"]).iter().any(|missing| text(&missing["reason"]).contains("title")));
+}
+
+#[tokio::test]
 async fn split_groups_menu_and_entity_domains_and_supervises_repeated_parts() {
     let dir = TestDir::new();
     let (request, policy, _) = drafted(dir.path(), true).await;

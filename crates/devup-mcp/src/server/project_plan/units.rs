@@ -12,7 +12,7 @@ fn unit(
         "stage":if matches!(layer, "shared" | "models") {0} else {1},
         "checklist":["build", "lint", "typecheck", "tests", "devup_ui_validate", "runtime/visual audit", "devup_stack_diff: zero drift"]})
 }
-fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
+pub(super) fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
     if !erd::api(plan) {
         return vec![];
     }
@@ -24,10 +24,11 @@ fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
         return explicit;
     }
     let haystack = format!(
-        "{} {} {}",
+        "{} {} {} {}",
         text(&feature["id"]),
         text(&feature["scope"]),
-        feature["acceptance"]
+        feature["acceptance"],
+        json!(feature_screens(plan, feature))
     )
     .to_lowercase();
     array(&plan["entities"])
@@ -84,7 +85,7 @@ fn slim_screens(screen: &Value, screens: &[Value]) -> Value {
         .collect::<Vec<_>>();
     json!({"fullPlan": ".devup/screen-plan.json", "state": screen["state"], "routes": routes})
 }
-fn feature_screens(plan: &Value, feature: &Value) -> Vec<Value> {
+pub(super) fn feature_screens(plan: &Value, feature: &Value) -> Vec<Value> {
     array(&plan["facts"]["screens"]).iter()
         .chain(array(&plan["screenPlan"]["screens"]))
         .filter(|screen| ["nodeId", "name", "url"].iter().any(|key| {
@@ -264,7 +265,10 @@ pub(super) fn split(
         u["scopePrecedence"] = json!(["answers", "decisions", "scope"]);
         let screens = array(&u["screens"]);
         let screen_slice = slim_screens(&screen_context, screens);
-        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"],"sharedParts":units_shared_parts(plan, u)});
+        let endpoints = array(&plan["endpointContracts"]).iter().filter(|contract| {
+            u["stage"] != 1 || array(&u["features"]).contains(&contract["feature"])
+        }).cloned().collect::<Vec<_>>();
+        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"],"sharedParts":units_shared_parts(plan, u),"endpointContracts":endpoints});
         for field in ["exports", "assets", "imports"] {
             let values = array(&u["features"]).iter().flat_map(|feature| array(&plan["facts"][format!("{}.{field}", text(feature))]).to_vec()).collect::<Vec<_>>();
             contract[field] = if values.is_empty() {plan["facts"][format!("{owner}.{field}")].clone()} else {json!(values)};
