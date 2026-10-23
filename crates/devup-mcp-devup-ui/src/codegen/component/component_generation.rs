@@ -173,6 +173,17 @@ pub fn generate_component(
     root_id: &str,
     options: &CodegenOptions,
 ) -> Result<CodegenOutput, DevupError> {
+    if let Some(root) = snapshot.nodes.get(root_id)
+        && root.node_type == "COMPONENT_SET"
+    {
+        return match variant::generate_variant_component_set(snapshot, root_id, options, true)? {
+            Some(mut output) => {
+                output.tsx.insert_str(0, &format!("import {{ {} }} from \"@devup-ui/react\";\n\n", output.imports.join(", ")));
+                finalize_codegen_output(output, snapshot, options, root_id)
+            },
+            None => generate_component_set_target(snapshot, root_id, root.typed_view().name().unwrap_or("Component"), options),
+        };
+    }
     let generated = generate_node_marked(snapshot, root_id, options)?;
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
@@ -324,7 +335,7 @@ pub fn generate_component_set_target(
     let root_view = component_set.unwrap_or(root).typed_view();
     let main = component_set.is_some();
     if let Some(set) = component_set
-        && let Some(output) = variant::generate_variant_component_set(snapshot, &set.id, options)?
+        && let Some(output) = variant::generate_variant_component_set(snapshot, &set.id, options, false)?
     {
         return finalize_codegen_output(output, snapshot, options, &set.id);
     }

@@ -155,7 +155,9 @@ pub(super) fn export_coverage(
         {
             continue;
         }
-        if depth <= 1 || node.node_type == "SECTION" || assets.contains(id) {
+        if node.node_type != "COMPONENT_SET"
+            && (depth <= 1 || node.node_type == "SECTION" || assets.contains(id))
+        {
             wanted.insert(id.to_owned());
         }
         // Leaf assets (including a flattened wrapper) represent all their children.

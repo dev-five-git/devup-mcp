@@ -577,11 +577,12 @@ fn render_component(
     tree: &Tree,
     selectors: &BTreeMap<String, BTreeMap<String, Expression>>,
     transition: Option<&(String, String)>,
+    text_properties: &BTreeMap<String, String>,
 ) -> String {
-    let interface = if dimensions.is_empty() {
+    let interface = if dimensions.is_empty() && text_properties.is_empty() {
         String::new()
     } else {
-        let fields = dimensions
+        let mut fields = dimensions
             .iter()
             .map(|definition| {
                 if definition.boolean {
@@ -602,14 +603,18 @@ fn render_component(
             })
             .collect::<Vec<_>>()
             .join("\n");
+        for name in text_properties.keys() {
+            fields.push_str(&format!("\n  {name}?: string"));
+        }
         format!("export interface {name}Props {{\n{fields}\n}}\n\n")
     };
-    let signature = if dimensions.is_empty() {
+    let signature = if dimensions.is_empty() && text_properties.is_empty() {
         format!("export function {name}()")
     } else {
         let props = dimensions
             .iter()
-            .map(|definition| definition.name.as_str())
+            .map(|definition| definition.name.clone())
+            .chain(text_properties.iter().map(|(name, default)| format!("{name} = {default}")))
             .collect::<Vec<_>>()
             .join(", ");
         format!("export function {name}({{ {props} }}: {name}Props)")

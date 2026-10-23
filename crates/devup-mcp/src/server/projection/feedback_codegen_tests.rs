@@ -40,3 +40,61 @@ async fn feedback36_refusal_preserves_frame_files_and_artifact_recovery() {
     assert_ne!(result["status"], "complete");
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+fn feedback32_component_payload() -> CollectedPayload {
+    let mut data = payload();
+    data.target.node_id = Some("set".into());
+    data.snapshot = serde_json::from_value(json!({
+        "fileKey":"W1Fixture","version":null,"roots":["set"],"diagnostics":[],
+        "nodes":{
+            "set":{"id":"set","type":"COMPONENT_SET","fields":{
+                "name":"Button","width":900,"height":600,"childrenIds":["default","hover"],
+                "componentPropertyDefinitions":{"effect":{"type":"VARIANT","defaultValue":"default","variantOptions":["default","hover"]}}
+            }},
+            "default":{"id":"default","type":"COMPONENT","fields":{
+                "name":"effect=default","parentId":"set","childrenIds":["label"],
+                "variantProperties":{"effect":"default"},"width":100,"height":40,
+                "fills":[{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]
+            }},
+            "hover":{"id":"hover","type":"COMPONENT","fields":{
+                "name":"effect=hover","parentId":"set","childrenIds":["hover-label"],
+                "variantProperties":{"effect":"hover"},"width":100,"height":40,
+                "fills":[{"type":"SOLID","color":{"r":0,"g":0,"b":1}}]
+            }},
+            "label":{"id":"label","type":"TEXT","fields":{"characters":"Submit","parentId":"default"}},
+            "hover-label":{"id":"hover-label","type":"TEXT","fields":{"characters":"Submit","parentId":"hover"}}
+        }
+    })).unwrap();
+    data
+}
+
+#[tokio::test]
+async fn feedback32_component_set_has_no_canvas_coverage_failure() {
+    let result = project(feedback32_component_payload(), operation(&["tsx"])).await.unwrap();
+    let code = result["tsx"].as_str().unwrap();
+    assert_eq!(code.matches("export function Button").count(), 1);
+    assert!(!code.contains("900px"), "{code}");
+    assert!(!result["projectionIssues"].as_array().into_iter().flatten().any(|issue|
+        issue["code"] == "DEVUP_CODEGEN_SECTION_COVERAGE" && issue["nodeId"] == "set"
+    ), "{result}");
+}
+
+#[tokio::test]
+async fn feedback32_screen_reference_offers_component_export() {
+    let mut data = feedback32_component_payload();
+    data.target.node_id = Some("screen".into());
+    data.snapshot.roots = vec!["screen".into()];
+    for (id, node) in [
+        ("screen", json!({"id":"screen","type":"FRAME","fields":{"name":"Screen","childrenIds":["instance"]}})),
+        ("instance", json!({"id":"instance","type":"INSTANCE","fields":{"name":"Button","mainComponentId":"default","variantProperties":{"effect":"default"}}})),
+    ] {
+        data.snapshot.nodes.insert(id.into(), serde_json::from_value(node).unwrap());
+    }
+    let result = project(data, operation(&["componentTsx"])).await.unwrap();
+    assert!(result["componentTsx"].as_str().unwrap().contains("@/components/Button"), "{result}");
+    let action = &result["componentDefinitions"][0]["nextAction"];
+    assert_eq!(action["tool"], "devup_figma_export");
+    assert_eq!(action["arguments"]["frameIds"], json!(["set"]));
+    assert_eq!(action["arguments"]["outputs"], json!(["componentTsx"]));
+    assert_eq!(action["arguments"]["artifactId"], result["cache"]["artifactId"]);
+}

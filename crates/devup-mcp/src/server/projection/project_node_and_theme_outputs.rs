@@ -172,6 +172,10 @@ pub(super) fn project_node_and_theme_outputs(
         );
         match output {
             Ok(mut output) => {
+                let definitions = component_definition_actions(payload, &output.tsx, &result);
+                if !definitions.is_empty() {
+                    result.insert("componentDefinitions".to_owned(), json!(definitions));
+                }
                 let coverage = super::super::asset_guard::export_coverage(
                     &payload.snapshot,
                     node_id,

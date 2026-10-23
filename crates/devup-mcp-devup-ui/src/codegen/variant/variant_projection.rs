@@ -76,6 +76,7 @@ pub(super) fn generate_variant_component_set(
     snapshot: &Snapshot,
     set_id: &str,
     options: &CodegenOptions,
+    merge_all: bool,
 ) -> Result<Option<CodegenOutput>, DevupError> {
     let set = snapshot.nodes.get(set_id).ok_or_else(|| {
         DevupError::new(
@@ -84,13 +85,23 @@ pub(super) fn generate_variant_component_set(
             false,
         )
     })?;
-    let definitions = definitions(set);
-    if !definitions.iter().any(|definition| {
-        matches!(
-            definition.name.to_ascii_lowercase().as_str(),
-            "effect" | "viewport"
-        )
-    }) {
+    let mut definitions = definitions(set);
+    let state_axis = merge_all.then(|| definitions.iter().find(|definition| {
+        definition.name.eq_ignore_ascii_case("state") && definition.options.iter().all(|value| {
+            matches!(value.to_ascii_lowercase().as_str(), "default" | "hover" | "active" | "disabled" | "focus")
+        })
+    }).map(|definition| definition.source.clone())).flatten();
+    if let Some(state_axis) = &state_axis {
+        for definition in &mut definitions {
+            if &definition.source == state_axis {
+                definition.name = "effect".into();
+                definition.source = "effect".into();
+                definition.default.make_ascii_lowercase();
+                definition.options.iter_mut().for_each(|value| value.make_ascii_lowercase());
+            }
+        }
+    }
+    if !merge_all && !definitions.iter().any(|definition| matches!(definition.name.to_ascii_lowercase().as_str(), "effect" | "viewport")) {
         return Ok(None);
     }
     let records = set
@@ -98,13 +109,18 @@ pub(super) fn generate_variant_component_set(
         .child_ids()
         .filter_map(|id| snapshot.nodes.get(id))
         .filter_map(|node| {
-            let values = node
+            let mut values = node
                 .typed_view()
                 .value("variantProperties")?
                 .as_object()?
                 .iter()
                 .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
                 .collect::<BTreeMap<_, _>>();
+            if let Some(state_axis) = &state_axis
+                && let Some(value) = values.remove(state_axis)
+            {
+                values.insert("effect".into(), value.to_ascii_lowercase());
+            }
             Some((node, values))
         })
         .map(|(node, values)| {
@@ -115,6 +131,9 @@ pub(super) fn generate_variant_component_set(
             })
         })
         .collect::<Result<Vec<_>, DevupError>>()?;
+    if records.is_empty() {
+        return Ok(None);
+    }
     // A boolean property is not part of a variant's identity — it never appears
     // in `variantProperties` — so filtering records by it matches nothing.
     let default_filters = definitions
@@ -199,6 +218,7 @@ pub(super) fn generate_variant_component_set(
         }
     }
     let transition = transition(snapshot, &default.node_id, &transition_props);
+    let text_properties = bind_text_properties(snapshot, set, &mut root);
     let component_name = legacy_component_name(set.typed_view().name().unwrap_or("Component"));
     let code = mark_node(
         &set.id,
@@ -208,6 +228,7 @@ pub(super) fn generate_variant_component_set(
             &root,
             &selectors,
             transition.as_ref(),
+            &text_properties,
         ),
     );
     let mut imports = BTreeSet::new();
