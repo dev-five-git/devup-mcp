@@ -191,6 +191,18 @@ fn describe_frames(frames: &[Frame]) -> String {
 /// - the same name at the same width in one section is not grouped; it is
 ///   flagged as a possible duplicate by [`structure_questions`].
 fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftScreen> {
+    let renamed = screens
+        .iter()
+        .map(|screen| match screen.section_name.as_deref() {
+            Some(section) if device_name(&screen.name) && !device_name(section) => {
+                let mut named = screen.clone();
+                named.name = format!("{section} - {}", screen.name);
+                named
+            }
+            _ => screen.clone(),
+        })
+        .collect::<Vec<_>>();
+    let screens = renamed.as_slice();
     let mut order = Vec::<String>::new();
     let mut groups = BTreeMap::<String, Vec<&PlanScreenInput>>::new();
     for screen in screens {

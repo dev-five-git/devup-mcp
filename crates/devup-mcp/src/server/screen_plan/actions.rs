@@ -116,6 +116,10 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     for screen in &screens {
         let id = text(&screen["id"]).to_owned();
         let frames = array(&screen["frames"]).to_vec();
+        if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str())
+            && !frames.iter().any(|frame| frame["pageId"] == page) {
+            continue;
+        }
         let mut deciding = array(&screen["structureQuestions"])
             .iter()
             .map(text)
@@ -366,6 +370,11 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     plan["excluded"] = json!(excluded);
     plan["designFixes"] = json!(design_fixes);
     plan["confirmedPage"] = confirmed_page(&plan);
+    if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str()) {
+        let name = screens.iter().flat_map(|screen| array(&screen["frames"]))
+            .find(|frame| frame["pageId"] == page).map(|frame| frame["pageName"].clone());
+        plan["confirmedPage"] = json!({"id":page,"name":name,"basis":"base-page answer"});
+    }
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
     refresh_inventory_checks(&mut plan);
@@ -373,7 +382,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         plan["assumptions"] = json!([]);
     }
     let written = write_plan(policy, root, &plan)?;
-    let work_queue = routes
+    let mut work_queue = theme_sync_queue(&plan, root);
+    work_queue.extend(routes
         .iter()
         .filter(|route| route["url"].is_string())
         .map(|route| {
@@ -384,12 +394,13 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "file": route["file"],
                 "nodeIds": route["nodeIds"],
                 "drawnWidths": route["drawnWidths"],
+                "states": state_exports(route),
             })
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>());
     let urls = work_queue
         .iter()
-        .map(|item| text(&item["url"]).to_owned())
+        .filter_map(|item| item["url"].as_str().map(str::to_owned))
         .collect::<Vec<_>>();
     Ok(json!({
         "status": "confirmed",
@@ -604,9 +615,11 @@ pub(super) async fn audit_plan(
     )
     .await?;
     let mut entries = array(&plan["audit"]["plans"]).to_vec();
+    let replaced = array(&result["plans"]).iter().map(|entry| entry["url"].clone()).collect::<Vec<_>>();
+    entries.retain(|entry| !replaced.contains(&entry["url"]));
     for written in array(&result["plans"]) {
-        entries.retain(|entry| entry["url"] != written["url"]);
         entries.push(json!({"url": written["url"], "screen": written["screen"],
+            "state": written["state"],
             "missingReferences": written["missingReferences"], "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
     // A dynamic route sampled from its Figma frame is an assumption, and is
@@ -627,6 +640,8 @@ pub(super) async fn audit_plan(
     plan["audit"]["plans"] = json!(entries);
     plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
     plan["audit"]["generatedAt"] = json!(now());
+    result["framePages"] = json!(frame_page_table(&plan));
+    plan["audit"]["framePages"] = result["framePages"].clone();
     result["writtenTo"] = write_plan(policy, root, &plan)?;
     result["maxFixAttempts"] = json!(max_fix_attempts);
     result["doneWhen"] = json!(DONE_RULE);

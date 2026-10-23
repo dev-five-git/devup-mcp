@@ -48,6 +48,18 @@ pub(super) fn status_report(
         let Some(url) = route["url"].as_str() else {
             continue;
         };
+        let route_states = state_exports(route).into_iter().map(|mut state| {
+            let suffix = format!("-state-{}", super::audit_plan::slug(text(&state["nodeId"])));
+            let mut required_widths = DEFAULT_WIDTHS.to_vec();
+            if let Some(width) = state["width"].as_f64() { required_widths.push(width.round() as u32); }
+            let results = required_widths.iter().map(|width| {
+                audit_rows.iter().find(|row| row["routePath"] == url && row["width"] == *width && text(&row["screen"]).ends_with(&suffix))
+                    .map_or("not-run", |row| text(&row["status"]))
+            }).collect::<Vec<_>>();
+            state["result"] = json!(results.iter().fold("pass", |result, next| worst(result, next)));
+            state
+        }).collect::<Vec<_>>();
+        states.extend(route_states.clone());
         let page = evidence
             .routes
             .iter()
@@ -80,6 +92,10 @@ pub(super) fn status_report(
                     .iter()
                     .fold("pass", |acc, row| worst(acc, text(&row["status"])));
                 let mut reasons = matching.iter().flat_map(|row| array(&row["reasons"]).to_vec()).collect::<Vec<_>>();
+                if route_states.iter().any(|state| state["result"] != "pass") {
+                    for state in &route_states { result = worst(result, text(&state["result"])); }
+                    reasons.push(json!("state variant audit missing or not passing"));
+                }
                 let missing_reference = array(&plan["audit"]["plans"]).iter().filter(|entry| entry["url"] == url)
                     .flat_map(|entry| array(&entry["missingReferences"]))
                     .any(|reference| reference["width"].is_null() || reference["width"] == *width);
@@ -104,6 +120,7 @@ pub(super) fn status_report(
             "figmaScreen": route["name"],
             "nodeIds": route["nodeIds"],
             "figmaPages": route["pages"],
+            "states": route_states,
             "file": page.clone().map_or_else(|| route["file"].clone(), Value::from),
             "implemented": implemented_state(page.is_some(), &route["drawnWidths"], &per_width),
             "widths": per_width,
@@ -312,10 +329,22 @@ pub(super) fn status_report(
         link_markdown.push_str(&format!("| {} | {} | {} | {} | {} |\n", cell(&row["from"]), cell(&row["label"]), cell(&row["href"]), cell(&row["status"]), cell(&row["planned"])));
     }
     let mut queue = super::audit_plan::work_queue(plan, &rows, &[]);
+    for item in &mut queue {
+        if let Some(row) = rows.iter().find(|row| row["url"] == item["url"]) {
+            item["states"] = row["states"].clone();
+        }
+    }
+    let theme_queue = theme_sync_queue(plan, &evidence.root.to_string_lossy());
+    let theme_pending = !theme_queue.is_empty();
+    queue.splice(0..0, theme_queue);
     if links_fail {
         for item in &mut queue { item["done"] = json!(false); }
     }
     let final_report = super::audit_plan::final_report(plan, &rows, &trailing) + &link_markdown;
+    let blocking_urls = rows.iter().filter(|row| {
+        row["implemented"] != "yes" || array(&row["widths"]).iter().any(|width| width["result"] != "pass")
+    }).map(|row| row["url"].clone()).collect::<Vec<_>>();
+    let done = blocking_urls.is_empty() && !theme_pending && !links_fail && incomplete == 0 && open.is_empty();
     let converter_bugs = plan["audit"]["converterBugs"]
         .as_object()
         .map(|bugs| bugs.values().cloned().collect::<Vec<_>>())
@@ -325,6 +354,9 @@ pub(super) fn status_report(
         "unresolved": unresolved,
         "converterBugs": converter_bugs,
         "workQueue": queue,
+        "done": done,
+        "blockingUrls": blocking_urls,
+        "completion": {"done": done, "blockingUrls": blocking_urls, "reportAllowed": done},
         "pendingDecisions": plan["pendingDecisions"],
         "finalReport": final_report,
         "linkTable": link_table,
@@ -346,6 +378,7 @@ pub(super) fn status_report(
         "warnings": warnings,
         "excluded": excluded,
         "frameInventory": plan["frameInventory"],
+        "framePages": frame_page_table(plan),
         "linkLabelCheck": plan["linkLabelCheck"],
         "inventoryNote": evidence.inventory_note,
         "rule": "A width without a runtime audit item is not-run, never pass. Implemented requires rendered completeness at every drawn width; done requires every URL at every required width to pass.",
@@ -505,9 +538,19 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         for ancestor in std::path::Path::new(request.project_root)
             .ancestors()
             .skip(1)
-            .take(4)
         {
             if let Some(plan) = read_plan(&ancestor.to_string_lossy())? {
+                let requested = dunce::canonicalize(request.project_root).ok();
+                let matches_app = array(&plan["routes"]).iter().any(|route| {
+                    route["app"].as_str().is_some_and(|app| {
+                        requested.as_ref().is_some_and(|requested| {
+                            dunce::canonicalize(ancestor.join(app)).ok().as_ref() == Some(requested)
+                        })
+                    })
+                });
+                if array(&plan["routes"]).iter().any(|route| route["app"].is_string()) && !matches_app {
+                    continue;
+                }
                 found = Some(plan);
                 break;
             }
@@ -706,4 +749,27 @@ fn assumption_warnings(plan: &Value) -> Vec<String> {
         }
     }
     out
+}
+
+pub(super) fn export_progress(project_root: &str) -> Result<Value, DevupError> {
+    for root in Path::new(project_root).ancestors() {
+        let Some(plan) = read_plan(&root.to_string_lossy())? else { continue; };
+        if plan["status"] != "confirmed" { continue; }
+        let requested = dunce::canonicalize(project_root).ok();
+        let routes = array(&plan["routes"]).iter().filter(|route| {
+            route["url"].is_string() && route["implementation"] != "state"
+                && route["app"].as_str().is_none_or(|app| {
+                    requested.as_ref().is_some_and(|requested| {
+                        dunce::canonicalize(root.join(app)).ok().as_ref() == Some(requested)
+                            || dunce::canonicalize(root).ok().as_ref() == Some(requested)
+                    })
+                })
+        }).collect::<Vec<_>>();
+        if routes.is_empty() { continue; }
+        let implemented = routes.iter().filter(|route| route["file"].as_str().is_some_and(|file| root.join(file).is_file())).count();
+        let next = routes.iter().find(|route| !route["file"].as_str().is_some_and(|file| root.join(file).is_file())).map(|route| route["url"].clone());
+        return Ok(json!({"planId": plan["planId"], "implemented": implemented, "total": routes.len(), "next": next,
+            "implementationEvidence": "page files on disk; runtime verification remains required by screen-plan status"}));
+    }
+    Ok(Value::Null)
 }

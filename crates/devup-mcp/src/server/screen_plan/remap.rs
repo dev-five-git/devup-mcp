@@ -107,3 +107,40 @@ fn page_warnings(plan: &Value) -> Vec<String> {
         })
         .collect()
 }
+
+fn frame_page_table(plan: &Value) -> Vec<Value> {
+    array(&plan["routes"]).iter().flat_map(|route| {
+        array(&route["nodeIds"]).iter().map(move |node| {
+            let frame = array(&plan["screens"]).iter().flat_map(|screen| array(&screen["frames"]))
+                .find(|frame| frame["nodeId"] == *node);
+            json!({"url": route["url"], "nodeId": node,
+                "pageId": frame.map(|frame| &frame["pageId"]),
+                "pageName": frame.map(|frame| &frame["pageName"])})
+        })
+    }).collect()
+}
+
+fn theme_sync_queue(plan: &Value, root: &str) -> Vec<Value> {
+    let theme_root = plan["targetApp"]["dir"].as_str().map_or_else(|| PathBuf::from(root), |app| Path::new(root).join(app));
+    let current = std::fs::read_to_string(theme_root.join("devup.json")).ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok()).unwrap_or(Value::Null);
+    fn missing(figma: &Value, current: &Value) -> usize {
+        match figma.as_object() {
+            Some(entries) => entries.iter().map(|(key, value)| {
+                if current.get(key).is_none() { 1 } else { missing(value, &current[key]) }
+            }).sum(),
+            None => 0,
+        }
+    }
+    let count = missing(&plan["source"]["figmaTheme"], &current);
+    if count == 0 { return Vec::new(); }
+    vec![json!({"do":"theme-sync", "state":"todo", "missingTokenCount":count,
+        "exportCall":{"tool":"devup_figma_export", "arguments":{"url":plan["source"]["url"],
+            "scope":"file", "outputs":["devupJson"], "devupJsonMode":"missing-only", "projectRoot":theme_root}}})]
+}
+
+pub(super) fn planning_theme(variables: &devup_mcp_figma::UpstreamResult) -> Result<Value, DevupError> {
+    let snapshot = devup_mcp_devup_ui::theme::variable_snapshot_from_result(variables)?;
+    let theme = devup_mcp_devup_ui::theme::generate_devup_json(&snapshot, devup_mcp_devup_ui::theme::ThemeScope::File)?;
+    serde_json::from_str(&theme.json).map_err(|error| invalid(error.to_string()))
+}

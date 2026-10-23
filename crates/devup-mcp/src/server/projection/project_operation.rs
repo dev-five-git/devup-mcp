@@ -42,6 +42,7 @@ async fn project_operation(
                     limit,
                 },
             )?;
+            let duplicate_warnings = devup_mcp_figma::excluded_duplicate_warnings(&matches);
             let quality = OutputQuality {
                 acquisition: acquisition_quality(&completeness_report, true),
                 projection: projection_quality(false, &[]),
@@ -54,6 +55,7 @@ async fn project_operation(
                 "query": query,
                 "count": matches.len(),
                 "matches": matches,
+                "warnings": duplicate_warnings,
                 "completeness": payload.completeness,
                 "collection": collection,
                 "cache": artifact_metadata(artifact),

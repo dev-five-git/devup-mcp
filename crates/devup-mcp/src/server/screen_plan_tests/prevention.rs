@@ -71,4 +71,165 @@ async fn near_identical_widths_in_one_section_can_be_states_of_one_url() {
     assert_eq!(routes.len(), 1, "{confirmed}");
     assert_eq!(array(&routes[0]["states"]).len(), 2);
     assert_eq!(routes[0]["states"][0]["nodeId"], "30:2");
+    assert_eq!(array(&confirmed["workQueue"][0]["states"]).len(), 2);
+    let saved = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&saved, &evidence(), None);
+    assert_eq!(array(&report["states"]).len(), 2);
+    assert_eq!(report["states"][0]["nodeId"], "30:2");
+    assert_eq!(report["workQueue"][0]["states"][0]["exportCall"]["arguments"]["frameIds"], json!(["30:2"]));
+    let result = audit_plan(&input(&fixture, "auditPlan"), &fixture.policy(), &ArtifactStore::default()).await.unwrap();
+    assert_eq!(array(&result["plans"]).len(), 3, "{result}");
+    for (entry, node) in array(&result["plans"]).iter().zip(["30:1", "30:2", "30:3"]) {
+        let audit: Value = serde_json::from_slice(&std::fs::read(text(&entry["planPath"])).unwrap()).unwrap();
+        assert_eq!(audit["plan"]["screens"][0]["figma"]["nodeId"], node);
+        assert_eq!(entry["missingReferences"][0]["nodeId"], node);
+    }
+    assert_eq!(result["plans"][1]["state"]["nodeId"], "30:2");
+    assert_eq!(array(&read_plan(fixture.root()).unwrap().unwrap()["audit"]["plans"]).len(), 3);
+}
+#[tokio::test]
+async fn r18_contact_and_news_recommendations_confirm_without_route_conflicts() {
+    let fixture = Fixture::new();
+    let mut screens = Vec::new();
+    for (section, count) in [("Contact", 4), ("News", 3), ("Patents", 2), ("Research", 2)] {
+        for index in 0..count {
+            screens.push(sectioned(&format!("{section}:desktop-{index}"), "Desktop", 1440.0 + f64::from(index), section));
+            screens.push(sectioned(&format!("{section}:mobile-{index}"), "Mobile", 360.0 + f64::from(index), section));
+        }
+    }
+    let mut request = drafted(&fixture, &screens).await;
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    let routes = array(&confirmed["routes"]);
+    let urls = routes.iter().filter_map(|route| route["url"].as_str()).collect::<BTreeSet<_>>();
+    assert_eq!(urls.len(), routes.len());
+    assert!(!urls.contains("/desktop"));
+}
+
+#[tokio::test]
+async fn r18_shared_explicit_route_recommendations_are_distinct_before_confirm() {
+    let fixture = Fixture::new();
+    let mut request = input(&fixture, "draft");
+    request.navigation_targets = BTreeMap::from([("44:4721".into(), "/contact".into()), ("44:5652".into(), "/contact".into())]);
+    let result = draft(&request, &[sectioned("44:4721", "Desktop", 1440.0, "Contact"), sectioned("44:5652", "Desktop", 1440.0, "Contact other")], json!({}), &fixture.policy()).await.unwrap();
+    request.action = "confirm".into();
+    request.plan_id = result["planId"].as_str().map(str::to_owned);
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    assert_eq!(array(&confirmed["routes"]).len(), 2);
+    assert_ne!(confirmed["routes"][0]["url"], confirmed["routes"][1]["url"]);
+}
+
+#[tokio::test]
+async fn r19_device_only_frames_in_each_section_confirm_as_one_responsive_url() {
+    let fixture = Fixture::new();
+    let screens = [
+        sectioned("45:2066", "Desktop", 1440.0, "Main"),
+        sectioned("51:6599", "Mobile", 360.0, "Main"),
+        sectioned("60:1", "Desktop", 1440.0, "Company"),
+        sectioned("60:2", "Mobile", 360.0, "Company"),
+    ];
+    let mut request = drafted(&fixture, &screens).await;
+    request.accept_recommended = true;
+    let result = confirm(&request, &fixture.policy()).unwrap();
+    let routes = array(&result["routes"]);
+    assert_eq!(routes.len(), 2);
+    assert!(routes.iter().all(|route| array(&route["nodeIds"]).len() == 2));
+    assert!(!routes.iter().any(|route| route["url"] == "/mobile"));
+}
+#[test]
+fn r33_one_built_route_does_not_complete_a_fifteen_url_plan() {
+    let mut plan = confirmed_plan();
+    let routes = (0..15).map(|index| json!({
+        "url": if index == 0 { "/".to_owned() } else { format!("/page-{index}") },
+        "screen": format!("frame-{index}"), "nodeIds": [format!("frame-{index}")],
+        "implementation": "page", "drawnWidths": [1440], "file": format!("src/app/page-{index}/page.tsx")
+    })).collect::<Vec<_>>();
+    plan["routes"] = json!(routes);
+    let audit = json!({"widthTable": [{"width":1440}], "screenTable":
+        ([1440,1100,858,390].map(|width| json!({"routePath":"/", "width":width,"status":"pass","columns":{"completeness":"pass"}})))});
+    let report = status_report(&plan, &evidence(), Some(&audit));
+    assert_eq!(array(&report["workQueue"]).len(), 15);
+    assert_eq!(array(&report["blockingUrls"]).len(), 14);
+    assert_eq!(report["done"], false);
+    assert_eq!(report["completion"]["reportAllowed"], false);
+}
+#[test]
+fn r33_export_progress_retains_the_next_unwritten_url() {
+    let fixture = Fixture::new();
+    write_plan_file(&fixture, &confirmed_plan());
+    let progress = export_progress(fixture.root()).unwrap();
+    assert_eq!(progress["implemented"], 1);
+    assert_eq!(progress["total"], 2);
+    assert_eq!(progress["next"], "/about");
+}
+#[test]
+fn r47_status_reports_the_owning_page_for_every_planned_frame() {
+    let mut plan = confirmed_plan();
+    plan["screens"] = json!([{"frames":[
+        {"nodeId":"10:1","pageId":"0:1","pageName":"Final"},
+        {"nodeId":"10:2","pageId":"0:1","pageName":"Final"},
+        {"nodeId":"10:3","pageId":"0:2","pageName":"Archive"}
+    ]}]);
+    let report = status_report(&plan, &evidence(), None);
+    assert_eq!(array(&report["framePages"]).len(), 4);
+    assert_eq!(report["framePages"][0]["pageName"], "Final");
+    assert_eq!(report["framePages"][2]["pageId"], "0:2");
+    assert_eq!(report["framePages"][3]["pageName"], Value::Null);
+}
+#[test]
+fn r43_final_page_is_recommended_and_linked_frame_pins_its_page() {
+    let mut old = sectioned("old:1", "Home desktop", 1440.0, "Home");
+    old.page_id = Some("page:old".into());
+    old.page_name = Some("Design system".into());
+    let mut final_frame = sectioned("final:1", "Home desktop", 1440.0, "Home");
+    final_frame.page_id = Some("page:final".into());
+    final_frame.page_name = Some("최종 시안 2026-10-14".into());
+    let screens = [old, final_frame];
+    let plan = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({}), None).unwrap();
+    assert_eq!(find(&plan, "base-page")["resolve"][0]["action"]["pageId"], "page:final");
+    let pinned = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({"nodeId":"old:1"}), None).unwrap();
+    assert!(!question_ids(&pinned).contains(&"base-page".to_owned()));
+    assert_eq!(array(&pinned["screens"]).len(), 1);
+    assert_eq!(pinned["screens"][0]["frames"][0]["pageId"], "page:old");
+}
+#[test]
+fn r12_truncated_page_inventory_reports_counts_limits_and_section_calls() {
+    let screens = [sectioned("1:1", "Home", 1440.0, "Main"), sectioned("2:1", "Company", 1440.0, "Company")];
+    let error = draft_plan(&screens, &BTreeMap::new(), &evidence(),
+        json!({"url":"https://www.figma.com/design/key/file?node-id=0-1", "truncation":{"projection":true}}), None).unwrap_err();
+    assert_eq!(error.details["frameCount"], 2);
+    assert!(error.details["limits"]["maxScreens"].as_u64().unwrap() >= 2);
+    assert_eq!(array(&error.details["sections"]).len(), 2);
+    assert_eq!(error.details["sections"][0]["draftCall"]["arguments"]["action"], "draft");
+    assert!(error.details["sections"][0]["draftCall"]["arguments"]["url"].is_string());
+}
+#[test]
+fn r38_missing_figma_tokens_put_theme_sync_before_page_work() {
+    let fixture = Fixture::new();
+    fixture.write("devup.json", r#"{"theme":{"colors":{"light":{"primary":"red"}}}}"#);
+    let mut plan = confirmed_plan();
+    plan["source"]["figmaTheme"] = json!({"theme":{"colors":{"light":{"primary":"red","borderLight":"gray"}}}});
+    let mut project = evidence();
+    project.root = fixture.0.clone();
+    let report = status_report(&plan, &project, None);
+    assert_eq!(report["workQueue"][0]["do"], "theme-sync");
+    assert_eq!(report["workQueue"][0]["missingTokenCount"], 1);
+    assert_eq!(report["workQueue"][0]["exportCall"]["arguments"]["devupJsonMode"], "missing-only");
+}
+#[tokio::test]
+async fn r43_confirm_keeps_only_the_selected_source_page_and_records_it() {
+    let fixture = Fixture::new();
+    let mut old = sectioned("old:1", "Home desktop", 1440.0, "Home");
+    old.page_id = Some("page:old".into());
+    old.page_name = Some("Design system".into());
+    let mut final_frame = sectioned("final:1", "Home desktop", 1440.0, "Home");
+    final_frame.page_id = Some("page:final".into());
+    final_frame.page_name = Some("최종 시안 2026-10-14".into());
+    let mut request = drafted(&fixture, &[old, final_frame]).await;
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    assert_eq!(array(&confirmed["routes"]).len(), 1);
+    assert_eq!(confirmed["routes"][0]["nodeIds"], json!(["final:1"]));
+    assert_eq!(confirmed["confirmedPage"]["id"], "page:final");
 }

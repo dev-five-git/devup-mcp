@@ -418,11 +418,6 @@ fn with_project_checks(
                 .map(|tsx| (key.to_owned(), tsx.to_owned()))
         })
         .collect();
-    // A Section export answers under `frames`, one entry per selected frame,
-    // and nothing at the top level. Reading only the top level checked the
-    // single-node `url` case and silently skipped every `frameIds` call —
-    // which is every Section workflow, and so every screen of the Braillify
-    // Studio handover this exists for.
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for frame in frames {
             let node = frame
@@ -447,6 +442,11 @@ fn with_project_checks(
     let Some(project_root) = project_root else {
         return result;
     };
+    match screen_plan::export_progress(project_root) {
+        Ok(progress) if !progress.is_null() => result["planProgress"] = progress,
+        Err(error) => result["planProgress"] = json!({"state": "unavailable", "reason": error.message}),
+        _ => {}
+    }
     if generated.is_empty() {
         // Resource delivery hands the code back as a link, so there is no
         // source here to check. Saying so is the point: an absent verdict

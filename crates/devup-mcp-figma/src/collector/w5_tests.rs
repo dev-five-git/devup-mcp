@@ -208,6 +208,17 @@ mod w5_tests {
     }
 
     #[test]
+    fn r12_page_inventory_stops_at_screen_frames_instead_of_walking_their_contents() {
+        let setup = format!("{TREE}\nfigma.getNodeByIdAsync = async () => page;\nfor(let index=0;index<2000;index++) node('deep:'+index, 'GROUP', 'Decorative', frame);\n");
+        let output = run_script(include_str!("../scripts/explore.js"), &setup,
+            "__DEVUP_EXPLORE__", json!({"projectionLimit":200,"textPreviewLimit":0}));
+        let nodes = output["nodes"].as_array().unwrap();
+        assert!(nodes.iter().any(|node| node["id"] == "3:1"));
+        assert!(!nodes.iter().any(|node| node["id"].as_str().unwrap().starts_with("deep:")));
+        assert_eq!(nodes[0]["fields"]["projectionTruncated"], false);
+    }
+
+    #[test]
     fn w5_previews_are_retained_when_the_envelope_has_room() {
         let setup =
             format!("{TREE}\nnode('4:1', 'TEXT', 'Copy', frame).characters = 'Preview text';");

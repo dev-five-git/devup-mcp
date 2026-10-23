@@ -470,6 +470,10 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 "The evidence names {} different routes.",
                 candidates.iter().cloned().collect::<Vec<_>>().join(", ")
             )
+        } else if let Some(route) = candidates.iter().next() {
+            format!(
+                "The evidence names {route}, but another screen in this plan names it too, so neither keeps it unasked."
+            )
         } else {
             "No existing page, nav link, navigationTargets entry or routeAliases entry names it."
                 .to_owned()
