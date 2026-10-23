@@ -1,4 +1,5 @@
 use super::*;
+mod inference;
 
 fn unit(
     id: String,
@@ -268,12 +269,12 @@ pub(super) fn split(
         let endpoints = array(&plan["endpointContracts"]).iter().filter(|contract| {
             u["stage"] != 1 || array(&u["features"]).contains(&contract["feature"])
         }).cloned().collect::<Vec<_>>();
-        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"],"sharedParts":units_shared_parts(plan, u),"endpointContracts":endpoints});
-        for field in ["exports", "assets", "imports"] {
-            let values = array(&u["features"]).iter().flat_map(|feature| array(&plan["facts"][format!("{}.{field}", text(feature))]).to_vec()).collect::<Vec<_>>();
-            contract[field] = if values.is_empty() {plan["facts"][format!("{owner}.{field}")].clone()} else {json!(values)};
-        }
+        let contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"],"sharedParts":units_shared_parts(plan, u),"endpointContracts":endpoints});
         u["contract"] = contract;
+        let drafts = inference::drafts(plan, u, &input.project_root);
+        for field in ["exports", "assets", "imports"] {
+            u["contract"][field] = drafts[field].clone();
+        }
         let brief = format!(
             include_str!("../text/units-split-bf50d8a5.md"),
             text(&u["id"]),
