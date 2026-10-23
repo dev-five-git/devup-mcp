@@ -1,5 +1,39 @@
 use super::*;
 
+#[tokio::test]
+async fn split_groups_menu_and_entity_domains_and_supervises_repeated_parts() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), true).await;
+    run(&request, &policy).await.unwrap();
+    let mut plan = read(&request.project_root).unwrap();
+    plan["features"] = json!([
+        {"id":"news","scope":"News list","screens":["1:1"],"entities":["post"],"acceptance":["List news"]},
+        {"id":"editor","scope":"Editor","screens":["1:2"],"entities":["post"],"acceptance":["Edit news"]},
+        {"id":"history","scope":"History","screens":["2:1"],"acceptance":[]},
+        {"id":"team","scope":"Team","screens":["2:2"],"acceptance":[]}
+    ]);
+    plan["facts"]["screens"] = json!([
+        {"nodeId":"1:1","name":"News list","section":"news","parts":["PageHero","SubNav","SubNav"]},
+        {"nodeId":"1:2","name":"Editor","section":"admin","parts":["PageHero"]},
+        {"nodeId":"2:1","name":"History","menu":"company","parts":["SubNav"]},
+        {"nodeId":"2:2","name":"Team","menu":"company","parts":["UniqueBlock"]}
+    ]);
+    let mut tx = OutputTransaction::new();
+    units::split(&request, &mut plan, &mut tx, &policy).unwrap();
+    tx.commit().unwrap();
+    let workers = array(&plan["units"]).iter().filter(|u| u["stage"] == 1).collect::<Vec<_>>();
+    assert_eq!(workers.len(), 2);
+    assert_eq!(workers[0]["features"], json!(["news","editor"]));
+    assert_eq!(workers[1]["features"], json!(["history","team"]));
+    let shared = &plan["units"][0];
+    assert_eq!(shared["sharedParts"], json!(["PageHero","SubNav"]));
+    assert_eq!(shared["stage"], 0);
+    assert_eq!(shared["owner"], "supervisor");
+    assert!(std::fs::read_to_string(dir.path().join(".devup/units/shared.md")).unwrap().contains("PageHero"));
+    let start = ProjectPlanInput {unit_updates:vec![UnitUpdate {id:text(&workers[0]["id"]).into(),state:"running".into(),..Default::default()}],..request};
+    assert!(units::update(&start, &mut plan).is_err());
+}
+
 #[test]
 fn backend_checks_resolve_workspace_aliases_and_derive_features() {
     let dir = TestDir::new();
@@ -241,9 +275,9 @@ async fn split_uses_one_shared_table_owner_and_skips_static_backend_layers() {
     let units = array(&result["plan"]["units"]);
     assert_eq!(units.iter().filter(|unit| unit["id"] == "model-post").count(), 1);
     assert!(!units.iter().any(|unit| ["layout-api","layout-client","layout-models"].contains(&text(&unit["id"]))));
-    for id in ["news-api", "admin-news-api"] {
-        assert_eq!(units.iter().find(|unit| unit["id"] == id).unwrap()["dependencies"], json!(["model-post"]));
-    }
+    let news = units.iter().find(|unit| unit["id"] == "news-domain").unwrap();
+    assert_eq!(news["dependencies"], json!(["model-post"]));
+    assert_eq!(news["features"], json!(["news", "admin-news"]));
 }
 
 #[test]

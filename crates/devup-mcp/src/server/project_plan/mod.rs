@@ -85,7 +85,7 @@ pub struct Feature {
     pub screens: Vec<String>,
     #[serde(default)]
     pub acceptance: Vec<String>,
-    /// Tables this feature reads or writes; split makes one model unit per table.
+    /// Tables this feature reads or writes; shared tables group domain workers.
     #[serde(default)]
     pub entities: Vec<String>,
 }
