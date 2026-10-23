@@ -59,6 +59,8 @@ pub struct Violation {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_action: Option<serde_json::Value>,
     /// Whether this TSX may be used as it stands.
     ///
     /// `false` when any violation is [`Severity::Error`] — a syntax
@@ -141,6 +143,7 @@ fn validate_source(
 
     let available_token_count = theme.map(ProjectTheme::token_count).unwrap_or(0);
     let mut visitor = TsxVisitor {
+        fixable: 0,
         theme,
         checked_tokens: 0,
         violations: Vec::new(),
@@ -237,6 +240,7 @@ fn validate_source(
         .unwrap_or_default();
 
     UiValidation {
+        next_action: lint_fix_action(visitor.fixable),
         ok,
         violations,
         theme_notes,
@@ -246,6 +250,7 @@ fn validate_source(
 }
 
 struct TsxVisitor<'t> {
+    fixable: usize,
     theme: Option<&'t ProjectTheme>,
     checked_tokens: usize,
     violations: Vec<Violation>,
@@ -521,6 +526,23 @@ impl<'t> TsxVisitor<'t> {
 
 impl<'a, 't> Visit<'a> for TsxVisitor<'t> {
     fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
+        let mut previous = None;
+        for attribute in &element.attributes {
+            let JSXAttributeItem::Attribute(attribute) = attribute else {
+                previous = None;
+                continue;
+            };
+            let JSXAttributeName::Identifier(name) = &attribute.name else {
+                previous = None;
+                continue;
+            };
+            let name = name.name.as_str();
+            let current = (!matches!(name, "key" | "ref"), name);
+            if previous.is_some_and(|previous| previous > current) {
+                self.fixable += 1;
+            }
+            previous = Some(current);
+        }
         let tag_name = jsx_element_name(&element.name);
         // Resolve before visiting attributes so maxLength before as works too.
         // A later spread/dynamic as can override a literal; do not assume its tag.
@@ -696,4 +718,14 @@ pub fn rule_names() -> BTreeSet<&'static str> {
     ]
     .into_iter()
     .collect()
+}
+
+pub fn lint_fix_action(fixable: usize) -> Option<serde_json::Value> {
+    (fixable > 0).then(|| serde_json::json!({
+        "command": "bun run lint:fix",
+        "fixable": fixable,
+        "label": format!("bun run lint:fix (fixable {fixable})"),
+        "then": "bunx oxlint --deny-warnings",
+        "reason": "Detected adjacent JSX prop-order inversions under eslint-plugin-devup defaults. Run the project's fixer, never sort or format by hand. Custom lint configuration and other formatting rules are not checked here; fix only non-fixable leftovers after oxlint."
+    }))
 }

@@ -397,10 +397,19 @@ export function Card() {
 
 ### Required Verification
 
+Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+Never fix JSX prop order, import sorting or formatting errors by hand.
+Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+
+**Formatter ownership:** this template has no standalone prettier config.
+Formatting is owned by eslint-plugin-devup's `devup(prettier)` rule inside oxlint.
+Do not run `bunx prettier --write` or biome: their defaults produce a different
+style (semicolons and double quotes), undoing the project's lint formatting.
+
 ```bash
 bun run lint:fix              # FIRST: fixes JSX prop order, formatting, imports; never hand-edit those
-bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
 bunx oxlint --deny-warnings   # warnings count: keep them at 0
+bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
 bun tsc --noEmit              # inside the app you changed (TS 7)
 bun test
 bun run build                 # vinext build for every app

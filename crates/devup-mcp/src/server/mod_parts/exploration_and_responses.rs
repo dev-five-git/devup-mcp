@@ -439,6 +439,7 @@ fn with_project_checks(
     if produced_code {
         result = with_skill_gap(result, lookup);
     }
+    validation_guidance::attach_export_formatting(&mut result, &generated);
     let Some(project_root) = project_root else {
         return result;
     };
@@ -525,7 +526,6 @@ fn with_project_checks(
     }
     result
 }
-
 fn theme_sync_action(result: &Value, project_root: &str) -> Value {
     let mut arguments = json!({
         "outputs": ["devupJson"],

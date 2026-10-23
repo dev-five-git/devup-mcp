@@ -6,6 +6,25 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     #[test]
+    fn formatter_ownership_warning_is_carried_in_every_frontend_workflow() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            for required in ["no standalone prettier config", "devup(prettier)", "Do not run `bunx prettier --write` or biome", "semicolons and double quotes"] {
+                assert!(text.contains(required), "{name}: {required}");
+            }
+        }
+    }
+
+    #[test]
+    fn verification_starts_with_lint_fix_then_oxlint() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            assert!(text.contains("bun run lint:fix` first, then `bunx oxlint --deny-warnings`"), "{name}");
+            assert!(text.contains("Fix only non-fixable leftovers by hand"), "{name}");
+        }
+    }
+
+    #[test]
     fn user_decisions_override_never_wait_without_prose_questions() {
         let text = include_str!("devup/SKILL.md");
         for required in [
@@ -817,7 +836,19 @@ mod tests {
         let found = report(&unknown_client(&project))["repoObligations"]["lintFix"].clone();
         assert_eq!(found["runFirst"], "bun run lint:fix");
         assert_eq!(found["script"], "oxlint --fix");
+        assert_eq!(found["label"], "format/sort via lint:fix");
+        assert_eq!(found["verifyAfter"], "bunx oxlint --deny-warnings");
 
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn lint_fix_obligation_requires_an_executable_script() {
+        let project = scratch("lint-fix-invalid");
+        for package in ["not json", r#"{"scripts":{"lint:fix":false}}"#, r#"{"scripts":{"lint:fix":"  "}}"#] {
+            std::fs::write(project.join("package.json"), package).unwrap();
+            assert!(report(&unknown_client(&project))["repoObligations"]["lintFix"].is_null());
+        }
+        std::fs::remove_dir_all(project).unwrap();
     }
 }
