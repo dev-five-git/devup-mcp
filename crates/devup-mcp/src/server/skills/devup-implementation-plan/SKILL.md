@@ -462,11 +462,10 @@ its computer-use setup yourself. Verify status and a small read before export.
      test` also runs `cargo tarpaulin` afterwards, which does not work on
      Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
-   - the production build carries no audit ids: each app's vite.config uses
-     the `vite-plugin-strip-figma-node-ids.mjs` auditPlan put beside it
-     (`plugins: [stripFigmaNodeIds(), vinext()]`), and after `bun run build`
-     `grep -rl data-figma-node-id dist` finds nothing. The audit itself runs
-     against `bun run dev` or an audit build, `DEVUP_AUDIT=1 bun run build`;
+    - the production build carries no audit ids: DevupUI strips them by default.
+      Do not change app build config for auditing or register a strip plugin.
+      `DEVUP_AUDIT=1` keeps opted-in attributes for audit builds; inspect the
+      ordinary production output to verify they are absent;
    - the site completeness block is filled.
 12. **Finish with the final report.** End your reply with status's
    `finalReport`: the URL x width table (health, geometry, drift / converter
@@ -549,13 +548,11 @@ evidence and replaces the question it would otherwise take:
 - `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
   forbids it, and `viewTransitions: false` opts out of view transitions.
-- `figmaNodeIds: false` stops exports from writing `data-figma-node-id(s)`
-  on the page, section, card and asset elements. The audit finds them by
-  it, so keep it on. Production builds drop them through the Vite plugin
-  auditPlan writes beside vite.config (`vite build` strips them unless
-  `DEVUP_AUDIT=1`); on the `next` CLI use `compiler.reactRemoveProperties:
-  process.env.DEVUP_AUDIT === '1' ? false : { properties:
-  ['^data-figma-node-ids?$'] }`.
+- Figma node attributes are off by default. Where the exporter supports it,
+  `figmaNodeIds: true` explicitly opts in; do not send unsupported parameters
+  to an older server. DevupUI strips these attributes by default and
+  `DEVUP_AUDIT=1` keeps them. Do not change app build config for auditing.
+  Missing audit anchors are unverified, not a reason to claim checks passed.
 - `maxFixAttempts` (default 3) is how many fix-and-rerun rounds a finding gets
   before it is unresolved.
 - Geometry has no tolerance to configure; it is exact.

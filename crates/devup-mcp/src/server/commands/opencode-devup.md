@@ -146,7 +146,10 @@ For Figma work, continue with the following branch after project intake:
 12. Done = zero fails at the drawn widths and no health or overflow fail at
     any width, or a filed converter bug, or listed as unresolved with
     evidence. Also every URL implemented, no data-figma-node-id in the
-    production build (strip plugin in vite.config, grep the output), `bun run build`, `bun run lint`, `bunx oxlint
+    production build (DevupUI strips attributes by default; `DEVUP_AUDIT=1`
+    keeps them). Do not change app build config for auditing or register a
+    strip plugin. Node attributes are off by default; `figmaNodeIds: true`
+    is opt-in only where supported by the export schema. `bun run build`, `bun run lint`, `bunx oxlint
     --deny-warnings`, `bun tsc --noEmit` in each changed app and `bun test`
     pass (`bun run test` adds cargo tarpaulin, which does not work on
     Windows), devup_ui_validate has no errors, site completeness filled.

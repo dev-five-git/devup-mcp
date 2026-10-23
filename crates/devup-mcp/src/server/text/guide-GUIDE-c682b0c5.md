@@ -304,7 +304,10 @@ recorded in `.devup/exports/`, or `converter-bug` when it does - reported
 with a repro in `.devup/converter-bugs/`, never retried or tuned silently.
 Merged pages are found per width through `data-figma-node-ids`, dynamic
 routes at concrete URLs, and production builds strip the ids unless
-`DEVUP_AUDIT=1`. `status` classifies each failure (runtime-error,
+`DEVUP_AUDIT=1`. DevupUI owns stripping; do not change app build config
+for auditing or register a strip plugin. Node attributes are off by default;
+`figmaNodeIds: true` is opt-in only where the export schema supports it.
+Missing anchors leave coverage unverified. `status` classifies each failure (runtime-error,
 overflow, layout-position, layout-size, asset-mismatch, section-visual,
 page-visual, interaction, view-transition) with its node, file and fix hint.
 Never stop to wait; reorder the work: a decision after confirm goes to

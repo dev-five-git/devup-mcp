@@ -195,9 +195,12 @@ the full rules; these are the steps.
     Every check and comparison passes at the drawn
     widths and health and overflow pass at every required width. Report filed
     converter bugs and unresolved findings with evidence as incomplete. Also: every
-    URL implemented, the production build free of `data-figma-node-id` (the
-    strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
-nothing). Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+    URL implemented, the production build free of `data-figma-node-id`.
+DevupUI strips audit attributes by default; `DEVUP_AUDIT=1` keeps them.
+Figma node attributes are off by default; opt in with `figmaNodeIds: true`
+only where the export schema supports it. Do not change app build config for auditing
+or register a strip plugin. Inspect the ordinary production output.
+Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
 Never fix JSX prop order, import sorting or formatting errors by hand.
 Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
 **Formatter ownership:** this template has no standalone prettier config.
