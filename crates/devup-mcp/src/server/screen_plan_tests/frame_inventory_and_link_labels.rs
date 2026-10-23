@@ -550,3 +550,19 @@ fn r14_explicit_routes_do_not_offer_an_occupied_home_route() {
         assert!(!question_ids(&plan).contains(&format!("route:{node}")));
     }
 }
+
+#[test]
+fn r15_six_sections_with_device_names_remain_six_screens() {
+    let screens = ["Main", "Company", "Vision", "Location", "Notice", "Contact"]
+        .iter().enumerate().flat_map(|(index, section)| {
+            [sectioned(&format!("115:{}", index * 2), "Desktop", 1440.0, section),
+             sectioned(&format!("115:{}", index * 2 + 1), "Mobile", 360.0, section)]
+        }).collect::<Vec<_>>();
+    let plan = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({}), None).unwrap();
+    assert_eq!(array(&plan["screens"]).len(), 6);
+    assert!(!question_ids(&plan).iter().any(|id| id.starts_with("sections:")));
+    for row in array(&plan["screens"]) {
+        assert_eq!(array(&row["frames"]).len(), 2);
+        assert_eq!(row["drawnWidths"], json!([1440, 360]));
+    }
+}
