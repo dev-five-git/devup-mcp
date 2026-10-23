@@ -571,6 +571,7 @@ async fn project_operation(
             let (next_result, next_diagnostics, next_text_outputs, responsive_widths) =
                 project_responsive_output::project_responsive_output(
                     project_responsive_output::ResponsiveOutput {
+                        failures: &mut failures,
                         payload,
                         outputs: &outputs,
                         include_diagnostics,

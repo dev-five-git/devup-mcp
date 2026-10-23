@@ -348,6 +348,9 @@ impl DevupServer {
                     // A frame the index does not describe leaves the question
                     // open, and an open question is collected, not refused.
                     if selected.len() == input.frame_ids.len()
+                        && !crate::server::projection::responsive_groups::confirmed(
+                            input.project_root.as_deref(), &input.frame_ids,
+                        ).map_err(to_mcp_error)?
                         && !devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(
                             &selected,
                         )

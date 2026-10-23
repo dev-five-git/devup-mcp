@@ -17,7 +17,7 @@ mod project_responsive_output;
 #[path = "project_section_frames.rs"]
 mod project_section_frames;
 #[path = "responsive_groups.rs"]
-mod responsive_groups;
+pub(super) mod responsive_groups;
 #[path = "section_selection_reply.rs"]
 mod section_selection_reply;
 #[path = "summarize_projection_diagnostics.rs"]
