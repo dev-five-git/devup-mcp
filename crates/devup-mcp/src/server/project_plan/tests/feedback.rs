@@ -1,6 +1,19 @@
 use super::*;
 
 #[tokio::test]
+async fn confirm_rejects_jsonb_before_writing_any_models() {
+    let dir = TestDir::new();
+    let (mut request, policy, draft) = drafted(dir.path(), true).await;
+    request.entities = array(&draft["plan"]["entities"]).to_vec();
+    request.entities[1]["columns"][1]["type"] = json!("jsonb");
+    let error = run(&request, &policy).await.unwrap_err();
+    assert!(error.message.contains("post.title"));
+    assert!(error.message.contains("jsonb"));
+    assert!(!dir.path().join("models").exists());
+    assert_eq!(read(&request.project_root).unwrap()["state"], "draft");
+}
+
+#[tokio::test]
 async fn draft_decisions_survive_an_answers_only_redraft() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), false).await;
