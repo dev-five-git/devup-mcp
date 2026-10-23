@@ -296,7 +296,18 @@ pub(crate) fn finish(
             "srcset requires a known positive node display width.",
         ));
     }
-    let cap = request.max_width.unwrap_or(width).min(width);
+    let default_cap = if request.render_mode == crate::AssetRenderMode::OriginalSource
+        && request.format == AssetFormat::Webp
+    {
+        display_width.map(|display| (display * 2.0).ceil().clamp(1.0, f64::from(width)) as u32)
+    } else {
+        None
+    };
+    let cap = request
+        .max_width
+        .or(default_cap)
+        .unwrap_or(width)
+        .min(width);
     let base_width = if request.srcset {
         (display_width.unwrap().ceil() as u32).max(1).min(cap)
     } else {
@@ -305,7 +316,14 @@ pub(crate) fn finish(
     let rgba = resized(&source_rgba, base_width);
     let resized_source = rgba.width() != width || rgba.height() != height;
     let quality = request.quality.unwrap_or(85);
-    let lossless = request.lossless.unwrap_or(false);
+    let lossless = request.lossless.unwrap_or_else(|| {
+        let mut colors = std::collections::BTreeSet::new();
+        source_rgba.pixels().any(|pixel| pixel[3] != 255)
+            && source_rgba.pixels().all(|pixel| {
+                colors.insert(pixel.0);
+                colors.len() <= 256
+            })
+    });
     let encoded = if request.format == AssetFormat::Webp {
         encode_webp(&rgba, quality, lossless)?
     } else {
