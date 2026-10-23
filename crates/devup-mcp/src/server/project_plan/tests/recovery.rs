@@ -1,6 +1,52 @@
 use super::*;
 
 #[tokio::test]
+async fn scope_exclusions_survive_status_and_restart() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.action = "draft".into();
+    request.answers.clear();
+    request.scope_exclusions = vec![ScopeExclusion { r#ref: "posts".into(), reason: "Outside this release".into() }];
+    run(&request, &policy).await.unwrap();
+    request.scope_exclusions.clear();
+    request.action = "status".into();
+    let status = run(&request, &policy).await.unwrap();
+    assert_eq!(status["plan"]["scopeExclusions"][0]["ref"], "posts");
+    request.action = "intake".into();
+    request.restart = true;
+    run(&request, &policy).await.unwrap();
+    assert_eq!(read(&request.project_root).unwrap()["scopeExclusions"][0]["ref"], "posts");
+}
+
+#[test]
+fn feature_keyed_source_facts_supply_integration_recommendations() {
+    let plan = json!({"facts":{},"answers":{},"entities":[],"issues":[],
+        "evidence":[{"source":"spec","facts":{"contact.delivery":"SMTP email"}}],
+        "features":[{"id":"contact","scope":"Contact","screens":[],"acceptance":[]}]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    let question = questions.iter().find(|question| question["id"] == "contact.notifications").unwrap();
+    assert!(text(&question["options"][0]["label"]).starts_with("SMTP email"));
+    assert!(!question["sourcedDefaults"]["source"].is_null());
+}
+
+#[test]
+fn excluded_features_do_not_supply_recommendations() {
+    let plan = json!({"facts":{},"answers":{},"entities":[],"issues":[],
+        "scopeExclusions":[{"ref":"contact","reason":"Not in release"}],
+        "features":[{"id":"contact","scope":"Send SMTP email","screens":[],"acceptance":[]}]});
+    assert!(!rounds::detail(&plan, &[]).unwrap().iter().any(|question| text(&question["id"]).starts_with("contact.")));
+}
+
+#[test]
+fn smtp_evidence_recommends_email_instead_of_no_integration() {
+    let plan = json!({"facts":{},"answers":{},"entities":[],"issues":[],
+        "features":[{"id":"contact","scope":"Send SMTP email","screens":[],"acceptance":[]} ]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    let question = questions.iter().find(|question| question["id"] == "contact.notifications").unwrap();
+    assert!(text(&question["options"][0]["label"]).starts_with("SMTP email"));
+}
+
+#[tokio::test]
 async fn restart_archives_plan_screen_and_units_before_creating_new_intake() {
     let dir = TestDir::new();
     let (_, policy, _) = drafted(dir.path(), false).await;

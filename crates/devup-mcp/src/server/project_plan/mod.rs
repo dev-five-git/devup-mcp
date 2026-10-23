@@ -32,6 +32,8 @@ pub struct ProjectPlanInput {
     pub plan_id: Option<String>,
     #[serde(default)]
     pub restart: bool,
+    #[serde(default)]
+    pub scope_exclusions: Vec<ScopeExclusion>,
     /// Facts read from Jira issues/epic children, Figma exploration, spec documents,
     /// and devup_project_context all scopes. Every fact includes its source.
     #[serde(default)]
@@ -334,6 +336,13 @@ fn without_screens(plan: &Value) -> Vec<Value> {
         .map(|f| f["id"].clone())
         .collect()
 }
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ScopeExclusion {
+    pub r#ref: String,
+    pub reason: String,
+}
 fn change_summary(before: &Value, after: &Value) -> Value {
     let mut summary = json!({});
     for (field, key) in [("decisions", "id"), ("features", "id"), ("entities", "name"), ("answers", "")] {
@@ -410,7 +419,16 @@ fn extras(plan: &Value, root: &str) -> Value {
 fn response(plan: Value, root: &str, full: bool) -> Value {
     let extra = extras(&plan, root);
     let models = erd::api(&plan).then(|| erd::disk_report(&plan, root));
+    let sourced_defaults = array(&plan["questions"]).iter().filter(|question| !question["sourcedDefaults"].is_null())
+        .map(|question| json!({"questionId":question["id"],"evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
+    let conflicts = array(&plan["questions"]).iter().filter(|question| {
+        text(&question["id"]).ends_with(".notifications")
+            && text(&question["sourcedDefaults"]["recommended"]) != "No notifications or integrations"
+            && plan["answers"][text(&question["id"])] == "No notifications or integrations"
+    }).map(|question| json!({"questionId":question["id"],"warning":"recommendationConflictsWithEvidence","evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
     let mut out = base_response(plan, root, full);
+    out["sourcedDefaults"] = json!(sourced_defaults);
+    out["recommendationConflictsWithEvidence"] = json!(conflicts);
     if let Some(models) = models {
         out["modelDiagnostics"] = models;
     }
@@ -509,11 +527,13 @@ pub(super) async fn run(
             "questions":rounds::intake(&facts),"entities":[],"relations":[],"features":[],"issues":[],
             "unitQuestions":"supervisor"});
         plan["writtenBy"] = json!({"commit":option_env!("DEVUP_MCP_GIT_COMMIT"),"buildId":env!("DEVUP_MCP_BUILD_ID")});
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
         rounds::answers(&mut plan, &input.answers)?;
         let archive = if input.restart && existing.is_some() {
             Some(recovery::archive(&input.project_root, policy)?)
         } else { None };
-        if let Some(existing) = existing {
+        if let Some(existing) = existing
+            && input.scope_exclusions.is_empty() {
             plan["scopeExclusions"] = existing["scopeExclusions"].clone();
         }
         let persisted = write(&mut tx, policy, &input.project_root, &plan).and_then(|()| tx.commit().map(|_| ()));
@@ -540,6 +560,14 @@ pub(super) async fn run(
             "nextAction":{"tool":"devup_project_plan","arguments":{
                 "action":"status","projectRoot":input.project_root,"planId":plan["planId"]}}});
         return Err(error);
+    }
+    if !input.scope_exclusions.is_empty() {
+        for exclusion in &input.scope_exclusions {
+            if exclusion.r#ref.trim().is_empty() || exclusion.reason.trim().is_empty() {
+                return Err(invalid("Scope exclusions require ref and reason"));
+            }
+        }
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
     }
     let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
         let mut shared = BTreeMap::new();
