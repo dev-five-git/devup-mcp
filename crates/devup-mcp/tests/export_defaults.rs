@@ -257,7 +257,7 @@ async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<(
     let client = ().serve(client_transport).await?;
     for arguments in [
         json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "assetPublicRoot":std::env::temp_dir()}),
-        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "outputs":["referencePng"], "frameIds":["1:2"]}),
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "outputs":["referencePng"], "frameIds":["1:2", "1:3"]}),
         json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "outputPaths":{"tsx":"../escape.tsx"}}),
         json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "frameIds":(1..=14).map(|i| format!("1:{i}")).collect::<Vec<_>>()}),
     ] {

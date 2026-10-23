@@ -1,6 +1,7 @@
 
 const doc = {id:'0:0', type:'DOCUMENT'};
 const page = {id:'1:1', type:'PAGE', name:'Page', parent:doc, children:[]};
+page.loadAsync = async () => {};
 function node(id, type, name, parent) {
  const n = {id, type, name, parent, children:[], x:0, y:0, width:390, height:844, visible:true};
  n.findAll = predicate => n.children.flatMap(c => [c, ...c.findAll(predicate)]).filter(predicate);

@@ -246,6 +246,14 @@ mod w5_tests {
         assert_eq!(ids, BTreeSet::from(["1:1", "2:1"]));
     }
 
+    #[test]
+    fn feedback50_page_search_loads_descendants_without_changing_the_viewer_page() {
+        let setup = format!("{TREE}\nlet loaded = false;\npage.loadAsync = async () => {{ loaded = true; }};\npage.findAll = predicate => {{ if (!loaded) return []; return page.children.flatMap(child => [child, ...child.findAll(predicate)]).filter(predicate); }};\nfigma.getNodeByIdAsync = async () => page;\nfigma.setCurrentPageAsync = async () => {{ throw new Error('search changed viewer page'); }};");
+        let output = run_script(include_str!("../scripts/search.js"), &setup,
+            "__DEVUP_SEARCH__", json!({"query":"", "nodeTypes":["SECTION"], "matchKind":"normalized", "limit":5}));
+        assert!(output["nodes"].as_array().unwrap().iter().any(|node| node["id"] == "2:1"));
+    }
+
     fn page_output(ids: &[String]) -> UpstreamResult {
         UpstreamResult {
             raw: json!({

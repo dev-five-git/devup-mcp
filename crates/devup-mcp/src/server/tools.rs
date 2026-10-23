@@ -302,6 +302,7 @@ pub struct FigmaSearchInput {
     /// plugin is attached: omitted, the whole file that plugin has open.
     #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
     pub query: String,
     #[serde(default)]
     pub node_types: Vec<String>,

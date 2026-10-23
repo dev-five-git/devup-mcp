@@ -19,6 +19,7 @@ pub(super) async fn complete_operation(
         artifact_store,
     )
     .await?;
+    response["artifactId"] = json!(artifact.artifact_id);
     if let Some(source) = response
         .get_mut("source")
         .filter(|source| source.is_object())
@@ -111,6 +112,9 @@ fn attach_node_page(source: &mut Value, payload: &CollectedPayload) {
     let Some(start) = payload.target.node_id.as_deref() else {
         return;
     };
+    if let Some(reason) = devup_mcp_figma::node_excluded_reason(&payload.snapshot, start) {
+        source["excluded"] = json!(reason);
+    }
     let mut current = Some(start.to_owned());
     let mut visited = std::collections::BTreeSet::new();
     let mut page: Option<(String, String)> = None;

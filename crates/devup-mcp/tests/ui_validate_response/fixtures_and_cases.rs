@@ -493,7 +493,7 @@ async fn r17_reference_png_recovery_has_frame_url() -> anyhow::Result<()> {
         anyhow::Ok(())
     });
     let client = ().serve(ct).await?;
-    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
+    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3","2:4"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
     let out = result.structured_content.unwrap();
     let text = out.to_string();
     assert!(text.contains("node-id=2-3"), "{out}");
