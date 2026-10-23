@@ -327,6 +327,7 @@ pub(super) fn url_plan(
     let mut nav_checked = false;
     for (width, frame_id, _) in &target.frames {
         let Some((artifact_id, payload)) = sources.frame(frame_id) else {
+            checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: frame artifact missing or expired; export the frame again."})));
             missing.push(json!({"kind": "frame", "nodeId": frame_id, "width": width,
                 "why": "No artifact passed holds this frame; section, asset and geometry checks for this width are missing.",
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["tsx", "referencePng"], "projectRoot": "<projectRoot>"}}}));
@@ -335,6 +336,7 @@ pub(super) fn url_plan(
         };
         let reference = sources.reference_png(frame_id);
         if reference.is_none() {
+            checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: referencePng missing or expired; export the frame again."})));
             missing.push(json!({"kind": "referencePng", "nodeId": frame_id, "width": width,
                 "why": format!("No referencePng for the frame drawn at {width}px, so its page comparison cannot run."),
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["referencePng"]}}}));
@@ -634,6 +636,60 @@ fn capture(
     )
 }
 
+fn gate_source_anchors(built: &mut UrlPlan, app: &Path) {
+    fn scan(path: &Path, text: &mut String) {
+        let Ok(entries) = std::fs::read_dir(path) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if entry.file_type().is_ok_and(|kind| kind.is_symlink()) {
+                continue;
+            }
+            if path.is_dir() {
+                scan(&path, text);
+            } else if matches!(path.extension().and_then(|ext| ext.to_str()), Some("tsx" | "jsx" | "ts" | "js"))
+                && let Ok(source) = std::fs::read_to_string(path) {
+                text.push_str(&source);
+                text.push('\n');
+            }
+        }
+    }
+    let mut source = String::new();
+    scan(&app.join("src"), &mut source);
+    if !app.join("src").exists() {
+        scan(&app.join("app"), &mut source);
+        scan(&app.join("components"), &mut source);
+    }
+    let mut anchors = BTreeSet::new();
+    for tail in source.split("data-figma-node-id").skip(1) {
+        let (plural, tail) = tail.strip_prefix('s').map_or((false, tail), |tail| (true, tail));
+        let Some(tail) = tail.trim_start().strip_prefix('=') else { continue };
+        let tail = tail.trim_start();
+        let Some(quote @ ('\'' | '"')) = tail.chars().next() else { continue };
+        if let Some(value) = tail[1..].split(quote).next() {
+            for value in value.split_whitespace() {
+                let id = if plural { value.split_once(':').map_or(value, |(_, id)| id) } else { value };
+                anchors.insert(id.to_owned());
+            }
+        }
+    }
+    for check in &mut built.plan.screens[0].checks {
+        let anchored = [&check.subject, &check.container].into_iter().flatten()
+            .filter_map(|locator| locator.css.as_deref())
+            .any(|css| css.contains("data-figma-node-id"));
+        let selectors = [&check.subject, &check.container].into_iter().flatten().filter_map(|locator| locator.css.as_deref()).collect::<Vec<_>>();
+        let missing = selectors.iter().any(|css| {
+            css.split('"').enumerate().filter(|(index, _)| index % 2 == 1)
+                .all(|(_, id)| !anchors.contains(id) && !id.split_once(':').is_some_and(|(_, node)| anchors.contains(node)))
+        });
+        let completeness_missing = check.completeness.as_ref().is_some_and(|complete| complete.sections.iter().chain(&complete.images).any(|id| !anchors.contains(id)));
+        if (anchored && missing) || completeness_missing {
+            check.unavailable_reason = Some("not-run: source anchors absent; data-figma-node-id is off by default. Export with figmaNodeIds:true and preserve anchors, or use explicit role/testId locators.".into());
+            check.subject = None;
+            check.container = None;
+        }
+    }
+}
+
 pub(super) fn slug(url: &str) -> String {
     let trimmed = url.trim_matches('/');
     if trimmed.is_empty() {
@@ -783,6 +839,7 @@ pub(super) async fn write(
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
         let mut built = url_plan(&target, base, &sources, thresholds)?;
+        gate_source_anchors(&mut built, &Path::new(root).join(app));
         if let Some(node) = route["state"]["nodeId"].as_str() {
             built.notes.push(format!("State {} ({node}) on {url}: configure the runtime screen's steps to reach this state before running; no interaction is inferred from the frame name.", route["state"]["name"].as_str().unwrap_or_default()));
             for check in &mut built.plan.screens[0].checks {

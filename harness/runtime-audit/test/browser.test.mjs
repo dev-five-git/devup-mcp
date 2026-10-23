@@ -40,11 +40,13 @@ test('a measurement exception is inconclusive and later checks still run', async
       screens: [{ id: 'home', routePath: '/', checks: [
         { kind: 'text-align', subject: { css: '[' }, edge: 'left' },
         { kind: 'page-health' },
+        { kind: 'bounds', unavailableReason: 'not-run: source anchors absent' },
+        { kind: 'page-health', unavailableReason: 'Design comparison inconclusive: reference expired' },
       ] }],
     } }));
     const report = await runPlan({ plan, out, maxMinutes: 1 });
     assert.equal(report.status, 'completed');
-    assert.deepEqual(report.runs[0].screens[0].checks.map((check) => check.status), ['inconclusive', 'pass']);
+    assert.deepEqual(report.runs[0].screens[0].checks.map((check) => check.status), ['inconclusive', 'pass', 'not-run', 'inconclusive']);
     assert.match(report.runs[0].screens[0].checks[0].reason, /home\/800\/check 0/);
   } finally {
     server.close();

@@ -1,5 +1,27 @@
 use super::*;
 
+#[test]
+fn absent_source_anchors_leave_design_checks_not_run() {
+    let project = Project::new("missing-anchors");
+    project.write("src/app/page.tsx", "export default function Page() { return <main /> }");
+    let mut built = url_plan(&home(), "http://localhost:3000", &sources(), &VisualThresholds::default()).unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    let checks = &built.plan.screens[0].checks;
+    assert!(checks.iter().any(|check| check.kind == "bounds" && check.unavailable_reason.as_deref().is_some_and(|reason| reason.contains("anchors absent"))));
+    assert!(checks.iter().filter(|check| check.unavailable_reason.is_some()).all(|check| check.subject.is_none() && check.container.is_none()));
+    assert!(checks.iter().any(|check| check.kind == "page-health" && check.unavailable_reason.is_none()));
+}
+
+#[test]
+fn partial_source_anchors_do_not_enable_unmatched_nodes() {
+    let project = Project::new("partial-anchors");
+    project.write("src/app/page.tsx", "<main data-figma-node-id='10:1'><section data-figma-node-id='10:12' /></main>");
+    let mut built = url_plan(&home(), "http://localhost:3000", &sources(), &VisualThresholds::default()).unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    assert!(built.plan.screens[0].checks.iter().any(|check| check.kind == "bounds" && check.node_id.as_deref() == Some("10:12") && check.unavailable_reason.is_none()));
+    assert!(built.plan.screens[0].checks.iter().filter(|check| check.node_id.as_deref() == Some("10:131")).all(|check| check.unavailable_reason.is_some()));
+}
+
 fn payload(target: &str, nodes: Value, assets: Value, reference: bool) -> CollectedPayload {
     let mut value = json!({
         "target": {"fileKey": "audit", "nodeId": target},

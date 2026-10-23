@@ -348,7 +348,7 @@ fn ingest_references(
                             && reported.is_some_and(|s| s["status"] == "completed"),
                     )
                 });
-                let status = match dimension
+                let status = if let Some(reason) = &check.unavailable_reason { if reason.starts_with("not-run:") { "not-run" } else { "inconclusive" } } else { match dimension
                     .as_ref()
                     .map(|row| &row["status"])
                     .or_else(|| item.map(|item| &item["status"]))
@@ -361,7 +361,7 @@ fn ingest_references(
                     Some("not-run") => "not-run",
                     Some(_) => "inconclusive",
                     None => "not-run",
-                };
+                }};
                 *counts.entry(status).or_default() += 1;
                 if status == "fail" && failures.len() < MAX_LISTED {
                     failures.push(json!({

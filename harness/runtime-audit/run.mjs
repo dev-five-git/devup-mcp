@@ -807,6 +807,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           if (check.kind === 'view-transition') continue;
           if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
           const item = { index, kind: check.kind, label: check.label };
+          if (check.unavailableReason) {
+            record.checks.push({ ...item, status: check.unavailableReason.startsWith('not-run:') ? 'not-run' : 'inconclusive', reason: check.unavailableReason, measured: {} });
+            continue;
+          }
           if (check.kind === 'links-resolve') continue;
           try {
           if (check.kind === 'page-health') {

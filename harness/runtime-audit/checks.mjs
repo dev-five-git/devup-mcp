@@ -453,6 +453,7 @@ export function summarize(runs) {
   for (const run of runs) {
     for (const screen of run.screens) {
       for (const item of screen.checks) {
+        if (item.status === 'not-run') summary.skipped += 1;
         if (item.status in summary) summary[item.status] += 1;
       }
     }
