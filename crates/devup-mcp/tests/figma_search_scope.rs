@@ -424,9 +424,21 @@ async fn an_out_of_range_limit_is_refused_before_collecting() -> anyhow::Result<
         )
         .await;
 
-    common::tool_error(refused?);
+    let error = common::tool_error(refused?);
+    assert!(error.contains("DEVUP_INVALID_INPUT"), "{error}");
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
     client.cancel().await?;
     task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_omitted_query_lists_sections_by_type() -> anyhow::Result<()> {
+    let (output, _) = search(json!({
+        "url": "https://www.figma.com/design/FileKey123/Girok?node-id=0-1",
+        "nodeTypes": ["SECTION"]
+    }))
+    .await?;
+    assert_eq!(ids(&output, "matches"), ["4279:7810"]);
     Ok(())
 }
