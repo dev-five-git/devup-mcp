@@ -260,7 +260,7 @@ export function observeClippedContent(page) {
     // only a scrollbar the page itself hid (scrollbar-width: none) counts.
     const probe = document.createElement('div');
     probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
-    document.body.append(probe);
+    (document.body ?? document.documentElement).append(probe);
     const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
     probe.remove();
     for (const element of document.querySelectorAll('body *')) {
@@ -318,7 +318,7 @@ export function observeCompleteness(page, completeness, width, subject) {
     };
     const canvasProbe = document.createElement('span');
     canvasProbe.style.backgroundColor = 'Canvas';
-    document.body.appendChild(canvasProbe);
+    (document.body ?? document.documentElement).appendChild(canvasProbe);
     const canvasColor = getComputedStyle(canvasProbe).backgroundColor;
     canvasProbe.remove();
     const texts = [];
@@ -808,6 +808,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
           const item = { index, kind: check.kind, label: check.label };
           if (check.kind === 'links-resolve') continue;
+          try {
           if (check.kind === 'page-health') {
             const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
             const errors = environmentErrors
@@ -942,6 +943,9 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
                 containerCount: container.count,
               }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
           record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+          } catch (error) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: `measurement unavailable at ${screen.id}/${viewport.width}/check ${index}: ${String(error?.message ?? error).split('\n')[0]}`, measured: {} });
+          }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
         const bytes = await page.screenshot({
