@@ -32,10 +32,17 @@ pub(super) fn draft_plan_with(
         } else {
             sections.join(", ")
         };
-        return Err(invalid(format!(
+        let section_calls = screens.iter().filter_map(|screen| screen.section.as_ref().map(|id| (id.clone(), screen.section_name.clone())))
+            .collect::<BTreeMap<_, _>>().into_iter().map(|(id, name)| {
+                let url = source["url"].as_str().and_then(|url| url.split('?').next()).map(|base| format!("{base}?node-id={}", id.replace(':', "-")));
+                json!({"nodeId": id, "name": name, "draftCall": {"tool": "devup_screen_plan", "arguments": {"action": "draft", "url": url}}})
+            }).collect::<Vec<_>>();
+        return Err(DevupError::with_details(ErrorCode::DevupInvalidInput, format!(
             "The frame inventory is incomplete: exploration was truncated or reached its ceiling ({}). Sections seen so far: {listed}. Call draft with one Section link at a time (devup_figma_search lists the page's top-level SECTION/FRAME nodes) or supply the complete frame list before drafting.",
             hit.join(", ")
-        )));
+        ), false, json!({"frameCount": screens.len(), "limits": {"maxScreens": MAX_SCREENS, "triggers": hit},
+            "sections": section_calls, "nextAction": {"tool":"devup_screen_plan", "arguments": {"action":"draft", "screens":"complete combined frame inventory from the listed Sections"}},
+            "merge": "Collect all Section inventories, combine screens, and draft once; separate drafts replace the saved plan."})));
     }
     let mut ids = BTreeSet::new();
     if screens

@@ -145,3 +145,14 @@ fn r43_final_page_is_recommended_and_linked_frame_pins_its_page() {
     assert_eq!(array(&pinned["screens"]).len(), 1);
     assert_eq!(pinned["screens"][0]["frames"][0]["pageId"], "page:old");
 }
+#[test]
+fn r12_truncated_page_inventory_reports_counts_limits_and_section_calls() {
+    let screens = [sectioned("1:1", "Home", 1440.0, "Main"), sectioned("2:1", "Company", 1440.0, "Company")];
+    let error = draft_plan(&screens, &BTreeMap::new(), &evidence(),
+        json!({"url":"https://www.figma.com/design/key/file?node-id=0-1", "truncation":{"projection":true}}), None).unwrap_err();
+    assert_eq!(error.details["frameCount"], 2);
+    assert!(error.details["limits"]["maxScreens"].as_u64().unwrap() >= 2);
+    assert_eq!(array(&error.details["sections"]).len(), 2);
+    assert_eq!(error.details["sections"][0]["draftCall"]["arguments"]["action"], "draft");
+    assert!(error.details["sections"][0]["draftCall"]["arguments"]["url"].is_string());
+}
