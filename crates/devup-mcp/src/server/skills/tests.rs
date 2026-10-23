@@ -128,6 +128,14 @@ mod tests {
     /// revision it cannot have, and an external one must carry no bytes at all
     /// and must say how to install it instead.
     #[test]
+    fn vespera_skill_requires_camel_case_api_fields_and_column_mapping() {
+        let (_, documents) = EMBEDDED.iter().find(|(name, _)| *name == "vespera").unwrap();
+        let (_, text) = documents.iter().find(|(path, _)| *path == ENTRY_DOCUMENT).unwrap();
+        assert!(text.contains("API fields and query params are camelCase; ERD columns stay snake_case; drafts carry both (name + column)"));
+        assert!(text.contains("#[serde(rename_all = \"camelCase\")]"));
+    }
+
+    #[test]
     fn every_origin_is_well_formed() {
         let manifest: Manifest = serde_json::from_str(MANIFEST_JSON).unwrap();
         let carried = manifest

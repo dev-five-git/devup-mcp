@@ -71,15 +71,15 @@ fn queries(entity: &Value, evidence: &str) -> Vec<Value> {
         let keys = array(&entity["columns"]).iter().filter(|column| {
             let kind = column["type"].as_str().or_else(|| column["type"]["kind"].as_str()).unwrap_or_default();
             contains(kind, &["int", "float", "real", "double", "decimal", "numeric", "date", "time"]) || text(&column["name"]).contains("title")
-        }).map(|column| column["name"].clone()).collect::<Vec<_>>();
-        queries.push(json!({"name":"sort","type":"string","allowedKeys":keys}));
+        }).map(|column| json!({"name":names::camel_case(text(&column["name"])),"column":column["name"]})).collect::<Vec<_>>();
+        queries.push(json!({"name":"sort","type":"string","allowedKeys":keys.iter().map(|key| key["name"].clone()).collect::<Vec<_>>(),"columns":keys}));
     }
     if contains(evidence, &["search", "검색"]) { queries.push(json!({"name":"q","type":"string"})); }
     if contains(evidence, &["filter", "category", "필터", "카테고리", "탭"]) {
         for column in array(&entity["columns"]) {
             let name = text(&column["name"]);
             if column["type"]["kind"] == "enum" || name.ends_with("_id") || contains(name, &["category", "카테고리"]) {
-                queries.push(json!({"name":name,"type":column["type"],"values":column["type"]["values"]}));
+                queries.push(json!({"name":names::camel_case(name),"column":name,"type":column["type"],"values":column["type"]["values"]}));
             }
         }
     }
@@ -125,7 +125,7 @@ pub(in crate::server::project_plan) fn draft(plan: &mut Value) {
         let columns = array(&plan["entities"]).iter().filter(|entity| entities.contains(&text(&entity["name"]).to_owned())).flat_map(|entity| array(&entity["columns"])).collect::<Vec<_>>();
         let form_fields = labels.iter().map(|label| {
             let column = columns.iter().find(|column| normalized(text(&column["name"])) == normalized(label));
-            json!({"label":label,"column":column.map(|column| column["name"].clone()),"status":if column.is_some() {"matched"} else {"unmatched"}})
+            json!({"label":label,"name":names::camel_case(column.map(|column| text(&column["name"])).unwrap_or(label)),"column":column.map(|column| column["name"].clone()),"status":if column.is_some() {"matched"} else {"unmatched"}})
         }).collect::<Vec<_>>();
         mappings.push(json!({"feature":feature["id"],"screens":feature["screens"],"candidateEntities":entities,"requiredOperations":operations,"operationEvidence":driven,"formFields":form_fields,"status":"draft"}));
         for name in entities {
@@ -134,9 +134,9 @@ pub(in crate::server::project_plan) fn draft(plan: &mut Value) {
                 let method = match *op {"create" => "POST", "update" => "PATCH", "delete" => "DELETE", _ => "GET"};
                 let resource = resource(&name);
                 let path = if matches!(*op, "get" | "update" | "delete") {format!("/{resource}/{{id}}") } else {format!("/{resource}")};
-                let fields = array(&entity["columns"]).iter().map(|column| json!({"name":column["name"],"type":column["type"],"nullable":column["nullable"],"required":column["nullable"] == false})).collect::<Vec<_>>();
+                let fields = array(&entity["columns"]).iter().map(|column| json!({"name":names::camel_case(text(&column["name"])),"column":column["name"],"type":column["type"],"nullable":column["nullable"],"required":column["nullable"] == false})).collect::<Vec<_>>();
                 let request_fields = if matches!(*op, "create" | "update") {
-                    array(&entity["columns"]).iter().filter(|column| column["primary_key"].is_null() && column["default"].is_null()).map(|column| json!({"name":column["name"],"type":column["type"],"nullable":column["nullable"],"required":*op == "create" && column["nullable"] == false,"rules":rules(column)})).collect::<Vec<_>>()
+                    array(&entity["columns"]).iter().filter(|column| column["primary_key"].is_null() && column["default"].is_null()).map(|column| json!({"name":names::camel_case(text(&column["name"])),"column":column["name"],"type":column["type"],"nullable":column["nullable"],"required":*op == "create" && column["nullable"] == false,"rules":rules(column)})).collect::<Vec<_>>()
                 } else {vec![]};
                 contracts.push(json!({"feature":feature["id"],"entity":name,"operation":op,"method":method,"path":path,"queryParams":if *op == "list" {queries(entity, &evidence)} else {vec![]},
                     "operationEvidence":driven[op],"formFields":form_fields,"requestFields":request_fields,"responseFields":if *op == "delete" {vec![]} else {fields},"status":"draft","pathEvidence":"entity-name convention; confirm API path before implementation"}));

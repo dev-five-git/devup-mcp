@@ -33,9 +33,11 @@ pub(super) fn report(plan: &Value, path: Option<&Path>) -> (Vec<Value>, Vec<Valu
         if let [(path, item, prefix)] = found.as_slice() {
             let operation = &item[text(&contract["method"]).to_lowercase()];
             let request = schema::fields(&doc, schema::body_schema(&doc, &operation["requestBody"]), false, 0);
+            reasons.extend(names::schema_violations(&doc, schema::body_schema(&doc, &operation["requestBody"]), 0));
             let mut response = BTreeMap::<String, schema::Field>::new();
             for (status, body) in operation["responses"].as_object().into_iter().flatten().filter(|(status, _)| status.starts_with('2')) {
                 let _ = status;
+                reasons.extend(names::schema_violations(&doc, schema::body_schema(&doc, body), 0));
                 for (name, field) in schema::fields(&doc, schema::body_schema(&doc, body), contract["operation"] == "list", 0) {
                     let entry = response.entry(name).or_default();
                     entry.schemas.extend(field.schemas);
@@ -45,17 +47,23 @@ pub(super) fn report(plan: &Value, path: Option<&Path>) -> (Vec<Value>, Vec<Valu
             for (key, fields) in [("requestFields", request), ("responseFields", response)] {
                 for field in array(&contract[key]) {
                     let name = text(&field["name"]);
-                    if let Some((spelling, actual)) = fields.get_key_value(name).or_else(|| fields.iter().find(|(spelling, _)| draft::normalized(spelling) == draft::normalized(name))) {
+                    if let Some(reason) = names::violation(name) { reasons.push(reason); }
+                    if let Some((spelling, actual)) = fields.get_key_value(name) {
                         field_matches.push(json!({"kind":key,"name":name,"openapiName":spelling}));
                         reasons.extend(schema::compare(&doc, field, actual));
                     } else { reasons.push(format!("{key} missing {name}")); }
                 }
             }
             let queries = array(&item["parameters"]).iter().chain(array(&operation["parameters"])).map(|parameter| schema::resolve(&doc, parameter)).filter(|parameter| parameter["in"] == "query").collect::<Vec<_>>();
+            for query in &queries {
+                if let Some(reason) = names::violation(text(&query["name"])) { reasons.push(reason); }
+                reasons.extend(names::schema_violations(&doc, &query["schema"], 0));
+            }
             for query in array(&contract["queryParams"]) {
                 let name = text(&query["name"]);
-                if let Some(actual) = queries.iter().find(|actual| draft::normalized(text(&actual["name"])) == draft::normalized(name) || array(&query["aliases"]).contains(&actual["name"])) {
-                    field_matches.push(json!({"kind":"queryParams","name":name,"openapiName":actual["name"]}));
+                if let Some(reason) = names::violation(name) { reasons.push(reason); }
+                if let Some(actual) = queries.iter().find(|actual| actual["name"] == name || array(&query["aliases"]).contains(&actual["name"]) && names::violation(text(&actual["name"])).is_none()) {
+                    field_matches.push(json!({"kind":"queryParams","name":name,"matchedName":actual["name"]}));
                 } else { reasons.push(format!("queryParams missing {name}")); }
             }
             path_match = json!({"feature":contract["feature"],"method":contract["method"],"path":contract["path"],"openapiPath":path,"prefix":prefix,"fields":field_matches});

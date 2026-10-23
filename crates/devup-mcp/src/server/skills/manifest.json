@@ -129,8 +129,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 23635,
-          "sha256": "44db39f98cbb2520ca9a610a59753f39be2e226da7ee11a940234800cf98b27f"
+          "bytes": 24154,
+          "sha256": "4076704d04d3059041e445ac00435dd8a1564285a232b0ccd5f96cf385ab7727"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/vespera/blob/4030b6c053896fce34477b73616216c86d4b7f85/SKILL.md",

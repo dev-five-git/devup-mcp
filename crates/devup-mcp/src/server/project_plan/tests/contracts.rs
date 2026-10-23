@@ -28,11 +28,11 @@ fn list_contracts_draft_queries_only_from_relevant_evidence() {
     ]));
     wiring::draft(&mut plan);
     let queries = array(&plan["endpointContracts"][0]["queryParams"]);
-    for name in ["page","pageSize","sort","q","category_id","state"] {
+    for name in ["page","pageSize","sort","q","categoryId","state"] {
         assert!(queries.iter().any(|query| query["name"] == name), "{name}: {queries:?}");
     }
     let sort = queries.iter().find(|query| query["name"] == "sort").unwrap();
-    assert_eq!(sort["allowedKeys"], json!(["title","created_at","views","category_id"]));
+    assert_eq!(sort["allowedKeys"], json!(["title","createdAt","views","categoryId"]));
     let mut plain = plan.clone();
     plain["features"][0]["scope"] = json!("List");
     wiring::draft(&mut plain);
@@ -89,17 +89,17 @@ fn report_contracts(contracts: Value, doc: Value) -> Value {
 }
 
 #[test]
-fn openapi_matches_normalized_fields_structural_paths_and_common_prefix() {
+fn openapi_requires_camel_case_fields_with_structural_paths_and_common_prefix() {
     let report = report_contracts(json!([
-        {"path":"/posts/{id}","method":"GET","responseFields":[{"name":"image_url","type":"text"}]},
-        {"path":"/posts","method":"GET","operation":"list","responseFields":[{"name":"image-url","type":"text"}]}
+        {"path":"/posts/{id}","method":"GET","responseFields":[{"name":"imageUrl","column":"image_url","type":"text"}]},
+        {"path":"/posts","method":"GET","operation":"list","responseFields":[{"name":"imageUrl","column":"image_url","type":"text"}]}
     ]), json!({"paths":{
-        "/api/posts/{postId}/":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"ImageUrl":{"type":"string"}}}}}}}}},
+        "/api/posts/{postId}/":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"imageUrl":{"type":"string"}}}}}}}}},
         "/api/posts":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"type":"array","items":{"properties":{"imageUrl":{"type":"string"}}}}}}}}}}
     }}));
     assert_eq!(report["contractMissing"], json!([]), "{report}");
     assert_eq!(report["contractMatches"][0]["prefix"], "/api");
-    assert_eq!(report["contractMatches"][0]["fields"][0]["openapiName"], "ImageUrl");
+    assert_eq!(report["contractMatches"][0]["fields"][0]["openapiName"], "imageUrl");
 }
 
 #[test]
@@ -128,8 +128,55 @@ fn openapi_reads_composites_wrappers_refs_and_form_bodies() {
             "responses":{"List":{"content":{"application/json":{"schema":{"properties":{"data":{"type":"array","items":{"$ref":"#/components/schemas/Post"}}}}}}}}}});
         doc["paths"]["/posts"]["post"]["requestBody"]["content"][media] = json!({"schema":{"oneOf":[{"properties":{"title":{"type":"string"}},"required":["title"]}]}});
         let report = report_contracts(json!([{"path":"/posts","method":"POST","operation":"list","requestFields":[{"name":"title","type":"text","required":true,"nullable":false}],
-            "responseFields":[{"name":"id","type":"big_int","required":true,"nullable":false},{"name":"title","type":{"kind":"varchar","length":100},"required":true,"nullable":false},{"name":"published_at","type":"timestamptz","nullable":true}]}]), doc);
+            "responseFields":[{"name":"id","type":"big_int","required":true,"nullable":false},{"name":"title","type":{"kind":"varchar","length":100},"required":true,"nullable":false},{"name":"publishedAt","column":"published_at","type":"timestamptz","nullable":true}]}]), doc);
         assert_eq!(report["contractMissing"], json!([]), "{report}");
+    }
+}
+
+#[test]
+fn drafts_emit_camel_case_names_with_erd_columns() {
+    let mut plan = plan("Create list sort filter pagination", json!([
+        {"name":"image_url","type":"text","nullable":false},
+        {"name":"created_at","type":"timestamptz","nullable":false},
+        {"name":"category_id","type":"integer","nullable":false}
+    ]));
+    plan["facts"]["screens"] = json!([{"nodeId":"1:1","children":[{"type":"TEXT_INPUT","label":"image_url"}]}]);
+    wiring::draft(&mut plan);
+    for contract in array(&plan["endpointContracts"]) {
+        for field in array(&contract["requestFields"]).iter().chain(array(&contract["responseFields"])) {
+            if field["column"] == "image_url" { assert_eq!(field["name"], "imageUrl"); }
+        }
+        assert_eq!(contract["formFields"][0]["name"], "imageUrl");
+        assert_eq!(contract["formFields"][0]["column"], "image_url");
+    }
+    let create = array(&plan["endpointContracts"]).iter().find(|item| item["operation"] == "create").unwrap();
+    assert_eq!(create["requestFields"][0]["name"], "imageUrl");
+    assert_eq!(create["requestFields"][0]["column"], "image_url");
+    let list = array(&plan["endpointContracts"]).iter().find(|item| item["operation"] == "list").unwrap();
+    assert!(array(&list["queryParams"]).iter().any(|item| item["name"] == "categoryId" && item["column"] == "category_id"));
+}
+
+#[test]
+fn openapi_reports_field_casing_violations_in_touched_schemas() {
+    for spelling in ["image_url", "ImageUrl", "image-url"] {
+        let report = report_contracts(json!([{"path":"/posts","method":"GET","responseFields":[{"name":"imageUrl"}]}]),
+            json!({"paths":{"/posts":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{spelling:{"type":"string"}}}}}}}}}}}));
+        let reason = text(&report["contractMissing"][0]["reason"]);
+        assert!(reason.contains(&format!("casing violation field: expected imageUrl got {spelling}")), "{report}");
+        assert!(reason.contains("#[serde(rename_all = \"camelCase\")]"), "{report}");
+        assert_eq!(report["contractMatches"][0]["fields"], json!([]));
+    }
+    let report = report_contracts(json!([{"path":"/posts","method":"GET"}]), json!({"paths":{"/posts":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"nested":{"properties":{"created_at":{"type":"string"}}}}}}}}}}}}}));
+    assert!(text(&report["contractMissing"][0]["reason"]).contains("expected createdAt got created_at"), "{report}");
+}
+
+#[test]
+fn openapi_requires_camel_case_query_parameters() {
+    for (name, passes) in [("page_size", false), ("pageSize", true)] {
+        let report = report_contracts(json!([{"path":"/posts","method":"GET","queryParams":[{"name":"pageSize"}]}]),
+            json!({"paths":{"/posts":{"get":{"parameters":[{"in":"query","name":name}]}}}}));
+        if passes { assert_eq!(report["contractMissing"], json!([]), "{report}"); }
+        else { assert!(text(&report["contractMissing"][0]["reason"]).contains("casing violation field: expected pageSize got page_size"), "{report}"); }
     }
 }
 
