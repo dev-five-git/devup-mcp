@@ -1,5 +1,21 @@
 use super::*;
 
+
+#[tokio::test]
+async fn intake_discovers_korean_spec_documents_without_extracting_contents() {
+    let dir = TestDir::new();
+    let spec = "동국대학교 콘드로젠 요구사항 정의서 ver 0.5.pdf";
+    std::fs::write(dir.path().join(spec), b"pdf contents are not evidence").unwrap();
+    std::fs::write(dir.path().join("unrelated.pdf"), b"not a spec").unwrap();
+    let policy = OutputPolicy::from_roots(vec![dir.path().to_path_buf()]).unwrap();
+    let request = input(dir.path(), "intake");
+    run(&request, &policy).await.unwrap();
+    let saved = read(&request.project_root).unwrap();
+    assert_eq!(saved["facts"]["specCandidates"], json!([spec]));
+    assert!(array(&saved["questions"]).iter().any(|question| question["id"] == "sources" && text(&question["question"]).contains(spec)));
+    assert!(array(&saved["evidence"]).is_empty());
+}
+
 #[tokio::test]
 async fn new_feature_acceptance_and_answers_are_applied_in_one_draft() {
     let dir = TestDir::new();
