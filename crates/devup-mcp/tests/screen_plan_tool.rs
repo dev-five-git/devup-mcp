@@ -96,6 +96,32 @@ fn project(name: &str) -> std::path::PathBuf {
 const FILE: &str = "https://www.figma.com/design/FileKey123/Site";
 
 #[tokio::test]
+async fn recommended_contact_routes_confirm_through_the_tool_surface() -> anyhow::Result<()> {
+    let root = project("recommended-contact");
+    let (failed, draft) = call(
+        &root,
+        "devup_screen_plan",
+        json!({
+            "action":"draft", "projectRoot":root, "screens":[
+                {"nodeId":"44:4721", "name":"Contact desktop", "width":1440},
+                {"nodeId":"44:5652", "name":"Contact mobile", "width":360, "section":"other"}
+            ], "navigationTargets":{"44:4721":"/contact", "44:5652":"/contact"}
+        }),
+    )
+    .await?;
+    assert!(!failed, "{draft}");
+    let (failed, confirmed) = call(&root, "devup_screen_plan", json!({
+        "action":"confirm", "projectRoot":root, "planId":draft["planId"], "acceptRecommended":true
+    })).await?;
+    assert!(!failed, "{confirmed}");
+    let routes = confirmed["routes"].as_array().unwrap();
+    assert_eq!(routes.len(), 2);
+    assert_ne!(routes[0]["url"], routes[1]["url"]);
+    std::fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyhow::Result<()> {
     let root = project("flow");
     let root_text = root.to_string_lossy().into_owned();

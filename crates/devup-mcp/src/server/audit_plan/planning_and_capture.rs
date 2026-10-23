@@ -795,10 +795,7 @@ pub(super) async fn write(
                 check.existing_routes = evidence.routes.iter().map(|(route, _)| route.clone()).collect();
             }
         }
-        let plan_path = Path::new(root)
-            .join(AUDIT_DIR)
-            .join(&screen)
-            .join("plan.json");
+        let plan_path = Path::new(root).join(AUDIT_DIR).join(&screen).join("plan.json");
         let report_dir = Path::new(root).join(AUDIT_DIR).join(&screen).join("report");
         let counts = built.plan.screens[0].checks.iter().fold(
             BTreeMap::<String, usize>::new(),

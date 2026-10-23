@@ -88,6 +88,39 @@ async fn near_identical_widths_in_one_section_can_be_states_of_one_url() {
     assert_eq!(array(&read_plan(fixture.root()).unwrap().unwrap()["audit"]["plans"]).len(), 3);
 }
 #[tokio::test]
+async fn r18_contact_and_news_recommendations_confirm_without_route_conflicts() {
+    let fixture = Fixture::new();
+    let mut screens = Vec::new();
+    for (section, count) in [("Contact", 4), ("News", 3), ("Patents", 2), ("Research", 2)] {
+        for index in 0..count {
+            screens.push(sectioned(&format!("{section}:desktop-{index}"), "Desktop", 1440.0 + f64::from(index), section));
+            screens.push(sectioned(&format!("{section}:mobile-{index}"), "Mobile", 360.0 + f64::from(index), section));
+        }
+    }
+    let mut request = drafted(&fixture, &screens).await;
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    let routes = array(&confirmed["routes"]);
+    let urls = routes.iter().filter_map(|route| route["url"].as_str()).collect::<BTreeSet<_>>();
+    assert_eq!(urls.len(), routes.len());
+    assert!(!urls.contains("/desktop"));
+}
+
+#[tokio::test]
+async fn r18_shared_explicit_route_recommendations_are_distinct_before_confirm() {
+    let fixture = Fixture::new();
+    let mut request = input(&fixture, "draft");
+    request.navigation_targets = BTreeMap::from([("44:4721".into(), "/contact".into()), ("44:5652".into(), "/contact".into())]);
+    let result = draft(&request, &[sectioned("44:4721", "Desktop", 1440.0, "Contact"), sectioned("44:5652", "Desktop", 1440.0, "Contact other")], json!({}), &fixture.policy()).await.unwrap();
+    request.action = "confirm".into();
+    request.plan_id = result["planId"].as_str().map(str::to_owned);
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    assert_eq!(array(&confirmed["routes"]).len(), 2);
+    assert_ne!(confirmed["routes"][0]["url"], confirmed["routes"][1]["url"]);
+}
+
+#[tokio::test]
 async fn r19_device_only_frames_in_each_section_confirm_as_one_responsive_url() {
     let fixture = Fixture::new();
     let screens = [

@@ -613,6 +613,7 @@ pub(super) fn draft_plan_with(
     {
         *asked = with_when(asked.clone(), &base_when);
     }
+    distinct_recommended_routes(&rows, &mut questions);
     let inventory = frame_inventory(screens, &out_of_scope, &excluded_rows, &kept);
     let labels = link_label_check(screens, &out_of_scope, &excluded_rows, &kept);
     let body = json!({"source": source, "screens": rows, "questions": questions, "notes": notes,

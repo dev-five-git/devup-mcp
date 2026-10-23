@@ -94,3 +94,54 @@ pub(super) fn audit_routes(plan: &Value) -> Vec<Value> {
         targets
     }).collect()
 }
+
+fn distinct_recommended_routes(screens: &[Value], questions: &mut [Value]) {
+    let mut ordered = questions.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|question| depth(question, questions));
+    let mut actions = BTreeMap::new();
+    for question in ordered {
+        if required(question, &actions) {
+            actions.insert(text(&question["id"]).to_owned(), question["resolve"][0]["action"].clone());
+        }
+    }
+    let folded = folded_ids(&state_folds(questions, &actions));
+    let mut placements = Vec::new();
+    for screen in screens {
+        let id = text(&screen["id"]);
+        if folded.contains(id) || array(&screen["structureQuestions"]).iter().any(|question| actions.get(text(question)).is_some_and(|action| action["designFix"] == true)) {
+            continue;
+        }
+        if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str())
+            && !array(&screen["frames"]).iter().any(|frame| frame["pageId"] == page) { continue; }
+        let separate = actions.get(text(&screen["groupingQuestion"])).is_some_and(|action| action["group"] == "separate");
+        let ids = if separate {
+            array(&screen["frames"]).iter().map(|frame| format!("split-route:{}", text(&frame["nodeId"]))).collect::<Vec<_>>()
+        } else {
+            ["route", "modal", "review"].iter().map(|prefix| format!("{prefix}:{id}")).filter(|id| actions.contains_key(id)).take(1).collect()
+        };
+        if ids.is_empty() {
+            if let Some(route) = screen["proposedRoute"].as_str() { placements.push((screen, None, route.to_owned())); }
+        } else {
+            for id in ids {
+                if let Some(route) = actions[&id]["route"].as_str() { placements.push((screen, Some(id), route.to_owned())); }
+            }
+        }
+    }
+    let mut taken = BTreeSet::new();
+    placements.sort_by_key(|(_, question, _)| question.is_some());
+    for (screen, question_id, route) in placements {
+        let app = text(&screen["app"]).to_owned();
+        if taken.insert((app.clone(), route.clone())) { continue; }
+        let Some(id) = question_id else { continue; };
+        let mut suggestion = suggested_route(text(&screen["name"]), text(&screen["id"]), &route);
+        while !taken.insert((app.clone(), suggestion.clone())) {
+            suggestion.push_str(&format!("-{}", text(&screen["id"]).replace(':', "-")));
+        }
+        let asked = questions.iter_mut().find(|question| question["id"] == id).expect("placement question exists");
+        let mut choices = vec![choice(&suggestion, format!("Distinct suggested URL: {route} is already recommended for another screen in this app."), json!({"route":suggestion}))];
+        choices.extend(array(&asked["resolve"]).iter().zip(array(&asked["options"])).map(|(resolve, option)| choice(text(&resolve["label"]), text(&option["description"]), resolve["action"].clone())));
+        let replacement = question(id, text(&asked["header"]).to_owned(), text(&asked["question"]).to_owned(), choices, text(&asked["kind"]));
+        asked["resolve"] = replacement["resolve"].clone();
+        asked["options"] = replacement["options"].clone();
+    }
+}
