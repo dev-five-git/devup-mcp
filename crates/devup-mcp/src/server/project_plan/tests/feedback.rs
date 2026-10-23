@@ -1,5 +1,19 @@
 use super::*;
 
+#[tokio::test]
+async fn backend_checks_report_missing_serde_and_model_module() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), true).await;
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("Cargo.toml"), "[dependencies]\nsea-orm = \"2\"\n").unwrap();
+    std::fs::write(dir.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(array(&result["backendChecks"]).len(), 3);
+    std::fs::write(dir.path().join("Cargo.toml"), "[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n").unwrap();
+    std::fs::write(dir.path().join("src/main.rs"), "mod models;\nfn main() {}\n").unwrap();
+    assert!(wiring::backend_checks(&read(&request.project_root).unwrap(), &request.project_root).is_empty());
+}
+
 #[test]
 fn merged_screen_answers_are_forwarded_without_becoming_project_answers() {
     let dir = TestDir::new();
