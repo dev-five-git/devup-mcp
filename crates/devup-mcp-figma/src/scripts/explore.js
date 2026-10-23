@@ -206,8 +206,7 @@ if (descendantScope && "children" in scopeAnchor) {
     }
     if ("children" in node) {
       for (const child of node.children) {
-        if (requestedPage && node.type !== "SECTION") continue;
-        if (requestedPage && !["SECTION", "FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(child.type)) continue;
+        if (requestedPage && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) continue;
         nestedQueue.push({ node: child, ancestors: [...ancestors, node] });
       }
     }
