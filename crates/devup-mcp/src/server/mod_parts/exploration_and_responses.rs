@@ -418,11 +418,6 @@ fn with_project_checks(
                 .map(|tsx| (key.to_owned(), tsx.to_owned()))
         })
         .collect();
-    // A Section export answers under `frames`, one entry per selected frame,
-    // and nothing at the top level. Reading only the top level checked the
-    // single-node `url` case and silently skipped every `frameIds` call —
-    // which is every Section workflow, and so every screen of the Braillify
-    // Studio handover this exists for.
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for frame in frames {
             let node = frame
