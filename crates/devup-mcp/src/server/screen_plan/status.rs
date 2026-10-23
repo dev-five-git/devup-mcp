@@ -505,9 +505,19 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         for ancestor in std::path::Path::new(request.project_root)
             .ancestors()
             .skip(1)
-            .take(4)
         {
             if let Some(plan) = read_plan(&ancestor.to_string_lossy())? {
+                let requested = dunce::canonicalize(request.project_root).ok();
+                let matches_app = array(&plan["routes"]).iter().any(|route| {
+                    route["app"].as_str().is_some_and(|app| {
+                        requested.as_ref().is_some_and(|requested| {
+                            dunce::canonicalize(ancestor.join(app)).ok().as_ref() == Some(requested)
+                        })
+                    })
+                });
+                if array(&plan["routes"]).iter().any(|route| route["app"].is_string()) && !matches_app {
+                    continue;
+                }
                 found = Some(plan);
                 break;
             }
