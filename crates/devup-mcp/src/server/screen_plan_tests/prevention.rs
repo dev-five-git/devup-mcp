@@ -129,3 +129,19 @@ fn r47_status_reports_the_owning_page_for_every_planned_frame() {
     assert_eq!(report["framePages"][2]["pageId"], "0:2");
     assert_eq!(report["framePages"][3]["pageName"], Value::Null);
 }
+#[test]
+fn r43_final_page_is_recommended_and_linked_frame_pins_its_page() {
+    let mut old = sectioned("old:1", "Home desktop", 1440.0, "Home");
+    old.page_id = Some("page:old".into());
+    old.page_name = Some("Design system".into());
+    let mut final_frame = sectioned("final:1", "Home desktop", 1440.0, "Home");
+    final_frame.page_id = Some("page:final".into());
+    final_frame.page_name = Some("최종 시안 2026-10-14".into());
+    let screens = [old, final_frame];
+    let plan = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({}), None).unwrap();
+    assert_eq!(find(&plan, "base-page")["resolve"][0]["action"]["pageId"], "page:final");
+    let pinned = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({"nodeId":"old:1"}), None).unwrap();
+    assert!(!question_ids(&pinned).contains(&"base-page".to_owned()));
+    assert_eq!(array(&pinned["screens"]).len(), 1);
+    assert_eq!(pinned["screens"][0]["frames"][0]["pageId"], "page:old");
+}

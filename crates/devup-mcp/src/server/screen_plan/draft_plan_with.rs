@@ -336,7 +336,40 @@ pub(super) fn draft_plan_with(
     for asked in site_asked {
         questions.push(with_when(asked, &base_when));
     }
-    let mut drafts = group_screens(&kept, &evidence.config);
+    let linked_page = source["nodePage"]["id"].as_str().or_else(|| {
+        screens.iter().find(|screen| Some(screen.node_id.as_str()) == anchor_id)
+            .and_then(|screen| screen.page_id.as_deref())
+    });
+    let mut pages = kept.iter().filter_map(|screen| {
+        Some((screen.page_id.clone()?, screen.page_name.clone().or_else(|| screen.breadcrumb.first().cloned())?))
+    }).collect::<BTreeMap<_, _>>().into_iter().collect::<Vec<_>>();
+    pages.sort_by(|a, b| {
+        let rank = |name: &str| {
+            let lower = name.to_lowercase();
+            let preferred = ["시안", "확정", "final", "최종"].iter().any(|word| lower.contains(word));
+            let date = name.chars().filter(char::is_ascii_digit).collect::<String>();
+            (preferred, date)
+        };
+        rank(&b.1).cmp(&rank(&a.1)).then_with(|| a.0.cmp(&b.0))
+    });
+    if linked_page.is_none() && pages.len() > 1 {
+        questions.insert(0, question("base-page".into(), "Base Figma page".into(),
+            "Screens span several Figma pages. Which page is the implementation source?".into(),
+            pages.iter().map(|(id, name)| choice(name, "Use frames from this owning page only.", json!({"pageId": id}))).collect(), "base-page"));
+    }
+    let page_sets = if pages.len() > 1 {
+        pages.iter().filter(|(id, _)| linked_page.is_none_or(|linked| linked == id))
+            .map(|(id, _)| kept.iter().filter(|screen| screen.page_id.as_deref() == Some(id)).cloned().collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+    } else { vec![kept.clone()] };
+    let mut drafts = page_sets.iter().flat_map(|screens| group_screens(screens, &evidence.config)).collect::<Vec<_>>();
+    if linked_page.is_none() && pages.len() > 1 {
+        for draft in &mut drafts {
+            if let Some(page) = draft.frames.first().and_then(|frame| frame.page_id.as_ref()) {
+                draft.extra_when.push(when("base-page", "", json!({"pageId": page})));
+            }
+        }
+    }
     for draft in &mut drafts {
         draft.extra_when.extend(base_when.iter().cloned());
     }
@@ -395,6 +428,9 @@ pub(super) fn draft_plan_with(
     }
     let mut route_conflicts = Vec::new();
     for (route, indices) in owners.iter().filter(|(_, indices)| indices.len() > 1) {
+        if pages.len() > 1 && indices.iter().filter_map(|index| drafts[*index].frames.first()?.page_id.as_ref()).collect::<BTreeSet<_>>().len() == indices.len() {
+            continue;
+        }
         route_conflicts.push(json!({"url": route, "screens": indices.iter().map(|index| drafts[*index].id().to_owned()).collect::<Vec<_>>(), "names": indices.iter().map(|index| drafts[*index].name().to_owned()).collect::<Vec<_>>()}));
         for index in indices {
             if let Some((route, _)) = decided[*index].1.take() {

@@ -116,6 +116,10 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     for screen in &screens {
         let id = text(&screen["id"]).to_owned();
         let frames = array(&screen["frames"]).to_vec();
+        if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str())
+            && !frames.iter().any(|frame| frame["pageId"] == page) {
+            continue;
+        }
         let mut deciding = array(&screen["structureQuestions"])
             .iter()
             .map(text)

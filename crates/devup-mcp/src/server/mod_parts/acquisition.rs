@@ -517,6 +517,7 @@ impl DevupServer {
                 "nodeId": explored["anchor"]["nodeId"],
                 "anchorName": explored["anchor"]["name"],
                 "anchorBreadcrumb": explored["anchor"]["breadcrumb"],
+                "nodePage": explored["nodePage"],
                 "targetKind": explored["targetKind"],
                 "fileKey": explored["source"]["fileKey"],
                 "truncation": explored["truncation"],
