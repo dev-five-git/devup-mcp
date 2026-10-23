@@ -1,5 +1,22 @@
 use super::*;
 
+#[test]
+fn static_features_only_ask_relevant_topics_and_sourced_answers_suppress_them() {
+    let mut plan = json!({"facts":{},"answers":{},"features":[
+        {"id":"products","scope":"Product introduction","screens":["Products"],"acceptance":["Display descriptions"]}
+    ],"issues":[],"entities":[]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    assert!(!questions.iter().any(|question| ["products.forms","products.permissions","products.notifications"].contains(&text(&question["id"]))));
+    plan["features"][0] = json!({"id":"contact","scope":"Contact form with SMTP staff email","screens":["Contact"],"acceptance":["Validate email"]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    assert!(questions.iter().any(|question| question["id"] == "contact.forms"));
+    assert!(questions.iter().any(|question| question["id"] == "contact.notifications"));
+    plan["facts"]["contact.forms"] = json!("Required email");
+    plan["facts"]["contact.notifications"] = json!("SMTP staff email");
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    assert!(!questions.iter().any(|question| ["contact.forms","contact.notifications"].contains(&text(&question["id"]))));
+}
+
 #[tokio::test]
 async fn backend_checks_report_missing_serde_and_model_module() {
     let dir = TestDir::new();
