@@ -524,3 +524,29 @@ fn r14_navigation_targets_are_routes_not_route_questions() {
     let ids = question_ids(&plan);
     assert!(!ids.iter().any(|id| id.starts_with("route:")), "{ids:?}");
 }
+
+#[test]
+fn r14_explicit_routes_do_not_offer_an_occupied_home_route() {
+    let targets = BTreeMap::from([
+        ("114:1".into(), "/".into()),
+        ("114:2".into(), "/ko/technology/patents".into()),
+        ("114:3".into(), "/ko/news/company".into()),
+    ]);
+    let plan = draft_plan(
+        &[
+            sectioned("114:1", "Main", 1440.0, "Main"),
+            sectioned("114:2", "Patents", 1440.0, "Technology"),
+            sectioned("114:3", "Company news", 1440.0, "News"),
+        ],
+        &targets,
+        &evidence(),
+        json!({}),
+        None,
+    ).unwrap();
+    for row in array(&plan["screens"]) {
+        let node = text(&row["id"]);
+        assert_eq!(row["proposedRoute"], targets[node]);
+        assert!(text(&row["routeEvidence"]).contains("navigationTargets"));
+        assert!(!question_ids(&plan).contains(&format!("route:{node}")));
+    }
+}
