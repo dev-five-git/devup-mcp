@@ -326,7 +326,17 @@ export function observeCompleteness(page, completeness, width, subject) {
     for (let index = 0; index < walker.length; index += 1) {
       const element = walker[index];
       const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').trim();
-      if (!own || !shown(element) || element.closest('[aria-hidden="true"]')) continue;
+      if (!own || !shown(element) || element.closest('[aria-hidden="true"], [role="presentation"], [role="none"]')) continue;
+      let marquee = false;
+      for (let track = element; track && track !== document.body; track = track.parentElement) {
+        const animations = track.getAnimations?.() ?? [];
+        const translates = animations.some((animation) => animation.effect?.getKeyframes().some((frame) => frame.transform || frame.translate));
+        if (!translates) continue;
+        for (let clip = track.parentElement; clip; clip = clip.parentElement) {
+          if (['hidden', 'clip'].includes(getComputedStyle(clip).overflowX) && track.scrollWidth > clip.clientWidth + 1) marquee = true;
+        }
+      }
+      if (marquee) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
       const style = getComputedStyle(element);
@@ -404,6 +414,7 @@ export function observeSequence(page) {
     for (const element of document.querySelectorAll('body *')) {
       if (element.children.length || !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const label = element.textContent.trim();
+      if (element.closest('nav[aria-label*="pag" i], [role="navigation"][aria-label*="pag" i]')) continue;
       const match = /^(?:(STEP)\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
       if (!match) continue;
       const box = element.getBoundingClientRect();
@@ -509,11 +520,19 @@ async function stateStyles(locator) {
   }, STATE_PROPERTIES);
 }
 
+async function childStateStyles(locator) {
+  return locator.evaluate((element, properties) => [...element.querySelectorAll('*')].map((child) => {
+    const style = getComputedStyle(child);
+    return { tag: child.tagName.toLowerCase(), styles: properties.map((property) => style[property]) };
+  }), STATE_PROPERTIES);
+}
+
 // Hover moves the mouse over the subject; focus sets keyboard modality first
 // so :focus-visible applies, as it does for a keyboard user. Both wait out
 // the shared transition before reading the styles.
 async function enterState(page, target, state, timeout) {
   const before = await stateStyles(target);
+  const childrenBefore = await childStateStyles(target);
   if (state === 'focus') {
     await page.keyboard.press('Shift');
     await target.focus({ timeout });
@@ -522,13 +541,16 @@ async function enterState(page, target, state, timeout) {
   }
   await page.waitForTimeout(450);
   const after = await stateStyles(target);
+  const childrenAfter = await childStateStyles(target);
+  const childChanges = childrenAfter.filter((child, index) => childrenBefore[index]
+    && child.styles.some((value, property) => value !== childrenBefore[index].styles[property])).map((child) => child.tag);
   if (state === 'focus') await target.evaluate((element) => element.blur());
   await page.mouse.move(0, 0);
   await page.waitForTimeout(state === 'focus' ? 0 : 300);
-  return { before, after };
+  return { before, after, childChanges };
 }
 
-async function observeInteraction(page, check, timeout) {
+export async function observeInteraction(page, check, timeout) {
   if (!check.subject) {
     const all = page.locator('a[href], button, [role="button"]');
     const items = [];

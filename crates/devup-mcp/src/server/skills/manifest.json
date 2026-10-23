@@ -89,8 +89,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 18452,
-          "sha256": "fa9de21d4e32e39a85e74896673afe68097c78831f75f1be19f1a702b9ab5b3e"
+          "bytes": 19411,
+          "sha256": "dd8cd591a962069d58feee746637acb1e17fe06d10f3e1d82732e98af75b2139"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

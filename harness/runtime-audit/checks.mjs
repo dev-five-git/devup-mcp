@@ -37,19 +37,16 @@ export function evaluateCheck(check, measured) {
   const tolerance = check.tolerancePx ?? DEFAULT_TOLERANCE;
   if (check.kind === 'no-horizontal-overflow') {
     const { viewportWidth, scrollWidth, maxRight, overflowHidden } = measured.page;
-    const widest = Math.max(scrollWidth, maxRight);
-    const overflow = widest - viewportWidth;
+    const overflow = scrollWidth - viewportWidth;
     const evidence = { viewportWidth, scrollWidth: round(scrollWidth), maxRight: round(maxRight), overflowHidden };
     if (overflow > tolerance) {
       return {
         status: 'fail',
-        reason: maxRight > scrollWidth + tolerance
-          ? `content reaches ${round(maxRight)}px in a ${viewportWidth}px viewport, clipped by overflow so the page does not scroll`
-          : `the page scrolls to ${round(scrollWidth)}px in a ${viewportWidth}px viewport`,
+        reason: `the page scrolls to ${round(scrollWidth)}px in a ${viewportWidth}px viewport`,
         measured: evidence,
       };
     }
-    return { status: 'pass', reason: 'nothing reaches past the viewport', measured: evidence };
+    return { status: 'pass', reason: maxRight > viewportWidth + tolerance ? 'content is clipped by overflow; the page does not scroll horizontally' : 'nothing reaches past the viewport', measured: evidence };
   }
 
   const subjectProblem = missing('subject', measured.subjectCount);
@@ -253,6 +250,9 @@ export const STATE_PROPERTIES = [
  * holds each one, and any that changes nothing fails the check.
  */
 export function evaluateInteraction(check, observed) {
+  const childHint = (item) => item.childChanges?.length
+    ? '; state styles are on a child (child computed style changes), not the focusable <a>/button; put states on the focusable element itself'
+    : '';
   if (Array.isArray(observed.items)) {
     const changes = (item) => STATE_PROPERTIES.some((property) => item.before[property] !== item.after[property]);
     const flat = observed.items.filter((item) => !changes(item));
@@ -261,8 +261,8 @@ export function evaluateInteraction(check, observed) {
       ? { status: 'pass', reason: `${check.state} changes all ${observed.items.length} links and buttons`, measured: { checked: observed.items.length } }
       : {
           status: 'fail',
-          reason: `${check.state} changes nothing on ${flat.length} of ${observed.items.length}: ${flat.slice(0, 5).map((item) => `<${item.tag}> "${item.name}"`).join(', ')}`,
-          measured: { checked: observed.items.length, unchanged: flat.map((item) => ({ tag: item.tag, name: item.name })) },
+          reason: `${check.state} changes nothing on ${flat.length} of ${observed.items.length}: ${flat.slice(0, 5).map((item) => `<${item.tag}> "${item.name}"${childHint(item)}`).join(', ')}`,
+          measured: { checked: observed.items.length, unchanged: flat.map((item) => ({ tag: item.tag, name: item.name, childChanges: item.childChanges ?? [] })) },
         };
   }
   const subjectProblem = missing('subject', observed.subjectCount);
@@ -270,7 +270,7 @@ export function evaluateInteraction(check, observed) {
   const changed = STATE_PROPERTIES.filter((property) => observed.before[property] !== observed.after[property]);
   return changed.length > 0
     ? { status: 'pass', reason: `${check.state} changes ${changed.join(', ')}`, measured: { changed } }
-    : { status: 'fail', reason: `${check.state} changes nothing visible`, measured: { before: observed.before } };
+    : { status: 'fail', reason: `${check.state} changes nothing visible${childHint(observed)}`, measured: { before: observed.before, childChanges: observed.childChanges ?? [] } };
 }
 
 /** Counts recomputed from items, never taken from a declaration. */
@@ -468,9 +468,6 @@ export function evaluateSequenceOrder(observed) {
     const numbers = group.map((item) => item.number).sort((a, b) => a - b);
     const consecutive = numbers.every((n, i) => i === 0 || n === numbers[i - 1] + 1);
     if (!consecutive) continue;
-    const reading = [...group].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.number);
-    if (reading.length > 1 && reading.every((n, i) => i === 0 || n === reading[i - 1] - 1)) continue;
-    compared += 1;
     const remaining = [...group];
     const ordered = [];
     while (remaining.length) {
@@ -479,6 +476,8 @@ export function evaluateSequenceOrder(observed) {
       ordered.push(...row);
       for (const item of row) remaining.splice(remaining.indexOf(item), 1);
     }
+    if (ordered.length > 1 && ordered.every((item, index) => index === 0 || item.number === ordered[index - 1].number - 1)) continue;
+    compared += 1;
     for (let index = 1; index < ordered.length; index += 1) {
       if (ordered[index].number < ordered[index - 1].number) failures.push(`${ordered[index - 1].name} before ${ordered[index].name}`);
     }

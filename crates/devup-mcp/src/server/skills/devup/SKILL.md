@@ -229,4 +229,17 @@ A screen is not finished while its data is a hard-coded array, a `TODO` or "repl
 
 ## Decisions go through the question tool
 
+This rule takes precedence over "never ask during the build" and "never wait"
+when a decision genuinely requires the user's authority, including after confirm.
+Use OpenCode `question` or Claude Code `AskUserQuestion`, not a numbered chat
+list ending with "tell me which numbers to change". Continue independent work
+while the decision is pending; workers escalate to their supervisor, not the user.
+Do not invent a project-plan `ask` action: use the runtime question tool and the
+existing plan actions. Record the chosen answer, not an unaccepted recommendation,
+with its decision id, affected model/endpoint/file and rationale. If it changes
+the ERD, update the source models and re-confirm before dependent implementation.
+If the runtime has no question tool, report that limitation and leave the
+user-owned decision unresolved; a prose question or silent assumption is not a
+substitute. Ordinary implementation choices still use defer/assume without asking.
+
 Any decision that needs the user, before or after confirm, is asked with the runtime question tool, never as numbered prose such as "tell me which numbers to change". Show the evidence table first, then ask. Put the recommended option first, labelled "(Recommended)", with two or three concrete alternatives (for example "category as a kind column / as an enum column / as a free text column"). A header is at most 30 characters and a question has two to four options. Keep the confirmation of a table separate from the decisions inside it: the table is one approve-or-change question, each real decision gets its own entry in the same question call. Record each answer with `devup_project_plan defer` or `assume` (id, reason, recommended) so it survives in the plan; a decision that changes a model is applied to `models/*.json` and the next action says so.
