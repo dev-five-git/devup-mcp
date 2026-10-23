@@ -275,6 +275,23 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
     Ok(())
 }
 pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
+    let mut violations = Vec::new();
+    for (entity_index, entity) in entities.iter().enumerate() {
+        for (column_index, column) in array(&entity["columns"]).iter().enumerate() {
+            if unsupported_type(&column["type"]).is_some() {
+                violations.push(json!({"path":format!("/entities/{entity_index}/columns/{column_index}/type"),
+                    "column":format!("{}.{}",text(&entity["name"]),text(&column["name"])),
+                    "got":column["type"],"expected":{"simple":SIMPLE_TYPES,"complexKinds":COMPLEX_KINDS},
+                    "fix":if column["type"] == "jsonb" {"Use json"} else {"Use a supported Vespertide type"}}));
+            }
+        }
+    }
+    if !violations.is_empty() {
+        let mut error = invalid(format!("Unsupported Vespertide column types: {}; jsonb must use json",
+            violations.iter().map(|violation| text(&violation["column"])).collect::<Vec<_>>().join(", ")));
+        error.details = json!({"violations":violations});
+        return Err(error);
+    }
     let mut names = std::collections::BTreeSet::new();
     for e in entities {
         let name = text(&e["name"]);
@@ -343,6 +360,17 @@ pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
         }
     }
     Ok(())
+}
+pub(super) fn disk_report(plan: &Value, root: &str) -> Value {
+    let mut existing = Vec::new();
+    if let Err(error) = scan_models(&Path::new(root).join(text(&plan["modelsDir"])), &mut existing) {
+        return json!({"error":error.message});
+    }
+    let violations = validate(&existing).err().map(|error| error.details).unwrap_or(Value::Null);
+    let drift = existing.iter().filter(|model| {
+        !array(&plan["entities"]).iter().any(|entity| entity["name"] == model["name"] && entity["columns"] == model["columns"])
+    }).map(|model| model["name"].clone()).collect::<Vec<_>>();
+    json!({"typeValidation":violations,"entityDrift":drift})
 }
 pub(super) fn write_models(
     tx: &mut OutputTransaction,

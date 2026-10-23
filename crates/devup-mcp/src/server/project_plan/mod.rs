@@ -406,7 +406,11 @@ fn extras(plan: &Value, root: &str) -> Value {
 }
 fn response(plan: Value, root: &str, full: bool) -> Value {
     let extra = extras(&plan, root);
+    let models = erd::api(&plan).then(|| erd::disk_report(&plan, root));
     let mut out = base_response(plan, root, full);
+    if let Some(models) = models {
+        out["modelDiagnostics"] = models;
+    }
     if let (Some(o), Some(e)) = (out.as_object_mut(), extra.as_object()) {
         o.extend(e.clone());
     }

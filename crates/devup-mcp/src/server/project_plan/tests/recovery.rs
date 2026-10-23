@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn existing_model_diagnostics_report_type_errors_and_entity_drift() {
+    let dir = TestDir::new();
+    std::fs::create_dir_all(dir.path().join("models")).unwrap();
+    std::fs::write(dir.path().join("models/post.json"), json!({"name":"post","columns":[{"name":"body","type":"jsonb","nullable":false}]}).to_string()).unwrap();
+    let report = erd::disk_report(&json!({"modelsDir":"models","entities":[]}), &dir.path().to_string_lossy());
+    assert_eq!(report["entityDrift"], json!(["post"]));
+    assert_eq!(report["typeValidation"]["violations"][0]["got"], "jsonb");
+}
+
+#[test]
+fn invalid_types_report_every_column_path() {
+    let error = erd::validate(&[json!({"name":"post","columns":[
+        {"name":"first","type":"invalid_one","nullable":false},
+        {"name":"second","type":"invalid_two","nullable":false}
+    ]})]).unwrap_err();
+    assert_eq!(array(&error.details["violations"]).len(), 2);
+    assert_eq!(error.details["violations"][1]["path"], "/entities/0/columns/1/type");
+}
+
+#[test]
 fn list_counts_supply_pagination_and_enum_filters() {
     let mut plan = json!({"facts":{"parts":"API"},"entities":[{"name":"post","columns":[{"name":"category","type":{"kind":"enum","values":["a","b"]}}]}],
         "features":[{"id":"posts","scope":"post 목록10","screens":[],"acceptance":[],"entities":["post"]}]});
