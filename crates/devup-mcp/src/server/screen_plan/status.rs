@@ -353,6 +353,7 @@ pub(super) fn status_report(
         "warnings": warnings,
         "excluded": excluded,
         "frameInventory": plan["frameInventory"],
+        "framePages": frame_page_table(plan),
         "linkLabelCheck": plan["linkLabelCheck"],
         "inventoryNote": evidence.inventory_note,
         "rule": "A width without a runtime audit item is not-run, never pass. Implemented requires rendered completeness at every drawn width; done requires every URL at every required width to pass.",

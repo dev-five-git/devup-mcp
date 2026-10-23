@@ -627,6 +627,8 @@ pub(super) async fn audit_plan(
     plan["audit"]["plans"] = json!(entries);
     plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
     plan["audit"]["generatedAt"] = json!(now());
+    result["framePages"] = json!(frame_page_table(&plan));
+    plan["audit"]["framePages"] = result["framePages"].clone();
     result["writtenTo"] = write_plan(policy, root, &plan)?;
     result["maxFixAttempts"] = json!(max_fix_attempts);
     result["doneWhen"] = json!(DONE_RULE);

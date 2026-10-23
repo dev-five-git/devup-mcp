@@ -107,3 +107,15 @@ fn page_warnings(plan: &Value) -> Vec<String> {
         })
         .collect()
 }
+
+fn frame_page_table(plan: &Value) -> Vec<Value> {
+    array(&plan["routes"]).iter().flat_map(|route| {
+        array(&route["nodeIds"]).iter().map(move |node| {
+            let frame = array(&plan["screens"]).iter().flat_map(|screen| array(&screen["frames"]))
+                .find(|frame| frame["nodeId"] == *node);
+            json!({"url": route["url"], "nodeId": node,
+                "pageId": frame.map(|frame| &frame["pageId"]),
+                "pageName": frame.map(|frame| &frame["pageName"])})
+        })
+    }).collect()
+}

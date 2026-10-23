@@ -115,3 +115,17 @@ fn r33_export_progress_retains_the_next_unwritten_url() {
     assert_eq!(progress["total"], 2);
     assert_eq!(progress["next"], "/about");
 }
+#[test]
+fn r47_status_reports_the_owning_page_for_every_planned_frame() {
+    let mut plan = confirmed_plan();
+    plan["screens"] = json!([{"frames":[
+        {"nodeId":"10:1","pageId":"0:1","pageName":"Final"},
+        {"nodeId":"10:2","pageId":"0:1","pageName":"Final"},
+        {"nodeId":"10:3","pageId":"0:2","pageName":"Archive"}
+    ]}]);
+    let report = status_report(&plan, &evidence(), None);
+    assert_eq!(array(&report["framePages"]).len(), 4);
+    assert_eq!(report["framePages"][0]["pageName"], "Final");
+    assert_eq!(report["framePages"][2]["pageId"], "0:2");
+    assert_eq!(report["framePages"][3]["pageName"], Value::Null);
+}
