@@ -9,6 +9,7 @@ fn unit(
 ) -> Value {
     json!({"id":id,"scope":scope,"dependencies":dependencies,"acceptance":acceptance,
         "layer":layer,"state":"pending","verification":[],
+        "stage":if matches!(layer, "shared" | "models") {0} else {1},
         "checklist":["build", "lint", "typecheck", "tests", "devup_ui_validate", "runtime/visual audit", "devup_stack_diff: zero drift"]})
 }
 fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
@@ -55,6 +56,8 @@ fn slim_context(plan: &Value, u: &Value) -> Value {
     json!({
         "fullPlan": ".devup/project-plan.json",
         "answers": pick(&plan["answers"], &owner, &[]),
+        "scopePrecedence": u["scopePrecedence"],
+        "scopeOverrides": u["scopeOverrides"],
         "facts": pick(&plan["facts"], &owner, &["goal", "parts", "workType"]),
         "decisions": plan["decisions"],
         "backendCommands": plan["backendCommands"],
@@ -70,12 +73,13 @@ fn unit_entities(plan: &Value, u: &Value) -> Vec<Value> {
         .cloned()
         .collect()
 }
-fn slim_screens(screen: &Value) -> Value {
+fn slim_screens(screen: &Value, screens: &[Value]) -> Value {
     if screen.is_null() {
         return Value::Null;
     }
     let routes = array(&screen["routes"])
         .iter()
+        .filter(|route| screens.contains(&route["url"]) || array(&route["nodeIds"]).iter().any(|node| screens.contains(node)))
         .map(|r| json!({"url": r["url"], "nodeIds": r["nodeIds"], "file": r["file"]}))
         .collect::<Vec<_>>();
     json!({"fullPlan": ".devup/screen-plan.json", "state": screen["state"], "routes": routes})
@@ -188,6 +192,13 @@ pub(super) fn split(
             }
         }
     }
+    let dependencies = units.iter().filter(|unit| unit["stage"] == 1)
+        .map(|unit| text(&unit["id"]).to_owned()).collect();
+    let mut integration = unit("integration".into(), "Supervisor integration and final verification".into(),
+        dependencies, json!(["All worker outputs integrated and verified"]), "integration");
+    integration["stage"] = json!(2);
+    integration["owner"] = json!("supervisor");
+    units.push(integration);
     validate(&units)?;
     let mut screen_context = plan["screenPlan"].clone();
     if let Some(context) = screen_context.as_object_mut() {
@@ -195,7 +206,21 @@ pub(super) fn split(
             context.remove(key);
         }
     }
-    for u in &units {
+    for u in &mut units {
+        if u["stage"] == 0 {
+            u["owner"] = json!("supervisor");
+        }
+        let owner = unit_owner(u);
+        u["scopeOverrides"] = pick(&plan["answers"], &owner, &[]);
+        u["scopePrecedence"] = json!(["answers", "decisions", "scope"]);
+        let screens = array(&plan["features"]).iter().find(|feature| feature["id"] == owner)
+            .map(|feature| array(&feature["screens"])).unwrap_or_default();
+        let screen_slice = slim_screens(&screen_context, screens);
+        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"]});
+        for field in ["exports", "assets", "imports"] {
+            contract[field] = plan["facts"][format!("{owner}.{field}")].clone();
+        }
+        u["contract"] = contract;
         let brief = format!(
             include_str!("../text/units-split-bf50d8a5.md"),
             text(&u["id"]),
@@ -204,8 +229,8 @@ pub(super) fn split(
             text(&plan["unitQuestions"]),
             slim_context(plan, u),
             erd::mermaid(&unit_entities(plan, u)),
-            slim_screens(&screen_context),
-            json!({"acceptance":u["acceptance"],"checklist":u["checklist"]})
+            screen_slice,
+            json!({"acceptance":u["acceptance"],"checklist":u["checklist"],"contract":u["contract"]})
         );
         stage(
             tx,
@@ -218,9 +243,48 @@ pub(super) fn split(
     plan["units"] = json!(units);
     Ok(())
 }
+pub(super) fn open_requests(plan: &Value) -> Vec<Value> {
+    array(&plan["sharedChangeRequests"])
+        .iter()
+        .filter(|r| r["state"] == "open")
+        .cloned()
+        .collect()
+}
+fn shared_request(plan: &mut Value, update: &UnitUpdate) -> Result<(), DevupError> {
+    let file = update.file.as_deref().unwrap_or_default().trim();
+    if file.is_empty() {
+        return Err(invalid("shared-change-request needs file"));
+    }
+    if !plan["sharedChangeRequests"].is_array() {
+        plan["sharedChangeRequests"] = json!([]);
+    }
+    if update.state == "resolved" {
+        for r in plan["sharedChangeRequests"].as_array_mut().unwrap() {
+            if r["file"] == file && r["state"] == "open" {
+                r["state"] = json!("resolved");
+            }
+        }
+        for u in plan["units"].as_array_mut().unwrap() {
+            if u["state"] == "merged" && u["stage"] == 1 {
+                u["state"] = json!("verifying");
+            }
+        }
+        return Ok(());
+    }
+    if update.reason.as_deref().is_none_or(|r| r.trim().is_empty()) {
+        return Err(invalid("shared-change-request needs reason"));
+    }
+    plan["sharedChangeRequests"].as_array_mut().unwrap().push(json!({
+        "unit":update.id,"file":file,"reason":update.reason,"diff":update.diff,"state":"open"}));
+    Ok(())
+}
 pub(super) fn update(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), DevupError> {
     for update in &input.unit_updates {
         confirmed(plan)?;
+        if update.kind.as_deref() == Some("shared-change-request") {
+            shared_request(plan, update)?;
+            continue;
+        }
         let current = array(&plan["units"])
             .iter()
             .find(|u| u["id"] == update.id)

@@ -574,6 +574,16 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         }
         _ => return Ok(Gate::Open),
     };
+    if gated && let Some(erd) = super::project_plan::erd_required(request.project_root) {
+        return Ok(Gate::Blocked(json!({
+            "status": "erd_required",
+            "written": false,
+            "erdRequired": {"reason": "The screens read or write data and the project plan ERD is not confirmed.", "details": erd},
+            "nextAction": {"tool": "devup_project_plan",
+                "arguments": {"action": "status", "projectRoot": request.project_root},
+                "how": "Confirm the project plan (ERD and endpoint contract) together with the screen plan, generate the API contract, then repeat this export. Nothing was written."},
+        })));
+    }
     // Never built, whatever else the call says: not by this export, and not
     // by an assumption recorded during implementation.
     let refused = request

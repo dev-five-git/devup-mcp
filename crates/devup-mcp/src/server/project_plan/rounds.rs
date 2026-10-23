@@ -135,7 +135,10 @@ pub(super) fn detail(
     plan: &Value,
     extra: &[screen_plan::ExtraQuestionInput],
 ) -> Result<Vec<Value>, DevupError> {
-    let mut questions = vec![];
+    let mut questions = intake(&plan["facts"])
+        .into_iter()
+        .filter(|question| plan["answers"][text(&question["id"])].is_null())
+        .collect::<Vec<_>>();
     if array(&plan["features"]).is_empty() && array(&plan["issues"]).is_empty() {
         return Err(invalid(
             "draft needs features or Jira issues read from sources",
@@ -150,26 +153,40 @@ pub(super) fn detail(
             .or_else(|| feature["key"].as_str())
             .unwrap_or("feature");
         let haystack = format!("{} {}", text(&feature["scope"]), feature["acceptance"]).to_lowercase();
-        let has_screens = !array(&feature["screens"]).is_empty();
-        let topics: [(&str, &str, &[&str], [&str; 3]); 5] = [
-            ("screens", "the screens/routes and user roles (the feature lists none)", &[], ["Derive screens from the acceptance criteria", "List screens now", "Exclude this capability"]),
+        let topics: [(&str, &str, &[&str], [&str; 3]); 4] = [
             ("states", "empty, loading and error states", &[], ["Use recorded feature acceptance criteria", "Standard empty/loading/error states", "Exclude this capability"]),
             ("permissions", "permissions and ownership", &["admin", "auth", "login", "role", "permission", "owner", "member"], ["Admins only", "Signed-in users", "Public"]),
             ("forms", "forms and field validation", &["form", "input", "inquiry", "contact", "signup", "register", "submit", "search", "write", "edit"], ["Required fields with inline validation", "Use recorded feature acceptance criteria", "Exclude this capability"]),
-            ("notifications", "notifications and external integrations (payment, mail, maps, login providers)", &["mail", "email", "smtp", "notif", "payment", "map", "sms", "alert", "analytics", "oauth"], ["No notifications or integrations", "Email to a staff address", "Other integration (custom answer)"]),
+            ("notifications", "notifications and external integrations (payment, mail, maps, login providers)", &["mail", "email", "smtp", "notif", "payment", "map", "sms", "alert", "analytics", "oauth"], ["No notifications or integrations", "SMTP email to a staff address", "Other integration (custom answer)"]),
         ];
         for (topic, prompt, keywords, options) in topics {
             let relevant = match topic {
-                "screens" => !has_screens,
                 "states" => true,
                 _ => keywords.iter().any(|k| haystack.contains(k)),
             };
             let key = format!("{id}.{topic}");
             if relevant && plan["facts"][&key].is_null() {
-                questions.push(ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"]), &options));
+                questions.push(ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Acceptance: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"], feature["acceptance"]), &options));
             }
         }
     }
+    let mut grouped: Vec<Value> = Vec::new();
+    for mut question in questions {
+        let id = text(&question["id"]).to_owned();
+        if let Some((feature, topic)) = id.rsplit_once('.') {
+            if let Some(existing) = grouped.iter_mut().find(|q| {
+                text(&q["id"]).rsplit_once('.').is_some_and(|(_, other)| other == topic)
+                    && q["options"] == question["options"]
+            }) {
+                existing["features"].as_array_mut().unwrap().push(json!(feature));
+                existing["question"] = json!(format!("{}\n{}", text(&existing["question"]), text(&question["question"])));
+                continue;
+            }
+            question["features"] = json!([feature]);
+        }
+        grouped.push(question);
+    }
+    let mut questions = grouped;
     if erd::api(plan) && !array(&plan["entities"]).is_empty() {
         for (key, topic) in [
             (
@@ -192,7 +209,25 @@ pub(super) fn detail(
             ("storage", "Set file/image storage and nullable metadata"),
         ] {
             if plan["facts"][key].is_null() {
-                questions.push(ask(key, format!("{topic}. Draft ERD: {}. Supply changes as entities/relations with confirm; a prose correction requires redraft.", plan["entities"]), &["Approve recorded ERD", "Revise ERD before confirming"]));
+                let names = array(&plan["entities"]).iter().map(|e| text(&e["name"])).collect::<Vec<_>>();
+                let entities = names.join(", ");
+                let columns = array(&plan["entities"]).iter().flat_map(|e| {
+                    array(&e["columns"]).iter().filter(|c| !c["index"].is_null() || !c["unique"].is_null())
+                        .map(|c| format!("{}.{}", text(&e["name"]), text(&c["name"])))
+                }).collect::<Vec<_>>().join(", ");
+                let choices = match key {
+                    "erd" => vec![format!("Keep recorded columns and relations for {entities}"), "Revise ERD before confirming".into()],
+                    "tenancy" => vec![format!("Single tenant for {entities}"), format!("Tenant ownership required for {entities}")],
+                    "auth" => vec![format!("Use recorded auth and role columns for {entities}"), format!("External identity provider for {entities}")],
+                    "lifecycle" => vec![format!("Keep recorded lifecycle for {entities}"), format!("Soft delete required for {entities}"), format!("Hard delete with recorded FK actions for {entities}")],
+                    "indexes" => vec![format!("Keep recorded indexes: {columns}"), format!("Revise filter and sort indexes for {entities}")],
+                    "storage" => vec![format!("Use recorded file metadata for {entities}"), format!("Object storage with nullable metadata for {entities}"), format!("No file storage for {entities}")],
+                    _ => unreachable!(),
+                };
+                let options = choices.iter().map(String::as_str).collect::<Vec<_>>();
+                let mut question = ask(key, format!("{topic}. Draft ERD: {}. Supply changes as entities/relations with confirm; a prose correction requires redraft.", plan["entities"]), &options);
+                question["entities"] = json!(names);
+                questions.push(question);
             }
         }
     }
