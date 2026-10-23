@@ -157,7 +157,7 @@ pub(super) fn detail(
             ("states", "empty, loading and error states", &[], ["Use recorded feature acceptance criteria", "Standard empty/loading/error states", "Exclude this capability"]),
             ("permissions", "permissions and ownership", &["admin", "auth", "login", "role", "permission", "owner", "member"], ["Admins only", "Signed-in users", "Public"]),
             ("forms", "forms and field validation", &["form", "input", "inquiry", "contact", "signup", "register", "submit", "search", "write", "edit"], ["Required fields with inline validation", "Use recorded feature acceptance criteria", "Exclude this capability"]),
-            ("notifications", "notifications and external integrations (payment, mail, maps, login providers)", &["mail", "email", "smtp", "notif", "payment", "map", "sms", "alert", "analytics", "oauth"], ["No notifications or integrations", "Email to a staff address", "Other integration (custom answer)"]),
+            ("notifications", "notifications and external integrations (payment, mail, maps, login providers)", &["mail", "email", "smtp", "notif", "payment", "map", "sms", "alert", "analytics", "oauth"], ["No notifications or integrations", "SMTP email to a staff address", "Other integration (custom answer)"]),
         ];
         for (topic, prompt, keywords, options) in topics {
             let relevant = match topic {
@@ -170,6 +170,23 @@ pub(super) fn detail(
             }
         }
     }
+    let mut grouped: Vec<Value> = Vec::new();
+    for mut question in questions {
+        let id = text(&question["id"]).to_owned();
+        if let Some((feature, topic)) = id.rsplit_once('.') {
+            if let Some(existing) = grouped.iter_mut().find(|q| {
+                text(&q["id"]).rsplit_once('.').is_some_and(|(_, other)| other == topic)
+                    && q["options"] == question["options"]
+            }) {
+                existing["features"].as_array_mut().unwrap().push(json!(feature));
+                existing["question"] = json!(format!("{}\n{}", text(&existing["question"]), text(&question["question"])));
+                continue;
+            }
+            question["features"] = json!([feature]);
+        }
+        grouped.push(question);
+    }
+    let mut questions = grouped;
     if erd::api(plan) && !array(&plan["entities"]).is_empty() {
         for (key, topic) in [
             (

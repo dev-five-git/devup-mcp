@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn shared_feature_topics_are_one_question_with_concrete_choices() {
+    let plan = json!({"facts":{},"answers":{},"issues":[],"entities":[],"features":[
+        {"id":"contact","scope":"Contact form with SMTP email","acceptance":[]},
+        {"id":"signup","scope":"Signup form with SMTP email","acceptance":[]}
+    ]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    let forms = questions.iter().filter(|q| text(&q["id"]).ends_with(".forms")).collect::<Vec<_>>();
+    assert_eq!(forms.len(), 1);
+    assert_eq!(forms[0]["features"], json!(["contact", "signup"]));
+    let notifications = questions.iter().find(|q| text(&q["id"]).ends_with(".notifications")).unwrap();
+    assert_eq!(array(&notifications["options"]).len(), 3);
+    assert!(array(&notifications["resolve"]).iter().any(|option| option["action"] == "SMTP email to a staff address"));
+}
+
 #[tokio::test]
 async fn confirm_missing_answers_returns_executable_recovery() {
     let dir = TestDir::new();
