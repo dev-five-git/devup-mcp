@@ -138,8 +138,13 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
     for entry in written {
         assert_eq!(entry["source"], "embedded");
         // Skills authored in this repository have no upstream to fetch from.
-        if !["devfive-frontend", "devup-implementation-plan", "devup"]
-            .contains(&entry["name"].as_str().unwrap())
+        if ![
+            "devfive-frontend",
+            "devup-implementation-plan",
+            "devup",
+            "figma-bridge-setup",
+        ]
+        .contains(&entry["name"].as_str().unwrap())
         {
             assert!(
                 entry["reason"]

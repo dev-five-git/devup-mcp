@@ -65,6 +65,10 @@ type Documents = &'static [(&'static str, &'static str)];
 
 const EMBEDDED: &[(&str, Documents)] = &[
     (
+        "figma-bridge-setup",
+        &[("SKILL.md", include_str!("figma-bridge-setup/SKILL.md"))],
+    ),
+    (
         "devup-ui",
         &[("SKILL.md", include_str!("devup-ui/SKILL.md"))],
     ),

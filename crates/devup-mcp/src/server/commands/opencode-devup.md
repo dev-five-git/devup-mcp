@@ -100,13 +100,16 @@ items; never claim completion from split or command generation alone.
 
 For Figma work, continue with the following branch after project intake:
 
-1. `devup_figma_auth` status.
+1. `devup_figma_auth` status. If disconnected, out of view or on a mismatched
+   relay host, load `figma-bridge-setup`, perform its computer-use setup yourself,
+   then verify status and a small read. Don't ask the user to click routine menus.
 2. `devup_skills` status, then install what is missing, and load the skills.
 3. `devup_project_context` with scope theme and scope routes.
 4. `devup_screen_plan` draft with projectRoot, the link, the notes and
    extraQuestions for anything you would otherwise guess later.
 5. Ask every question now with the `question` tool: the flat `questions` list
-   in one call. Never in prose, never during implementation.
+   in one call. Never in prose. New user-owned decisions after confirm still
+   use the question tool; workers escalate to the supervisor.
 6. `devup_screen_plan` confirm with every answer that applies.
 7. Latest first, without asking: at the repository root run
    `bunx @dependency-check-updates/cli -d -u --rm` - it updates every
@@ -116,7 +119,15 @@ For Figma work, continue with the following branch after project intake:
    to the new APIs, pin only when no fix exists, and record it with
    `devup_screen_plan` assume (dependencyUpdate). Check current docs before
    using any library API.
-8. Implement URL by URL without asking anything: `devup_figma_export` with
+8. Extract components before pages: the first implementation unit after confirm
+   exports used COMPONENT_SET/COMPONENT nodes with `outputs: ["componentTsx"]`
+   to components/common or components/layout. Record mainComponent id -> generated
+   file and artifact identity in `.devup/component-map.json`. Assemble pages by
+   screen-plan section (a direct child of the screen frame root), starting from
+   generated TSX and mapped imports. Never hand-write TSX from Figma nodes.
+   Audit through the component/section file mapping and explicit rendered targets,
+   not DOM Figma attributes. Report unsupported exports/overrides as limitations.
+   Implement URL by URL: `devup_figma_export` with
    projectRoot and frameIds, plus the plan's defaults - each element's role
    recipe (hover, pressed, focus ring, current page, expanded, disabled,
    loading; restrained), one shared transition, reduced motion, view
@@ -137,14 +148,26 @@ For Figma work, continue with the following branch after project intake:
     workQueue order, re-run. A geometry mismatch is code-drift (restore the
     export) or converter-bug (repro filed, never retried). After
     maxFixAttempts (default 3) a finding is unresolved with its evidence. No runner: toolingUnavailable, carry on.
-11. Never stop to wait: a decision mid-run goes to `devup_screen_plan` defer
+11. Continue independent work: an ordinary choice mid-run goes to `devup_screen_plan` defer
     with the recommended option; take it with assume at the end (a
     destructive one stays unbuilt).
 12. Done = zero fails at the drawn widths and no health or overflow fail at
     any width, or a filed converter bug, or listed as unresolved with
     evidence. Also every URL implemented, no data-figma-node-id in the
-    production build (strip plugin in vite.config, grep the output), `bun run build`, `bun run lint`, `bunx oxlint
+    production build (DevupUI strips attributes by default; `DEVUP_AUDIT=1`
+    keeps them). Do not change app build config for auditing or register a
+    strip plugin. Node attributes are off by default; `figmaNodeIds: true`
+    is opt-in only where supported by the export schema. `bun run build`, `bun run lint`, `bunx oxlint
     --deny-warnings`, `bun tsc --noEmit` in each changed app and `bun test`
     pass (`bun run test` adds cargo tarpaulin, which does not work on
     Windows), devup_ui_validate has no errors, site completeness filled.
 13. Finish with the status finalReport and summary.
+
+User-owned decisions, before or after confirm, use the runtime question tool.
+Show the evidence table first. Keep table approval and individual decisions as
+separate entries in the same call, with headers up to 30 characters and two to
+four options, recommended first and labelled "(Recommended)". Never ask for
+numbers in chat. Record the chosen answer, decision id, affected model/endpoint/file
+and rationale with existing defer/assume actions, not an invented ask action.
+Update source models and re-confirm ERD changes before dependent implementation.
+Without a question tool, report the limitation and leave that decision unresolved.

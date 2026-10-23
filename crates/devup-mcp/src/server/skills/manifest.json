@@ -3,6 +3,24 @@
   "documentNote": "Each entry's documents[] lists every file the skill installs, by path relative to the skill directory. The same relative path is used under crates/devup-mcp/src/server/skills/<name>/ in this tree, so a document's source and its install location never disagree. A skill is single-file when that list has one SKILL.md in it.",
   "skills": [
     {
+      "name": "figma-bridge-setup",
+      "origin": "own",
+      "title": "Agent-operated Devup Bridge setup",
+      "description": "Use when Bridge is disconnected, Figma is out of view or relay host identity differs from the current server.",
+      "usedFor": "The agent prepares the desktop app and plugin with computer use, verifies host identity and checks a real read before export.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/figma-bridge-setup",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 3559,
+          "sha256": "9919baab3af27236c5bdb02b0b60d02570dd818111edca6c6dadcdfc07404dca"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/figma-bridge-setup",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/figma-bridge-setup"
+    },
+    {
       "name": "devup-ui",
       "origin": "embedded",
       "title": "devup-ui conventions",
@@ -71,8 +89,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 39368,
-          "sha256": "13bdc8b1508af78f22f4db6b3e4b7a3a39fc637bd4c113432fb15ef6c3bd5ad6"
+          "bytes": 41192,
+          "sha256": "75acf47ca65662fbad0cbbc7713593e0e532f57d3ce2807f143137270af0598d"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -89,8 +107,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 19829,
-          "sha256": "2cdf2561e35f735bfa7ee26e40a8a84e7560d61e48dcc1d4c0094ed6517e7734"
+          "bytes": 20857,
+          "sha256": "b97af364c5883d289837db47faf1e26bdb342261b1352e643062c4f949d75abb"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",
