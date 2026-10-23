@@ -301,6 +301,10 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
 
 ## Steps
 
+Before listing screens, call `devup_figma_auth` status. For disconnected,
+out-of-view or mismatched-host states, load `figma-bridge-setup` and perform
+its computer-use setup yourself. Verify status and a small read before export.
+
 1. **List the screens.** If you only have a Section link, `devup_figma_explore`
    lists them; if you already hold the frame ids, you have the list. Then
    `devup_project_context` with `scope: "routes"` shows the existing pages.

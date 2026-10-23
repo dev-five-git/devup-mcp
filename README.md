@@ -471,7 +471,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 **1. Figma 데스크톱 앱에서 불러옵니다**
 
-Figma의 플러그인 등록은 데스크톱 앱의 메뉴 동작이라 스크립트로 대신할 수 없습니다. 이 세 단계만 직접 하시면 됩니다.
+에이전트는 `devup_skills install`로 배포되는 `figma-bridge-setup` 스킬을 읽고 computer use로 아래 메뉴를 직접 조작합니다. 먼저 status에서 host/server commit·buildId를 비교하고, `inView:false`이면 Figma 창을 앞으로 가져와 해당 파일 탭을 누릅니다. Figma가 없으면 question 도구로 데스크톱 설치와 metered direct OAuth 중에서 묻습니다. 오래된 host는 PID·경로·소유 클라이언트를 확인한 뒤 그 연결만 재시작하며, 다른 세션을 중단하기 전에는 승인을 받습니다. 마지막에 status와 작은 노드 읽기로 연결을 확인합니다.
 
 1. **Figma 데스크톱 앱**을 엽니다 (브라우저판은 로컬 플러그인을 못 불러옵니다)
 2. 메뉴에서 **Plugins → Development → Import plugin from manifest...**

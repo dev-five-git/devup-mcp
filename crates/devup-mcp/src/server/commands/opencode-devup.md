@@ -100,7 +100,9 @@ items; never claim completion from split or command generation alone.
 
 For Figma work, continue with the following branch after project intake:
 
-1. `devup_figma_auth` status.
+1. `devup_figma_auth` status. If disconnected, out of view or on a mismatched
+   relay host, load `figma-bridge-setup`, perform its computer-use setup yourself,
+   then verify status and a small read. Don't ask the user to click routine menus.
 2. `devup_skills` status, then install what is missing, and load the skills.
 3. `devup_project_context` with scope theme and scope routes.
 4. `devup_screen_plan` draft with projectRoot, the link, the notes and

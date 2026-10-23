@@ -93,6 +93,12 @@ never carries them. Rule numbers match the original list, which skipped 9.
 
 ## 1a. Connection order: bridge -> direct
 
+For disconnected, out-of-view or mismatched relay-host states, load
+`figma-bridge-setup`. The agent performs desktop setup with computer use,
+then verifies status and a small read. Compare commit/buildId, not version.
+Ask before installing Figma, using metered direct OAuth or interrupting another
+session. Missing diagnostics or computer use remain explicit blockers.
+
 Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
 the Figma desktop app on the file, needs no login and spends none of Figma's
 allowance. The direct path is OAuth against Figma's MCP and is metered. Use the

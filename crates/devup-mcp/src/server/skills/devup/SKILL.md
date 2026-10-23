@@ -109,7 +109,9 @@ in this order and do not skip a step. The devup-implementation-plan skill has
 the full rules; these are the steps.
 
 1. **Connection.** `devup_figma_auth` with `action: "status"`. With a Bridge
-   plugin attached nothing needs a login; do not ask for one.
+   plugin attached nothing needs a login; do not ask for one. For disconnected,
+   out-of-view or mismatched-host states, load `figma-bridge-setup` and perform
+   its computer-use steps yourself, then verify status and a small read.
 2. **Skills.** `devup_skills` with `action: "status"` and this `projectRoot`;
    if anything is missing or outdated, `action: "install"`, then load the
    installed skills (devup-ui, devfive-frontend, devup-implementation-plan).
