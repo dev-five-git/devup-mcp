@@ -5,6 +5,30 @@ mod tests {
     use super::*;
     use crate::theme::parse_project_theme;
 
+    #[test]
+    fn prop_sort_findings_are_one_lint_fix_action() {
+        let report = serde_json::to_value(validate_devup_ui_tsx(
+            r#"<><Box p={0} boxSize="8px" /><Box props={{}} pr="16px" /></>"#,
+            None,
+            false,
+        )).unwrap();
+        assert_eq!(report["nextAction"]["command"], "bun run lint:fix");
+        assert_eq!(report["nextAction"]["fixable"], 2);
+        assert_eq!(report["nextAction"]["label"], "bun run lint:fix (fixable 2)");
+    }
+
+    #[test]
+    fn prop_sort_respects_reserved_props_and_spread_boundaries() {
+        for tsx in [
+            r#"<Box key="a" ref={ref} appearance="none" aria-expanded={false} />"#,
+            r#"<Box zIndex={1} {...props} appearance="none" />"#,
+            r#"<Box appearance="none" boxSize="8px" p={0} />"#,
+        ] {
+            let report = serde_json::to_value(validate_devup_ui_tsx(tsx, None, false)).unwrap();
+            assert!(report["nextAction"].is_null(), "{tsx}: {report}");
+        }
+    }
+
     fn fixture_theme() -> ProjectTheme {
         parse_project_theme(
             r##"{ "theme": {

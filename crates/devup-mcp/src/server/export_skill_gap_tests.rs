@@ -9,6 +9,33 @@
 //! `std::fs::` in it at all.
 
 use super::*;
+
+#[test]
+fn export_groups_prop_sorting_without_a_project_root() {
+    let project = scratch("lint-fix");
+    let checked = with_project_checks(
+        json!({"tsx": "<Box p={0} boxSize=\"8px\" />"}),
+        None,
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    assert_eq!(checked["formatting"]["nextAction"]["fixable"], 1);
+    assert_eq!(checked["nextAction"]["command"], "bun run lint:fix");
+    std::fs::remove_dir_all(project).unwrap();
+}
+
+#[test]
+fn export_preserves_an_existing_tool_action_when_grouping_sorting() {
+    let project = scratch("lint-fix-action");
+    let action = json!({"tool": "devup_figma_export", "arguments": {"jobId": "pending"}});
+    let checked = with_project_checks(
+        json!({"frames": [{"nodeId": "1:2", "tsx": "<Box p={0} boxSize=\"8px\" />"}], "nextAction": action}),
+        None,
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    assert_eq!(checked["formatting"]["nextAction"]["fixable"], 1);
+    assert_eq!(checked["nextAction"], action);
+    std::fs::remove_dir_all(project).unwrap();
+}
 fn scratch(label: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
         "devup-export-gap-{label}-{}-{}",
