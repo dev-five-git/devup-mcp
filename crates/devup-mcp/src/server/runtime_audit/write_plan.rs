@@ -54,7 +54,8 @@ fn write_plan(
     let mut template_files = Vec::new();
     let mut transaction = OutputTransaction::new();
     if let Some(directory) = template_path {
-        transaction.refuse_existing();
+        let mut template_transaction = OutputTransaction::new();
+        template_transaction.refuse_existing();
         for (name, bytes) in [
             ("resource-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/resource-checks.mjs").as_slice()),
             (
@@ -82,8 +83,9 @@ fn write_plan(
             let requested = Path::new(directory).join(name);
             let target = policy.resolve(&requested.to_string_lossy())?;
             template_files.push(json!({"path": target.display_path().display().to_string(), "sha256": sha256(bytes)}));
-            transaction.stage(name, target, bytes)?;
+            template_transaction.stage(name, target, bytes)?;
         }
+        template_transaction.commit()?;
     }
     if let Some(path) = output_path {
         let target = policy.resolve(path)?;

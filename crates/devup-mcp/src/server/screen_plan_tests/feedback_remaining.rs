@@ -64,3 +64,21 @@ async fn r58_audit_plan_finds_the_confirmed_monorepo_plan_from_front() {
     assert!(!fixture.0.join("apps/front/.devup/screen-plan.json").exists());
     assert!(text(&result["plans"][0]["planPath"]).starts_with(fixture.root()));
 }
+
+#[tokio::test]
+async fn r59_audit_plan_refreshes_its_output_when_the_runner_needs_recreation() {
+    let fixture = Fixture::new();
+    write_plan_file(&fixture, &confirmed_plan());
+    let request = input(&fixture, "auditPlan");
+    let store = ArtifactStore::default();
+    let first = audit_plan(&request, &fixture.policy(), &store).await.unwrap();
+    let path = text(&first["plans"][0]["planPath"]);
+    let report = Path::new(path).parent().unwrap().join("report/run.log");
+    std::fs::create_dir_all(report.parent().unwrap()).unwrap();
+    std::fs::write(&report, "keep this report").unwrap();
+    std::fs::remove_dir_all(fixture.0.join(".devup/runtime-audit/runner")).unwrap();
+    let refreshed = audit_plan(&request, &fixture.policy(), &store).await.unwrap();
+    assert_eq!(refreshed["plans"][0]["planPath"], first["plans"][0]["planPath"]);
+    assert_eq!(std::fs::read_to_string(report).unwrap(), "keep this report");
+    assert!(fixture.0.join(".devup/runtime-audit/runner/run.mjs").is_file());
+}
