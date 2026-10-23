@@ -535,6 +535,13 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
     }
     if let Some(route) = route.filter(|route| route.contains('[')) {
         decisions.push("dynamic-segment");
+        let mut choices = vec![
+            choice("Sample data from the design", "Render the Figma content as fixture data for one id; wire real data later.", json!({"data":"sample"})),
+            choice("Wire to the API now", "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.", json!({"data":"api"})),
+        ];
+        if project_api_screen(evidence, &name, route) {
+            choices.swap(0, 1);
+        }
         push(
             questions,
             question(
@@ -543,18 +550,7 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 format!(
                     "{route} has a dynamic segment. Where does \"{name}\" get the record it shows?"
                 ),
-                vec![
-                    choice(
-                        "Sample data from the design",
-                        "Render the Figma content as fixture data for one id; wire real data later.",
-                        json!({"data": "sample"}),
-                    ),
-                    choice(
-                        "Wire to the API now",
-                        "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.",
-                        json!({"data": "api"}),
-                    ),
-                ],
+                choices,
                 "dynamic",
             ),
             &[],
@@ -676,4 +672,15 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
     "openDecisions": decisions,
     "notes": screen_notes[index],
 }));
+}
+
+fn project_api_screen(evidence: &ProjectEvidence, name: &str, route: &str) -> bool {
+    let Some(source) = read_small(&evidence.root.join(".devup/project-plan.json")) else { return false; };
+    let Ok(plan) = serde_json::from_str::<Value>(&source) else { return false; };
+    array(&plan["features"]).iter().any(|feature| {
+        let scope = text(&feature["scope"]).to_lowercase();
+        scope.split(|character: char| !character.is_alphanumeric()).any(|word| word == "api")
+            && (array(&feature["screens"]).iter().any(|screen| text(screen) == name || text(screen) == route)
+                || route.split('/').any(|segment| segment == text(&feature["id"])))
+    })
 }

@@ -7,3 +7,4 @@ include!("screen_plan_tests/frame_inventory_and_link_labels.rs");
 
 include!("screen_plan_tests/prevention.rs");
 include!("screen_plan_tests/monorepo_root_plan.rs");
+include!("screen_plan_tests/feedback_remaining.rs");

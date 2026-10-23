@@ -37,3 +37,4 @@ include!("screen_plan/status.rs");
 include!("screen_plan/draft_plan_with.rs");
 include!("screen_plan/plan_route_group.rs");
 include!("screen_plan/state_variants.rs");
+include!("screen_plan/lookup.rs");
