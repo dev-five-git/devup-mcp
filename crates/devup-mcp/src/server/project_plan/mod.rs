@@ -541,7 +541,17 @@ pub(super) async fn run(
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
-            rounds::require_answers(&plan)?;
+            rounds::require_answers(&plan).map_err(|mut error| {
+                error.details = json!({
+                    "missingQuestionIds": array(&plan["questions"]).iter()
+                        .filter(|q| plan["answers"][text(&q["id"])].is_null())
+                        .map(|q| q["id"].clone()).collect::<Vec<_>>(),
+                    "nextAction":{"tool":"devup_project_plan","arguments":{
+                        "action":"confirm","projectRoot":input.project_root,
+                        "planId":plan["planId"],"answers":{},"acceptRecommended":true}}
+                });
+                error
+            })?;
             record_decisions(&mut plan, &input.decisions, "pending")?;
             if plan["answers"]
                 .as_object()

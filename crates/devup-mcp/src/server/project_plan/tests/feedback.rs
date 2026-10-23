@@ -1,6 +1,19 @@
 use super::*;
 
 #[tokio::test]
+async fn confirm_missing_answers_returns_executable_recovery() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.answers.clear();
+    let error = run(&request, &policy).await.unwrap_err();
+    let details = error.details;
+    assert_eq!(details["nextAction"]["tool"], "devup_project_plan");
+    assert!(!array(&details["missingQuestionIds"]).is_empty());
+    let recovery: ProjectPlanInput = serde_json::from_value(details["nextAction"]["arguments"].clone()).unwrap();
+    assert_eq!(run(&recovery, &policy).await.unwrap()["state"], "confirmed");
+}
+
+#[tokio::test]
 async fn confirm_summary_counts_all_persisted_decisions() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), false).await;
