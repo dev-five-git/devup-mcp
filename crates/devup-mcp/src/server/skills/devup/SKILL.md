@@ -152,7 +152,16 @@ the full rules; these are the steps.
     Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
     { bumped, pins }`); status shows it as the dependencies line. Skip only
     when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-8. **Implement URL by URL.** `devup_figma_export` with
+8. **Extract components before pages.** The first implementation unit after
+   confirm exports used `COMPONENT_SET`/`COMPONENT` nodes with
+   `outputs: ["componentTsx"]` to `components/common` or `components/layout`.
+   Record each `mainComponent` id -> generated file and artifact identity in
+   `.devup/component-map.json`. Assemble pages by screen-plan section (a direct
+   child of the screen frame root), starting from generated TSX and mapped imports.
+   Never hand-write TSX from Figma nodes. Audit through the component/section
+   file mapping and explicit rendered targets, not DOM Figma attributes.
+   Unsupported section exports or instance overrides remain reported limitations.
+   **Implement URL by URL.** `devup_figma_export` with
    `projectRoot` and each screen's `frameIds`; `pageScaffold` takes its route
    from the plan. Add the plan's `defaults` as you go: each interactive
    element's role recipe (hover, pressed, focus ring, current page, expanded,

@@ -119,7 +119,15 @@ For Figma work, continue with the following branch after project intake:
    to the new APIs, pin only when no fix exists, and record it with
    `devup_screen_plan` assume (dependencyUpdate). Check current docs before
    using any library API.
-8. Implement URL by URL: `devup_figma_export` with
+8. Extract components before pages: the first implementation unit after confirm
+   exports used COMPONENT_SET/COMPONENT nodes with `outputs: ["componentTsx"]`
+   to components/common or components/layout. Record mainComponent id -> generated
+   file and artifact identity in `.devup/component-map.json`. Assemble pages by
+   screen-plan section (a direct child of the screen frame root), starting from
+   generated TSX and mapped imports. Never hand-write TSX from Figma nodes.
+   Audit through the component/section file mapping and explicit rendered targets,
+   not DOM Figma attributes. Report unsupported exports/overrides as limitations.
+   Implement URL by URL: `devup_figma_export` with
    projectRoot and frameIds, plus the plan's defaults - each element's role
    recipe (hover, pressed, focus ring, current page, expanded, disabled,
    loading; restrained), one shared transition, reduced motion, view

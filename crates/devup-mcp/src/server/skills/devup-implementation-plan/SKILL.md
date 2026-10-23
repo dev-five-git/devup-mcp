@@ -341,7 +341,24 @@ its computer-use setup yourself. Verify status and a small read before export.
    Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
    { bumped, pins }`); status shows it as the dependencies line. Skip only
    when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-6. **Implement URL by URL.** For each confirmed route, call
+6. **Extract components before pages.** The first implementation unit after
+   confirm is component extraction, after the dependency prerequisite above.
+   Export every used `COMPONENT_SET`/`COMPONENT` with `outputs: ["componentTsx"]`
+   into `components/common` or `components/layout`, one component per file.
+   Record each `mainComponent` id -> generated file in `.devup/component-map.json`,
+   retaining its artifact identity and variant/instance bindings. Reuse these
+   files instead of duplicating instance bodies or inventing a name-based mapping.
+   Assemble each confirmed page by screen-plan section: a section is a direct
+   child of the screen frame root, not the enclosing Figma SECTION. Start from
+   generated section TSX and wire imports to the recorded component files.
+   Never hand-write TSX from Figma nodes or reconstruct it from screenshots.
+   If this server cannot export the required section or preserve an instance
+   override, record the limitation; do not pretend an unsupported export exists.
+   Audit through the component/section file mapping and explicit rendered
+   targets, not DOM Figma attributes. Retain node -> file -> rendered-target
+   evidence; missing mapping coverage remains unverified, never a pass.
+
+   **Implement URL by URL.** For each confirmed route, call
    `devup_figma_export` with `projectRoot` and that screen's `frameIds`. With
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
    a different one. Add the plan's `defaults` (states, transition, reduced

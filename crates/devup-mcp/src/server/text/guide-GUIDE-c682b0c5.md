@@ -292,6 +292,15 @@ on the `next` CLI is asked once whether to migrate.
 
 ## 16. Visual verification of everything, full autonomy
 
+After confirm, the first implementation unit extracts used COMPONENT_SET/COMPONENT
+nodes with `outputs: ["componentTsx"]` into `components/common` or
+`components/layout`. Record `mainComponent` id -> generated file and artifact
+identity in `.devup/component-map.json`. Assemble pages from generated TSX by
+screen-plan section (a direct child of the screen frame root). Never hand-write
+TSX from Figma nodes. Audit through component/section file mappings and explicit
+rendered targets, not DOM Figma attributes. Unsupported section exports or
+instance overrides remain reported limitations; missing mapping coverage is unverified.
+
 Visually verify every screen, section and asset at every drawn width.
 `devup_screen_plan` `auditPlan` writes one runtime-audit plan per URL: page
 health, overflow and clipped text at every width; the page, each section and
