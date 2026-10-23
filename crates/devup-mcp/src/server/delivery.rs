@@ -284,7 +284,7 @@ pub(super) fn with_inline_recovery(mut error: DevupError, arguments: Value) -> D
             split.push(serde_json::json!({"tool":"devup_figma_export","arguments":args}));
         }
     }
-    if arguments["delivery"] == "resource" && error.details.get("envelopeFields").is_some() {
+    if arguments["delivery"] == "resource" && error.details.get("envelopeFields").is_some() && split.is_empty() {
         let mut narrowed = arguments.clone();
         if let Some(object) = narrowed.as_object_mut() {
             object.remove("assetRequests");
