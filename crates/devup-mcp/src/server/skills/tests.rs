@@ -6,6 +6,16 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     #[test]
+    fn formatter_ownership_warning_is_carried_in_every_frontend_workflow() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            for required in ["no standalone prettier config", "devup(prettier)", "Do not run `bunx prettier --write` or biome", "semicolons and double quotes"] {
+                assert!(text.contains(required), "{name}: {required}");
+            }
+        }
+    }
+
+    #[test]
     fn verification_starts_with_lint_fix_then_oxlint() {
         for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
             let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;

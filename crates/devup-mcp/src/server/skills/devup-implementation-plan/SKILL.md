@@ -446,6 +446,10 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    - run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
      Never fix JSX prop order, import sorting or formatting errors by hand.
      Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+     **Formatter ownership:** this template has no standalone prettier config.
+     Formatting is owned by eslint-plugin-devup's `devup(prettier)` rule inside oxlint.
+     Do not run `bunx prettier --write` or biome: their defaults produce a different
+     style (semicolons and double quotes), undoing the project's lint formatting.
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
    - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt
