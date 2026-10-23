@@ -267,6 +267,7 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
         "vespertide export --orm seaorm"
     ]);
     plan["backendNotes"] = json!([
+        "Stop if vespertide diff reports a table or column deletion; preserve existing models and review the destructive change before generating SQL or a revision.",
         "Before cargo check, make sure the API Cargo.toml depends on serde (derive) and serde_json; exported entities use them.",
         "Add `mod models;` to the API main.rs; export does not wire the generated src/models.",
         "Right after export, cargo clippy -- -D warnings reports never-constructed ModelEx structs until routes use them; that is expected before the route units."
@@ -357,6 +358,26 @@ pub(super) fn write_models(
         return Err(invalid("API plan requires a complete ERD"));
     }
     validate(entities)?;
+    let mut existing = Vec::new();
+    scan_models(&Path::new(root).join(text(&plan["modelsDir"])), &mut existing)?;
+    let mut removed_columns = Vec::new();
+    for model in &existing {
+        if let Some(entity) = entities.iter().find(|entity| entity["name"] == model["name"]) {
+            for column in array(&model["columns"]) {
+                if !array(&entity["columns"]).iter().any(|candidate| candidate["name"] == column["name"]) {
+                    removed_columns.push(json!({"table":model["name"],"column":column["name"]}));
+                }
+            }
+        }
+    }
+    if !removed_columns.is_empty() {
+        let mut error = invalid("Confirm would remove existing model columns; redraft with the existing columns preserved before confirming");
+        error.details = json!({"removedColumns":removed_columns,
+            "decision":{"id":"model-column-removal","destructive":true,"state":"pending",
+                "reason":"Existing source-model columns are absent from the proposed ERD",
+                "recommended":"Preserve existing columns and redraft"}});
+        return Err(error);
+    }
     for e in entities {
         let file = format!("{}/{}.json", text(&plan["modelsDir"]), text(&e["name"]));
         let bytes = serde_json::to_vec_pretty(e).map_err(|e| invalid(e.to_string()))?;
