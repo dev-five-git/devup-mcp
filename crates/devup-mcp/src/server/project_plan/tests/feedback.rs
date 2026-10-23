@@ -1,6 +1,25 @@
 use super::*;
 
 #[tokio::test]
+async fn project_facts_auto_fill_screen_answers_with_explicit_answer_precedence() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    std::fs::write(dir.path().join(".devup/screen-plan.json"), json!({
+        "kind":"devup-screen-plan","schemaVersion":1,"planId":"screen","state":"draft",
+        "questions":[{"id":"siteName"},{"id":"siteUrl"}]
+    }).to_string()).unwrap();
+    request.action = "draft".into();
+    request.answers.clear();
+    request.answers.insert("siteUrl".into(), json!("https://explicit.example"));
+    request.evidence = vec![serde_json::from_value(json!({"source":"spec","facts":{
+        "siteName":"Chondrogen","siteUrl":"https://source.example"
+    }})).unwrap()];
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["screenPlanForward"]["arguments"]["answers"], json!({"siteName":"Chondrogen","siteUrl":"https://explicit.example"}));
+    assert!(read(&request.project_root).unwrap()["answers"]["siteName"].is_null());
+}
+
+#[tokio::test]
 async fn redraft_reports_added_changed_and_kept_records() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), false).await;

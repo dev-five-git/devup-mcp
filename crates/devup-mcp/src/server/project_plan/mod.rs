@@ -501,7 +501,21 @@ pub(super) async fn run(
         )));
     }
     let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
-        forward_screen_answers(&input.project_root, &input.answers, input.accept_recommended)
+        let mut shared = BTreeMap::new();
+        let fresh = rounds::facts(input)?;
+        for key in ["siteName", "siteUrl", "favicon", "ogImage", "motion"] {
+            let value = input.answers.get(key)
+                .or_else(|| plan["answers"].get(key))
+                .or_else(|| fresh.get(key))
+                .or_else(|| plan["facts"].get(key));
+            if let Some(value) = value.filter(|v| v.as_str().is_some_and(|s| !s.trim().is_empty()))
+                && open_screen_questions(&input.project_root).iter().any(|q| q["id"] == key)
+            {
+                shared.insert(key.to_owned(), value.clone());
+            }
+        }
+        shared.extend(input.answers.clone());
+        forward_screen_answers(&input.project_root, &shared, input.accept_recommended)
     } else {
         (input.answers.clone(), Value::Null)
     };
