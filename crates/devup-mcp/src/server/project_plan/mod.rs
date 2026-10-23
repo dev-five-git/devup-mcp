@@ -496,11 +496,15 @@ pub(super) async fn run(
     // status is a read: it may omit planId and reads it from the plan file.
     let provided = input.plan_id.is_some() || input.action != "status";
     if provided && input.plan_id.as_deref() != plan["planId"].as_str() {
-        return Err(invalid(format!(
+        let mut error = invalid(format!(
             "planId is missing or stale; current planId {} state {}",
             text(&plan["planId"]),
             text(&plan["state"])
-        )));
+        ));
+        error.details = json!({"planId":plan["planId"],"state":plan["state"],
+            "nextAction":{"tool":"devup_project_plan","arguments":{
+                "action":"status","projectRoot":input.project_root,"planId":plan["planId"]}}});
+        return Err(error);
     }
     let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
         let mut shared = BTreeMap::new();

@@ -22,6 +22,7 @@ use super::*;
 mod feedback;
 mod contracts;
 mod inference;
+mod recovery;
 fn input(root: &Path, action: &str) -> ProjectPlanInput {
     serde_json::from_value(json!({"action":action,"projectRoot":root})).unwrap()
 }
