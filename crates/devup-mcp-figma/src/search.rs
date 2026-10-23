@@ -41,6 +41,7 @@ const EXCLUDED_KEYWORDS: &[&str] = &[
     "archive",
     "draft",
     "copy",
+    "hidden",
     "휴지통",
     "보관",
     "초안",
@@ -62,6 +63,33 @@ fn excluded_reason(breadcrumb: &[String], page_name: Option<&str>) -> Option<Str
                 .find(|keyword| lowered.contains(*keyword))
                 .map(|keyword| format!("{keyword} ({name})"))
         })
+}
+
+pub fn node_excluded_reason(snapshot: &Snapshot, node_id: &str) -> Option<String> {
+    let parents = parent_index(snapshot);
+    let mut current = Some(node_id);
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(id) = current {
+        if !visited.insert(id) {
+            break;
+        }
+        let node = snapshot.nodes.get(id)?;
+        let name = node.typed_view().name().unwrap_or(id);
+        if node.fields.get("visible") == Some(&serde_json::Value::Bool(false))
+            || node
+                .fields
+                .get("opacity")
+                .and_then(serde_json::Value::as_f64)
+                == Some(0.0)
+        {
+            return Some(format!("hidden ({name})"));
+        }
+        if let Some(reason) = excluded_reason(&[], Some(name)) {
+            return Some(reason);
+        }
+        current = parents.get(id).map(String::as_str);
+    }
+    None
 }
 
 pub fn search_snapshot(
@@ -122,7 +150,7 @@ pub fn search_snapshot(
             };
             let breadcrumb = breadcrumb(snapshot, &parents, &node.id);
             let page_name = ancestor_page(snapshot, &parents, &node.id);
-            let excluded = excluded_reason(&breadcrumb, page_name.as_deref());
+            let excluded = node_excluded_reason(snapshot, &node.id);
             Some(SearchResult {
                 excluded,
                 node_id: node.id.clone(),
@@ -494,6 +522,24 @@ mod tests {
             assert!(excluded_reason(&[], Some(page)).is_some(), "{page}");
         }
         assert!(excluded_reason(&[], Some("디자인 시스템")).is_none());
+    }
+
+    #[test]
+    fn feedback08_hidden_ancestors_are_excluded() {
+        let (mut snapshot, target) = typed_snapshot();
+        snapshot
+            .nodes
+            .get_mut("0:1")
+            .unwrap()
+            .fields
+            .insert("visible".into(), json!(false));
+        let results = search_snapshot(&snapshot, &target, &options("Home", &[])).unwrap();
+        assert!(
+            results[0]
+                .excluded
+                .as_deref()
+                .is_some_and(|reason| reason.contains("hidden"))
+        );
     }
 
     #[test]
