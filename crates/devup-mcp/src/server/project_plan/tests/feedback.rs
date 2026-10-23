@@ -1,5 +1,106 @@
 use super::*;
 
+#[tokio::test]
+async fn screen_data_contracts_survive_confirm_split_and_check_openapi_fields() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), true).await;
+    request.action = "draft".into();
+    request.answers.clear();
+    request.features = vec![Feature {id:"catalog".into(),scope:"Catalog".into(),screens:vec!["9:1".into()],acceptance:vec![],entities:vec![]}];
+    request.evidence = vec![serde_json::from_value(json!({"source":"Figma","facts":{"screens":[
+        {"nodeId":"9:1","name":"Post management","parts":["PostTable","DetailPanel","CreateForm","EditForm"]}
+    ]}})).unwrap()];
+    let draft = run(&request, &policy).await.unwrap();
+    assert_eq!(draft["dataMappings"][0]["candidateEntities"], json!(["post"]));
+    assert_eq!(array(&draft["endpointContracts"]).len(), 4);
+    request.action = "confirm".into();
+    request.accept_recommended = true;
+    request.evidence.clear();
+    request.detail = None;
+    let confirmed = run(&request, &policy).await.unwrap();
+    assert_eq!(confirmed["endpointContracts"], draft["endpointContracts"]);
+    let create = array(&confirmed["endpointContracts"]).iter().find(|contract| contract["operation"] == "create").unwrap();
+    assert_eq!(create["method"], "POST");
+    assert_eq!(create["path"], "/posts");
+    assert!(!array(&create["requestFields"]).iter().any(|field| field["name"] == "id"));
+    assert!(array(&create["requestFields"]).iter().any(|field| field["name"] == "title" && field["type"] == "text" && field["required"] == true));
+    std::fs::write(dir.path().join("openapi.json"), json!({"paths":{
+        "/posts":{"get":{"operationId":"listPosts","responses":{"200":{"content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/Post"}}}}}}},
+        "post":{"operationId":"createPost","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}}}}},
+        },"components":{"schemas":{"Post":{"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"user_id":{"type":"integer"}}}}}
+    }).to_string()).unwrap();
+    request.action = "split".into();
+    let split = run(&request, &policy).await.unwrap();
+    assert_eq!(array(&split["apiWiring"]["contractMissing"]).len(), 2);
+    let brief = std::fs::read_to_string(dir.path().join(".devup/units/catalog-domain.md")).unwrap();
+    assert!(brief.contains("requestFields") && brief.contains("/posts/{id}"));
+    let mut doc: Value = serde_json::from_slice(&std::fs::read(dir.path().join("openapi.json")).unwrap()).unwrap();
+    doc["components"]["schemas"]["Post"]["properties"].as_object_mut().unwrap().remove("title");
+    std::fs::write(dir.path().join("openapi.json"), doc.to_string()).unwrap();
+    request.action = "status".into();
+    let status = run(&request, &policy).await.unwrap();
+    assert!(array(&status["apiWiring"]["contractMissing"]).iter().any(|missing| text(&missing["reason"]).contains("title")));
+}
+
+#[tokio::test]
+async fn split_groups_menu_and_entity_domains_and_supervises_repeated_parts() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), true).await;
+    run(&request, &policy).await.unwrap();
+    let mut plan = read(&request.project_root).unwrap();
+    plan["features"] = json!([
+        {"id":"news","scope":"News list","screens":["1:1"],"entities":["post"],"acceptance":["List news"]},
+        {"id":"editor","scope":"Editor","screens":["1:2"],"entities":["post"],"acceptance":["Edit news"]},
+        {"id":"history","scope":"History","screens":["2:1"],"acceptance":[]},
+        {"id":"team","scope":"Team","screens":["2:2"],"acceptance":[]}
+    ]);
+    plan["facts"]["screens"] = json!([
+        {"nodeId":"1:1","name":"News list","section":"news","parts":["PageHero","SubNav","SubNav"]},
+        {"nodeId":"1:2","name":"Editor","section":"admin","parts":["PageHero"]},
+        {"nodeId":"2:1","name":"History","menu":"company","parts":["SubNav"]},
+        {"nodeId":"2:2","name":"Team","menu":"company","parts":["UniqueBlock"]}
+    ]);
+    let mut tx = OutputTransaction::new();
+    units::split(&request, &mut plan, &mut tx, &policy).unwrap();
+    tx.commit().unwrap();
+    let workers = array(&plan["units"]).iter().filter(|u| u["stage"] == 1).collect::<Vec<_>>();
+    assert_eq!(workers.len(), 2);
+    assert_eq!(workers[0]["features"], json!(["news","editor"]));
+    assert_eq!(workers[1]["features"], json!(["history","team"]));
+    let shared = &plan["units"][0];
+    assert_eq!(shared["sharedParts"], json!(["PageHero","SubNav"]));
+    assert_eq!(shared["stage"], 0);
+    assert_eq!(shared["owner"], "supervisor");
+    assert!(std::fs::read_to_string(dir.path().join(".devup/units/shared.md")).unwrap().contains("PageHero"));
+    let start = ProjectPlanInput {unit_updates:vec![UnitUpdate {id:text(&workers[0]["id"]).into(),state:"running".into(),..Default::default()}],..request};
+    assert!(units::update(&start, &mut plan).is_err());
+}
+
+#[test]
+fn backend_checks_resolve_workspace_aliases_and_derive_features() {
+    let dir = TestDir::new();
+    let api = dir.path().join("apis/api");
+    std::fs::create_dir_all(api.join("src")).unwrap();
+    std::fs::write(api.join("src/main.rs"), "mod models; fn main() {}").unwrap();
+    let plan = json!({"state":"confirmed","modelsWorkingDirectory":"apis/api"});
+    let root = dir.path().to_string_lossy();
+    std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = [\"apis/api\"]\n[workspace.dependencies]\nserialization = { package = \"serde\", version = \"1\", features = [\"derive\"] }\njson = { package = \"serde_json\", version = \"1\" }\n").unwrap();
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserialization.workspace = true\njson.workspace = true\n").unwrap();
+    assert!(wiring::backend_checks(&plan, &root).is_empty());
+    std::fs::write(api.join("Cargo.toml"), "[dependencies.serialization]\npackage = \"serde\"\nversion = \"1\"\n[dependencies.json]\npackage = \"serde_json\"\nversion = \"1\"\n").unwrap();
+    let checks = wiring::backend_checks(&plan, &root);
+    assert_eq!(checks.len(), 1);
+    assert!(checks[0].contains("cargo add serde --features derive"));
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserde = { workspace = true }\nserde_json = { workspace = true }\n").unwrap();
+    let checks = wiring::backend_checks(&plan, &root);
+    assert_eq!(checks.len(), 2, "unresolved workspace dependencies are missing");
+    assert!(checks[0].contains("cargo add serde --features derive"));
+    assert!(checks[1].contains("cargo add serde_json"));
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserialization = { workspace = true, features = [\"derive\"] }\njson.workspace = true\n").unwrap();
+    std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\n[workspace.dependencies]\nserialization = { package = \"serde\", version = \"1\" }\njson = { package = \"serde_json\", version = \"1\" }\n").unwrap();
+    assert!(wiring::backend_checks(&plan, &root).is_empty());
+}
+
 #[test]
 fn api_contract_report_requires_bindings_and_real_http_operations() {
     let dir = TestDir::new();
@@ -216,9 +317,9 @@ async fn split_uses_one_shared_table_owner_and_skips_static_backend_layers() {
     let units = array(&result["plan"]["units"]);
     assert_eq!(units.iter().filter(|unit| unit["id"] == "model-post").count(), 1);
     assert!(!units.iter().any(|unit| ["layout-api","layout-client","layout-models"].contains(&text(&unit["id"]))));
-    for id in ["news-api", "admin-news-api"] {
-        assert_eq!(units.iter().find(|unit| unit["id"] == id).unwrap()["dependencies"], json!(["model-post"]));
-    }
+    let news = units.iter().find(|unit| unit["id"] == "news-domain").unwrap();
+    assert_eq!(news["dependencies"], json!(["model-post"]));
+    assert_eq!(news["features"], json!(["news", "admin-news"]));
 }
 
 #[test]

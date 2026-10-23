@@ -85,7 +85,7 @@ pub struct Feature {
     pub screens: Vec<String>,
     #[serde(default)]
     pub acceptance: Vec<String>,
-    /// Tables this feature reads or writes; split makes one model unit per table.
+    /// Tables this feature reads or writes; shared tables group domain workers.
     #[serde(default)]
     pub entities: Vec<String>,
 }
@@ -382,6 +382,8 @@ fn extras(plan: &Value, root: &str) -> Value {
         "sharedChangeRequests": units::open_requests(plan),
         "apiWiring": wiring::report(plan, root),
         "backendChecks": wiring::backend_checks(plan, root),
+        "dataMappings": plan["dataMappings"],
+        "endpointContracts": plan["endpointContracts"],
     });
     if erd::api(plan) && array(&plan["entities"]).is_empty() {
         extra["erdDraftRequired"] = json!({
@@ -564,6 +566,7 @@ pub(super) async fn run(
                 plan["unitQuestions"] = json!(mode);
             }
             erd::draft(input, &mut plan)?;
+            wiring::draft(&mut plan);
             plan["questions"] = json!(rounds::detail(&plan, &input.extra_questions)?);
             let new_answers = answers.into_iter()
                 .filter(|(id, _)| !previous_answers.contains_key(id))
@@ -620,6 +623,7 @@ pub(super) async fn run(
                     screen_plan_hint(&plan, &input.project_root)
                 )));
             }
+            wiring::draft(&mut plan);
             erd::write_models(&mut tx, policy, &input.project_root, &plan)?;
             plan["writtenTo"] = json!(if erd::api(&plan) {
                 array(&plan["entities"]).iter()

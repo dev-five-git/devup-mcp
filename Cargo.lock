@@ -764,6 +764,7 @@ dependencies = [
  "syn 2.0.119",
  "tokio",
  "tokio-tungstenite",
+ "toml_edit",
  "tracing-subscriber",
  "url",
 ]

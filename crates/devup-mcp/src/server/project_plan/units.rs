@@ -12,7 +12,7 @@ fn unit(
         "stage":if matches!(layer, "shared" | "models") {0} else {1},
         "checklist":["build", "lint", "typecheck", "tests", "devup_ui_validate", "runtime/visual audit", "devup_stack_diff: zero drift"]})
 }
-fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
+pub(super) fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
     if !erd::api(plan) {
         return vec![];
     }
@@ -24,10 +24,11 @@ fn feature_entities(plan: &Value, feature: &Value) -> Vec<String> {
         return explicit;
     }
     let haystack = format!(
-        "{} {} {}",
+        "{} {} {} {}",
         text(&feature["id"]),
         text(&feature["scope"]),
-        feature["acceptance"]
+        feature["acceptance"],
+        json!(feature_screens(plan, feature))
     )
     .to_lowercase();
     array(&plan["entities"])
@@ -83,6 +84,56 @@ fn slim_screens(screen: &Value, screens: &[Value]) -> Value {
         .map(|r| json!({"url": r["url"], "nodeIds": r["nodeIds"], "file": r["file"]}))
         .collect::<Vec<_>>();
     json!({"fullPlan": ".devup/screen-plan.json", "state": screen["state"], "routes": routes})
+}
+pub(super) fn feature_screens(plan: &Value, feature: &Value) -> Vec<Value> {
+    array(&plan["facts"]["screens"]).iter()
+        .chain(array(&plan["screenPlan"]["screens"]))
+        .filter(|screen| ["nodeId", "name", "url"].iter().any(|key| {
+            !screen[*key].is_null() && array(&feature["screens"]).contains(&screen[*key])
+        })).cloned().collect()
+}
+fn domain_keys(plan: &Value, feature: &Value) -> Vec<String> {
+    let mut keys = feature_entities(plan, feature).iter().map(|name| format!("entity:{name}")).collect::<Vec<_>>();
+    for screen in feature_screens(plan, feature) {
+        for key in ["section", "menu"] {
+            if let Some(value) = screen[key].as_str().filter(|value| !value.is_empty()) {
+                keys.push(format!("{key}:{value}"));
+            }
+        }
+    }
+    keys
+}
+fn feature_groups(plan: &Value) -> Vec<Vec<Value>> {
+    let mut groups: Vec<Vec<Value>> = vec![];
+    for feature in array(&plan["features"]) {
+        let mut group = vec![feature.clone()];
+        let mut index = 0;
+        while index < groups.len() {
+            if groups[index].iter().any(|other| group.iter().any(|member| {
+                let keys = domain_keys(plan, member);
+                domain_keys(plan, other).iter().any(|key| keys.contains(key))
+            })) {
+                let mut previous = groups.remove(index);
+                previous.extend(group);
+                group = previous;
+                index = 0;
+            } else {
+                index += 1;
+            }
+        }
+        groups.push(group);
+    }
+    groups
+}
+fn shared_parts(plan: &Value) -> Vec<String> {
+    let mut parts: BTreeMap<String, usize> = BTreeMap::new();
+    for screen in array(&plan["facts"]["screens"]).iter().chain(array(&plan["screenPlan"]["screens"])) {
+        let names = array(&screen["parts"]).iter().filter_map(Value::as_str).collect::<std::collections::BTreeSet<_>>();
+        for name in names {
+            *parts.entry(name.to_owned()).or_default() += 1;
+        }
+    }
+    parts.into_iter().filter_map(|(name, count)| (count > 1).then_some(name)).collect()
 }
 fn safe_id(id: &str) -> bool {
     !id.is_empty()
@@ -149,10 +200,12 @@ pub(super) fn split(
             json!(["Shared foundations verified"]),
             "shared",
         ));
+        units[0]["sharedParts"] = json!(shared_parts(plan));
         let mut model_units = std::collections::BTreeSet::new();
-        for feature in array(&plan["features"]) {
-            let id = text(&feature["id"]);
-            let used = feature_entities(plan, feature);
+        for features in feature_groups(plan) {
+            let id = text(&features[0]["id"]);
+            let used = features.iter().flat_map(|feature| feature_entities(plan, feature))
+                .collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>();
             let mut previous = vec!["shared".to_owned()];
             if !used.is_empty() {
                 for name in &used {
@@ -171,24 +224,21 @@ pub(super) fn split(
                 }
                 previous = used.iter().map(|n| format!("model-{n}")).collect();
             }
-            let layers = if used.is_empty() {
-                vec!["front"]
-            } else {
-                vec!["api", "client", "front"]
-            };
-            for layer in layers {
+            let layer = if used.is_empty() { "front" } else { "domain" };
+            {
                 let uid = format!("{id}-{layer}");
                 let mut u = unit(
                     uid.clone(),
-                    format!("{}: {layer}", text(&feature["scope"])),
+                    features.iter().map(|feature| text(&feature["scope"])).collect::<Vec<_>>().join("; "),
                     previous,
-                    feature["acceptance"].clone(),
+                    json!(features.iter().flat_map(|feature| array(&feature["acceptance"]).to_vec()).collect::<Vec<_>>()),
                     layer,
                 );
                 u["feature"] = json!(id);
+                u["features"] = json!(features.iter().map(|feature| feature["id"].clone()).collect::<Vec<_>>());
+                u["screens"] = json!(features.iter().flat_map(|feature| array(&feature["screens"]).to_vec()).collect::<Vec<_>>());
                 u["entities"] = json!(used);
                 units.push(u);
-                previous = vec![uid];
             }
         }
     }
@@ -213,12 +263,15 @@ pub(super) fn split(
         let owner = unit_owner(u);
         u["scopeOverrides"] = pick(&plan["answers"], &owner, &[]);
         u["scopePrecedence"] = json!(["answers", "decisions", "scope"]);
-        let screens = array(&plan["features"]).iter().find(|feature| feature["id"] == owner)
-            .map(|feature| array(&feature["screens"])).unwrap_or_default();
+        let screens = array(&u["screens"]);
         let screen_slice = slim_screens(&screen_context, screens);
-        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"]});
+        let endpoints = array(&plan["endpointContracts"]).iter().filter(|contract| {
+            u["stage"] != 1 || array(&u["features"]).contains(&contract["feature"])
+        }).cloned().collect::<Vec<_>>();
+        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"],"sharedParts":units_shared_parts(plan, u),"endpointContracts":endpoints});
         for field in ["exports", "assets", "imports"] {
-            contract[field] = plan["facts"][format!("{owner}.{field}")].clone();
+            let values = array(&u["features"]).iter().flat_map(|feature| array(&plan["facts"][format!("{}.{field}", text(feature))]).to_vec()).collect::<Vec<_>>();
+            contract[field] = if values.is_empty() {plan["facts"][format!("{owner}.{field}")].clone()} else {json!(values)};
         }
         u["contract"] = contract;
         let brief = format!(
@@ -242,6 +295,9 @@ pub(super) fn split(
     }
     plan["units"] = json!(units);
     Ok(())
+}
+fn units_shared_parts(plan: &Value, unit: &Value) -> Value {
+    if unit["layer"] == "shared" {unit["sharedParts"].clone()} else {json!(shared_parts(plan))}
 }
 pub(super) fn open_requests(plan: &Value) -> Vec<Value> {
     array(&plan["sharedChangeRequests"])
