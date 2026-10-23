@@ -370,6 +370,11 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     plan["excluded"] = json!(excluded);
     plan["designFixes"] = json!(design_fixes);
     plan["confirmedPage"] = confirmed_page(&plan);
+    if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str()) {
+        let name = screens.iter().flat_map(|screen| array(&screen["frames"]))
+            .find(|frame| frame["pageId"] == page).map(|frame| frame["pageName"].clone());
+        plan["confirmedPage"] = json!({"id":page,"name":name,"basis":"base-page answer"});
+    }
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
     refresh_inventory_checks(&mut plan);

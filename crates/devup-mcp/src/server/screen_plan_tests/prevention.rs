@@ -169,3 +169,19 @@ fn r38_missing_figma_tokens_put_theme_sync_before_page_work() {
     assert_eq!(report["workQueue"][0]["missingTokenCount"], 1);
     assert_eq!(report["workQueue"][0]["exportCall"]["arguments"]["devupJsonMode"], "missing-only");
 }
+#[tokio::test]
+async fn r43_confirm_keeps_only_the_selected_source_page_and_records_it() {
+    let fixture = Fixture::new();
+    let mut old = sectioned("old:1", "Home desktop", 1440.0, "Home");
+    old.page_id = Some("page:old".into());
+    old.page_name = Some("Design system".into());
+    let mut final_frame = sectioned("final:1", "Home desktop", 1440.0, "Home");
+    final_frame.page_id = Some("page:final".into());
+    final_frame.page_name = Some("최종 시안 2026-10-14".into());
+    let mut request = drafted(&fixture, &[old, final_frame]).await;
+    request.accept_recommended = true;
+    let confirmed = confirm(&request, &fixture.policy()).unwrap();
+    assert_eq!(array(&confirmed["routes"]).len(), 1);
+    assert_eq!(confirmed["routes"][0]["nodeIds"], json!(["final:1"]));
+    assert_eq!(confirmed["confirmedPage"]["id"], "page:final");
+}
