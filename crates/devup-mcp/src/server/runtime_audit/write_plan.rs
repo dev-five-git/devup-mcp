@@ -53,6 +53,19 @@ fn write_plan(
     let mut written = None;
     let mut template_files = Vec::new();
     let mut transaction = OutputTransaction::new();
+    if let Some(path) = output_path {
+        let target = policy.resolve(path)?;
+        let display = target.display_path().display().to_string();
+        let bytes = serde_json::to_vec_pretty(&document)
+            .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
+        if bytes.len() > MAX_PLAN_BYTES {
+            return Err(invalid(
+                "The bound plan exceeds the ingest size limit; split the plan.",
+            ));
+        }
+        transaction.stage("plan", target, &bytes)?;
+        written = Some(display);
+    }
     if let Some(directory) = template_path {
         let mut template_transaction = OutputTransaction::new();
         template_transaction.refuse_existing();
@@ -86,19 +99,6 @@ fn write_plan(
             template_transaction.stage(name, target, bytes)?;
         }
         template_transaction.commit()?;
-    }
-    if let Some(path) = output_path {
-        let target = policy.resolve(path)?;
-        let display = target.display_path().display().to_string();
-        let bytes = serde_json::to_vec_pretty(&document)
-            .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
-        if bytes.len() > MAX_PLAN_BYTES {
-            return Err(invalid(
-                "The bound plan exceeds the ingest size limit; split the plan.",
-            ));
-        }
-        transaction.stage("plan", target, &bytes)?;
-        written = Some(display);
     }
     transaction.commit()?;
     let mut result = document;
