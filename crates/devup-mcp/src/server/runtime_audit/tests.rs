@@ -63,7 +63,17 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 6);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 7);
+        let imported = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", "await import('./run.mjs')"])
+            .current_dir(dir.join("runner"))
+            .output()
+            .expect("Node is required to verify the emitted consumer runner");
+        assert!(
+            imported.status.success(),
+            "emitted runner must resolve every import: {}",
+            String::from_utf8_lossy(&imported.stderr)
+        );
         assert_eq!(planned["template"]["executed"], false);
         assert_eq!(
             std::fs::read(dir.join("runner/run.mjs")).unwrap(),

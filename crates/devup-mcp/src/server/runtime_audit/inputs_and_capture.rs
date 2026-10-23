@@ -25,7 +25,6 @@ const MAX_REPORT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SCREENSHOT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_SCREENSHOTS: usize = 400;
 const MAX_LISTED: usize = 50;
-// Keep complete per-width rows in the response without unbounded duplication.
 const MAX_DIMENSION_ROWS: usize = 100;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -181,6 +180,9 @@ pub struct ExpectInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct CheckInput {
+    /// Planning prerequisite missing: do not execute this check or count it as passed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<String>,
     /// no-horizontal-overflow: the page is no wider than the viewport.
     /// contained: subject's box lies inside container's.
     /// aligned: subject keeps offsetPx from container's edge (left/right) or
@@ -272,10 +274,8 @@ pub struct CheckInput {
     /// was drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub widths: Vec<u32>,
-    /// The Figma node this check is about, so a failure names it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
-    /// capture: what the element screenshot is compared with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<CaptureReferenceInput>,
     /// rendered-completeness: what the frame drawn at this width says must be
@@ -608,6 +608,9 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
 }
 
 fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
+    if let Some(reason) = &check.unavailable_reason {
+        return bounded_text("unavailableReason", reason);
+    }
     let needs = |subject: bool, container: bool| -> Result<(), DevupError> {
         if subject != check.subject.is_some() || container != check.container.is_some() {
             return Err(invalid(format!(
