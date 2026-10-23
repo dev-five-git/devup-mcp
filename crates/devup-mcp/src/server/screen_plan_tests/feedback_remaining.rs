@@ -48,3 +48,19 @@ fn r56_metadata_uses_the_planned_app_not_the_first_root_route() {
     assert_eq!(metadata["state"], "filled");
     assert_eq!(metadata["detail"], "apps/front/src/app/page.tsx");
 }
+
+#[tokio::test]
+async fn r58_audit_plan_finds_the_confirmed_monorepo_plan_from_front() {
+    let fixture = Fixture::new();
+    let mut plan = confirmed_plan();
+    plan["routes"][0]["app"] = json!("apps/front");
+    write_plan_file(&fixture, &plan);
+    fixture.write("apps/front/package.json", "{}");
+    let mut request = input(&fixture, "auditPlan");
+    request.project_root = Some(fixture.0.join("apps/front").to_string_lossy().into_owned());
+    request.plan_id = Some(text(&plan["planId"]).to_owned());
+    let result = audit_plan(&request, &fixture.policy(), &ArtifactStore::default()).await.unwrap();
+    assert!(!array(&result["plans"]).is_empty());
+    assert!(!fixture.0.join("apps/front/.devup/screen-plan.json").exists());
+    assert!(text(&result["plans"][0]["planPath"]).starts_with(fixture.root()));
+}

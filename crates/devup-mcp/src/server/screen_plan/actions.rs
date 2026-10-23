@@ -590,10 +590,8 @@ pub(super) async fn audit_plan(
     policy: &OutputPolicy,
     artifacts: &ArtifactStore,
 ) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "auditPlan needs the confirmed plan: answer the questions and confirm first.",
