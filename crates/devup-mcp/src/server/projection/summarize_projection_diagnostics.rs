@@ -132,7 +132,7 @@ pub(super) fn summarize_projection_diagnostics(
             &payload.assets,
         ),
     };
-    if let Some(summary) = result.get("assetSummary") {
+    if asset_captures.is_empty() && let Some(summary) = result.get("assetSummary") {
         quality.assets = asset_collection_quality(summary);
     }
     if failures

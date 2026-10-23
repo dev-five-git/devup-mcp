@@ -153,6 +153,7 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub all_screens: bool,
     /// Recommend 1–3 assets per call, maximum 6. Slow calls return an assetJob for status/resume.
+    /// assetManifest is automatically added to outputs with a warning when omitted.
     #[serde(default)]
     #[schemars(extend("maxItems" = 6))]
     pub asset_requests: Vec<FigmaAssetRequestInput>,

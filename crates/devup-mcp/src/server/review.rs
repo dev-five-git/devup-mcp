@@ -103,8 +103,15 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
         items_from_issues(scope, issues, out);
     }
     if response["quality"]["assets"] == "partial" || response["quality"]["assets"] == "failed" {
-        out.push(json!({"severity":"required","scope":scope,"code":"ASSETS_INCOMPLETE",
+        let progress = &response["exportJob"]["assetProgress"];
+        let requested = progress["total"].as_u64().filter(|total| *total > 0);
+        let incomplete = requested.is_none_or(|total| progress["exported"].as_u64() != Some(total));
+        out.push(json!({"severity":if incomplete {"required"} else {"info"},"scope":scope,"code":if incomplete {"ASSETS_INCOMPLETE"} else {"UNREQUESTED_ASSETS"},
             "what":"Some assets were not collected.","how":"Read assetSummary.unavailable[]; re-request those assets by id with assetRequests (original url, not artifactId)."}));
+    }
+    if response["quality"]["assets"] == "complete" && response["assetSummary"]["status"] == "partial" {
+        out.push(json!({"severity":"info","scope":scope,"code":"UNREQUESTED_ASSETS",
+            "what":"Requested assets were collected; other discovered assets remain unrequested.","how":"Read assetSummary.unavailable[] if those other assets are needed."}));
     }
     if response["quality"]["acquisition"] == "partial" {
         out.push(json!({"severity":"recommended","scope":scope,"code":"ACQUISITION_PARTIAL",
@@ -119,6 +126,7 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
 
 /// Add `summary` and, only when something needs review, `reviewChecklist`.
 pub(super) fn attach(result: &mut Value) {
+    if let Some(object) = result.as_object_mut() { object.remove("reviewChecklist"); }
     let mut items = vec![];
     if result["selectionEvidence"]["requiresFullDetailRead"] == true {
         items.push(json!({"severity":"required","scope":"response","code":"SELECTED_PROJECTION_DETAILS_RESOURCE",

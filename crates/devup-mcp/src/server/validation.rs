@@ -544,8 +544,7 @@ pub(super) fn is_caller_mistake(error: &DevupError) -> bool {
         ),
         ErrorCode::DevupSnapshotUnsupported => matches!(
             error.message.as_str(),
-            "Using assetRequests requires assetManifest in outputs."
-                | "referencePng can only be collected for a single Figma link target."
+            "referencePng can only be collected for a single Figma link target."
                 | "The Section Frame collection scope must be node."
                 | "frameIds and allScreens cannot be used together."
                 | "frameIds and allScreens can only be used on a Section artifact."
@@ -795,7 +794,6 @@ mod p3_tests {
             );
         }
         for message in [
-            "Using assetRequests requires assetManifest in outputs.",
             "referencePng can only be collected for a single Figma link target.",
             "The Section Frame collection scope must be node.",
             "frameIds and allScreens cannot be used together.",
