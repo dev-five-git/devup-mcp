@@ -138,3 +138,9 @@ fn theme_sync_queue(plan: &Value, root: &str) -> Vec<Value> {
         "exportCall":{"tool":"devup_figma_export", "arguments":{"url":plan["source"]["url"],
             "scope":"file", "outputs":["devupJson"], "devupJsonMode":"missing-only", "projectRoot":theme_root}}})]
 }
+
+pub(super) fn planning_theme(variables: &devup_mcp_figma::UpstreamResult) -> Result<Value, DevupError> {
+    let snapshot = devup_mcp_devup_ui::theme::variable_snapshot_from_result(variables)?;
+    let theme = devup_mcp_devup_ui::theme::generate_devup_json(&snapshot, devup_mcp_devup_ui::theme::ThemeScope::File)?;
+    serde_json::from_str(&theme.json).map_err(|error| invalid(error.to_string()))
+}

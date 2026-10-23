@@ -494,9 +494,7 @@ impl DevupServer {
             request.resource_scope = ResourceScope::File;
             let parts = self.run_direct(request, &PendingOperation::Collect, None).await?;
             if let Some(variables) = parts.variables {
-                let snapshot = devup_mcp_devup_ui::theme::variable_snapshot_from_result(&variables)?;
-                let theme = devup_mcp_devup_ui::theme::generate_devup_json(&snapshot, devup_mcp_devup_ui::theme::ThemeScope::File)?;
-                explored["figmaTheme"] = serde_json::from_str(&theme.json).map_err(|error| DevupError::new(ErrorCode::DevupInvalidInput, error.to_string(), false))?;
+                explored["figmaTheme"] = screen_plan::planning_theme(&variables)?;
             }
         }
         let candidates = explored["candidates"]
