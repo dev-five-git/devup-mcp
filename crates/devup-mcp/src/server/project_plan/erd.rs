@@ -181,9 +181,9 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
         ));
     }
     plan["modelsDir"] = json!(dir);
-    if plan["modelsWorkingDirectory"].is_null() {
-        plan["modelsWorkingDirectory"] = json!(".");
-    }
+    plan["modelsWorkingDirectory"] = json!(Path::new(&dir).parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| ".".to_owned(), |parent| parent.to_string_lossy().replace('\\', "/")));
     let mut entities = if !input.entities.is_empty() {
         input.entities.clone()
     } else {
@@ -267,6 +267,7 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
         "vespertide export --orm seaorm"
     ]);
     plan["backendNotes"] = json!([
+        "Stop if vespertide diff reports a table or column deletion; preserve existing models and review the destructive change before generating SQL or a revision.",
         "Before cargo check, make sure the API Cargo.toml depends on serde (derive) and serde_json; exported entities use them.",
         "Add `mod models;` to the API main.rs; export does not wire the generated src/models.",
         "Right after export, cargo clippy -- -D warnings reports never-constructed ModelEx structs until routes use them; that is expected before the route units."
@@ -274,6 +275,23 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
     Ok(())
 }
 pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
+    let mut violations = Vec::new();
+    for (entity_index, entity) in entities.iter().enumerate() {
+        for (column_index, column) in array(&entity["columns"]).iter().enumerate() {
+            if unsupported_type(&column["type"]).is_some() {
+                violations.push(json!({"path":format!("/entities/{entity_index}/columns/{column_index}/type"),
+                    "column":format!("{}.{}",text(&entity["name"]),text(&column["name"])),
+                    "got":column["type"],"expected":{"simple":SIMPLE_TYPES,"complexKinds":COMPLEX_KINDS},
+                    "fix":if column["type"] == "jsonb" {"Use json"} else {"Use a supported Vespertide type"}}));
+            }
+        }
+    }
+    if !violations.is_empty() {
+        let mut error = invalid(format!("Unsupported Vespertide column types: {}; jsonb must use json",
+            violations.iter().map(|violation| text(&violation["column"])).collect::<Vec<_>>().join(", ")));
+        error.details = json!({"violations":violations});
+        return Err(error);
+    }
     let mut names = std::collections::BTreeSet::new();
     for e in entities {
         let name = text(&e["name"]);
@@ -343,6 +361,17 @@ pub(super) fn validate(entities: &[Value]) -> Result<(), DevupError> {
     }
     Ok(())
 }
+pub(super) fn disk_report(plan: &Value, root: &str) -> Value {
+    let mut existing = Vec::new();
+    if let Err(error) = scan_models(&Path::new(root).join(text(&plan["modelsDir"])), &mut existing) {
+        return json!({"error":error.message});
+    }
+    let violations = validate(&existing).err().map(|error| error.details).unwrap_or(Value::Null);
+    let drift = existing.iter().filter(|model| {
+        !array(&plan["entities"]).iter().any(|entity| entity["name"] == model["name"] && entity["columns"] == model["columns"])
+    }).map(|model| model["name"].clone()).collect::<Vec<_>>();
+    json!({"typeValidation":violations,"entityDrift":drift})
+}
 pub(super) fn write_models(
     tx: &mut OutputTransaction,
     policy: &OutputPolicy,
@@ -357,6 +386,26 @@ pub(super) fn write_models(
         return Err(invalid("API plan requires a complete ERD"));
     }
     validate(entities)?;
+    let mut existing = Vec::new();
+    scan_models(&Path::new(root).join(text(&plan["modelsDir"])), &mut existing)?;
+    let mut removed_columns = Vec::new();
+    for model in &existing {
+        if let Some(entity) = entities.iter().find(|entity| entity["name"] == model["name"]) {
+            for column in array(&model["columns"]) {
+                if !array(&entity["columns"]).iter().any(|candidate| candidate["name"] == column["name"]) {
+                    removed_columns.push(json!({"table":model["name"],"column":column["name"]}));
+                }
+            }
+        }
+    }
+    if !removed_columns.is_empty() {
+        let mut error = invalid("Confirm would remove existing model columns; redraft with the existing columns preserved before confirming");
+        error.details = json!({"removedColumns":removed_columns,
+            "decision":{"id":"model-column-removal","destructive":true,"state":"pending",
+                "reason":"Existing source-model columns are absent from the proposed ERD",
+                "recommended":"Preserve existing columns and redraft"}});
+        return Err(error);
+    }
     for e in entities {
         let file = format!("{}/{}.json", text(&plan["modelsDir"]), text(&e["name"]));
         let bytes = serde_json::to_vec_pretty(e).map_err(|e| invalid(e.to_string()))?;

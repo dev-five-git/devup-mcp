@@ -51,9 +51,7 @@ fn spec_candidates(root: &Path) -> Vec<String> {
 fn ask(id: &str, prompt: String, options: &[&str]) -> Value {
     question(
         id.into(),
-        screen_plan::header("", id)
-            .trim_start_matches(": ")
-            .to_owned(),
+        screen_plan::header("", id),
         prompt,
         options
             .iter()
@@ -152,7 +150,16 @@ pub(super) fn detail(
             .as_str()
             .or_else(|| feature["key"].as_str())
             .unwrap_or("feature");
-        let haystack = format!("{} {}", text(&feature["scope"]), feature["acceptance"]).to_lowercase();
+        if array(&plan["scopeExclusions"]).iter().any(|exclusion| exclusion["ref"] == id) {
+            continue;
+        }
+        let sources = array(&plan["evidence"]).iter().filter(|evidence| {
+            !array(&plan["scopeExclusions"]).iter().any(|exclusion| exclusion["ref"] == evidence["source"])
+        }).filter_map(|evidence| evidence["facts"].as_object().map(|facts| {
+            facts.iter().filter(|(key, _)| key.starts_with(&format!("{id}.")))
+                .map(|(_, value)| value.to_string()).collect::<Vec<_>>().join(" ")
+        })).collect::<Vec<_>>().join(" ");
+        let haystack = format!("{} {} {sources}", text(&feature["scope"]), feature["acceptance"]).to_lowercase();
         let topics: [(&str, &str, &[&str], [&str; 3]); 4] = [
             ("states", "empty, loading and error states", &[], ["Use recorded feature acceptance criteria", "Standard empty/loading/error states", "Exclude this capability"]),
             ("permissions", "permissions and ownership", &["admin", "auth", "login", "role", "permission", "owner", "member"], ["Admins only", "Signed-in users", "Public"]),
@@ -160,13 +167,26 @@ pub(super) fn detail(
             ("notifications", "notifications and external integrations (payment, mail, maps, login providers)", &["mail", "email", "smtp", "notif", "payment", "map", "sms", "alert", "analytics", "oauth"], ["No notifications or integrations", "SMTP email to a staff address", "Other integration (custom answer)"]),
         ];
         for (topic, prompt, keywords, options) in topics {
+            let mut options = options;
+            if topic == "notifications" {
+                if ["mail", "smtp"].iter().any(|keyword| haystack.contains(keyword)) {
+                    options.swap(0, 1);
+                } else if ["payment", "map", "oauth"].iter().any(|keyword| haystack.contains(keyword)) {
+                    options.swap(0, 2);
+                }
+            }
             let relevant = match topic {
                 "states" => true,
                 _ => keywords.iter().any(|k| haystack.contains(k)),
             };
             let key = format!("{id}.{topic}");
+            if array(&plan["scopeExclusions"]).iter().any(|exclusion| exclusion["ref"] == key) {
+                continue;
+            }
             if relevant && plan["facts"][&key].is_null() {
-                questions.push(ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Acceptance: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"], feature["acceptance"]), &options));
+                let mut question = ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Acceptance: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"], feature["acceptance"]), &options);
+                question["sourcedDefaults"] = json!({"source":format!("features[{id}].scope/acceptance and feature-keyed evidence"),"recommended":options[0]});
+                questions.push(question);
             }
         }
     }

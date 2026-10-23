@@ -22,6 +22,7 @@ use super::*;
 mod feedback;
 mod contracts;
 mod inference;
+mod recovery;
 fn input(root: &Path, action: &str) -> ProjectPlanInput {
     serde_json::from_value(json!({"action":action,"projectRoot":root})).unwrap()
 }
@@ -241,6 +242,8 @@ async fn feature_split_and_decisions_and_state_gates() {
         reason: "Destructive cleanup".into(),
         recommended: "Keep data".into(),
         destructive: true,
+        state: None,
+        kind: None,
     });
     run(&i, &policy).await.unwrap();
     i.action = "assume".into();
@@ -264,6 +267,8 @@ fn decision(id: &str) -> Decision {
         reason: "Needs the user".into(),
         recommended: "Keep".into(),
         destructive: false,
+        state: None,
+        kind: None,
     }
 }
 #[tokio::test]

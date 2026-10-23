@@ -2,6 +2,7 @@
 //! local evidence is collected before generating any unresolved questions.
 mod erd;
 mod rounds;
+mod recovery;
 #[cfg(test)]
 mod tests;
 mod units;
@@ -29,6 +30,10 @@ pub struct ProjectPlanInput {
     pub action: String,
     pub project_root: String,
     pub plan_id: Option<String>,
+    #[serde(default)]
+    pub restart: bool,
+    #[serde(default)]
+    pub scope_exclusions: Vec<ScopeExclusion>,
     /// Facts read from Jira issues/epic children, Figma exploration, spec documents,
     /// and devup_project_context all scopes. Every fact includes its source.
     #[serde(default)]
@@ -125,6 +130,8 @@ pub struct Decision {
     pub recommended: String,
     #[serde(default)]
     pub destructive: bool,
+    pub state: Option<String>,
+    pub kind: Option<String>,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -218,7 +225,10 @@ fn record_decisions(
         let list = plan["decisions"].as_array_mut().unwrap();
         list.retain(|v| v["id"] != d.id);
         let mut value = json!(d);
-        value["state"] = json!(state);
+        if d.state.as_deref().is_some_and(|state| !["pending", "confirmed"].contains(&state)) {
+            return Err(invalid("Decision state must be pending or confirmed"));
+        }
+        value["state"] = json!(d.state.as_deref().unwrap_or(state));
         list.push(value);
     }
     Ok(())
@@ -326,6 +336,13 @@ fn without_screens(plan: &Value) -> Vec<Value> {
         .map(|f| f["id"].clone())
         .collect()
 }
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ScopeExclusion {
+    pub r#ref: String,
+    pub reason: String,
+}
 fn change_summary(before: &Value, after: &Value) -> Value {
     let mut summary = json!({});
     for (field, key) in [("decisions", "id"), ("features", "id"), ("entities", "name"), ("answers", "")] {
@@ -401,7 +418,20 @@ fn extras(plan: &Value, root: &str) -> Value {
 }
 fn response(plan: Value, root: &str, full: bool) -> Value {
     let extra = extras(&plan, root);
+    let models = erd::api(&plan).then(|| erd::disk_report(&plan, root));
+    let sourced_defaults = array(&plan["questions"]).iter().filter(|question| !question["sourcedDefaults"].is_null())
+        .map(|question| json!({"questionId":question["id"],"evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
+    let conflicts = array(&plan["questions"]).iter().filter(|question| {
+        text(&question["id"]).ends_with(".notifications")
+            && text(&question["sourcedDefaults"]["recommended"]) != "No notifications or integrations"
+            && plan["answers"][text(&question["id"])] == "No notifications or integrations"
+    }).map(|question| json!({"questionId":question["id"],"warning":"recommendationConflictsWithEvidence","evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
     let mut out = base_response(plan, root, full);
+    out["sourcedDefaults"] = json!(sourced_defaults);
+    out["recommendationConflictsWithEvidence"] = json!(conflicts);
+    if let Some(models) = models {
+        out["modelDiagnostics"] = models;
+    }
     if let (Some(o), Some(e)) = (out.as_object_mut(), extra.as_object()) {
         o.extend(e.clone());
     }
@@ -475,10 +505,20 @@ pub(super) async fn run(
     policy.resolve(&Path::new(&input.project_root).join(FILE).to_string_lossy())?;
     let mut tx = OutputTransaction::new();
     if input.action == "intake" {
-        if Path::new(&input.project_root).join(FILE).exists() {
-            return Err(invalid(
+        let existing = Path::new(&input.project_root).join(FILE).exists()
+            .then(|| read(&input.project_root)).transpose()?;
+        if let Some(existing) = existing.as_ref().filter(|_| !input.restart) {
+            let mut error = invalid(
                 "Project plan exists; use draft/status instead of replacing decisions",
-            ));
+            );
+            error.details = json!({"existingPlan":{"planId":existing["planId"],"state":existing["state"],
+                "confirmedAt":existing["confirmedAt"],"writtenBy":existing["writtenBy"],"files":[FILE]},
+                "nextAction":{"tool":"devup_project_plan","arguments":{"action":"status",
+                    "projectRoot":input.project_root,"planId":existing["planId"]}},
+                "choices":["Continue existing plan","Archive existing plan before restarting"],
+                "restartAction":{"tool":"devup_project_plan","arguments":{"action":"intake","projectRoot":input.project_root,"restart":true}},
+                "warnings": if existing["writtenBy"]["buildId"].as_str().is_some_and(|id| id != env!("DEVUP_MCP_BUILD_ID")) {vec!["Existing plan was written by a different build"]} else {vec![]}});
+            return Err(error);
         }
         let facts = rounds::facts(input)?;
         let id = sha256(format!("{}{}", input.project_root, now()).as_bytes());
@@ -486,9 +526,24 @@ pub(super) async fn run(
             "facts":facts,"evidence":input.evidence,"answers":{},"decisions":[],"units":[],
             "questions":rounds::intake(&facts),"entities":[],"relations":[],"features":[],"issues":[],
             "unitQuestions":"supervisor"});
+        plan["writtenBy"] = json!({"commit":option_env!("DEVUP_MCP_GIT_COMMIT"),"buildId":env!("DEVUP_MCP_BUILD_ID")});
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
         rounds::answers(&mut plan, &input.answers)?;
-        write(&mut tx, policy, &input.project_root, &plan)?;
-        tx.commit()?;
+        let archive = if input.restart && existing.is_some() {
+            Some(recovery::archive(&input.project_root, policy)?)
+        } else { None };
+        if let Some(existing) = existing
+            && input.scope_exclusions.is_empty() {
+            plan["scopeExclusions"] = existing["scopeExclusions"].clone();
+        }
+        let persisted = write(&mut tx, policy, &input.project_root, &plan).and_then(|()| tx.commit().map(|_| ()));
+        if let Err(error) = persisted {
+            if let Some(archive) = archive.as_ref() {
+                recovery::restore(&input.project_root, archive)?;
+            }
+            return Err(error);
+        }
+        if let Some(archive) = archive { plan["archivedTo"] = json!(archive); }
         return Ok(response(plan, &input.project_root, full));
     }
     let mut plan = read(&input.project_root)?;
@@ -496,11 +551,23 @@ pub(super) async fn run(
     // status is a read: it may omit planId and reads it from the plan file.
     let provided = input.plan_id.is_some() || input.action != "status";
     if provided && input.plan_id.as_deref() != plan["planId"].as_str() {
-        return Err(invalid(format!(
+        let mut error = invalid(format!(
             "planId is missing or stale; current planId {} state {}",
             text(&plan["planId"]),
             text(&plan["state"])
-        )));
+        ));
+        error.details = json!({"planId":plan["planId"],"state":plan["state"],
+            "nextAction":{"tool":"devup_project_plan","arguments":{
+                "action":"status","projectRoot":input.project_root,"planId":plan["planId"]}}});
+        return Err(error);
+    }
+    if !input.scope_exclusions.is_empty() {
+        for exclusion in &input.scope_exclusions {
+            if exclusion.r#ref.trim().is_empty() || exclusion.reason.trim().is_empty() {
+                return Err(invalid("Scope exclusions require ref and reason"));
+            }
+        }
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
     }
     let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
         let mut shared = BTreeMap::new();
