@@ -3,9 +3,9 @@ use devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx;
 #[test]
 fn r12_intrinsic_as_accepts_the_rendered_elements_attributes() {
     for tsx in [
-        r#"<Text as="input" maxLength={50} placeholder="받는 분 이름" type="text" />"#,
-        r#"<Text maxLength={500} as={'input'} />"#,
-        r#"<Text as="textarea" maxLength={500} wrap="soft" />"#,
+        r#"<Text as="input" name="recipient" maxLength={50} placeholder="받는 분 이름" type="text" />"#,
+        r#"<Text name="message" maxLength={500} as={'input'} />"#,
+        r#"<Text as="textarea" name="message" maxLength={500} wrap="soft" />"#,
         r#"<Box as="form" action="/submit" encType="multipart/form-data" />"#,
         r#"<Flex as="video" playsInline controlsList="nodownload" />"#,
         r#"<Text as="label" htmlFor="name" />"#,
