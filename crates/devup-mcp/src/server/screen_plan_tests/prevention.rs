@@ -71,6 +71,21 @@ async fn near_identical_widths_in_one_section_can_be_states_of_one_url() {
     assert_eq!(routes.len(), 1, "{confirmed}");
     assert_eq!(array(&routes[0]["states"]).len(), 2);
     assert_eq!(routes[0]["states"][0]["nodeId"], "30:2");
+    assert_eq!(array(&confirmed["workQueue"][0]["states"]).len(), 2);
+    let saved = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&saved, &evidence(), None);
+    assert_eq!(array(&report["states"]).len(), 2);
+    assert_eq!(report["states"][0]["nodeId"], "30:2");
+    assert_eq!(report["workQueue"][0]["states"][0]["exportCall"]["arguments"]["frameIds"], json!(["30:2"]));
+    let result = audit_plan(&input(&fixture, "auditPlan"), &fixture.policy(), &ArtifactStore::default()).await.unwrap();
+    assert_eq!(array(&result["plans"]).len(), 3, "{result}");
+    for (entry, node) in array(&result["plans"]).iter().zip(["30:1", "30:2", "30:3"]) {
+        let audit: Value = serde_json::from_slice(&std::fs::read(text(&entry["planPath"])).unwrap()).unwrap();
+        assert_eq!(audit["plan"]["screens"][0]["figma"]["nodeId"], node);
+        assert_eq!(entry["missingReferences"][0]["nodeId"], node);
+    }
+    assert_eq!(result["plans"][1]["state"]["nodeId"], "30:2");
+    assert_eq!(array(&read_plan(fixture.root()).unwrap().unwrap()["audit"]["plans"]).len(), 3);
 }
 #[tokio::test]
 async fn r19_device_only_frames_in_each_section_confirm_as_one_responsive_url() {

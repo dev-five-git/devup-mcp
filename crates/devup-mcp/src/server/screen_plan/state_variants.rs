@@ -61,10 +61,36 @@ fn record_states(routes: &mut [Value], folds: &[(String, Vec<Value>)]) {
             .iter()
             .filter(|(first, _)| *first == text(&route["screen"]))
             .flat_map(|(_, rest)| rest.iter())
-            .map(|frame| json!({"nodeId": frame["nodeId"], "name": frame["name"], "width": frame["width"]}))
+            .map(|frame| json!({"nodeId": frame["nodeId"], "name": frame["name"], "width": frame["width"], "height": frame["height"]}))
             .collect::<Vec<_>>();
         if !states.is_empty() {
             route["states"] = json!(states);
         }
     }
+}
+
+pub(super) fn state_exports(route: &Value) -> Vec<Value> {
+    array(&route["states"]).iter().map(|state| {
+        let mut state = state.clone();
+        state["hostUrl"] = route["url"].clone();
+        state["exportCall"] = json!({"tool": "devup_figma_export", "arguments": {
+            "frameIds": [state["nodeId"]], "outputs": ["tsx", "referencePng"]
+        }});
+        state
+    }).collect()
+}
+
+pub(super) fn audit_routes(plan: &Value) -> Vec<Value> {
+    array(&plan["routes"]).iter().flat_map(|route| {
+        let mut targets = vec![route.clone()];
+        for state in array(&route["states"]) {
+            let mut target = route.clone();
+            target["nodeIds"] = json!([state["nodeId"]]);
+            target["drawnWidths"] = json!([state["width"].as_f64().map(|width| width.round() as u64)]);
+            target["state"] = state.clone();
+            target["states"] = json!([]);
+            targets.push(target);
+        }
+        targets
+    }).collect()
 }

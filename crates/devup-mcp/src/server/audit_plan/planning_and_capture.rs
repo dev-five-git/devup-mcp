@@ -679,10 +679,8 @@ pub(super) async fn write(
     } = *request;
     let (sources, expired) = Sources::load(artifact_ids, store).await;
     let evidence = super::screen_plan::project_evidence(root).await?;
-    let routes = plan["routes"]
-        .as_array()
-        .into_iter()
-        .flatten()
+    let audit_routes = super::screen_plan::audit_routes(plan);
+    let routes = audit_routes.iter()
         .filter(|route| route["implementation"] == "page" && route["url"].is_string())
         .collect::<Vec<_>>();
     let records = super::export_record::records(Path::new(root));
@@ -751,11 +749,14 @@ pub(super) async fn write(
         let route = routes[*index];
         let url = url.as_str();
         let app = route["app"].as_str().unwrap_or_default();
-        let screen = if several_apps && !app.is_empty() {
+        let mut screen = if several_apps && !app.is_empty() {
             format!("{}-{}", slug(app), slug(url))
         } else {
             slug(url)
         };
+        if let Some(node) = route["state"]["nodeId"].as_str() {
+            screen.push_str(&format!("-state-{}", slug(node)));
+        }
         let frames = route["nodeIds"]
             .as_array()
             .into_iter()
@@ -782,6 +783,12 @@ pub(super) async fn write(
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
         let mut built = url_plan(&target, base, &sources, thresholds)?;
+        if let Some(node) = route["state"]["nodeId"].as_str() {
+            built.notes.push(format!("State {} ({node}) on {url}: configure the runtime screen's steps to reach this state before running; no interaction is inferred from the frame name.", route["state"]["name"].as_str().unwrap_or_default()));
+            for check in &mut built.plan.screens[0].checks {
+                check.label = Some(format!("State {node}: {}", check.label.as_deref().unwrap_or(&check.kind)));
+            }
+        }
         for check in &mut built.plan.screens[0].checks {
             if check.kind == "links-resolve" {
                 check.planned_targets = routes.iter().filter_map(|route| route["url"].as_str().map(str::to_owned)).collect();
@@ -817,6 +824,7 @@ pub(super) async fn write(
         written.push(json!({
             "url": url,
             "screen": screen,
+            "state": route["state"],
             "planPath": created["writtenTo"],
             "planId": created["planId"],
             "reportDirectory": report_dir.display().to_string(),

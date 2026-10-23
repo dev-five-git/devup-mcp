@@ -394,6 +394,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "file": route["file"],
                 "nodeIds": route["nodeIds"],
                 "drawnWidths": route["drawnWidths"],
+                "states": state_exports(route),
             })
         })
         .collect::<Vec<_>>());
@@ -614,9 +615,11 @@ pub(super) async fn audit_plan(
     )
     .await?;
     let mut entries = array(&plan["audit"]["plans"]).to_vec();
+    let replaced = array(&result["plans"]).iter().map(|entry| entry["url"].clone()).collect::<Vec<_>>();
+    entries.retain(|entry| !replaced.contains(&entry["url"]));
     for written in array(&result["plans"]) {
-        entries.retain(|entry| entry["url"] != written["url"]);
         entries.push(json!({"url": written["url"], "screen": written["screen"],
+            "state": written["state"],
             "missingReferences": written["missingReferences"], "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
     // A dynamic route sampled from its Figma frame is an assumption, and is
