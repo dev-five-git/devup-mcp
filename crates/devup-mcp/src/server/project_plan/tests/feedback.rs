@@ -1,6 +1,19 @@
 use super::*;
 
 #[tokio::test]
+async fn confirm_summary_counts_all_persisted_decisions() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.decisions = vec![decision("session-expiry"), decision("no-locale-prefix")];
+    request.detail = None;
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["decisionCount"], 2);
+    let stored = read(&request.project_root).unwrap();
+    assert!(kept(&stored["decisions"], "session-expiry"));
+    assert!(kept(&stored["decisions"], "no-locale-prefix"));
+}
+
+#[tokio::test]
 async fn api_without_entities_reports_erd_draft_guidance() {
     let dir = TestDir::new();
     let policy = OutputPolicy::from_roots(vec![dir.path().to_path_buf()]).unwrap();

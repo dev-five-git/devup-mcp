@@ -351,6 +351,7 @@ fn extras(plan: &Value, root: &str) -> Value {
     let no_screens = without_screens(plan);
     let mut extra = json!({
         "writtenTo": plan["writtenTo"],
+        "decisionCount": array(&plan["decisions"]).len(),
         "unitState": if array(&plan["units"]).is_empty() {"not-split"} else {"split"},
         "sharedChangeRequests": units::open_requests(plan),
         "apiWiring": wiring::report(plan, root),
