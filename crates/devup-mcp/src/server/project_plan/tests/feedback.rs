@@ -1,6 +1,24 @@
 use super::*;
 
 #[tokio::test]
+async fn figma_prerequisite_is_reported_at_intake_and_draft() {
+    let dir = TestDir::new();
+    let policy = OutputPolicy::from_roots(vec![dir.path().to_path_buf()]).unwrap();
+    let mut request = input(dir.path(), "intake");
+    let url = "https://www.figma.com/design/fixture/site?node-id=1-2";
+    request.evidence = vec![serde_json::from_value(json!({"source":"Figma", "facts":{"figma":[url],"goal":"Company site"}})).unwrap()];
+    let intake = run(&request, &policy).await.unwrap();
+    assert_eq!(intake["nextAction"]["tool"], "devup_screen_plan");
+    assert_eq!(intake["nextAction"]["arguments"]["url"], url);
+    request.plan_id = intake["planId"].as_str().map(str::to_owned);
+    request.action = "draft".into();
+    request.features = vec![Feature {id:"home".into(),scope:"Company".into(),screens:vec!["Home".into()],acceptance:vec![],entities:vec![]}];
+    let draft = run(&request, &policy).await.unwrap();
+    assert!(array(&draft["blockers"]).contains(&json!("screenPlan: not confirmed")));
+    assert_eq!(draft["nextAction"]["arguments"]["projectRoot"], request.project_root);
+}
+
+#[tokio::test]
 async fn confirm_reports_written_models_and_backend_commands_in_summary() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), true).await;
