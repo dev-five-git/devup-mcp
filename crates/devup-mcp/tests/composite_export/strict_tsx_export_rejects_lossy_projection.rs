@@ -183,6 +183,31 @@ fn reference_png_base64() -> &'static str {
 }
 
 #[tokio::test]
+async fn feedback_37_outline_assets_auto_manifest_and_first_reply_selection() -> anyhow::Result<()> {
+    let root = unique_temp_dir("feedback-37")?;
+    let server = DevupServer::with_output_roots(Services::new(Arc::new(ConnectedAuth), Arc::new(FastFixtureUpstream::complete())), vec![root.clone()])?;
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move { server.serve(server_transport).await?.waiting().await?; anyhow::Ok(()) });
+    let client = ().serve(client_transport).await?;
+    let result = call_result(&client, "devup_figma_export", json!({
+        "url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+        "outputs":["outline"],"responseLimit":1,
+        "responseFields":["exportJob.state","exportJob.assets"],
+        "assetRequests":[{"assetId":"1:3:fills:0","renderMode":"node","format":"png","scale":2,"outputPath":root.join("icon.png")}]
+    })).await?;
+    let value = result.structured_content.as_ref().unwrap();
+    assert_eq!(value["exportJob"]["state"], "complete");
+    assert_eq!(value["selected"]["selections"][0]["values"], json!(["complete"]));
+    assert!(value["warnings"].as_array().unwrap().iter().any(|warning| warning["code"] == "DEVUP_ASSET_MANIFEST_ADDED"));
+    assert!(!value["reviewChecklist"].as_array().into_iter().flatten().any(|item| item["code"] == "ASSETS_INCOMPLETE" && item["severity"] == "required"), "{} {}", value["exportJob"]["assetProgress"], value["quality"]);
+    assert_eq!(fs::read(root.join("icon.png"))?, b"synthetic-png");
+    client.cancel().await?;
+    task.await??;
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn p3_public_root_mapping_survives_resource_delivery_and_file_writes() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::complete());
     let root = unique_temp_dir("p3-public-root")?;
