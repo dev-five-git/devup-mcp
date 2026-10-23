@@ -135,7 +135,10 @@ pub(super) fn detail(
     plan: &Value,
     extra: &[screen_plan::ExtraQuestionInput],
 ) -> Result<Vec<Value>, DevupError> {
-    let mut questions = vec![];
+    let mut questions = intake(&plan["facts"])
+        .into_iter()
+        .filter(|question| plan["answers"][text(&question["id"])].is_null())
+        .collect::<Vec<_>>();
     if array(&plan["features"]).is_empty() && array(&plan["issues"]).is_empty() {
         return Err(invalid(
             "draft needs features or Jira issues read from sources",
