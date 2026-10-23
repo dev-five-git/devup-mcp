@@ -72,3 +72,20 @@ async fn near_identical_widths_in_one_section_can_be_states_of_one_url() {
     assert_eq!(array(&routes[0]["states"]).len(), 2);
     assert_eq!(routes[0]["states"][0]["nodeId"], "30:2");
 }
+#[tokio::test]
+async fn r19_device_only_frames_in_each_section_confirm_as_one_responsive_url() {
+    let fixture = Fixture::new();
+    let screens = [
+        sectioned("45:2066", "Desktop", 1440.0, "Main"),
+        sectioned("51:6599", "Mobile", 360.0, "Main"),
+        sectioned("60:1", "Desktop", 1440.0, "Company"),
+        sectioned("60:2", "Mobile", 360.0, "Company"),
+    ];
+    let mut request = drafted(&fixture, &screens).await;
+    request.accept_recommended = true;
+    let result = confirm(&request, &fixture.policy()).unwrap();
+    let routes = array(&result["routes"]);
+    assert_eq!(routes.len(), 2);
+    assert!(routes.iter().all(|route| array(&route["nodeIds"]).len() == 2));
+    assert!(!routes.iter().any(|route| route["url"] == "/mobile"));
+}
