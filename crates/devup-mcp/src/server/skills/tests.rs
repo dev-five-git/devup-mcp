@@ -826,7 +826,19 @@ mod tests {
         let found = report(&unknown_client(&project))["repoObligations"]["lintFix"].clone();
         assert_eq!(found["runFirst"], "bun run lint:fix");
         assert_eq!(found["script"], "oxlint --fix");
+        assert_eq!(found["label"], "format/sort via lint:fix");
+        assert_eq!(found["verifyAfter"], "bunx oxlint --deny-warnings");
 
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn lint_fix_obligation_requires_an_executable_script() {
+        let project = scratch("lint-fix-invalid");
+        for package in ["not json", r#"{"scripts":{"lint:fix":false}}"#, r#"{"scripts":{"lint:fix":"  "}}"#] {
+            std::fs::write(project.join("package.json"), package).unwrap();
+            assert!(report(&unknown_client(&project))["repoObligations"]["lintFix"].is_null());
+        }
+        std::fs::remove_dir_all(project).unwrap();
     }
 }

@@ -622,10 +622,15 @@ fn lint_fix_obligation(project: &Path) -> Option<serde_json::Value> {
     let text = std::fs::read_to_string(project.join("package.json")).ok()?;
     let package: serde_json::Value = serde_json::from_str(&text).ok()?;
     let script = package["scripts"]["lint:fix"].as_str()?;
+    if script.trim().is_empty() {
+        return None;
+    }
     Some(serde_json::json!({
+        "label": "format/sort via lint:fix",
         "detected": "package.json scripts.lint:fix",
         "script": script,
         "runFirst": "bun run lint:fix",
+        "verifyAfter": "bunx oxlint --deny-warnings",
         "obligation": "Run `bun run lint:fix` before any other verification. Never reorder JSX props, imports or formatting by hand and never run bare prettier: the project's lint rules own them. Fix by hand only what lint:fix cannot (type and logic errors).",
     }))
 }
