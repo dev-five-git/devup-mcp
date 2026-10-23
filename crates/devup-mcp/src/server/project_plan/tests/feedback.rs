@@ -1,5 +1,21 @@
 use super::*;
 
+#[tokio::test]
+async fn redraft_reports_added_changed_and_kept_records() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.action = "draft".into();
+    request.answers.clear();
+    request.decisions = vec![decision("keep"), decision("change")];
+    run(&request, &policy).await.unwrap();
+    request.decisions = vec![decision("new"), Decision {recommended:"Different".into(), ..decision("change")}];
+    request.answers.insert("posts.states".into(), json!("Empty list"));
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["changeSummary"]["decisions"], json!({"added":["new"],"changed":["change"],"kept":["keep"],"removed":[]}));
+    assert_eq!(result["changeSummary"]["features"]["kept"], json!(["posts"]));
+    assert_eq!(result["changeSummary"]["answers"]["added"], json!(["posts.states"]));
+}
+
 #[test]
 fn populated_erd_choices_bind_entity_columns_and_lifecycle() {
     let plan = json!({"facts":{"parts":"API"},"answers":{},"issues":[],

@@ -326,6 +326,32 @@ fn without_screens(plan: &Value) -> Vec<Value> {
         .map(|f| f["id"].clone())
         .collect()
 }
+fn change_summary(before: &Value, after: &Value) -> Value {
+    let mut summary = json!({});
+    for (field, key) in [("decisions", "id"), ("features", "id"), ("entities", "name"), ("answers", "")] {
+        let records = |plan: &Value| -> BTreeMap<String, Value> {
+            if key.is_empty() {
+                plan[field].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect()
+            } else {
+                array(&plan[field]).iter().map(|v| (text(&v[key]).to_owned(), v.clone())).collect()
+            }
+        };
+        let old = records(before);
+        let new = records(after);
+        let mut changes = json!({"added":[],"changed":[],"kept":[],"removed":[]});
+        for (id, value) in &new {
+            let kind = match old.get(id) {
+                None => "added",
+                Some(previous) if previous == value => "kept",
+                Some(_) => "changed",
+            };
+            changes[kind].as_array_mut().unwrap().push(json!(id));
+        }
+        changes["removed"] = json!(old.keys().filter(|id| !new.contains_key(*id)).collect::<Vec<_>>());
+        summary[field] = changes;
+    }
+    summary
+}
 const DATA_UI: [&str; 9] = [
     "list", "detail", "form", "search", "inquiry", "filter", "pagination", "board", "table",
 ];
@@ -464,6 +490,7 @@ pub(super) async fn run(
         return Ok(response(plan, &input.project_root, full));
     }
     let mut plan = read(&input.project_root)?;
+    let previous = plan.clone();
     // status is a read: it may omit planId and reads it from the plan file.
     let provided = input.plan_id.is_some() || input.action != "status";
     if provided && input.plan_id.as_deref() != plan["planId"].as_str() {
@@ -637,7 +664,11 @@ pub(super) async fn run(
     wiring::record(&mut plan, &input.api_wiring)?;
     write(&mut tx, policy, &input.project_root, &plan)?;
     tx.commit()?;
+    let changes = (input.action == "draft").then(|| change_summary(&previous, &plan));
     let mut out = response(plan, &input.project_root, full);
+    if let Some(changes) = changes {
+        out["changeSummary"] = changes;
+    }
     if input.action == "status" && !full
         && let Some(summary) = out.as_object_mut()
     {
