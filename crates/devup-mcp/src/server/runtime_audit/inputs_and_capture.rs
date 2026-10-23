@@ -25,7 +25,6 @@ const MAX_REPORT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SCREENSHOT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_SCREENSHOTS: usize = 400;
 const MAX_LISTED: usize = 50;
-// Keep complete per-width rows in the response without unbounded duplication.
 const MAX_DIMENSION_ROWS: usize = 100;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -275,10 +274,8 @@ pub struct CheckInput {
     /// was drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub widths: Vec<u32>,
-    /// The Figma node this check is about, so a failure names it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
-    /// capture: what the element screenshot is compared with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<CaptureReferenceInput>,
     /// rendered-completeness: what the frame drawn at this width says must be

@@ -481,7 +481,7 @@ async fn audit_plan_writes_a_plan_per_url_and_reports_what_it_cannot_compare() {
     );
     let home = &plans[0];
     assert_eq!(home["checks"]["view-transition"], 1);
-    assert_eq!(home["checks"]["page-health"], 1);
+    assert_eq!(home["checks"]["page-health"], 3);
     let written = read_plan(fixture.root()).unwrap().unwrap();
     assert_eq!(array(&written["audit"]["plans"]).len(), 2);
     assert!(text(&written["audit"]["plans"][0]["reportPath"]).ends_with("home/report/report.json"));

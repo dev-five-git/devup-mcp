@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn dev_server_command_uses_the_route_app_and_its_package_manager() {
+    let project = Project::new("dev-command");
+    project.write("bun.lock", "");
+    project.write("apps/front/package.json", r#"{"scripts":{"dev":"vinext dev"}}"#);
+    let command = dev_server_command(Path::new(project.root()), "apps/front", "http://localhost:3000");
+    assert_eq!(command["command"], json!(["bun", "run", "dev"]));
+    assert!(command["cwd"].as_str().unwrap().ends_with("apps\\front") || command["cwd"].as_str().unwrap().ends_with("apps/front"));
+    assert_eq!(command["script"], "vinext dev");
+    assert!(command["windowsCommand"].as_str().unwrap().contains("cmd.exe /d /s /c"));
+}
+
+#[test]
 fn absent_source_anchors_leave_design_checks_not_run() {
     let project = Project::new("missing-anchors");
     project.write("src/app/page.tsx", "export default function Page() { return <main /> }");

@@ -636,60 +636,6 @@ fn capture(
     )
 }
 
-fn gate_source_anchors(built: &mut UrlPlan, app: &Path) {
-    fn scan(path: &Path, text: &mut String) {
-        let Ok(entries) = std::fs::read_dir(path) else { return };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if entry.file_type().is_ok_and(|kind| kind.is_symlink()) {
-                continue;
-            }
-            if path.is_dir() {
-                scan(&path, text);
-            } else if matches!(path.extension().and_then(|ext| ext.to_str()), Some("tsx" | "jsx" | "ts" | "js"))
-                && let Ok(source) = std::fs::read_to_string(path) {
-                text.push_str(&source);
-                text.push('\n');
-            }
-        }
-    }
-    let mut source = String::new();
-    scan(&app.join("src"), &mut source);
-    if !app.join("src").exists() {
-        scan(&app.join("app"), &mut source);
-        scan(&app.join("components"), &mut source);
-    }
-    let mut anchors = BTreeSet::new();
-    for tail in source.split("data-figma-node-id").skip(1) {
-        let (plural, tail) = tail.strip_prefix('s').map_or((false, tail), |tail| (true, tail));
-        let Some(tail) = tail.trim_start().strip_prefix('=') else { continue };
-        let tail = tail.trim_start();
-        let Some(quote @ ('\'' | '"')) = tail.chars().next() else { continue };
-        if let Some(value) = tail[1..].split(quote).next() {
-            for value in value.split_whitespace() {
-                let id = if plural { value.split_once(':').map_or(value, |(_, id)| id) } else { value };
-                anchors.insert(id.to_owned());
-            }
-        }
-    }
-    for check in &mut built.plan.screens[0].checks {
-        let anchored = [&check.subject, &check.container].into_iter().flatten()
-            .filter_map(|locator| locator.css.as_deref())
-            .any(|css| css.contains("data-figma-node-id"));
-        let selectors = [&check.subject, &check.container].into_iter().flatten().filter_map(|locator| locator.css.as_deref()).collect::<Vec<_>>();
-        let missing = selectors.iter().any(|css| {
-            css.split('"').enumerate().filter(|(index, _)| index % 2 == 1)
-                .all(|(_, id)| !anchors.contains(id) && !id.split_once(':').is_some_and(|(_, node)| anchors.contains(node)))
-        });
-        let completeness_missing = check.completeness.as_ref().is_some_and(|complete| complete.sections.iter().chain(&complete.images).any(|id| !anchors.contains(id)));
-        if (anchored && missing) || completeness_missing {
-            check.unavailable_reason = Some("not-run: source anchors absent; data-figma-node-id is off by default. Export with figmaNodeIds:true and preserve anchors, or use explicit role/testId locators.".into());
-            check.subject = None;
-            check.container = None;
-        }
-    }
-}
-
 pub(super) fn slug(url: &str) -> String {
     let trimmed = url.trim_matches('/');
     if trimmed.is_empty() {
@@ -707,18 +653,15 @@ pub(super) fn slug(url: &str) -> String {
         .collect()
 }
 
-/// What auditPlan was asked for.
 pub(super) struct AuditRequest<'a> {
     pub root: &'a str,
     pub base_url: &'a str,
     pub base_urls: &'a BTreeMap<String, String>,
-    /// Only these URLs; empty means every confirmed URL.
     pub only: &'a [String],
     pub artifact_ids: &'a [String],
     pub thresholds: &'a VisualThresholds,
 }
 
-/// Writes every URL's plan, the runner once, and returns what to run.
 pub(super) async fn write(
     plan: &Value,
     request: &AuditRequest<'_>,
@@ -740,8 +683,6 @@ pub(super) async fn write(
         .filter(|route| route["implementation"] == "page" && route["url"].is_string())
         .collect::<Vec<_>>();
     let records = super::export_record::records(Path::new(root));
-    // Every route as the concrete URLs it is audited at: a dynamic route at
-    // the URLs its params, the site's links or its Figma frame give.
     let mut concrete = Vec::<(usize, String, Option<Value>)>::new();
     let mut not_audited = Vec::new();
     for (index, route) in routes.iter().enumerate() {
@@ -888,6 +829,7 @@ pub(super) async fn write(
             "notes": built.notes,
             "dynamic": dynamic,
             "run": ["node", "run.mjs", "--plan", plan_path.display().to_string(), "--out", report_dir.display().to_string()],
+            "startServer": dev_server_command(Path::new(root), app, base),
         }));
     }
     let missing = written
