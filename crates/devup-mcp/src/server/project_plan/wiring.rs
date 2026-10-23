@@ -98,8 +98,13 @@ pub(super) fn blockers(plan: &Value, root: &str) -> Vec<String> {
 }
 
 fn declares(cargo: &str, name: &str) -> bool {
+    let mut runtime = false;
     cargo.lines().any(|line| {
-        line.trim_start().strip_prefix(name).is_some_and(|rest| {
+        let line = line.trim();
+        if line.starts_with('[') {
+            runtime = line == "[dependencies]" || (line.starts_with("[target.") && line.ends_with(".dependencies]"));
+        }
+        runtime && line.strip_prefix(name).is_some_and(|rest| {
             rest.starts_with('.') || rest.trim_start().starts_with('=')
         })
     })
@@ -120,7 +125,7 @@ pub(super) fn backend_checks(plan: &Value, root: &str) -> Vec<String> {
         }
     }
     if let Ok(main) = std::fs::read_to_string(base.join("src/main.rs"))
-        && !main.contains("mod models")
+        && !syn::parse_file(&main).is_ok_and(|file| file.items.iter().any(|item| matches!(item, syn::Item::Mod(module) if module.ident == "models")))
     {
         found.push(format!("{dir}/src/main.rs lacks `mod models;`; export does not wire src/models"));
     }

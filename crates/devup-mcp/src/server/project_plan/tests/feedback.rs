@@ -1,5 +1,18 @@
 use super::*;
 
+#[test]
+fn backend_checks_require_runtime_dependencies_and_real_module() {
+    let dir = TestDir::new();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("Cargo.toml"), "[dev-dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n").unwrap();
+    std::fs::write(dir.path().join("src/main.rs"), "// mod models;\nfn main() {}\n").unwrap();
+    let plan = json!({"state":"confirmed","modelsWorkingDirectory":"."});
+    assert_eq!(wiring::backend_checks(&plan, &dir.path().to_string_lossy()).len(), 3);
+    std::fs::write(dir.path().join("Cargo.toml"), "[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n").unwrap();
+    std::fs::write(dir.path().join("src/main.rs"), "mod models;\nfn main() {}\n").unwrap();
+    assert!(wiring::backend_checks(&plan, &dir.path().to_string_lossy()).is_empty());
+}
+
 #[tokio::test]
 async fn split_scope_prioritizes_confirmed_feature_answers() {
     let dir = TestDir::new();
