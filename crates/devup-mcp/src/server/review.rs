@@ -71,6 +71,15 @@ fn has_line_height(value: &Value) -> bool {
 }
 
 fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
+    let placeholders = response["assetManifest"]["assets"].as_array().into_iter().flatten()
+        .filter(|asset| asset["status"] != "exported" || asset["outputPath"].is_null())
+        .filter_map(|asset| asset["path"].as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if !placeholders.is_empty() {
+        out.push(json!({"severity":"required","scope":scope,"code":"ASSET_PLACEHOLDERS",
+            "paths":placeholders,"what":"Generated asset URLs are placeholders without a committed output file.",
+            "how":"Export the assets with outputPath and assetPublicRoot before using the generated code."}));
+    }
     for item in response["responsiveReviewChecklist"]["items"]
         .as_array()
         .into_iter()
@@ -179,6 +188,19 @@ mod tests {
         attach(&mut value);
         assert_eq!(value["summary"]["required"], 0);
         assert!(value.get("reviewChecklist").is_none());
+    }
+
+    #[test]
+    fn acquired_but_unwritten_assets_require_placeholder_review() {
+        let mut value = json!({"status":"complete","quality":{"assets":"complete"},
+            "assetManifest":{"assets":[
+                {"assetId":"1:1:fills:0","status":"exported","path":"/images/main-hero.webp"},
+                {"assetId":"1:2:node","status":"exported","path":"/icons/logo.svg","outputPath":"public/icons/logo.svg"}
+            ]}});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["severity"], "required");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/images/main-hero.webp"]));
     }
 
     #[test]
