@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn backend_checks_resolve_workspace_aliases_and_derive_features() {
+    let dir = TestDir::new();
+    let api = dir.path().join("apis/api");
+    std::fs::create_dir_all(api.join("src")).unwrap();
+    std::fs::write(api.join("src/main.rs"), "mod models; fn main() {}").unwrap();
+    let plan = json!({"state":"confirmed","modelsWorkingDirectory":"apis/api"});
+    let root = dir.path().to_string_lossy();
+    std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = [\"apis/api\"]\n[workspace.dependencies]\nserialization = { package = \"serde\", version = \"1\", features = [\"derive\"] }\njson = { package = \"serde_json\", version = \"1\" }\n").unwrap();
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserialization.workspace = true\njson.workspace = true\n").unwrap();
+    assert!(wiring::backend_checks(&plan, &root).is_empty());
+    std::fs::write(api.join("Cargo.toml"), "[dependencies.serialization]\npackage = \"serde\"\nversion = \"1\"\n[dependencies.json]\npackage = \"serde_json\"\nversion = \"1\"\n").unwrap();
+    let checks = wiring::backend_checks(&plan, &root);
+    assert_eq!(checks.len(), 1);
+    assert!(checks[0].contains("cargo add serde --features derive"));
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserde = { workspace = true }\nserde_json = { workspace = true }\n").unwrap();
+    let checks = wiring::backend_checks(&plan, &root);
+    assert_eq!(checks.len(), 2, "unresolved workspace dependencies are missing");
+    assert!(checks[0].contains("cargo add serde --features derive"));
+    assert!(checks[1].contains("cargo add serde_json"));
+    std::fs::write(api.join("Cargo.toml"), "[dependencies]\nserialization = { workspace = true, features = [\"derive\"] }\njson.workspace = true\n").unwrap();
+    std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\n[workspace.dependencies]\nserialization = { package = \"serde\", version = \"1\" }\njson = { package = \"serde_json\", version = \"1\" }\n").unwrap();
+    assert!(wiring::backend_checks(&plan, &root).is_empty());
+}
+
+#[test]
 fn api_contract_report_requires_bindings_and_real_http_operations() {
     let dir = TestDir::new();
     std::fs::write(dir.path().join("openapi.json"), json!({"paths":{

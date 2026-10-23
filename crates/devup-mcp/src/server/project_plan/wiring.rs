@@ -100,17 +100,40 @@ pub(super) fn blockers(plan: &Value, root: &str) -> Vec<String> {
     missing.chain(deferred).collect()
 }
 
-fn declares(cargo: &str, name: &str) -> bool {
-    let mut runtime = false;
-    cargo.lines().any(|line| {
-        let line = line.trim();
-        if line.starts_with('[') {
-            runtime = line == "[dependencies]" || (line.starts_with("[target.") && line.ends_with(".dependencies]"));
-        }
-        runtime && line.strip_prefix(name).is_some_and(|rest| {
-            rest.starts_with('.') || rest.trim_start().starts_with('=')
-        })
+fn cargo_document(path: &Path) -> Option<toml_edit::DocumentMut> {
+    std::fs::read_to_string(path).ok()?.parse().ok()
+}
+
+fn workspace_document(base: &Path, cargo: &toml_edit::DocumentMut) -> Option<toml_edit::DocumentMut> {
+    if let Some(workspace) = cargo.get("package").and_then(|p| p.get("workspace")).and_then(toml_edit::Item::as_str) {
+        return cargo_document(&base.join(workspace).join("Cargo.toml"));
+    }
+    base.ancestors().find_map(|ancestor| {
+        cargo_document(&ancestor.join("Cargo.toml")).filter(|doc| doc.get("workspace").is_some())
     })
+}
+
+fn has_derive(dep: &toml_edit::Item) -> bool {
+    dep.get("features").and_then(toml_edit::Item::as_array)
+        .is_some_and(|features| features.iter().any(|feature| feature.as_str() == Some("derive")))
+}
+
+fn declares(cargo: &toml_edit::DocumentMut, workspace: Option<&toml_edit::DocumentMut>, name: &str) -> bool {
+    let mut tables = vec![cargo.get("dependencies")];
+    if let Some(targets) = cargo.get("target").and_then(toml_edit::Item::as_table_like) {
+        tables.extend(targets.iter().map(|(_, target)| target.get("dependencies")));
+    }
+    tables.into_iter().flatten().filter_map(toml_edit::Item::as_table_like)
+        .flat_map(|table| table.iter()).any(|(key, dep)| {
+            let inherited = dep.get("workspace").and_then(toml_edit::Item::as_bool) == Some(true);
+            let resolved = if inherited {
+                workspace.and_then(|doc| doc.get("workspace")?.get("dependencies")?.get(key))
+            } else { Some(dep) };
+            resolved.is_some_and(|resolved| {
+                let package = resolved.get("package").and_then(toml_edit::Item::as_str).unwrap_or(key);
+                package == name && (name != "serde" || has_derive(dep) || has_derive(resolved))
+            })
+        })
 }
 
 pub(super) fn backend_checks(plan: &Value, root: &str) -> Vec<String> {
@@ -120,12 +143,15 @@ pub(super) fn backend_checks(plan: &Value, root: &str) -> Vec<String> {
     }
     let base = Path::new(root).join(dir);
     let mut found = vec![];
-    if let Ok(cargo) = std::fs::read_to_string(base.join("Cargo.toml")) {
-        for dep in ["serde", "serde_json"] {
-            if !declares(&cargo, dep) {
-                found.push(format!("{dir}/Cargo.toml lacks {dep}; exported entities do not compile without it"));
+    if let Some(cargo) = cargo_document(&base.join("Cargo.toml")) {
+        let workspace = workspace_document(&base, &cargo);
+        for (dep, command) in [("serde", "cargo add serde --features derive"), ("serde_json", "cargo add serde_json")] {
+            if !declares(&cargo, workspace.as_ref(), dep) {
+                found.push(format!("{dir}/Cargo.toml lacks {dep}{}; run `{command}` in {dir}", if dep == "serde" { " with derive" } else { "" }));
             }
         }
+    } else if base.join("Cargo.toml").is_file() {
+        found.push(format!("{dir}/Cargo.toml cannot be parsed as TOML; fix the manifest before checking exported entity dependencies"));
     }
     if let Ok(main) = std::fs::read_to_string(base.join("src/main.rs"))
         && !syn::parse_file(&main).is_ok_and(|file| file.items.iter().any(|item| matches!(item, syn::Item::Mod(module) if module.ident == "models")))
