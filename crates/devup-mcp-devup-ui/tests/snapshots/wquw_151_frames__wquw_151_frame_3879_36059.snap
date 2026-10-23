@@ -25,7 +25,7 @@ export function Wquw151Frame387936059() {
           aspectRatio="1"
           bg="$caption"
           h="100%"
-          maskImage="url('/icons/Frame 26086041.svg')"
+          maskImage="url(/icons/header-frame-26086041.svg)"
           maskPos="center"
           maskRepeat="no-repeat"
           maskSize="contain"
@@ -37,7 +37,7 @@ export function Wquw151Frame387936059() {
               aspectRatio="1"
               bg="$captionLight"
               boxSize="20px"
-              maskImage="url('/icons/arrow_7134700 1.svg')"
+              maskImage="url(/icons/arrow-7134700-1.svg)"
               maskPos="center"
               maskRepeat="no-repeat"
               maskSize="contain"
@@ -87,7 +87,7 @@ export function Wquw151Frame387936059() {
             aspectRatio="1"
             bg="$secondary"
             boxSize="16px"
-            maskImage="url('/icons/information-button_1176 1.svg')"
+            maskImage="url(/icons/information-button-1176-1.svg)"
             maskPos="center"
             maskRepeat="no-repeat"
             maskSize="contain"
@@ -129,7 +129,7 @@ export function Wquw151Frame387936059() {
             >
               직접 입력
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
@@ -142,7 +142,7 @@ export function Wquw151Frame387936059() {
             >
               녹음하기
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
@@ -155,7 +155,7 @@ export function Wquw151Frame387936059() {
             >
               작성 완료
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
         </Flex>
         <Text

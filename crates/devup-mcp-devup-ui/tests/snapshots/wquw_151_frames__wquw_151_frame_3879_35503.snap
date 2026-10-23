@@ -25,7 +25,7 @@ export function Wquw151Frame387935503() {
           aspectRatio="1.9"
           bg="#752E2E"
           h="34px"
-          maskImage="url('/icons/BI - 아이콘.svg')"
+          maskImage="url(/icons/bi.svg)"
           maskPos="center"
           maskRepeat="no-repeat"
           maskSize="contain"
@@ -77,7 +77,7 @@ export function Wquw151Frame387935503() {
           minW="0"
           objectFit="cover"
           objectPos="center"
-          src="/images/Frame 26086022.png"
+          src="/images/loading-frame-26086022.png"
         />
       </VStack>
     </VStack>
