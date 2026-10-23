@@ -1,5 +1,24 @@
 use super::*;
 
+#[test]
+fn merged_screen_answers_are_forwarded_without_becoming_project_answers() {
+    let dir = TestDir::new();
+    std::fs::create_dir_all(dir.path().join(".devup")).unwrap();
+    std::fs::write(dir.path().join(".devup/screen-plan.json"), json!({
+        "kind":"devup-screen-plan", "schemaVersion":1,"planId":"screen-id","state":"draft",
+        "questions":[{"id":"route:1:2"}]
+    }).to_string()).unwrap();
+    let answers = BTreeMap::from([
+        ("route:1:2".into(), json!("/contact")),
+        ("parts".into(), json!("front only"))
+    ]);
+    let (own, forwarded) = forward_screen_answers(&dir.path().to_string_lossy(), &answers, false);
+    assert_eq!(own, BTreeMap::from([("parts".into(), json!("front only"))]));
+    assert_eq!(forwarded["arguments"]["answers"], json!({"route:1:2":"/contact"}));
+    assert_eq!(forwarded["arguments"]["planId"], "screen-id");
+    assert_eq!(forwarded["arguments"]["action"], "confirm");
+}
+
 #[tokio::test]
 async fn figma_prerequisite_is_reported_at_intake_and_draft() {
     let dir = TestDir::new();
