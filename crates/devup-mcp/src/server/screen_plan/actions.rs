@@ -31,6 +31,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         .cloned()
         .collect::<Vec<_>>();
     let mut actions = BTreeMap::new();
+    let answers = proposal_answers(&questions, &input.answers);
     let mut custom = Vec::new();
     let mut missing = Vec::new();
     for question in &questions {
@@ -38,7 +39,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         if !required(question, &actions) {
             continue;
         }
-        let Some(answer) = input.answers.get(&id) else {
+        let Some(answer) = answers.get(&id) else {
             if input.accept_recommended
                 && let Some(recommended) = array(&question["resolve"]).first()
             {

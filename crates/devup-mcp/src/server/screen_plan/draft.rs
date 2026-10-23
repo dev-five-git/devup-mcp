@@ -321,7 +321,16 @@ pub(super) fn question_rounds(questions: &[Value], per_round: usize) -> Vec<Valu
 /// Every open decision as one table row with the answer the plan recommends,
 /// so the user confirms the whole plan at once instead of being interviewed.
 pub(crate) fn proposal(questions: &[Value]) -> Vec<Value> {
-    ask_shape(questions)
+    let mut actions = BTreeMap::new();
+    let mut ordered = questions.to_vec();
+    ordered.sort_by_key(|question| depth(question, questions));
+    for question in &ordered {
+        if required(question, &actions) {
+            actions.insert(text(&question["id"]).to_owned(), question["resolve"][0]["action"].clone());
+        }
+    }
+    let active = questions.iter().filter(|question| required(question, &actions)).cloned().collect::<Vec<_>>();
+    let rows = ask_shape_with(questions, &active)
         .iter()
         .map(|question| {
             let labels = array(&question["options"])
@@ -337,7 +346,27 @@ pub(crate) fn proposal(questions: &[Value]) -> Vec<Value> {
                 "when": question["when"],
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let mut grouped: Vec<Value> = Vec::new();
+    for mut row in rows {
+        if text(&row["id"]).starts_with("collision:") {
+            if let Some(existing) = grouped.iter_mut().find(|existing| {
+                text(&existing["id"]).starts_with("collision:")
+                    && existing["recommended"] == row["recommended"]
+                    && existing["alternatives"] == row["alternatives"]
+            }) {
+                existing["questionIds"].as_array_mut().unwrap().push(row["id"].clone());
+                existing["screens"].as_array_mut().unwrap().push(row["topic"].clone());
+                existing["topic"] = json!(format!("Existing pages: {}", array(&existing["questionIds"]).len()));
+                existing["decision"] = json!("How should these existing pages be updated? The answer applies to every listed question id.");
+                continue;
+            }
+            row["questionIds"] = json!([row["id"]]);
+            row["screens"] = json!([row["topic"]]);
+        }
+        grouped.push(row);
+    }
+    grouped
 }
 
 pub(crate) fn proposal_markdown(rows: &[Value]) -> String {
@@ -368,6 +397,18 @@ pub(crate) fn proposal_markdown(rows: &[Value]) -> String {
         ));
     }
     out
+}
+
+fn proposal_answers(questions: &[Value], supplied: &BTreeMap<String, AnswerInput>) -> BTreeMap<String, AnswerInput> {
+    let mut answers = supplied.clone();
+    for row in proposal(questions) {
+        if let Some(answer) = supplied.get(text(&row["id"])) {
+            for id in array(&row["questionIds"]) {
+                answers.entry(text(id).to_owned()).or_insert_with(|| answer.clone());
+            }
+        }
+    }
+    answers
 }
 
 fn plan_path(project_root: &str, relative: &str) -> String {
@@ -494,6 +535,8 @@ pub(super) async fn draft_with(
         "planId": plan["planId"],
         "proposal": proposal_rows,
         "proposalMarkdown": proposal_markdown(&proposal_rows),
+        "conditionalQuestions": questions.iter().filter(|question| !proposal_rows.iter().any(|row| row["id"] == question["id"] || array(&row["questionIds"]).contains(&question["id"]))).collect::<Vec<_>>(),
+        "sourcedDefaults": array(&plan["screens"]).iter().filter(|screen| text(&screen["routeEvidence"]).contains("navigationTargets") || text(&screen["routeEvidence"]).contains("routeAliases")).map(|screen| json!({"screen":screen["id"],"route":screen["proposedRoute"],"evidence":screen["routeEvidence"]})).collect::<Vec<_>>(),
         "screens": screen_table(&plan),
         "questionRounds": rounds,
         "questions": questions,
