@@ -80,7 +80,7 @@ pub fn search_snapshot(
     }
     if options.limit == 0 || options.limit > 100 {
         return Err(DevupError::new(
-            ErrorCode::DevupFigmaResponseTooLarge,
+            ErrorCode::DevupInvalidInput,
             "Search limit must be between 1 and 100.",
             false,
         ));
@@ -90,7 +90,7 @@ pub fn search_snapshot(
         "exact" | "normalized" | "fuzzy"
     ) {
         return Err(DevupError::new(
-            ErrorCode::DevupFigmaNodeNotFound,
+            ErrorCode::DevupInvalidInput,
             "match must be exact, normalized, or fuzzy.",
             false,
         ));
@@ -500,6 +500,21 @@ mod tests {
     fn an_empty_query_without_node_types_is_invalid_input() {
         let (snapshot, target) = typed_snapshot();
         let error = search_snapshot(&snapshot, &target, &options("", &[])).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupInvalidInput);
+    }
+
+    #[test]
+    fn a_bad_limit_or_match_kind_is_invalid_input() {
+        let (snapshot, target) = typed_snapshot();
+        for limit in [0, 101] {
+            let mut bad = options("a", &[]);
+            bad.limit = limit;
+            let error = search_snapshot(&snapshot, &target, &bad).unwrap_err();
+            assert_eq!(error.code, ErrorCode::DevupInvalidInput, "limit {limit}");
+        }
+        let mut bad = options("a", &[]);
+        bad.match_kind = "regex".to_owned();
+        let error = search_snapshot(&snapshot, &target, &bad).unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
     }
 
