@@ -69,6 +69,35 @@ fn feedback32_component_payload() -> CollectedPayload {
 }
 
 #[tokio::test]
+async fn feedback66_component_roots_export_despite_uncaptured_nested_master() {
+    for root in ["set", "default", "instance"] {
+        let mut data = feedback32_component_payload();
+        data.snapshot.nodes.insert("nested".into(), serde_json::from_value(json!({
+            "id":"nested","type":"INSTANCE","fields":{"name":"Icon","mainComponentId":"outside"}
+        })).unwrap());
+        data.snapshot.nodes.get_mut("default").unwrap().fields.insert("childrenIds".into(), json!(["label","nested"]));
+        data.snapshot.nodes.insert("instance".into(), serde_json::from_value(json!({
+            "id":"instance","type":"INSTANCE","fields":{"name":"Button","mainComponentId":"default"}
+        })).unwrap());
+        data.target.node_id = Some(root.into());
+        data.snapshot.roots = vec![root.into()];
+        let directory = std::env::temp_dir().join(format!("feedback66-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("Button.tsx");
+        let mut op = operation(&["componentTsx", "sourceMap"]);
+        if let PendingOperation::Export { output_paths, .. } = &mut op {
+            output_paths.insert("componentTsx".into(), path.to_string_lossy().into_owned());
+        }
+        let result = project(data, op).await.unwrap();
+        let code = result["componentTsx"].as_str().expect("component definition");
+        assert!(code.contains("export function Button"), "{root}: {result}");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), code);
+        assert!(result["failures"].as_array().unwrap().is_empty(), "{root}: {result}");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[tokio::test]
 async fn feedback32_component_set_has_no_canvas_coverage_failure() {
     let result = project(feedback32_component_payload(), operation(&["tsx"])).await.unwrap();
     let code = result["tsx"].as_str().unwrap();
