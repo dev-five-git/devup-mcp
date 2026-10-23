@@ -1,6 +1,24 @@
 use super::*;
 
 #[tokio::test]
+async fn new_feature_acceptance_and_answers_are_applied_in_one_draft() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.action = "draft".into();
+    request.answers.insert("inquiry.forms".into(), json!("Require staff email"));
+    request.features = vec![Feature {
+        id:"inquiry".into(), scope:"Contact form".into(), screens:vec![],
+        acceptance:vec!["Validate email before submission".into()], entities:vec![],
+    }];
+    let draft = run(&request, &policy).await.unwrap();
+    assert_eq!(draft["plan"]["answers"]["inquiry.forms"], "Require staff email");
+    assert!(!array(&draft["plan"]["questions"]).iter().any(|question| question["id"] == "inquiry.screens"));
+    assert_eq!(draft["featuresWithoutScreens"]["features"], json!(["inquiry"]));
+    let form = array(&draft["plan"]["questions"]).iter().find(|question| question["id"] == "inquiry.forms").unwrap();
+    assert!(text(&form["question"]).contains("Validate email before submission"));
+}
+
+#[tokio::test]
 async fn status_summary_does_not_duplicate_questions_or_source_facts() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), false).await;

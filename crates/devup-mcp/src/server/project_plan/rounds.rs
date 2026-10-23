@@ -153,9 +153,7 @@ pub(super) fn detail(
             .or_else(|| feature["key"].as_str())
             .unwrap_or("feature");
         let haystack = format!("{} {}", text(&feature["scope"]), feature["acceptance"]).to_lowercase();
-        let has_screens = !array(&feature["screens"]).is_empty();
-        let topics: [(&str, &str, &[&str], [&str; 3]); 5] = [
-            ("screens", "the screens/routes and user roles (the feature lists none)", &[], ["Derive screens from the acceptance criteria", "List screens now", "Exclude this capability"]),
+        let topics: [(&str, &str, &[&str], [&str; 3]); 4] = [
             ("states", "empty, loading and error states", &[], ["Use recorded feature acceptance criteria", "Standard empty/loading/error states", "Exclude this capability"]),
             ("permissions", "permissions and ownership", &["admin", "auth", "login", "role", "permission", "owner", "member"], ["Admins only", "Signed-in users", "Public"]),
             ("forms", "forms and field validation", &["form", "input", "inquiry", "contact", "signup", "register", "submit", "search", "write", "edit"], ["Required fields with inline validation", "Use recorded feature acceptance criteria", "Exclude this capability"]),
@@ -163,13 +161,12 @@ pub(super) fn detail(
         ];
         for (topic, prompt, keywords, options) in topics {
             let relevant = match topic {
-                "screens" => !has_screens,
                 "states" => true,
                 _ => keywords.iter().any(|k| haystack.contains(k)),
             };
             let key = format!("{id}.{topic}");
             if relevant && plan["facts"][&key].is_null() {
-                questions.push(ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"]), &options));
+                questions.push(ask(&key, format!("For {} ({id}), specify {prompt}. Screens: {}. Acceptance: {}. Record a concrete decision or explicitly exclude the capability.", text(&feature["scope"]), feature["screens"], feature["acceptance"]), &options));
             }
         }
     }

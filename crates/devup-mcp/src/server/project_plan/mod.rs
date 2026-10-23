@@ -472,7 +472,11 @@ pub(super) async fn run(
             if plan["state"] == "confirmed" {
                 return Err(invalid("Confirmed plans cannot be redrafted"));
             }
-            rounds::answers(&mut plan, &answers)?;
+            let previous_answers = answers.iter()
+                .filter(|(id, _)| array(&plan["questions"]).iter().any(|question| question["id"] == **id))
+                .map(|(id, answer)| (id.clone(), answer.clone()))
+                .collect();
+            rounds::answers(&mut plan, &previous_answers)?;
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
@@ -509,6 +513,13 @@ pub(super) async fn run(
             }
             erd::draft(input, &mut plan)?;
             plan["questions"] = json!(rounds::detail(&plan, &input.extra_questions)?);
+            let new_answers = answers.into_iter()
+                .filter(|(id, _)| !previous_answers.contains_key(id))
+                .collect();
+            rounds::answers(&mut plan, &new_answers)?;
+            if input.accept_recommended {
+                rounds::accept_recommended(&mut plan)?;
+            }
             plan["state"] = json!("draft");
         }
         "confirm" => {
