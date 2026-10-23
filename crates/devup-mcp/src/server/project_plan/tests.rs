@@ -194,7 +194,7 @@ async fn split_three_issues_preserves_dag_and_briefs() {
     i.action = "split".into();
     i.answers.clear();
     let r = run(&i, &policy).await.unwrap();
-    assert_eq!(array(&r["plan"]["units"]).len(), 3);
+    assert_eq!(array(&r["plan"]["units"]).len(), 4);
     assert_eq!(r["plan"]["units"][2]["dependencies"], json!(["DEV-2"]));
     let brief = std::fs::read_to_string(dir.path().join(".devup/units/DEV-3.md")).unwrap();
     for required in [
@@ -219,7 +219,7 @@ async fn feature_split_and_decisions_and_state_gates() {
     i.action = "split".into();
     i.answers.clear();
     let r = run(&i, &policy).await.unwrap();
-    assert_eq!(array(&r["plan"]["units"]).len(), 5);
+    assert_eq!(array(&r["plan"]["units"]).len(), 6);
     assert_eq!(
         r["plan"]["units"][4]["dependencies"],
         json!(["posts-client"])

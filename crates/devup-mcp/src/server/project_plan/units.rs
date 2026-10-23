@@ -192,6 +192,13 @@ pub(super) fn split(
             }
         }
     }
+    let dependencies = units.iter().filter(|unit| unit["stage"] == 1)
+        .map(|unit| text(&unit["id"]).to_owned()).collect();
+    let mut integration = unit("integration".into(), "Supervisor integration and final verification".into(),
+        dependencies, json!(["All worker outputs integrated and verified"]), "integration");
+    integration["stage"] = json!(2);
+    integration["owner"] = json!("supervisor");
+    units.push(integration);
     validate(&units)?;
     let mut screen_context = plan["screenPlan"].clone();
     if let Some(context) = screen_context.as_object_mut() {
@@ -200,6 +207,9 @@ pub(super) fn split(
         }
     }
     for u in &mut units {
+        if u["stage"] == 0 {
+            u["owner"] = json!("supervisor");
+        }
         let owner = unit_owner(u);
         u["scopeOverrides"] = pick(&plan["answers"], &owner, &[]);
         u["scopePrecedence"] = json!(["answers", "decisions", "scope"]);

@@ -1,5 +1,19 @@
 use super::*;
 
+#[tokio::test]
+async fn split_adds_supervisor_integration_after_all_workers() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), false).await;
+    run(&request, &policy).await.unwrap();
+    let mut plan = read(&request.project_root).unwrap();
+    let mut tx = OutputTransaction::new();
+    units::split(&request, &mut plan, &mut tx, &policy).unwrap();
+    let integration = array(&plan["units"]).iter().find(|u| u["id"] == "integration").unwrap();
+    assert_eq!(integration["stage"], 2);
+    assert_eq!(integration["owner"], "supervisor");
+    assert_eq!(integration["dependencies"], json!(["posts-front"]));
+}
+
 #[test]
 fn backend_checks_require_runtime_dependencies_and_real_module() {
     let dir = TestDir::new();
