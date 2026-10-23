@@ -1,6 +1,37 @@
 use super::*;
 
 #[tokio::test]
+async fn split_briefs_contain_only_owned_route_and_worker_files() {
+    let dir = TestDir::new();
+    let (request, policy, _) = drafted(dir.path(), false).await;
+    run(&request, &policy).await.unwrap();
+    let mut plan = read(&request.project_root).unwrap();
+    plan["features"][0]["screens"] = json!(["/posts"]);
+    plan["facts"]["posts.exports"] = json!(["exports/posts.tsx"]);
+    plan["facts"]["posts.assets"] = json!([{"path":"/posts.webp","url":"figma-bridge://current?node-id=1-2"}]);
+    plan["facts"]["posts.imports"] = json!(["@/components/common/PageHero"]);
+    plan["facts"]["protectedFiles"] = json!(["src/components/layout/Header.tsx"]);
+    plan["screenPlan"] = json!({"state":"confirmed","routes":[
+        {"url":"/posts","nodeIds":["1:2"],"file":"src/app/posts/page.tsx"},
+        {"url":"/unrelated","nodeIds":["3:4"],"file":"src/app/unrelated/page.tsx"}
+    ]});
+    let mut tx = OutputTransaction::new();
+    let mut split = request.clone();
+    split.action = "split".into();
+    units::split(&split, &mut plan, &mut tx, &policy).unwrap();
+    tx.commit().unwrap();
+    let unit = array(&plan["units"]).iter().find(|u| u["id"] == "posts-front").unwrap();
+    assert_eq!(unit["contract"]["routes"].as_array().unwrap().len(), 1);
+    assert_eq!(unit["contract"]["exports"], json!(["exports/posts.tsx"]));
+    assert_eq!(unit["contract"]["imports"], json!(["@/components/common/PageHero"]));
+    assert_eq!(unit["contract"]["assets"][0]["path"], "/posts.webp");
+    assert_eq!(unit["contract"]["protectedFiles"], json!(["src/components/layout/Header.tsx"]));
+    let brief = std::fs::read_to_string(dir.path().join(".devup/units/posts-front.md")).unwrap();
+    assert!(brief.contains("exports/posts.tsx"));
+    assert!(!brief.contains("/unrelated"));
+}
+
+#[tokio::test]
 async fn project_facts_auto_fill_screen_answers_with_explicit_answer_precedence() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), false).await;

@@ -71,12 +71,13 @@ fn unit_entities(plan: &Value, u: &Value) -> Vec<Value> {
         .cloned()
         .collect()
 }
-fn slim_screens(screen: &Value) -> Value {
+fn slim_screens(screen: &Value, screens: &[Value]) -> Value {
     if screen.is_null() {
         return Value::Null;
     }
     let routes = array(&screen["routes"])
         .iter()
+        .filter(|route| screens.contains(&route["url"]) || array(&route["nodeIds"]).iter().any(|node| screens.contains(node)))
         .map(|r| json!({"url": r["url"], "nodeIds": r["nodeIds"], "file": r["file"]}))
         .collect::<Vec<_>>();
     json!({"fullPlan": ".devup/screen-plan.json", "state": screen["state"], "routes": routes})
@@ -196,7 +197,16 @@ pub(super) fn split(
             context.remove(key);
         }
     }
-    for u in &units {
+    for u in &mut units {
+        let owner = unit_owner(u);
+        let screens = array(&plan["features"]).iter().find(|feature| feature["id"] == owner)
+            .map(|feature| array(&feature["screens"])).unwrap_or_default();
+        let screen_slice = slim_screens(&screen_context, screens);
+        let mut contract = json!({"routes":screen_slice["routes"],"protectedFiles":plan["facts"]["protectedFiles"]});
+        for field in ["exports", "assets", "imports"] {
+            contract[field] = plan["facts"][format!("{owner}.{field}")].clone();
+        }
+        u["contract"] = contract;
         let brief = format!(
             include_str!("../text/units-split-bf50d8a5.md"),
             text(&u["id"]),
@@ -205,8 +215,8 @@ pub(super) fn split(
             text(&plan["unitQuestions"]),
             slim_context(plan, u),
             erd::mermaid(&unit_entities(plan, u)),
-            slim_screens(&screen_context),
-            json!({"acceptance":u["acceptance"],"checklist":u["checklist"]})
+            screen_slice,
+            json!({"acceptance":u["acceptance"],"checklist":u["checklist"],"contract":u["contract"]})
         );
         stage(
             tx,
