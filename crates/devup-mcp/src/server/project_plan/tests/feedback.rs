@@ -1,6 +1,21 @@
 use super::*;
 
 #[tokio::test]
+async fn status_summary_does_not_duplicate_questions_or_source_facts() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.action = "status".into();
+    request.detail = None;
+    let summary = run(&request, &policy).await.unwrap();
+    assert!(summary.get("plan").is_none());
+    assert!(summary.get("questionRounds").is_none());
+    assert!(summary.get("proposalMarkdown").is_none());
+    assert!(summary["openQuestionCount"].as_u64().unwrap() > 0);
+    assert!(summary["nextAction"].is_object());
+    assert!(serde_json::to_vec(&summary).unwrap().len() < 8192);
+}
+
+#[tokio::test]
 async fn draft_accepts_new_evidence_before_intake_answers_without_losing_them() {
     let dir = TestDir::new();
     let policy = OutputPolicy::from_roots(vec![dir.path().to_path_buf()]).unwrap();

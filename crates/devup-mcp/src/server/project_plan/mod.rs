@@ -601,6 +601,12 @@ pub(super) async fn run(
     write(&mut tx, policy, &input.project_root, &plan)?;
     tx.commit()?;
     let mut out = response(plan, &input.project_root, full);
+    if input.action == "status" && !full {
+        if let Some(summary) = out.as_object_mut() {
+            summary.remove("questionRounds");
+            summary.remove("proposalMarkdown");
+        }
+    }
     if !forward.is_null() {
         out["screenPlanForward"] = forward;
     }
