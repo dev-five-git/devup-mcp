@@ -151,3 +151,22 @@ async fn feedback32_screen_reference_offers_component_export() {
     assert_eq!(action["arguments"]["outputs"], json!(["componentTsx"]));
     assert_eq!(action["arguments"]["artifactId"], result["cache"]["artifactId"]);
 }
+
+#[tokio::test]
+async fn feedback65_component_reference_uses_master_set_and_variant_props() {
+    let mut data = feedback32_component_payload();
+    data.target.node_id = Some("screen".into());
+    data.snapshot.roots = vec!["screen".into()];
+    for (id, node) in [
+        ("screen", json!({"id":"screen","type":"FRAME","fields":{"name":"Screen","childrenIds":["instance"]}})),
+        ("instance", json!({"id":"instance","type":"INSTANCE","fields":{"name":"Unrelated layer name","mainComponentId":"default","variantProperties":{"size":"sm","effect":"default"}}})),
+    ] {
+        data.snapshot.nodes.insert(id.into(), serde_json::from_value(node).unwrap());
+    }
+    let result = project(data, operation(&["componentTsx"])).await.unwrap();
+    let code = result["componentTsx"].as_str().unwrap();
+    assert!(code.contains("import { Button } from \"@/components/Button\""), "{code}");
+    assert!(code.contains("<Button size={\"sm\"} />"), "{code}");
+    assert!(!code.contains("effect="), "{code}");
+    assert_eq!(result["componentDefinitions"][0]["nodeId"], "set");
+}
