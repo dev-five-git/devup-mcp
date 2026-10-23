@@ -43,7 +43,7 @@ test('production codegen renders in Chromium; geometry alone cannot pass broken 
     const visualBin = join(target, 'debug', process.platform === 'win32' ? 'devup-mcp-visual.exe' : 'devup-mcp-visual');
     await mkdir(join(dir, 'public/images'), { recursive: true });
     const hero = await readFile(join(harness, 'fixtures/render-hero.png'));
-    await writeFile(join(dir, 'public/images/Hero.png'), hero);
+    await writeFile(join(dir, 'public/images/hero.png'), hero);
     await writeFile(join(dir, 'devup.json'), JSON.stringify({ theme: {} }));
     await writeFile(join(dir, 'index.html'), '<html><body style="margin:0"><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>');
     await writeFile(join(dir, 'main.tsx'), `import '@devup-ui/reset-css';
