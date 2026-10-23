@@ -767,7 +767,7 @@ expression: output.source_map
       "elementIndex": 13
     },
     {
-      "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
+      "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
       "nodeId": "3879:35530",
       "property": "node",
       "assetId": "3879:35530:node",
@@ -933,7 +933,7 @@ expression: output.source_map
       "elementIndex": 16
     },
     {
-      "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
+      "generatedProperty": "maskImage=\"url(/icons/icons-2.svg)\"",
       "nodeId": "3879:35534",
       "property": "node",
       "assetId": "3879:35534:node",
@@ -1486,7 +1486,7 @@ expression: output.source_map
       "elementIndex": 28
     },
     {
-      "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
+      "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
       "nodeId": "3879:35541",
       "property": "node",
       "assetId": "3879:35541:node",

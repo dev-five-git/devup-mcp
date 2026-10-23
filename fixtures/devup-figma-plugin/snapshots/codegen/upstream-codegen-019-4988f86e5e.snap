@@ -6,7 +6,7 @@ expression: actual
 "<Box
   bg="#F00"
   boxSize="24px"
-  maskImage="url(/icons/NestedIcon.svg)"
+  maskImage="url(/icons/nestedicon.svg)"
   maskPos="center"
   maskRepeat="no-repeat"
   maskSize="contain"

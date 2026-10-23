@@ -7,7 +7,7 @@ expression: actual
   return (
     <Box
       bg="#D9D9D9"
-      maskImage="url(/icons/Star7.svg)"
+      maskImage="url(/icons/star7.svg)"
       maskPos="center"
       maskRepeat="no-repeat"
       maskSize="contain"

@@ -48,7 +48,7 @@ expression: actual
             minW="0"
             objectFit="cover"
             objectPos="center"
-            src="/images/Frame 568.png"
+            src="/images/section-1-frame-568.png"
             w="400px"
           />
           <VStack flex="1" gap="40px">
@@ -56,7 +56,7 @@ expression: actual
               aspectRatio="1.59"
               bg="$gold"
               h="64px"
-              maskImage="url('/icons/Group 27.svg')"
+              maskImage="url(/icons/section-1-group-27.svg)"
               maskPos="center"
               maskRepeat="no-repeat"
               maskSize="contain"

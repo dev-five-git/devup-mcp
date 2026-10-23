@@ -2,4 +2,5 @@
 source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
-"<Image boxSize="24px" src="/icons/VectorIcon.svg" />"
+
+"<Image boxSize="24px" src="/icons/vectoricon.svg" />"

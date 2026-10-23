@@ -85,6 +85,37 @@ fn html_entities_in_layer_names_do_not_leak_into_asset_paths() {
         "img":{"id":"img","type":"RECTANGLE","fields":{"name":"R&amp;D","parentId":"root","isAsset":true,"width":40,"height":50,
             "fills":[{"type":"IMAGE","imageHash":"a","scaleMode":"CROP"}]}}}})).unwrap();
     let path = image_fill_path(&snapshot, "img", 0, false).unwrap();
-    assert_eq!(path, "/images/R&D.png");
+    assert_eq!(path, "/images/r-d.png");
     assert!(!path.contains("amp"));
+}
+
+#[test]
+fn readable_names_reuse_image_hash_across_roles_and_number_only_collisions() {
+    let snapshot: Snapshot = serde_json::from_value(json!({"fileKey":"fixture","roots":["root"],"diagnostics":[],"nodes":{
+        "root":{"id":"root","type":"FRAME","fields":{"name":"Main","childrenIds":["1:1","1:2","1:3"]}},
+        "1:1":{"id":"1:1","type":"RECTANGLE","fields":{"name":"R&amp;D Lab","parentId":"root","isAsset":true,"fills":[{"type":"IMAGE","imageHash":"same"}]}},
+        "1:2":{"id":"1:2","type":"RECTANGLE","fields":{"name":"Mobile Photo","parentId":"root","isAsset":true,"fills":[{"type":"IMAGE","imageHash":"same"}]}},
+        "1:3":{"id":"1:3","type":"RECTANGLE","fields":{"name":"R&D Lab","parentId":"root","isAsset":true,"fills":[{"type":"IMAGE","imageHash":"different"}]}}
+    }})).unwrap();
+    let paths = ["1:1", "1:2", "1:3"].map(|id| image_fill_path(&snapshot, id, 0, true).unwrap());
+    assert_eq!(
+        paths,
+        [
+            "/images/r-d-lab.png",
+            "/images/r-d-lab.png",
+            "/images/r-d-lab-2.png"
+        ]
+    );
+}
+
+#[test]
+fn distinct_svg_variants_do_not_share_a_filename_when_per_node_is_off() {
+    let snapshot: Snapshot = serde_json::from_value(json!({"fileKey":"fixture","roots":["a","b"],"diagnostics":[],"nodes":{
+        "a":{"id":"a","type":"VECTOR","fields":{"name":"Icon","width":24,"height":24,"isAsset":true,"variantProperties":{"Kind":"clock"}}},
+        "b":{"id":"b","type":"VECTOR","fields":{"name":"Icon","width":24,"height":24,"isAsset":true,"variantProperties":{"Kind":"chart"}}}
+    }})).unwrap();
+    assert_ne!(
+        asset_path(&snapshot, "a", false),
+        asset_path(&snapshot, "b", false)
+    );
 }
