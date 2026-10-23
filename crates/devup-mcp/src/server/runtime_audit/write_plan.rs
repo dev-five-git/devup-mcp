@@ -56,6 +56,7 @@ fn write_plan(
     if let Some(directory) = template_path {
         transaction.refuse_existing();
         for (name, bytes) in [
+            ("dev-environment.mjs", include_bytes!("../../../../../harness/runtime-audit/dev-environment.mjs").as_slice()),
             ("resource-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/resource-checks.mjs").as_slice()),
             (
                 "run.mjs",
