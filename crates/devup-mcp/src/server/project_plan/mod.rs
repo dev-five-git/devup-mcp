@@ -356,6 +356,14 @@ fn extras(plan: &Value, root: &str) -> Value {
         "apiWiring": wiring::report(plan, root),
         "backendChecks": wiring::backend_checks(plan, root),
     });
+    if erd::api(plan) && array(&plan["entities"]).is_empty() {
+        extra["erdDraftRequired"] = json!({
+            "reason":"API scope has no entities; draft the ERD before approving it.",
+            "nextAction":{"tool":"devup_project_plan","arguments":{
+                "action":"draft","projectRoot":root,"planId":plan["planId"]},
+                "how":"Supply entities and relations from the recorded requirements."}
+        });
+    }
     if !no_screens.is_empty() {
         extra["featuresWithoutScreens"] = json!({"features":no_screens,
             "how":"These features list no screens. Pass features[].screens (page or route names) in draft; no screens question is asked."});

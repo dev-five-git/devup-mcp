@@ -1,6 +1,23 @@
 use super::*;
 
 #[tokio::test]
+async fn api_without_entities_reports_erd_draft_guidance() {
+    let dir = TestDir::new();
+    let policy = OutputPolicy::from_roots(vec![dir.path().to_path_buf()]).unwrap();
+    let mut request = input(dir.path(), "intake");
+    request.evidence = vec![serde_json::from_value(json!({
+        "source":"scope", "facts":{"parts":"front + API"}
+    })).unwrap()];
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["erdDraftRequired"]["nextAction"]["arguments"]["action"], "draft");
+    assert_eq!(result["erdDraftRequired"]["nextAction"]["arguments"]["planId"], result["planId"]);
+    assert!(text(&result["erdDraftRequired"]["reason"]).contains("API"));
+    request.action = "status".into();
+    let result = run(&request, &policy).await.unwrap();
+    assert!(result["erdDraftRequired"].is_object());
+}
+
+#[tokio::test]
 async fn split_uses_one_shared_table_owner_and_skips_static_backend_layers() {
     let dir = TestDir::new();
     let (mut request, policy, _) = drafted(dir.path(), true).await;
