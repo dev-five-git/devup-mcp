@@ -377,7 +377,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         plan["assumptions"] = json!([]);
     }
     let written = write_plan(policy, root, &plan)?;
-    let work_queue = routes
+    let mut work_queue = theme_sync_queue(&plan, root);
+    work_queue.extend(routes
         .iter()
         .filter(|route| route["url"].is_string())
         .map(|route| {
@@ -390,10 +391,10 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "drawnWidths": route["drawnWidths"],
             })
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>());
     let urls = work_queue
         .iter()
-        .map(|item| text(&item["url"]).to_owned())
+        .filter_map(|item| item["url"].as_str().map(str::to_owned))
         .collect::<Vec<_>>();
     Ok(json!({
         "status": "confirmed",

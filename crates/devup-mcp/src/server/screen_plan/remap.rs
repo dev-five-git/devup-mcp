@@ -119,3 +119,22 @@ fn frame_page_table(plan: &Value) -> Vec<Value> {
         })
     }).collect()
 }
+
+fn theme_sync_queue(plan: &Value, root: &str) -> Vec<Value> {
+    let theme_root = plan["targetApp"]["dir"].as_str().map_or_else(|| PathBuf::from(root), |app| Path::new(root).join(app));
+    let current = std::fs::read_to_string(theme_root.join("devup.json")).ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok()).unwrap_or(Value::Null);
+    fn missing(figma: &Value, current: &Value) -> usize {
+        match figma.as_object() {
+            Some(entries) => entries.iter().map(|(key, value)| {
+                if current.get(key).is_none() { 1 } else { missing(value, &current[key]) }
+            }).sum(),
+            None => 0,
+        }
+    }
+    let count = missing(&plan["source"]["figmaTheme"], &current);
+    if count == 0 { return Vec::new(); }
+    vec![json!({"do":"theme-sync", "state":"todo", "missingTokenCount":count,
+        "exportCall":{"tool":"devup_figma_export", "arguments":{"url":plan["source"]["url"],
+            "scope":"file", "outputs":["devupJson"], "devupJsonMode":"missing-only", "projectRoot":theme_root}}})]
+}

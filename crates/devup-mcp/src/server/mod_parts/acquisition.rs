@@ -485,6 +485,20 @@ impl DevupServer {
                 refresh: input.refresh,
             })
             .await?;
+        let mut explored = explored;
+        if input.project_root.is_some() {
+            let target = self.bind_to_bridge(parse_link(input.url.as_deref())?, Unnamed::Selection,
+                &json!({"tool":"devup_screen_plan","arguments":{"action":"draft"}})).await?;
+            let mut request = CollectionRequest::new(target, CollectionScope::File);
+            request.variables_only = true;
+            request.resource_scope = ResourceScope::File;
+            let parts = self.run_direct(request, &PendingOperation::Collect, None).await?;
+            if let Some(variables) = parts.variables {
+                let snapshot = devup_mcp_devup_ui::theme::variable_snapshot_from_result(&variables)?;
+                let theme = devup_mcp_devup_ui::theme::generate_devup_json(&snapshot, devup_mcp_devup_ui::theme::ThemeScope::File)?;
+                explored["figmaTheme"] = serde_json::from_str(&theme.json).map_err(|error| DevupError::new(ErrorCode::DevupInvalidInput, error.to_string(), false))?;
+            }
+        }
         let candidates = explored["candidates"]
             .as_array()
             .cloned()
@@ -518,6 +532,7 @@ impl DevupServer {
                 "anchorName": explored["anchor"]["name"],
                 "anchorBreadcrumb": explored["anchor"]["breadcrumb"],
                 "nodePage": explored["nodePage"],
+                "figmaTheme": explored["figmaTheme"],
                 "targetKind": explored["targetKind"],
                 "fileKey": explored["source"]["fileKey"],
                 "truncation": explored["truncation"],

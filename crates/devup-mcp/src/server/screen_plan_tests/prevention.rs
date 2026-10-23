@@ -156,3 +156,16 @@ fn r12_truncated_page_inventory_reports_counts_limits_and_section_calls() {
     assert_eq!(error.details["sections"][0]["draftCall"]["arguments"]["action"], "draft");
     assert!(error.details["sections"][0]["draftCall"]["arguments"]["url"].is_string());
 }
+#[test]
+fn r38_missing_figma_tokens_put_theme_sync_before_page_work() {
+    let fixture = Fixture::new();
+    fixture.write("devup.json", r#"{"theme":{"colors":{"light":{"primary":"red"}}}}"#);
+    let mut plan = confirmed_plan();
+    plan["source"]["figmaTheme"] = json!({"theme":{"colors":{"light":{"primary":"red","borderLight":"gray"}}}});
+    let mut project = evidence();
+    project.root = fixture.0.clone();
+    let report = status_report(&plan, &project, None);
+    assert_eq!(report["workQueue"][0]["do"], "theme-sync");
+    assert_eq!(report["workQueue"][0]["missingTokenCount"], 1);
+    assert_eq!(report["workQueue"][0]["exportCall"]["arguments"]["devupJsonMode"], "missing-only");
+}

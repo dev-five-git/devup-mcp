@@ -312,6 +312,9 @@ pub(super) fn status_report(
         link_markdown.push_str(&format!("| {} | {} | {} | {} | {} |\n", cell(&row["from"]), cell(&row["label"]), cell(&row["href"]), cell(&row["status"]), cell(&row["planned"])));
     }
     let mut queue = super::audit_plan::work_queue(plan, &rows, &[]);
+    let theme_queue = theme_sync_queue(plan, &evidence.root.to_string_lossy());
+    let theme_pending = !theme_queue.is_empty();
+    queue.splice(0..0, theme_queue);
     if links_fail {
         for item in &mut queue { item["done"] = json!(false); }
     }
@@ -319,7 +322,7 @@ pub(super) fn status_report(
     let blocking_urls = rows.iter().filter(|row| {
         row["implemented"] != "yes" || array(&row["widths"]).iter().any(|width| width["result"] != "pass")
     }).map(|row| row["url"].clone()).collect::<Vec<_>>();
-    let done = blocking_urls.is_empty() && !links_fail && incomplete == 0 && open.is_empty();
+    let done = blocking_urls.is_empty() && !theme_pending && !links_fail && incomplete == 0 && open.is_empty();
     let converter_bugs = plan["audit"]["converterBugs"]
         .as_object()
         .map(|bugs| bugs.values().cloned().collect::<Vec<_>>())
