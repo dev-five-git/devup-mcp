@@ -443,6 +443,9 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    Preserve screenshots, reports, Figma reference identities and diffs.
    Before reporting done, also:
 
+   - run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+     Never fix JSX prop order, import sorting or formatting errors by hand.
+     Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
    - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt

@@ -196,7 +196,10 @@ the full rules; these are the steps.
     converter bugs and unresolved findings with evidence as incomplete. Also: every
     URL implemented, the production build free of `data-figma-node-id` (the
     strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
-    nothing), `bun run build`, `bun run lint:fix` first (never hand-sort props or run bare prettier; formatting is owned by oxlint's devup rule), `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
+nothing). Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+Never fix JSX prop order, import sorting or formatting errors by hand.
+Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+Then run `bun run build`, `bun run lint`, `bun tsc --noEmit`
     per changed app, `bun test` (on Windows `bun test` and `cargo test`),
     `devup_ui_validate` without errors, site completeness filled.
 13. **Final report.** End with status's `finalReport` and `summary`: URL x

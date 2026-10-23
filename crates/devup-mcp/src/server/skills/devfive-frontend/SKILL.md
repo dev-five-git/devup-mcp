@@ -397,10 +397,14 @@ export function Card() {
 
 ### Required Verification
 
+Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+Never fix JSX prop order, import sorting or formatting errors by hand.
+Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+
 ```bash
 bun run lint:fix              # FIRST: fixes JSX prop order, formatting, imports; never hand-edit those
-bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
 bunx oxlint --deny-warnings   # warnings count: keep them at 0
+bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
 bun tsc --noEmit              # inside the app you changed (TS 7)
 bun test
 bun run build                 # vinext build for every app

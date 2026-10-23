@@ -6,6 +6,15 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     #[test]
+    fn verification_starts_with_lint_fix_then_oxlint() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            assert!(text.contains("bun run lint:fix` first, then `bunx oxlint --deny-warnings`"), "{name}");
+            assert!(text.contains("Fix only non-fixable leftovers by hand"), "{name}");
+        }
+    }
+
+    #[test]
     fn user_decisions_override_never_wait_without_prose_questions() {
         let text = include_str!("devup/SKILL.md");
         for required in [
