@@ -1,5 +1,30 @@
 use super::*;
 
+#[tokio::test]
+async fn split_uses_one_shared_table_owner_and_skips_static_backend_layers() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), true).await;
+    request.action = "draft".into();
+    request.features = vec![
+        Feature {id:"layout".into(),scope:"Header and footer".into(),screens:vec!["Layout".into()],acceptance:vec![],entities:vec![]},
+        Feature {id:"news".into(),scope:"Public news".into(),screens:vec!["News".into()],acceptance:vec![],entities:vec!["post".into()]},
+        Feature {id:"admin-news".into(),scope:"Manage news".into(),screens:vec!["Editor".into()],acceptance:vec![],entities:vec!["post".into()]},
+    ];
+    run(&request, &policy).await.unwrap();
+    request.action = "confirm".into();
+    request.answers.clear();
+    request.accept_recommended = true;
+    run(&request, &policy).await.unwrap();
+    request.action = "split".into();
+    let result = run(&request, &policy).await.unwrap();
+    let units = array(&result["plan"]["units"]);
+    assert_eq!(units.iter().filter(|unit| unit["id"] == "model-post").count(), 1);
+    assert!(!units.iter().any(|unit| ["layout-api","layout-client","layout-models"].contains(&text(&unit["id"]))));
+    for id in ["news-api", "admin-news-api"] {
+        assert_eq!(units.iter().find(|unit| unit["id"] == id).unwrap()["dependencies"], json!(["model-post"]));
+    }
+}
+
 #[test]
 fn static_features_only_ask_relevant_topics_and_sourced_answers_suppress_them() {
     let mut plan = json!({"facts":{},"answers":{},"features":[
