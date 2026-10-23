@@ -1,5 +1,36 @@
 use super::*;
 
+#[tokio::test]
+async fn restart_archives_plan_screen_and_units_before_creating_new_intake() {
+    let dir = TestDir::new();
+    let (_, policy, _) = drafted(dir.path(), false).await;
+    std::fs::write(dir.path().join(".devup/screen-plan.json"), "original screen").unwrap();
+    std::fs::create_dir_all(dir.path().join(".devup/units")).unwrap();
+    std::fs::write(dir.path().join(".devup/units/worker.md"), "original unit").unwrap();
+    let mut request = input(dir.path(), "intake");
+    request.restart = true;
+    request.detail = Some("full".into());
+    let result = run(&request, &policy).await.unwrap();
+    let archive = dir.path().join(text(&result["plan"]["archivedTo"]));
+    assert!(archive.join("project-plan.json").is_file());
+    assert!(archive.join("screen-plan.json").is_file());
+    assert!(archive.join("units/worker.md").is_file());
+    assert!(!dir.path().join(".devup/screen-plan.json").exists());
+    assert_eq!(result["state"], "intake");
+}
+
+#[tokio::test]
+async fn existing_intake_returns_current_plan_and_status_recovery() {
+    let dir = TestDir::new();
+    let (_, policy, draft) = drafted(dir.path(), false).await;
+    let request = input(dir.path(), "intake");
+    let error = run(&request, &policy).await.unwrap_err();
+    assert_eq!(error.details["existingPlan"]["planId"], draft["planId"]);
+    assert_eq!(error.details["existingPlan"]["state"], "draft");
+    let recovery: ProjectPlanInput = serde_json::from_value(error.details["nextAction"]["arguments"].clone()).unwrap();
+    assert_eq!(run(&recovery, &policy).await.unwrap()["planId"], draft["planId"]);
+}
+
 #[test]
 fn existing_model_diagnostics_report_type_errors_and_entity_drift() {
     let dir = TestDir::new();

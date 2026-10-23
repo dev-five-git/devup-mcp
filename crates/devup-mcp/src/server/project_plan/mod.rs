@@ -2,6 +2,7 @@
 //! local evidence is collected before generating any unresolved questions.
 mod erd;
 mod rounds;
+mod recovery;
 #[cfg(test)]
 mod tests;
 mod units;
@@ -29,6 +30,8 @@ pub struct ProjectPlanInput {
     pub action: String,
     pub project_root: String,
     pub plan_id: Option<String>,
+    #[serde(default)]
+    pub restart: bool,
     /// Facts read from Jira issues/epic children, Figma exploration, spec documents,
     /// and devup_project_context all scopes. Every fact includes its source.
     #[serde(default)]
@@ -484,10 +487,20 @@ pub(super) async fn run(
     policy.resolve(&Path::new(&input.project_root).join(FILE).to_string_lossy())?;
     let mut tx = OutputTransaction::new();
     if input.action == "intake" {
-        if Path::new(&input.project_root).join(FILE).exists() {
-            return Err(invalid(
+        let existing = Path::new(&input.project_root).join(FILE).exists()
+            .then(|| read(&input.project_root)).transpose()?;
+        if let Some(existing) = existing.as_ref().filter(|_| !input.restart) {
+            let mut error = invalid(
                 "Project plan exists; use draft/status instead of replacing decisions",
-            ));
+            );
+            error.details = json!({"existingPlan":{"planId":existing["planId"],"state":existing["state"],
+                "confirmedAt":existing["confirmedAt"],"writtenBy":existing["writtenBy"],"files":[FILE]},
+                "nextAction":{"tool":"devup_project_plan","arguments":{"action":"status",
+                    "projectRoot":input.project_root,"planId":existing["planId"]}},
+                "choices":["Continue existing plan","Archive existing plan before restarting"],
+                "restartAction":{"tool":"devup_project_plan","arguments":{"action":"intake","projectRoot":input.project_root,"restart":true}},
+                "warnings": if existing["writtenBy"]["buildId"].as_str().is_some_and(|id| id != env!("DEVUP_MCP_BUILD_ID")) {vec!["Existing plan was written by a different build"]} else {vec![]}});
+            return Err(error);
         }
         let facts = rounds::facts(input)?;
         let id = sha256(format!("{}{}", input.project_root, now()).as_bytes());
@@ -495,9 +508,22 @@ pub(super) async fn run(
             "facts":facts,"evidence":input.evidence,"answers":{},"decisions":[],"units":[],
             "questions":rounds::intake(&facts),"entities":[],"relations":[],"features":[],"issues":[],
             "unitQuestions":"supervisor"});
+        plan["writtenBy"] = json!({"commit":option_env!("DEVUP_MCP_GIT_COMMIT"),"buildId":env!("DEVUP_MCP_BUILD_ID")});
         rounds::answers(&mut plan, &input.answers)?;
-        write(&mut tx, policy, &input.project_root, &plan)?;
-        tx.commit()?;
+        let archive = if input.restart && existing.is_some() {
+            Some(recovery::archive(&input.project_root, policy)?)
+        } else { None };
+        if let Some(existing) = existing {
+            plan["scopeExclusions"] = existing["scopeExclusions"].clone();
+        }
+        let persisted = write(&mut tx, policy, &input.project_root, &plan).and_then(|()| tx.commit().map(|_| ()));
+        if let Err(error) = persisted {
+            if let Some(archive) = archive.as_ref() {
+                recovery::restore(&input.project_root, archive)?;
+            }
+            return Err(error);
+        }
+        if let Some(archive) = archive { plan["archivedTo"] = json!(archive); }
         return Ok(response(plan, &input.project_root, full));
     }
     let mut plan = read(&input.project_root)?;
