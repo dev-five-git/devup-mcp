@@ -209,7 +209,25 @@ pub(super) fn detail(
             ("storage", "Set file/image storage and nullable metadata"),
         ] {
             if plan["facts"][key].is_null() {
-                questions.push(ask(key, format!("{topic}. Draft ERD: {}. Supply changes as entities/relations with confirm; a prose correction requires redraft.", plan["entities"]), &["Approve recorded ERD", "Revise ERD before confirming"]));
+                let names = array(&plan["entities"]).iter().map(|e| text(&e["name"])).collect::<Vec<_>>();
+                let entities = names.join(", ");
+                let columns = array(&plan["entities"]).iter().flat_map(|e| {
+                    array(&e["columns"]).iter().filter(|c| !c["index"].is_null() || !c["unique"].is_null())
+                        .map(|c| format!("{}.{}", text(&e["name"]), text(&c["name"])))
+                }).collect::<Vec<_>>().join(", ");
+                let choices = match key {
+                    "erd" => vec![format!("Keep recorded columns and relations for {entities}"), "Revise ERD before confirming".into()],
+                    "tenancy" => vec![format!("Single tenant for {entities}"), format!("Tenant ownership required for {entities}")],
+                    "auth" => vec![format!("Use recorded auth and role columns for {entities}"), format!("External identity provider for {entities}")],
+                    "lifecycle" => vec![format!("Keep recorded lifecycle for {entities}"), format!("Soft delete required for {entities}"), format!("Hard delete with recorded FK actions for {entities}")],
+                    "indexes" => vec![format!("Keep recorded indexes: {columns}"), format!("Revise filter and sort indexes for {entities}")],
+                    "storage" => vec![format!("Use recorded file metadata for {entities}"), format!("Object storage with nullable metadata for {entities}"), format!("No file storage for {entities}")],
+                    _ => unreachable!(),
+                };
+                let options = choices.iter().map(String::as_str).collect::<Vec<_>>();
+                let mut question = ask(key, format!("{topic}. Draft ERD: {}. Supply changes as entities/relations with confirm; a prose correction requires redraft.", plan["entities"]), &options);
+                question["entities"] = json!(names);
+                questions.push(question);
             }
         }
     }

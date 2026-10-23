@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn populated_erd_choices_bind_entity_columns_and_lifecycle() {
+    let plan = json!({"facts":{"parts":"API"},"answers":{},"issues":[],
+        "features":[{"id":"news","scope":"News","acceptance":[]}],
+        "entities":[{"name":"post","columns":[{"name":"published_at","type":"timestamptz","nullable":true,"index":true}]}]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    let lifecycle = questions.iter().find(|q| q["id"] == "lifecycle").unwrap();
+    let indexes = questions.iter().find(|q| q["id"] == "indexes").unwrap();
+    assert_eq!(lifecycle["entities"], json!(["post"]));
+    assert_ne!(lifecycle["options"], indexes["options"]);
+    assert!(text(&indexes["resolve"][0]["action"]).contains("post.published_at"));
+    assert!(text(&lifecycle["resolve"][1]["action"]).contains("post"));
+}
+
+#[test]
 fn shared_feature_topics_are_one_question_with_concrete_choices() {
     let plan = json!({"facts":{},"answers":{},"issues":[],"entities":[],"features":[
         {"id":"contact","scope":"Contact form with SMTP email","acceptance":[]},
