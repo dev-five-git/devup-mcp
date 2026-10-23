@@ -4,6 +4,31 @@ import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evalu
 import { observeSequence, observeSectionLayout, observeClippedContent, observeStylesApplied, runPlan } from '../run.mjs';
 import { observeInteraction } from '../run.mjs';
 import { evaluateInteraction } from '../checks.mjs';
+import { observeCompleteness } from '../run.mjs';
+
+test('decorative and marquee contrast is excluded without hiding ordinary animated text', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    await page.setContent('<style>@keyframes slide{to{transform:translateX(-50%)}}@keyframes fade{to{opacity:.8}}.track{width:2000px;animation:slide 10s linear infinite}</style><div aria-hidden="true">hidden</div><div role="presentation"><span>decoration</span></div><div style="overflow:hidden;width:300px"><div class="track"><span>marquee</span></div></div><p style="animation:fade 1s infinite">ordinary</p>');
+    const observed = await observeCompleteness(page, {}, 390);
+    assert.deepEqual(observed.texts.map((item) => item.text), ['ordinary']);
+    assert.deepEqual((await observeClippedContent(page)).clipped, []);
+  } finally { await browser.close(); }
+});
+
+test('browser sequence separates descending notices and pagination from numbered cards', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<main><section><div>6</div><div>5</div><div>4</div></section><nav aria-label="Pagination"><a href="?page=12">12</a><a href="?page=1">1</a><a href="?page=2">2</a></nav></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+    await page.setContent('<main><section style="display:flex"><span style="position:relative;top:1px">06</span><span>05</span><span style="position:relative;top:2px">04</span></section></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+  } finally { await browser.close(); }
+});
 
 test('browser interaction reports hover styles on a child of the focusable link', async () => {
   const { chromium } = await import('playwright');

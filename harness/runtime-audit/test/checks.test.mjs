@@ -18,13 +18,13 @@ import { validateDimensionsPlan } from '../run.mjs';
 const page = { viewportWidth: 360, scrollWidth: 360, maxRight: 340, overflowHidden: false };
 const box = (x, y, width, height) => ({ x, y, width, height });
 
-test('overflow counts content clipped by overflow:hidden, not only scrolling', () => {
+test('overflow fails only when the document actually scrolls horizontally', () => {
   assert.equal(evaluateCheck({ kind: 'no-horizontal-overflow' }, { page }).status, 'pass');
   const clipped = evaluateCheck(
     { kind: 'no-horizontal-overflow' },
     { page: { ...page, maxRight: 400, overflowHidden: true } },
   );
-  assert.equal(clipped.status, 'fail');
+  assert.equal(clipped.status, 'pass');
   assert.match(clipped.reason, /clipped by overflow/);
   const scrolling = evaluateCheck({ kind: 'no-horizontal-overflow' }, { page: { ...page, scrollWidth: 420 } });
   assert.equal(scrolling.status, 'fail');

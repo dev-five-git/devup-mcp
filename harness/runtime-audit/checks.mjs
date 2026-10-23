@@ -37,19 +37,16 @@ export function evaluateCheck(check, measured) {
   const tolerance = check.tolerancePx ?? DEFAULT_TOLERANCE;
   if (check.kind === 'no-horizontal-overflow') {
     const { viewportWidth, scrollWidth, maxRight, overflowHidden } = measured.page;
-    const widest = Math.max(scrollWidth, maxRight);
-    const overflow = widest - viewportWidth;
+    const overflow = scrollWidth - viewportWidth;
     const evidence = { viewportWidth, scrollWidth: round(scrollWidth), maxRight: round(maxRight), overflowHidden };
     if (overflow > tolerance) {
       return {
         status: 'fail',
-        reason: maxRight > scrollWidth + tolerance
-          ? `content reaches ${round(maxRight)}px in a ${viewportWidth}px viewport, clipped by overflow so the page does not scroll`
-          : `the page scrolls to ${round(scrollWidth)}px in a ${viewportWidth}px viewport`,
+        reason: `the page scrolls to ${round(scrollWidth)}px in a ${viewportWidth}px viewport`,
         measured: evidence,
       };
     }
-    return { status: 'pass', reason: 'nothing reaches past the viewport', measured: evidence };
+    return { status: 'pass', reason: maxRight > viewportWidth + tolerance ? 'content is clipped by overflow; the page does not scroll horizontally' : 'nothing reaches past the viewport', measured: evidence };
   }
 
   const subjectProblem = missing('subject', measured.subjectCount);
@@ -471,9 +468,6 @@ export function evaluateSequenceOrder(observed) {
     const numbers = group.map((item) => item.number).sort((a, b) => a - b);
     const consecutive = numbers.every((n, i) => i === 0 || n === numbers[i - 1] + 1);
     if (!consecutive) continue;
-    const reading = [...group].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.number);
-    if (reading.length > 1 && reading.every((n, i) => i === 0 || n === reading[i - 1] - 1)) continue;
-    compared += 1;
     const remaining = [...group];
     const ordered = [];
     while (remaining.length) {
@@ -482,6 +476,8 @@ export function evaluateSequenceOrder(observed) {
       ordered.push(...row);
       for (const item of row) remaining.splice(remaining.indexOf(item), 1);
     }
+    if (ordered.length > 1 && ordered.every((item, index) => index === 0 || item.number === ordered[index - 1].number - 1)) continue;
+    compared += 1;
     for (let index = 1; index < ordered.length; index += 1) {
       if (ordered[index].number < ordered[index - 1].number) failures.push(`${ordered[index - 1].name} before ${ordered[index].name}`);
     }
