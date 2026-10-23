@@ -96,6 +96,9 @@ pub struct FigmaExportInput {
     pub component_name: Option<String>,
     #[serde(default)]
     pub include_diagnostics: bool,
+    /// Opt in to data-figma-node-id attributes for runtime design audits.
+    #[serde(default)]
+    pub figma_node_ids: bool,
     #[serde(default = "default_scope")]
     #[schemars(extend("enum" = super::validation::COLLECTION_SCOPES))]
     pub scope: String,

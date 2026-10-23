@@ -109,6 +109,30 @@ async fn feedback32_component_set_has_no_canvas_coverage_failure() {
 }
 
 #[tokio::test]
+async fn feedback64_node_identity_requires_explicit_opt_in() {
+    for enabled in [false, true] {
+        let mut op = operation(&["tsx", "componentTsx", "sourceMap"]);
+        if let PendingOperation::Export { theme_options, .. } = &mut op {
+            theme_options.figma_node_ids = enabled;
+        }
+        let result = project(payload(), op).await.unwrap();
+        for output in ["tsx", "componentTsx"] {
+            let code = result[output].as_str().unwrap();
+            assert_eq!(code.contains("data-figma-node-id"), enabled, "{output}: {code}");
+        }
+        assert!(result["sourceMap"].is_object(), "{result}");
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export { theme_options, frame_ids, .. } = &mut op {
+            theme_options.figma_node_ids = enabled;
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+        }
+        let result = project(responsive_payload(), op).await.unwrap();
+        let code = result["responsiveTsx"].as_str().unwrap();
+        assert_eq!(code.contains("data-figma-node-id"), enabled, "{code}");
+    }
+}
+
+#[tokio::test]
 async fn feedback32_screen_reference_offers_component_export() {
     let mut data = feedback32_component_payload();
     data.target.node_id = Some("screen".into());

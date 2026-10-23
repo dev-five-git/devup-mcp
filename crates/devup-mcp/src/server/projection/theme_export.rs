@@ -5,6 +5,7 @@ use devup_mcp_devup_ui::theme::{ThemeOutput, TokenUsage};
 pub struct ThemeExportOptions {
     pub mode: String,
     pub project_root: Option<String>,
+    pub figma_node_ids: bool,
 }
 
 pub fn validate(

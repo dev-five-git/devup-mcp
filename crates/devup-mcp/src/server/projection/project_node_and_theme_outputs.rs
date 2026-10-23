@@ -102,9 +102,7 @@ pub(super) fn project_node_and_theme_outputs(
             }
             .with_payload_tokens(payload),
         )?;
-        if let Some(root) = theme_options.project_root.as_deref()
-            && super::super::screen_plan::node_ids_enabled(root)
-        {
+        if theme_options.figma_node_ids {
             let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
             result.insert("figmaNodeIds".to_owned(), annotated);
         }
@@ -113,10 +111,7 @@ pub(super) fn project_node_and_theme_outputs(
             node_id,
             &mut output,
             true,
-            theme_options
-                .project_root
-                .as_deref()
-                .is_some_and(super::super::screen_plan::node_ids_enabled),
+            theme_options.figma_node_ids,
         );
         scope_output(&mut output, "tsx");
         result.entry("outputResults").or_insert_with(|| json!({}))["tsx"] = output_result(&output);
@@ -172,6 +167,10 @@ pub(super) fn project_node_and_theme_outputs(
         );
         match output {
             Ok(mut output) => {
+                if theme_options.figma_node_ids {
+                    let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
+                    result.insert("figmaNodeIds".to_owned(), annotated);
+                }
                 let definitions = component_definition_actions(payload, &output.tsx, &result);
                 if !definitions.is_empty() {
                     result.insert("componentDefinitions".to_owned(), json!(definitions));
@@ -181,10 +180,7 @@ pub(super) fn project_node_and_theme_outputs(
                     node_id,
                     &mut output,
                     false,
-                    theme_options
-                        .project_root
-                        .as_deref()
-                        .is_some_and(super::super::screen_plan::node_ids_enabled),
+                    theme_options.figma_node_ids,
                 );
                 scope_output(&mut output, "componentTsx");
                 result.entry("outputResults").or_insert_with(|| json!({}))["componentTsx"] =

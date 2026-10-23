@@ -1,8 +1,6 @@
 /// Marks the page root, its top-level children (the sections), their
 /// children and every asset with `data-figma-node-id`, so the runtime audit captures a section
-/// or an asset by the node it came from. Only for exports into a project
-/// (`projectRoot`); `.devup/screen-plan.config.json` `figmaNodeIds: false`
-/// turns it off.
+/// or an asset by the node it came from. Only when `figmaNodeIds` is true.
 fn annotate_node_ids(
     output: &mut devup_mcp_devup_ui::codegen::CodegenOutput,
     snapshot: &devup_mcp_figma::Snapshot,
