@@ -316,6 +316,10 @@ pub(super) fn status_report(
         for item in &mut queue { item["done"] = json!(false); }
     }
     let final_report = super::audit_plan::final_report(plan, &rows, &trailing) + &link_markdown;
+    let blocking_urls = rows.iter().filter(|row| {
+        row["implemented"] != "yes" || array(&row["widths"]).iter().any(|width| width["result"] != "pass")
+    }).map(|row| row["url"].clone()).collect::<Vec<_>>();
+    let done = blocking_urls.is_empty() && !links_fail && incomplete == 0 && open.is_empty();
     let converter_bugs = plan["audit"]["converterBugs"]
         .as_object()
         .map(|bugs| bugs.values().cloned().collect::<Vec<_>>())
@@ -325,6 +329,9 @@ pub(super) fn status_report(
         "unresolved": unresolved,
         "converterBugs": converter_bugs,
         "workQueue": queue,
+        "done": done,
+        "blockingUrls": blocking_urls,
+        "completion": {"done": done, "blockingUrls": blocking_urls, "reportAllowed": done},
         "pendingDecisions": plan["pendingDecisions"],
         "finalReport": final_report,
         "linkTable": link_table,
@@ -716,4 +723,27 @@ fn assumption_warnings(plan: &Value) -> Vec<String> {
         }
     }
     out
+}
+
+pub(super) fn export_progress(project_root: &str) -> Result<Value, DevupError> {
+    for root in Path::new(project_root).ancestors() {
+        let Some(plan) = read_plan(&root.to_string_lossy())? else { continue; };
+        if plan["status"] != "confirmed" { continue; }
+        let requested = dunce::canonicalize(project_root).ok();
+        let routes = array(&plan["routes"]).iter().filter(|route| {
+            route["url"].is_string() && route["implementation"] != "state"
+                && route["app"].as_str().is_none_or(|app| {
+                    requested.as_ref().is_some_and(|requested| {
+                        dunce::canonicalize(root.join(app)).ok().as_ref() == Some(requested)
+                            || dunce::canonicalize(root).ok().as_ref() == Some(requested)
+                    })
+                })
+        }).collect::<Vec<_>>();
+        if routes.is_empty() { continue; }
+        let implemented = routes.iter().filter(|route| route["file"].as_str().is_some_and(|file| root.join(file).is_file())).count();
+        let next = routes.iter().find(|route| !route["file"].as_str().is_some_and(|file| root.join(file).is_file())).map(|route| route["url"].clone());
+        return Ok(json!({"planId": plan["planId"], "implemented": implemented, "total": routes.len(), "next": next,
+            "implementationEvidence": "page files on disk; runtime verification remains required by screen-plan status"}));
+    }
+    Ok(Value::Null)
 }

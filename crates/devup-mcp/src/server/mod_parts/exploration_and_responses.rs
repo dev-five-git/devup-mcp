@@ -447,6 +447,11 @@ fn with_project_checks(
     let Some(project_root) = project_root else {
         return result;
     };
+    match screen_plan::export_progress(project_root) {
+        Ok(progress) if !progress.is_null() => result["planProgress"] = progress,
+        Err(error) => result["planProgress"] = json!({"state": "unavailable", "reason": error.message}),
+        _ => {}
+    }
     if generated.is_empty() {
         // Resource delivery hands the code back as a link, so there is no
         // source here to check. Saying so is the point: an absent verdict

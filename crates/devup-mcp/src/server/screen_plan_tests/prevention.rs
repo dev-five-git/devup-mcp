@@ -89,3 +89,29 @@ async fn r19_device_only_frames_in_each_section_confirm_as_one_responsive_url() 
     assert!(routes.iter().all(|route| array(&route["nodeIds"]).len() == 2));
     assert!(!routes.iter().any(|route| route["url"] == "/mobile"));
 }
+#[test]
+fn r33_one_built_route_does_not_complete_a_fifteen_url_plan() {
+    let mut plan = confirmed_plan();
+    let routes = (0..15).map(|index| json!({
+        "url": if index == 0 { "/".to_owned() } else { format!("/page-{index}") },
+        "screen": format!("frame-{index}"), "nodeIds": [format!("frame-{index}")],
+        "implementation": "page", "drawnWidths": [1440], "file": format!("src/app/page-{index}/page.tsx")
+    })).collect::<Vec<_>>();
+    plan["routes"] = json!(routes);
+    let audit = json!({"widthTable": [{"width":1440}], "screenTable":
+        ([1440,1100,858,390].map(|width| json!({"routePath":"/", "width":width,"status":"pass","columns":{"completeness":"pass"}})))});
+    let report = status_report(&plan, &evidence(), Some(&audit));
+    assert_eq!(array(&report["workQueue"]).len(), 15);
+    assert_eq!(array(&report["blockingUrls"]).len(), 14);
+    assert_eq!(report["done"], false);
+    assert_eq!(report["completion"]["reportAllowed"], false);
+}
+#[test]
+fn r33_export_progress_retains_the_next_unwritten_url() {
+    let fixture = Fixture::new();
+    write_plan_file(&fixture, &confirmed_plan());
+    let progress = export_progress(fixture.root()).unwrap();
+    assert_eq!(progress["implemented"], 1);
+    assert_eq!(progress["total"], 2);
+    assert_eq!(progress["next"], "/about");
+}
