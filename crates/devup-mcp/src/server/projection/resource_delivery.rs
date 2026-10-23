@@ -120,6 +120,7 @@ pub(super) async fn apply_delivery(
     spill_oversized_fields(result, &mut outputs, &artifact.artifact_id)?;
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
+    let output_bytes = outputs.iter().map(|output| output.bytes.len()).sum::<usize>();
     let reservation = artifact_store
         .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
@@ -242,21 +243,10 @@ pub(super) async fn apply_delivery(
         choose_delivery_for_result(DeliveryMode::Inline, &Value::Object(result.clone()), &[])
     {
         reservation.rollback();
-        let mut sizes = result
-            .iter()
-            .map(|(key, value)| (key.clone(), value.to_string().len()))
-            .collect::<Vec<_>>();
-        sizes.sort_by_key(|a| std::cmp::Reverse(a.1));
-        sizes.truncate(8);
         if !error.details.is_object() {
             error.details = json!({});
         }
-        error.details["envelopeFields"] = json!(
-            sizes
-                .into_iter()
-                .map(|(field, bytes)| json!({"field": field, "bytes": bytes}))
-                .collect::<Vec<_>>()
-        );
+        error.details["outputBytes"] = json!(output_bytes);
         return Err(error);
     }
     Ok(Some(DeliveryAttachment { reservation }))

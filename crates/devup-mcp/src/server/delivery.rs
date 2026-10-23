@@ -203,15 +203,24 @@ pub fn choose_delivery_for_result(
                 || outputs.iter().map(|o| o.bytes.len()).sum::<usize>()
                     > MAX_INLINE_TOTAL_BYTES =>
         {
-            Err(inline_size_error(
+            let mut error = inline_size_error(
                 outputs,
                 outputs.iter().map(|o| o.bytes.len()).sum(),
                 Some(wire_bytes),
-            ))
+            );
+            error.details["envelopeFields"] = envelope_field_sizes(result);
+            Err(error)
         }
         DeliveryMode::Inline => Ok(DeliveryDecision { inline: true }),
         DeliveryMode::Resource => Ok(DeliveryDecision { inline: false }),
     }
+}
+
+pub(super) fn envelope_field_sizes(result: &Value) -> Value {
+    let mut sizes = result.as_object().into_iter().flatten()
+        .map(|(field, value)| (field, value.to_string().len())).collect::<Vec<_>>();
+    sizes.sort_by_key(|(_, bytes)| std::cmp::Reverse(*bytes));
+    serde_json::json!(sizes.into_iter().take(8).map(|(field, bytes)| serde_json::json!({"field":field,"bytes":bytes})).collect::<Vec<_>>())
 }
 
 fn inline_size_error(
@@ -376,6 +385,22 @@ fn random_resource_id() -> String {
 mod r12_tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn feedback_28_single_output_error_identifies_metadata_and_recovery() {
+        let result = json!({"tsx":"<Box/>","projectThemeValidation":{"details":"x".repeat(800_000)}});
+        let outputs = vec![ProjectedOutput::text("tsx", "text/typescript", b"<Box/>".to_vec())];
+        let error = choose_delivery_for_result(DeliveryMode::Inline, &result, &outputs).unwrap_err();
+        assert_eq!(error.details["outputBytes"], 6);
+        assert_eq!(error.details["envelopeFields"][0]["field"], "projectThemeValidation");
+        assert!(error.details["envelopeFields"][0]["bytes"].as_u64().unwrap() >= 800_000);
+        let args = json!({"artifactId":"retained","outputs":["tsx"],"delivery":"resource"});
+        let recovered = with_inline_recovery(error, args.clone());
+        assert_ne!(recovered.details["nextAction"]["arguments"], args);
+        assert_eq!(recovered.details["splitRequests"], json!([]));
+        let reason = recovered.details["splitReason"].as_str().unwrap();
+        assert!(reason.contains("outputPaths") && reason.contains("responseFields") && reason.contains("frameIds"));
+    }
 
     #[test]
     fn oversized_envelope_under_resource_delivery_never_repeats_the_failing_call() {
