@@ -911,6 +911,11 @@ fn apply_search_scope(
         return response;
     };
     let scanned = matches.len();
+    let upstream_truncated = snapshot.nodes.values().any(|node| {
+        node.fields.get("searchCandidatesTruncated") == Some(&json!(true))
+    });
+    let candidates_truncated = upstream_truncated || scanned > scope.limit || scanned == MATCH_CEILING;
+    response["hasMore"] = json!(candidates_truncated);
     let node_id = match scope.node_id.as_deref() {
         None => {
             let mut kept = matches;
@@ -922,6 +927,7 @@ fn apply_search_scope(
                 "nodeId": Value::Null,
                 "collectionScope": collection_scope,
                 "scannedMatches": scanned,
+                "candidatesTruncated": candidates_truncated,
                 "note": "The URL carried no node-id, so the whole file was searched. \
                          Put the node you care about in the URL to search only inside it.",
             });
@@ -945,7 +951,7 @@ fn apply_search_scope(
         "matchedInScope": found,
         "returned": inside.len(),
         "excludedOutOfScope": outside.len(),
-        "candidatesTruncated": found > inside.len(),
+        "candidatesTruncated": candidates_truncated || found > inside.len(),
         "note": "The URL carried a node-id, so only matches inside that node are \
                  returned. Remove the node-id to search elsewhere in the file.",
     });

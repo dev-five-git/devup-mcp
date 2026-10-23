@@ -442,3 +442,16 @@ async fn an_omitted_query_lists_sections_by_type() -> anyhow::Result<()> {
     assert_eq!(ids(&output, "matches"), ["4279:7810"]);
     Ok(())
 }
+
+#[tokio::test]
+async fn a_file_search_reports_a_truncated_candidate_list() -> anyhow::Result<()> {
+    let (output, _) = search(json!({
+        "url": "https://www.figma.com/design/FileKey123/Girok",
+        "query": "Loading", "limit": 1
+    }))
+    .await?;
+    assert_eq!(output["count"], 1);
+    assert_eq!(output["scope"]["candidatesTruncated"], true, "{output}");
+    assert_eq!(output["hasMore"], true);
+    Ok(())
+}

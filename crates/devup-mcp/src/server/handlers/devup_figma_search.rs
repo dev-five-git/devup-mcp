@@ -42,11 +42,7 @@ impl DevupServer {
         } else {
             CollectionScope::File
         };
-        let projected_limit = if scope.node_id.is_some() {
-            MATCH_CEILING
-        } else {
-            input.limit
-        };
+        let projected_limit = MATCH_CEILING;
         let mut request = CollectionRequest::new(target, collection_scope);
         request.search = Some(SearchReadOptions {
             query: input.query.clone(),

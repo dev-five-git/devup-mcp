@@ -7,7 +7,7 @@ if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
 let page = root;
 while (page && page.type !== "PAGE") page = page.parent;
 if (!page || page.type !== "PAGE") throw new Error("DEVUP_PAGE_NOT_FOUND");
-await figma.setCurrentPageAsync(page);
+await page.loadAsync();
 
 const options = "__DEVUP_SEARCH__";
 const defaultTypes = ["PAGE", "SECTION", "FRAME", "COMPONENT_SET", "COMPONENT"];
@@ -56,7 +56,7 @@ function score(name) {
 const descendants = root === page
   ? page.findAll(() => true)
   : "findAll" in root ? root.findAll(() => true) : [];
-const candidates = [root, ...descendants]
+const ranked = [root, ...descendants]
   .filter((node) => allowedTypes.has(node.type) && typeof node.name === "string")
   .map((node) => ({ node, score: score(node.name) }))
   .filter((entry) => entry.score !== null)
@@ -64,8 +64,8 @@ const candidates = [root, ...descendants]
     right.score - left.score ||
     left.node.name.localeCompare(right.node.name) ||
     left.node.id.localeCompare(right.node.id),
-  )
-  .slice(0, options.limit);
+  );
+const candidates = ranked.slice(0, options.limit);
 
 const included = new Map([[page.id, page]]);
 // Keep the anchor and its ancestry even when nothing matches. Consumers
@@ -87,6 +87,7 @@ return {
     type: node.type,
     fields: {
       name: node.name,
+      searchCandidatesTruncated: node === root && ranked.length > candidates.length,
       parentId: node.parent && node.parent.type !== "DOCUMENT" ? node.parent.id : null,
       childrenIds: "children" in node ? node.children.map((child) => child.id) : [],
     },
