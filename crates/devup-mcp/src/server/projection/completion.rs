@@ -19,6 +19,7 @@ pub(super) async fn complete_operation(
         artifact_store,
     )
     .await?;
+    response["artifactId"] = json!(artifact.artifact_id);
     if let Some(source) = response
         .get_mut("source")
         .filter(|source| source.is_object())

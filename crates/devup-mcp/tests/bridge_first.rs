@@ -562,7 +562,7 @@ async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
         Auth::new(AuthStatus::Disconnected),
         setup.upstream.clone(),
         "devup_figma_export",
-        json!({ "outputs": ["tsx", "referencePng"] }),
+        json!({ "frameIds": ["1:2"], "outputs": ["tsx", "referencePng"] }),
     )
     .await?;
     assert!(!failed, "{output}");
@@ -570,6 +570,8 @@ async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
     assert_eq!(output["referencePngNote"], REFERENCE_NOTE);
     assert!(output["referencePng"].get("note").is_none(), "{output}");
     assert_eq!(output["cache"]["capabilities"]["referencePng"], true);
+    assert_eq!(output["artifactId"], output["cache"]["artifactId"]);
+    assert_eq!(output["outputResults"]["referencePng"]["state"], "produced");
     assert_eq!(
         output["source"]["bridgeReads"],
         output["collection"]["figmaToolCalls"]

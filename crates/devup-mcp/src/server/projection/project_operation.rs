@@ -728,9 +728,15 @@ async fn project_operation(
                 result.insert("sourceMap".to_owned(), source_map);
             }
 
-            if outputs.iter().any(|output| output == "referencePng") {
-                let reference = payload.reference_png.as_ref().ok_or_else(|| unavailable_output(payload, "referencePng",
-                    "No reference PNG was collected. Re-collect a single screen URL with referencePng in outputs."))?;
+            if outputs.iter().any(|output| output == "referencePng") && payload.reference_png.is_none() {
+                let reason = "No reference PNG was collected. Retry the single node through the Bridge; if rendering remains unavailable, use an authenticated direct path.";
+                result.entry("outputResults").or_insert_with(|| json!({}))["referencePng"] = json!({
+                    "state":"unavailable", "reason":reason,
+                    "nextAction":{"tool":"devup_figma_export","arguments":{"url":payload.target.link(payload.target.node_id.as_deref()),"outputs":["referencePng"],"refresh":true}}
+                });
+                failures.push(json!({"output":"referencePng","code":"DEVUP_REFERENCE_PNG_UNAVAILABLE","message":reason}));
+            }
+            if outputs.iter().any(|output| output == "referencePng") && let Some(reference) = &payload.reference_png {
                 let bytes = STANDARD
                     .decode(reference.data_base64.as_bytes())
                     .map_err(|_| {
@@ -764,6 +770,7 @@ async fn project_operation(
                     result.insert("referencePngNote".to_owned(), note);
                 }
                 result.insert("referencePng".to_owned(), inline);
+                result.entry("outputResults").or_insert_with(|| json!({}))["referencePng"] = json!({"state":"produced"});
             }
 
             (pending_asset_manifest, warnings) = prepare_asset_manifest::prepare_asset_manifest(

@@ -239,6 +239,11 @@ impl DevupServer {
         .map_err(to_mcp_error)?;
 
         let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
+        if reference_png_requested && input.frame_ids.len() == 1 && !input.all_screens && input.artifact_id.is_none() {
+            let mut target = parse_link(input.url.as_deref()).map_err(to_mcp_error)?;
+            target.node_id = input.frame_ids.pop();
+            input.url = Some(target.link(target.node_id.as_deref()));
+        }
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
             let target = if let Some(url) = &input.url {
                 FigmaTarget::parse(url).ok()
