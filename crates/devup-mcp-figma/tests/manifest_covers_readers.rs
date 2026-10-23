@@ -20,7 +20,7 @@ const NOT_NODE_FIELDS: &[&str] = &[
     "styledTextSegments",
     "mainComponentId", // Written by component_identity_helpers.js using getMainComponentAsync.
     "mainComponentSetId", // Written by component_identity_helpers.js from the main component parent.
-    "componentId", // REST snapshot identity alias; not a synchronous plugin node property.
+    "componentId",        // REST snapshot identity alias; not a synchronous plugin node property.
     "nodeScreenIds", // Computed by section_index.js from visited ancestry, not a Figma property.
     "navigationContentWidth", // Computed from visible child widths by explore.js/section_index.js; not a Figma property.
     // Envelope, pagination and probe records, not nodes.

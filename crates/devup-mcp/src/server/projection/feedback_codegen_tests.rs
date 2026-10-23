@@ -103,6 +103,10 @@ async fn feedback32_component_set_has_no_canvas_coverage_failure() {
     let code = result["tsx"].as_str().unwrap();
     assert_eq!(code.matches("export function Button").count(), 1);
     assert!(!code.contains("900px"), "{code}");
+    assert!(!code.contains("600px"), "{code}");
+    assert!(code.contains("_hover="), "{code}");
+    assert!(!code.contains("effect:"), "{code}");
+    assert!(!code.contains("dashed"), "{code}");
     assert!(!result["projectionIssues"].as_array().into_iter().flatten().any(|issue|
         issue["code"] == "DEVUP_CODEGEN_SECTION_COVERAGE" && issue["nodeId"] == "set"
     ), "{result}");
