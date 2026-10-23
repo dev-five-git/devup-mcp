@@ -130,7 +130,7 @@ the full rules; these are the steps.
 5. **Show the proposal table, ask once.** Show draft's `proposalMarkdown`
    (every open decision with its recommended answer) in the language the user
    first wrote in, and ask ONE question with your question tool: accept, or
-   name the rows to change. Never one decision at a time, never later.
+   name the rows to change. Collect known decisions in one question call.
 6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId`,
    `acceptRecommended: true` and only the changed rows in `answers`. If
    confirm reports two screens on one URL, retry with its
@@ -150,7 +150,7 @@ the full rules; these are the steps.
     Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
     { bumped, pins }`); status shows it as the dependencies line. Skip only
     when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-8. **Implement URL by URL without asking anything.** `devup_figma_export` with
+8. **Implement URL by URL.** `devup_figma_export` with
    `projectRoot` and each screen's `frameIds`; `pageScaffold` takes its route
    from the plan. Add the plan's `defaults` as you go: each interactive
    element's role recipe (hover, pressed, focus ring, current page, expanded,
@@ -158,9 +158,8 @@ the full rules; these are the steps.
    150-250ms, existing tokens only), one shared transition, `_motionReduce`,
    view transitions by the plan's mechanism, root and per-page `metadata` with
    openGraph, `lang`, alt text, image dimensions, a not-found page. Run
-   `devup_ui_validate` with `projectRoot` on what you wrote. Anything new:
-   take the recommended or most conservative option and record it with
-   `action: "assume"`.
+    `devup_ui_validate` with `projectRoot` on what you wrote. Ordinary choices
+    use `action: "assume"`; new user-owned decisions use the question tool.
 9. **Audit plan.** `devup_screen_plan` with `action: "auditPlan"`,
    `baseUrl` and `artifacts` (every export artifactId of the plan's frames).
    One plan per URL: health, overflow and clipped text at every width; the
@@ -179,7 +178,7 @@ the full rules; these are the steps.
    reported, never retried). After `maxFixAttempts` (default 3) a finding
    is unresolved with its evidence. Runner cannot install:
    `toolingUnavailable`, and carry on.
-11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
+11. **Continue independent work.** An ordinary choice mid-run: `action: "defer"` with the
     recommended option, keep working, take it with `assume` at the end; a
     destructive one stays unbuilt.
 12. **Done = zero fails.** A real Chromium render is mandatory before claiming
@@ -216,7 +215,7 @@ width; never stop to wait, reorder the work; done = every required cell passes;
 report unresolved cells with evidence as incomplete; layout is exact, a mismatch is drift or a
 converter bug.
 
-Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask all site, structure and URL decisions up front as ONE proposal table and ONE question before implementation; never split them into per-section rounds and never ask during the build.
+Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask known site, structure and URL decisions up front in one question call, not per-section rounds. New user-owned decisions during the build still use the question tool.
 
 ## Staged execution and shared work first
 

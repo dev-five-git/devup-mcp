@@ -106,7 +106,8 @@ For Figma work, continue with the following branch after project intake:
 4. `devup_screen_plan` draft with projectRoot, the link, the notes and
    extraQuestions for anything you would otherwise guess later.
 5. Ask every question now with the `question` tool: the flat `questions` list
-   in one call. Never in prose, never during implementation.
+   in one call. Never in prose. New user-owned decisions after confirm still
+   use the question tool; workers escalate to the supervisor.
 6. `devup_screen_plan` confirm with every answer that applies.
 7. Latest first, without asking: at the repository root run
    `bunx @dependency-check-updates/cli -d -u --rm` - it updates every
@@ -116,7 +117,7 @@ For Figma work, continue with the following branch after project intake:
    to the new APIs, pin only when no fix exists, and record it with
    `devup_screen_plan` assume (dependencyUpdate). Check current docs before
    using any library API.
-8. Implement URL by URL without asking anything: `devup_figma_export` with
+8. Implement URL by URL: `devup_figma_export` with
    projectRoot and frameIds, plus the plan's defaults - each element's role
    recipe (hover, pressed, focus ring, current page, expanded, disabled,
    loading; restrained), one shared transition, reduced motion, view
@@ -137,7 +138,7 @@ For Figma work, continue with the following branch after project intake:
     workQueue order, re-run. A geometry mismatch is code-drift (restore the
     export) or converter-bug (repro filed, never retried). After
     maxFixAttempts (default 3) a finding is unresolved with its evidence. No runner: toolingUnavailable, carry on.
-11. Never stop to wait: a decision mid-run goes to `devup_screen_plan` defer
+11. Continue independent work: an ordinary choice mid-run goes to `devup_screen_plan` defer
     with the recommended option; take it with assume at the end (a
     destructive one stays unbuilt).
 12. Done = zero fails at the drawn widths and no health or overflow fail at
@@ -148,3 +149,12 @@ For Figma work, continue with the following branch after project intake:
     pass (`bun run test` adds cargo tarpaulin, which does not work on
     Windows), devup_ui_validate has no errors, site completeness filled.
 13. Finish with the status finalReport and summary.
+
+User-owned decisions, before or after confirm, use the runtime question tool.
+Show the evidence table first. Keep table approval and individual decisions as
+separate entries in the same call, with headers up to 30 characters and two to
+four options, recommended first and labelled "(Recommended)". Never ask for
+numbers in chat. Record the chosen answer, decision id, affected model/endpoint/file
+and rationale with existing defer/assume actions, not an invented ask action.
+Update source models and re-confirm ERD changes before dependent implementation.
+Without a question tool, report the limitation and leave that decision unresolved.

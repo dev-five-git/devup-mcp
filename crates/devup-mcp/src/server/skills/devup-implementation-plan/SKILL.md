@@ -139,12 +139,11 @@ So the order is fixed, and none of it is optional.
   any point - screens and routes, site files and facts, and your own
   (`extraQuestions`) - goes into the up-front rounds. Then finish the site
   without stopping.
-- **Never ask during implementation.** After `confirm`, ask the user nothing:
-  someone may have walked away from the keyboard, and a question three hours
-  in stops everything. When something new comes up, take the plan's
-  recommended or the most conservative option (leaving a frame unbuilt is
-  conservative; inventing a URL is not), record it with `devup_screen_plan`
-  `action: "assume"`, and keep going.
+- **Separate implementation choices from user decisions.** After `confirm`,
+  record ordinary implementation choices with `defer`/`assume` and continue.
+  A new decision requiring user authority still uses the runtime question tool;
+  continue independent work while its answer is pending. Never silently accept
+  a recommendation on the user's behalf.
 - **Ask with the question tool, never in prose.** Pass each round's
   `questions` to your runtime's structured question tool (`question` in
   OpenCode, `AskUserQuestion` in Claude Code, whatever yours is called). They
@@ -289,7 +288,8 @@ shows signs of it, scroll reveal ("None" unless the design shows motion), and
 recommended one first, `multiple`) for anything you would otherwise guess at
 any point in the job - where a form submits, contact details, external links,
 legal pages, a CMS or data source, the site's language. Collect every question
-the whole job will need now; after confirm, never ask - use `assume`.
+the whole job will need now. New user-owned decisions still use the question tool
+after confirm; ordinary implementation choices use `assume`.
 
 **Verified** - `devup_ui_validate` with `projectRoot` warns on interactive
 elements with no focus style, on too much motion (over 400ms, scale above
@@ -337,14 +337,14 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
    { bumped, pins }`); status shows it as the dependencies line. Skip only
    when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-6. **Implement URL by URL, without asking.** For each confirmed route, call
+6. **Implement URL by URL.** For each confirmed route, call
    `devup_figma_export` with `projectRoot` and that screen's `frameIds`. With
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
    a different one. Add the plan's `defaults` (states, transition, reduced
    motion, metadata, lang, alt, image sizes, not-found) as you go, and run
-   `devup_ui_validate` with `projectRoot` on what you wrote. Answer anything
-   new yourself with the recommended or most conservative option and record it
-   with `assume`. Screens confirmed as a state of another page are built
+   `devup_ui_validate` with `projectRoot` on what you wrote. Record ordinary
+   choices with `assume`; ask user-owned decisions with the question tool.
+   Screens confirmed as a state of another page are built
    inside that page. An export of a frame the confirmed plan does not place
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
@@ -426,7 +426,7 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    looked at in its diff, never to pass a wrong shape. After
    `maxFixAttempts` (default 3) fix-and-rerun rounds a finding is recorded as
    `unresolved` with its screenshot and diff, and leaves the queue.
-10. **Never stop to wait; reorder the work.** A decision the work needs after
+10. **Continue independent work.** An ordinary implementation choice after
    confirm goes to `action: "defer"` (`decision: {id, about, question,
    options, recommended, destructive}`). Keep working: items it blocks move to
    the back of their URL's queue. When everything else is done, take each one
@@ -568,5 +568,5 @@ These rules apply to every plan this workflow produces.
 - Shared change requests: a worker never edits a shared component; it sends a request (what, why, diff) and the supervisor applies it once.
 - Confirm the ERD and the per-screen endpoint contract (list with page/sort/category/query, detail, create with field rules) in the same plan, before writing any page that shows data.
 - Done means real data, real handlers and no leftovers: no hard-coded fixture arrays standing in for an endpoint, no `TODO` or "replace when" comments, no inputs without a handler, no form submit without a network call, every referenced public asset present. A "wire to the API now" answer needs an `operationId` that exists in `openapi.json`; otherwise the screen is reported unfinished.
-- Ask every decision with the question tool: recommended option first, two or three concrete alternatives, header up to 30 characters, never "tell me the numbers to change". Record answers with `defer` or `assume`.
+- Ask every user-owned decision with the runtime question tool, before or after confirm: recommended option first, labelled "(Recommended)", two to four options and a header up to 30 characters. Show evidence in prose, never a numbered chat question ending with "tell me the numbers to change". Keep table approval separate from individual decisions in the same question call. Workers escalate to the supervisor. Record the chosen answer, decision id, affected model/endpoint/file and rationale with existing `defer`/`assume` actions, never an invented `ask` action. Model changes require source model updates and re-confirmation before dependent work. If no question tool exists, report the limitation and leave the user-owned decision unresolved; continue independent work.
 - After editing code, run `bun run lint:fix` first and fix by hand only what it cannot fix; do not re-sort JSX props or reformat by hand, and do not run a bare `prettier`.
