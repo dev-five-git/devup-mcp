@@ -1,81 +1,11 @@
 use super::*;
+mod draft;
+mod contract;
+mod schema;
+mod names;
+pub(super) use draft::draft;
 
-pub(super) fn draft(plan: &mut Value) {
-    if !erd::api(plan) {return;}
-    let mut mappings = vec![];
-    let mut contracts = vec![];
-    for feature in array(&plan["features"]) {
-        let screens = units::feature_screens(plan, feature);
-        let evidence = format!("{} {} {} {}", feature["scope"], feature["screens"], feature["acceptance"], json!(screens)).to_lowercase();
-        let mut operations = vec![];
-        for (operation, keywords) in [
-            ("list", vec!["list", "table", "search", "filter", "pagination", "목록", "검색", "표"]),
-            ("get", vec!["detail", "상세"]),
-            ("create", vec!["form", "create", "signup", "input", "textarea", "폼", "등록", "문의"]),
-            ("update", vec!["edit", "update", "수정"]),
-        ] {
-            if keywords.iter().any(|word| evidence.contains(word)) { operations.push(operation); }
-        }
-        let entities = units::feature_entities(plan, feature);
-        if operations.is_empty() && entities.is_empty() { continue; }
-        if operations.is_empty() { operations.push("list"); }
-        mappings.push(json!({"feature":feature["id"],"screens":feature["screens"],"candidateEntities":entities,"requiredOperations":operations,"status":"draft"}));
-        for name in entities {
-            let Some(entity) = array(&plan["entities"]).iter().find(|entity| entity["name"] == name) else {continue};
-            let fields = array(&entity["columns"]).iter().map(|column| json!({
-                "name":column["name"],"type":column["type"],"nullable":column["nullable"],"required":column["nullable"] == false,
-            })).collect::<Vec<_>>();
-            let resource = if name.ends_with('s') {name.clone()} else {format!("{name}s")};
-            for operation in &operations {
-                let method = match *operation {"create" => "POST", "update" => "PATCH", _ => "GET"};
-                let path = if matches!(*operation, "get" | "update") {format!("/{resource}/{{id}}") } else {format!("/{resource}")};
-                let request_fields = if matches!(*operation, "create" | "update") {
-                    array(&entity["columns"]).iter().filter(|column| column["primary_key"].is_null() && column["default"].is_null())
-                        .map(|column| json!({"name":column["name"],"type":column["type"],"nullable":column["nullable"],"required":*operation == "create" && column["nullable"] == false})).collect::<Vec<_>>()
-                } else {vec![]};
-                contracts.push(json!({"feature":feature["id"],"entity":name,"operation":operation,"method":method,"path":path,
-                    "requestFields":request_fields,"responseFields":fields,"status":"draft","pathEvidence":"entity-name convention; confirm API path before implementation"}));
-            }
-        }
-    }
-    plan["dataMappings"] = json!(mappings);
-    plan["endpointContracts"] = json!(contracts);
-}
 
-fn schema_fields(doc: &Value, schema: &Value, depth: usize) -> std::collections::BTreeSet<String> {
-    if depth > 16 {return Default::default();}
-    if let Some(reference) = schema["$ref"].as_str().and_then(|reference| reference.strip_prefix('#')) {
-        return schema_fields(doc, &doc.pointer(reference).cloned().unwrap_or(Value::Null), depth + 1);
-    }
-    if schema["type"] == "array" {return schema_fields(doc, &schema["items"], depth + 1);}
-    let mut fields = schema["properties"].as_object().into_iter().flatten().map(|(name, _)| name.clone()).collect::<std::collections::BTreeSet<_>>();
-    for part in array(&schema["allOf"]) {fields.extend(schema_fields(doc, part, depth + 1));}
-    fields
-}
-
-fn contract_missing(plan: &Value, path: Option<&Path>) -> Vec<Value> {
-    let Some(path) = path else {return vec![]};
-    let doc = std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok()).unwrap_or(Value::Null);
-    let mut missing = vec![];
-    for contract in array(&plan["endpointContracts"]) {
-        let operation = &doc["paths"][text(&contract["path"])][text(&contract["method"]).to_lowercase()];
-        let mut reasons = vec![];
-        if !operation.is_object() {
-            reasons.push("HTTP method/path absent from openapi.json".to_owned());
-        } else {
-            let request = schema_fields(&doc, &operation["requestBody"]["content"]["application/json"]["schema"], 0);
-            let response = operation["responses"].as_object().into_iter().flatten()
-                .filter(|(status, _)| status.starts_with('2')).flat_map(|(_, response)| schema_fields(&doc, &response["content"]["application/json"]["schema"], 0)).collect::<std::collections::BTreeSet<_>>();
-            for (key, fields) in [("requestFields", request), ("responseFields", response)] {
-                for field in array(&contract[key]) {
-                    if !fields.contains(text(&field["name"])) {reasons.push(format!("{key} missing {}", text(&field["name"])));}
-                }
-            }
-        }
-        if !reasons.is_empty() {missing.push(json!({"feature":contract["feature"],"method":contract["method"],"path":contract["path"],"reason":reasons.join("; ")}));}
-    }
-    missing
-}
 
 fn openapi_path(root: &str) -> Option<std::path::PathBuf> {
     let base = Path::new(root);
@@ -154,8 +84,8 @@ pub(super) fn report(plan: &Value, root: &str) -> Value {
             missing.push(json!({"feature":w["feature"],"operationId":w["operationId"],"reason":why}));
         }
     }
-    let contract_missing = contract_missing(plan, path.as_deref());
-    json!({"openapi":path.map(|p| p.display().to_string()),"wired":wired,"missing":missing,"deferred":deferred,"contractMissing":contract_missing})
+    let (contract_missing, contract_matches) = contract::report(plan, path.as_deref());
+    json!({"openapi":path.map(|p| p.display().to_string()),"wired":wired,"missing":missing,"deferred":deferred,"contractMissing":contract_missing,"contractMatches":contract_matches})
 }
 
 pub(super) fn blockers(plan: &Value, root: &str) -> Vec<String> {

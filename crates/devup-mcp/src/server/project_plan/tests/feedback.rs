@@ -27,7 +27,7 @@ async fn screen_data_contracts_survive_confirm_split_and_check_openapi_fields() 
     std::fs::write(dir.path().join("openapi.json"), json!({"paths":{
         "/posts":{"get":{"operationId":"listPosts","responses":{"200":{"content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/Post"}}}}}}},
         "post":{"operationId":"createPost","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Post"}}}}}}},
-        },"components":{"schemas":{"Post":{"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"user_id":{"type":"integer"}}}}}
+        },"components":{"schemas":{"Post":{"type":"object","required":["id","title","body","userId"],"properties":{"id":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"userId":{"type":"integer"}}}}}
     }).to_string()).unwrap();
     request.action = "split".into();
     let split = run(&request, &policy).await.unwrap();
