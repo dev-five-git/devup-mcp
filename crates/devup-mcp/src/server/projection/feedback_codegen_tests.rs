@@ -69,14 +69,71 @@ fn feedback32_component_payload() -> CollectedPayload {
 }
 
 #[tokio::test]
+async fn feedback66_component_roots_export_despite_uncaptured_nested_master() {
+    for root in ["set", "default", "instance"] {
+        let mut data = feedback32_component_payload();
+        data.snapshot.nodes.insert("nested".into(), serde_json::from_value(json!({
+            "id":"nested","type":"INSTANCE","fields":{"name":"Icon","mainComponentId":"outside"}
+        })).unwrap());
+        data.snapshot.nodes.get_mut("default").unwrap().fields.insert("childrenIds".into(), json!(["label","nested"]));
+        data.snapshot.nodes.insert("instance".into(), serde_json::from_value(json!({
+            "id":"instance","type":"INSTANCE","fields":{"name":"Button","mainComponentId":"default"}
+        })).unwrap());
+        data.target.node_id = Some(root.into());
+        data.snapshot.roots = vec![root.into()];
+        let directory = std::env::temp_dir().join(format!("feedback66-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("Button.tsx");
+        let mut op = operation(&["componentTsx", "sourceMap"]);
+        if let PendingOperation::Export { output_paths, .. } = &mut op {
+            output_paths.insert("componentTsx".into(), path.to_string_lossy().into_owned());
+        }
+        let result = project(data, op).await.unwrap();
+        let code = result["componentTsx"].as_str().expect("component definition");
+        assert!(code.contains("export function Button"), "{root}: {result}");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), code);
+        assert!(result["failures"].as_array().unwrap().is_empty(), "{root}: {result}");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[tokio::test]
 async fn feedback32_component_set_has_no_canvas_coverage_failure() {
     let result = project(feedback32_component_payload(), operation(&["tsx"])).await.unwrap();
     let code = result["tsx"].as_str().unwrap();
     assert_eq!(code.matches("export function Button").count(), 1);
     assert!(!code.contains("900px"), "{code}");
+    assert!(!code.contains("600px"), "{code}");
+    assert!(code.contains("_hover="), "{code}");
+    assert!(!code.contains("effect:"), "{code}");
+    assert!(!code.contains("dashed"), "{code}");
     assert!(!result["projectionIssues"].as_array().into_iter().flatten().any(|issue|
         issue["code"] == "DEVUP_CODEGEN_SECTION_COVERAGE" && issue["nodeId"] == "set"
     ), "{result}");
+}
+
+#[tokio::test]
+async fn feedback64_node_identity_requires_explicit_opt_in() {
+    for enabled in [false, true] {
+        let mut op = operation(&["tsx", "componentTsx", "sourceMap"]);
+        if let PendingOperation::Export { theme_options, .. } = &mut op {
+            theme_options.figma_node_ids = enabled;
+        }
+        let result = project(payload(), op).await.unwrap();
+        for output in ["tsx", "componentTsx"] {
+            let code = result[output].as_str().unwrap();
+            assert_eq!(code.contains("data-figma-node-id"), enabled, "{output}: {code}");
+        }
+        assert!(result["sourceMap"].is_object(), "{result}");
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export { theme_options, frame_ids, .. } = &mut op {
+            theme_options.figma_node_ids = enabled;
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+        }
+        let result = project(responsive_payload(), op).await.unwrap();
+        let code = result["responsiveTsx"].as_str().unwrap();
+        assert_eq!(code.contains("data-figma-node-id"), enabled, "{code}");
+    }
 }
 
 #[tokio::test]
@@ -97,4 +154,23 @@ async fn feedback32_screen_reference_offers_component_export() {
     assert_eq!(action["arguments"]["frameIds"], json!(["set"]));
     assert_eq!(action["arguments"]["outputs"], json!(["componentTsx"]));
     assert_eq!(action["arguments"]["artifactId"], result["cache"]["artifactId"]);
+}
+
+#[tokio::test]
+async fn feedback65_component_reference_uses_master_set_and_variant_props() {
+    let mut data = feedback32_component_payload();
+    data.target.node_id = Some("screen".into());
+    data.snapshot.roots = vec!["screen".into()];
+    for (id, node) in [
+        ("screen", json!({"id":"screen","type":"FRAME","fields":{"name":"Screen","childrenIds":["instance"]}})),
+        ("instance", json!({"id":"instance","type":"INSTANCE","fields":{"name":"Unrelated layer name","mainComponentId":"default","variantProperties":{"size":"sm","effect":"default"}}})),
+    ] {
+        data.snapshot.nodes.insert(id.into(), serde_json::from_value(node).unwrap());
+    }
+    let result = project(data, operation(&["componentTsx"])).await.unwrap();
+    let code = result["componentTsx"].as_str().unwrap();
+    assert!(code.contains("import { Button } from \"@/components/Button\""), "{code}");
+    assert!(code.contains("<Button size={\"sm\"} />"), "{code}");
+    assert!(!code.contains("effect="), "{code}");
+    assert_eq!(result["componentDefinitions"][0]["nodeId"], "set");
 }

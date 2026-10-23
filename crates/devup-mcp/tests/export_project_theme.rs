@@ -224,9 +224,7 @@ async fn an_export_confirms_a_project_that_already_has_the_token() -> anyhow::Re
     Ok(())
 }
 
-/// An export into a project marks the elements the runtime audit finds by
-/// Figma node; the project config turns it off, and an export with no
-/// project never writes it, so plugin-parity output stays byte-equal.
+/// Node identities are explicitly opted into, independently of project config.
 #[tokio::test]
 async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> anyhow::Result<()> {
     let root = std::env::temp_dir().join(format!("devup-node-ids-{}", std::process::id()));
@@ -234,7 +232,7 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
     fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
     let marked = r#"data-figma-node-id="3879:35481""#;
     let result =
-        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy()}))
+        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy(), "figmaNodeIds": true}))
             .await?;
     assert!(
         result["tsx"].as_str().unwrap_or_default().contains(marked),

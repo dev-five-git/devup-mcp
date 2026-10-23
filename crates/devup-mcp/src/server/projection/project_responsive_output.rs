@@ -115,9 +115,7 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
                 "Two frames occupy the same breakpoint slot. Request tsx separately, or select one frame per breakpoint slot.",
             ));
         }
-        if let Some(root) = theme_options.project_root.as_deref()
-            && super::super::screen_plan::node_ids_enabled(root)
-        {
+        if theme_options.figma_node_ids {
             let written = devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut merged);
             let ids = result.entry("figmaNodeIds").or_insert_with(
                 || json!({"attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE}),

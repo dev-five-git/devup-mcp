@@ -271,6 +271,7 @@ async fn project_operation(
                 "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
                 "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
                 "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
+                "figmaNodeIds":theme_options.figma_node_ids,
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
@@ -548,10 +549,7 @@ async fn project_operation(
                 section_tsx_projected,
             ) = project_section_frames::project_section_frames(
                 project_section_frames::SectionFrames {
-                    annotate_node_ids: theme_options
-                        .project_root
-                        .as_deref()
-                        .is_some_and(super::screen_plan::node_ids_enabled),
+                    annotate_node_ids: theme_options.figma_node_ids,
                     failures,
                     design_fingerprints: &design_fingerprints,
                     payload,

@@ -355,19 +355,6 @@ pub(super) struct PlanConfig {
     pub visual_thresholds: Option<super::audit_plan::VisualThresholds>,
 }
 
-/// Whether exports into this project mark their elements with
-/// data-figma-node-id: on unless the project config says false. An
-/// unreadable config leaves it on; draft reports the config error.
-pub(super) fn node_ids_enabled(project_root: &str) -> bool {
-    !matches!(
-        read_config(project_root),
-        Ok(Some(PlanConfig {
-            figma_node_ids: Some(false),
-            ..
-        }))
-    )
-}
-
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
     let path = Path::new(project_root).join(CONFIG_FILE);
     let Ok(bytes) = std::fs::read(&path) else {

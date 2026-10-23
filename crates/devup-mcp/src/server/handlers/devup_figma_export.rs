@@ -403,6 +403,7 @@ impl DevupServer {
                             theme_options: projection::theme_export::ThemeExportOptions {
                                 mode: input.devup_json_mode,
                                 project_root: input.project_root.clone(),
+                                figma_node_ids: input.figma_node_ids,
                             },
                             strict: input.strict,
                             output_paths: input.output_paths,
@@ -452,6 +453,7 @@ impl DevupServer {
                     theme_options: projection::theme_export::ThemeExportOptions {
                         mode: input.devup_json_mode,
                         project_root: input.project_root.clone(),
+                        figma_node_ids: input.figma_node_ids,
                     },
                     strict: input.strict,
                     output_paths: input.output_paths,
@@ -566,6 +568,7 @@ impl DevupServer {
             theme_options: projection::theme_export::ThemeExportOptions {
                 mode: input.devup_json_mode,
                 project_root: input.project_root.clone(),
+                figma_node_ids: input.figma_node_ids,
             },
             strict: input.strict,
             output_paths: input.output_paths,

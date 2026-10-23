@@ -69,7 +69,18 @@ fn render_node(
             .and_then(|references| references.get("visible"))
             .and_then(serde_json::Value::as_str)
             .map(component_property_name);
-        let component = snapshot
+        let master = view.string("mainComponentId")
+            .or_else(|| view.string("componentId"))
+            .and_then(|id| snapshot.nodes.get(id));
+        let set = view.string("mainComponentSetId")
+            .or_else(|| master.and_then(|node| node.typed_view().string("parentId")))
+            .and_then(|id| snapshot.nodes.get(id))
+            .filter(|node| node.node_type == "COMPONENT_SET");
+        let component = set
+            .and_then(|node| node.typed_view().name())
+            .map(normalize_component_name)
+            .or_else(|| master.and_then(|node| node.typed_view().name()).map(normalize_component_name))
+            .unwrap_or_else(|| snapshot
             .nodes
             .values()
             .filter(|candidate| candidate.typed_view().node_type() == "COMPONENT")
@@ -80,8 +91,19 @@ fn render_node(
             })
             .max_by_key(|name| name.len())
             .map(legacy_component_name)
-            .unwrap_or_else(|| legacy_component_name(view.name().unwrap_or("Component")));
-        let content = main_property.unwrap_or_else(|| format!("<{component} />"));
+            .unwrap_or_else(|| legacy_component_name(view.name().unwrap_or("Component"))));
+        let mut properties = super::variant::instance_variant_props(&view);
+        for (name, value) in view.value("variantProperties").and_then(serde_json::Value::as_object).into_iter().flatten() {
+            if !["effect", "viewport"].iter().any(|reserved| name.eq_ignore_ascii_case(reserved))
+                && let Some(value) = value.as_str()
+            {
+                properties.entry(super::variant::instance_property_name(name)).or_insert_with(|| value.to_owned());
+            }
+        }
+        let attributes = properties.iter().map(|(name, value)| {
+            format!(" {name}={{{}}}", serde_json::to_string(value).unwrap())
+        }).collect::<String>();
+        let content = main_property.unwrap_or_else(|| format!("<{component}{attributes} />"));
         let expression = if let Some(visible) = visible_property {
             format!("{{{visible} && {content}}}")
         } else if references.is_some_and(|references| references.contains_key("mainComponent")) {

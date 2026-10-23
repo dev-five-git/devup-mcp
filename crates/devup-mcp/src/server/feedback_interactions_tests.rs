@@ -174,6 +174,22 @@ fn feedback_shared_widgets_details_and_grouped_questions_require_review() {
     );
 }
 
+#[test]
+fn feedback44_export_wiring_guidance_keeps_states_on_the_anchor() {
+    let mut result = json!({"tsx":"<Box />","deliverable":{"isFinal":true}});
+    interactions::attach(&mut result, &design());
+    let issue = result["projectionIssues"].as_array().unwrap().iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_INTERACTION_UNMAPPED").unwrap();
+    let guidance = issue["details"]["nextAction"].as_str().unwrap();
+    assert!(guidance.contains("as={Link} props={{ href, 'aria-current'"));
+    for state in ["_hover={hoverStyles}", "_focusVisible={focusStyles}", "_active={activeStyles}"] {
+        assert!(guidance.contains(state), "{guidance}");
+    }
+    assert!(guidance.contains("not on a child wrapped in Link"));
+    assert_eq!(result["interactionCoverage"]["wiredCount"], 0);
+    assert_eq!(result["deliverable"]["isFinal"], false);
+}
+
 #[tokio::test]
 async fn feedback_context_routes_reuse_env_names_and_no_secret_values() {
     let p = Project::new();

@@ -380,7 +380,7 @@ pub(super) const POSITION_PROPS: [&str; 7] = [
 /// is `Property1` and not `property1`; folding it turned `leftIcon` into
 /// `lefticon`. And only a trailing `#<digits>:<digits>` is stripped, since
 /// that is Figma's own suffix rather than a character a name may not contain.
-fn instance_property_name(raw: &str) -> String {
+pub(super) fn instance_property_name(raw: &str) -> String {
     let stripped = raw
         .rsplit_once('#')
         .filter(|(_, suffix)| {
