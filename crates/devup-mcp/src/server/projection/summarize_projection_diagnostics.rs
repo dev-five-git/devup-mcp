@@ -127,6 +127,7 @@ pub(super) fn summarize_projection_diagnostics(
             outputs.iter().any(|output| output == "assetManifest"),
             &asset_captures
                 .iter()
+                .filter(|capture| !payload.assets.iter().any(|asset| asset.asset_id == capture.asset_id && asset.error_code.as_deref() == Some("DEVUP_ASSET_NODE_HIDDEN")))
                 .map(|capture| capture.asset_id.clone())
                 .collect::<Vec<_>>(),
             &payload.assets,

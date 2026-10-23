@@ -473,7 +473,7 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            return Ok(tool_result(with_project_checks(
+            let mut result = with_project_checks(
                 result,
                 input.project_root.as_deref(),
                 &skills::Lookup::new(
@@ -481,7 +481,14 @@ impl DevupServer {
                     self.output_policy.primary_root(),
                     self.client_name(),
                 ),
-            )));
+            );
+            if manifest_added {
+                let warning = json!({"code":"DEVUP_ASSET_MANIFEST_ADDED","message":"assetManifest was automatically added to outputs for assetRequests."});
+                if let Some(warnings) = result["warnings"].as_array_mut() { warnings.push(warning); }
+                else { result["warnings"] = json!([warning]); }
+            }
+            compact::refresh_reply_selection(&mut result, &input.response_selection).map_err(to_mcp_error)?;
+            return Ok(tool_result(result));
         }
 
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
