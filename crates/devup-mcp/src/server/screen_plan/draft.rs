@@ -98,6 +98,7 @@ pub(super) fn in_scope(
         return true;
     };
     if screen.node_id == anchor
+        || screen.page_id.as_deref() == Some(anchor)
         || screen.section.as_deref() == Some(anchor)
         || screen.ancestors.iter().any(|id| id == anchor)
     {
