@@ -509,11 +509,19 @@ async function stateStyles(locator) {
   }, STATE_PROPERTIES);
 }
 
+async function childStateStyles(locator) {
+  return locator.evaluate((element, properties) => [...element.querySelectorAll('*')].map((child) => {
+    const style = getComputedStyle(child);
+    return { tag: child.tagName.toLowerCase(), styles: properties.map((property) => style[property]) };
+  }), STATE_PROPERTIES);
+}
+
 // Hover moves the mouse over the subject; focus sets keyboard modality first
 // so :focus-visible applies, as it does for a keyboard user. Both wait out
 // the shared transition before reading the styles.
 async function enterState(page, target, state, timeout) {
   const before = await stateStyles(target);
+  const childrenBefore = await childStateStyles(target);
   if (state === 'focus') {
     await page.keyboard.press('Shift');
     await target.focus({ timeout });
@@ -522,13 +530,16 @@ async function enterState(page, target, state, timeout) {
   }
   await page.waitForTimeout(450);
   const after = await stateStyles(target);
+  const childrenAfter = await childStateStyles(target);
+  const childChanges = childrenAfter.filter((child, index) => childrenBefore[index]
+    && child.styles.some((value, property) => value !== childrenBefore[index].styles[property])).map((child) => child.tag);
   if (state === 'focus') await target.evaluate((element) => element.blur());
   await page.mouse.move(0, 0);
   await page.waitForTimeout(state === 'focus' ? 0 : 300);
-  return { before, after };
+  return { before, after, childChanges };
 }
 
-async function observeInteraction(page, check, timeout) {
+export async function observeInteraction(page, check, timeout) {
   if (!check.subject) {
     const all = page.locator('a[href], button, [role="button"]');
     const items = [];

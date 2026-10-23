@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
+test('interaction distinguishes a child-only state change from a dead state', () => {
+  const item = { tag: 'a', name: 'Company', before: {}, after: {}, childChanges: ['span'] };
+  const result = evaluateInteraction({ state: 'hover' }, { items: [item] });
+  assert.equal(result.status, 'fail');
+  assert.match(result.reason, /state styles are on a child.*focusable/);
+  assert.deepEqual(result.measured.unchanged[0].childChanges, ['span']);
+  assert.match(evaluateInteraction({ state: 'focus' }, { subjectCount: 1, ...item }).reason, /state styles are on a child/);
+});
 import {
   GEOMETRY_ROUNDING_PX, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions, evaluateInteraction,
   evaluatePageHealth, evaluateNoLowContrastText, evaluateImageLoaded, evaluateRenderedCompleteness, evaluateViewTransition, summarize, textContrast,

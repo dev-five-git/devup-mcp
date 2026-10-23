@@ -253,6 +253,9 @@ export const STATE_PROPERTIES = [
  * holds each one, and any that changes nothing fails the check.
  */
 export function evaluateInteraction(check, observed) {
+  const childHint = (item) => item.childChanges?.length
+    ? '; state styles are on a child (child computed style changes), not the focusable <a>/button; put states on the focusable element itself'
+    : '';
   if (Array.isArray(observed.items)) {
     const changes = (item) => STATE_PROPERTIES.some((property) => item.before[property] !== item.after[property]);
     const flat = observed.items.filter((item) => !changes(item));
@@ -261,8 +264,8 @@ export function evaluateInteraction(check, observed) {
       ? { status: 'pass', reason: `${check.state} changes all ${observed.items.length} links and buttons`, measured: { checked: observed.items.length } }
       : {
           status: 'fail',
-          reason: `${check.state} changes nothing on ${flat.length} of ${observed.items.length}: ${flat.slice(0, 5).map((item) => `<${item.tag}> "${item.name}"`).join(', ')}`,
-          measured: { checked: observed.items.length, unchanged: flat.map((item) => ({ tag: item.tag, name: item.name })) },
+          reason: `${check.state} changes nothing on ${flat.length} of ${observed.items.length}: ${flat.slice(0, 5).map((item) => `<${item.tag}> "${item.name}"${childHint(item)}`).join(', ')}`,
+          measured: { checked: observed.items.length, unchanged: flat.map((item) => ({ tag: item.tag, name: item.name, childChanges: item.childChanges ?? [] })) },
         };
   }
   const subjectProblem = missing('subject', observed.subjectCount);
@@ -270,7 +273,7 @@ export function evaluateInteraction(check, observed) {
   const changed = STATE_PROPERTIES.filter((property) => observed.before[property] !== observed.after[property]);
   return changed.length > 0
     ? { status: 'pass', reason: `${check.state} changes ${changed.join(', ')}`, measured: { changed } }
-    : { status: 'fail', reason: `${check.state} changes nothing visible`, measured: { before: observed.before } };
+    : { status: 'fail', reason: `${check.state} changes nothing visible${childHint(observed)}`, measured: { before: observed.before, childChanges: observed.childChanges ?? [] } };
 }
 
 /** Counts recomputed from items, never taken from a declaration. */

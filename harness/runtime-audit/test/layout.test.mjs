@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied } from '../checks.mjs';
 import { observeSequence, observeSectionLayout, observeClippedContent, observeStylesApplied, runPlan } from '../run.mjs';
+import { observeInteraction } from '../run.mjs';
+import { evaluateInteraction } from '../checks.mjs';
+
+test('browser interaction reports hover styles on a child of the focusable link', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>a{color:black}span:hover{color:red}</style><a href="/company"><span>Company</span></a>');
+    const observed = await observeInteraction(page, { state: 'hover' }, 1000);
+    assert.deepEqual(observed.items[0].childChanges, ['span']);
+    assert.match(evaluateInteraction({ state: 'hover' }, observed).reason, /state styles are on a child/);
+  } finally { await browser.close(); }
+});
 
 test('numbered cards and STEP labels in one <main> are judged as two sequences', async () => {
   const { chromium } = await import('playwright');
