@@ -33,3 +33,18 @@ fn r53_api_scoped_dynamic_screen_recommends_real_data() {
         &BTreeMap::from([("153:9".into(), "/news/[id]".into())]), &project, json!({}), None).unwrap();
     assert_eq!(strip_recommended(first_label(find(&plan, "dynamic:153:9"))), "Wire to the API now");
 }
+
+#[test]
+fn r56_metadata_uses_the_planned_app_not_the_first_root_route() {
+    let fixture = Fixture::new();
+    fixture.write("apps/admin/src/app/page.tsx", "export default function AdminPage() { return <main />; }");
+    fixture.write("apps/front/src/app/page.tsx", "export const metadata = { title: 'Front' }; export default function HomePage() { return <main />; }");
+    let mut project = evidence();
+    project.root = fixture.0.clone();
+    project.routes = vec![("/".into(), "apps/admin/src/app/page.tsx".into()), ("/".into(), "apps/front/src/app/page.tsx".into())];
+    let plan = json!({"routes":[{"url":"/","implementation":"page","app":"apps/front","file":"apps/front/src/app/page.tsx"}]});
+    let items = site_completeness(&plan, &project);
+    let metadata = items.iter().find(|item| item["item"] == "metadata /").unwrap();
+    assert_eq!(metadata["state"], "filled");
+    assert_eq!(metadata["detail"], "apps/front/src/app/page.tsx");
+}
