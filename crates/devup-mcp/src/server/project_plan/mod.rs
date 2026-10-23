@@ -125,6 +125,8 @@ pub struct Decision {
     pub recommended: String,
     #[serde(default)]
     pub destructive: bool,
+    pub state: Option<String>,
+    pub kind: Option<String>,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -218,7 +220,10 @@ fn record_decisions(
         let list = plan["decisions"].as_array_mut().unwrap();
         list.retain(|v| v["id"] != d.id);
         let mut value = json!(d);
-        value["state"] = json!(state);
+        if d.state.as_deref().is_some_and(|state| !["pending", "confirmed"].contains(&state)) {
+            return Err(invalid("Decision state must be pending or confirmed"));
+        }
+        value["state"] = json!(d.state.as_deref().unwrap_or(state));
         list.push(value);
     }
     Ok(())

@@ -1,5 +1,51 @@
 use super::*;
 
+#[test]
+fn list_counts_supply_pagination_and_enum_filters() {
+    let mut plan = json!({"facts":{"parts":"API"},"entities":[{"name":"post","columns":[{"name":"category","type":{"kind":"enum","values":["a","b"]}}]}],
+        "features":[{"id":"posts","scope":"post 목록10","screens":[],"acceptance":[],"entities":["post"]}]});
+    wiring::draft(&mut plan);
+    let queries = array(&plan["endpointContracts"][0]["queryParams"]);
+    for name in ["page", "pageSize", "category"] {
+        assert!(queries.iter().any(|query| query["name"] == name), "{name}");
+    }
+}
+
+#[test]
+fn negated_korean_writes_do_not_become_operations() {
+    let mut plan = json!({"facts":{"parts":"API"},"entities":[{"name":"post","columns":[]}],
+        "features":[{"id":"posts","scope":"post 목록","screens":[],"acceptance":["등록·수정 불가", "미등록"],"entities":["post"]}]});
+    wiring::draft(&mut plan);
+    assert_eq!(plan["dataMappings"][0]["requiredOperations"], json!(["list"]));
+}
+
+#[tokio::test]
+async fn confirm_accepts_explicit_confirmed_decision_state() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), false).await;
+    request.decisions = vec![serde_json::from_value(json!({"id":"scope","reason":"Approved scope","recommended":"Keep scope","state":"confirmed","kind":"scope-exclusion"})).unwrap()];
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["plan"]["decisions"][0]["state"], "confirmed");
+    assert_eq!(result["plan"]["decisions"][0]["kind"], "scope-exclusion");
+}
+
+#[test]
+fn admin_label_does_not_imply_delete_operation() {
+    let mut plan = json!({"facts":{"parts":"API"},"entities":[{"name":"post","columns":[]}],
+        "features":[{"id":"posts","scope":"admin post list","screens":[],"acceptance":[],"entities":["post"]}]});
+    wiring::draft(&mut plan);
+    assert!(!array(&plan["dataMappings"][0]["requiredOperations"]).contains(&json!("delete")));
+}
+
+#[tokio::test]
+async fn explicit_nested_models_dir_selects_api_working_directory() {
+    let dir = TestDir::new();
+    let (mut request, policy, _) = drafted(dir.path(), true).await;
+    request.models_dir = Some("apis/api/models".into());
+    let result = run(&request, &policy).await.unwrap();
+    assert_eq!(result["plan"]["modelsWorkingDirectory"], "apis/api");
+}
+
 #[tokio::test]
 async fn confirm_refuses_to_drop_existing_columns_without_writing_models() {
     let dir = TestDir::new();

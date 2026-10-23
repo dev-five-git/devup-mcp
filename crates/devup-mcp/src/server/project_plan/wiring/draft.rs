@@ -64,7 +64,8 @@ fn rules(column: &Value) -> Value {
 
 fn queries(entity: &Value, evidence: &str) -> Vec<Value> {
     let mut queries = vec![];
-    if contains(evidence, &["pagination", "페이지", "page number"]) {
+    if contains(evidence, &["pagination", "페이지", "page number"])
+        || evidence.split("목록").skip(1).any(|suffix| suffix.starts_with(|character: char| character.is_ascii_digit())) {
         queries.extend([json!({"name":"page","type":"integer"}), json!({"name":"pageSize","type":"integer","aliases":["size"]})]);
     }
     if contains(evidence, &["sort", "정렬"]) {
@@ -75,7 +76,8 @@ fn queries(entity: &Value, evidence: &str) -> Vec<Value> {
         queries.push(json!({"name":"sort","type":"string","allowedKeys":keys.iter().map(|key| key["name"].clone()).collect::<Vec<_>>(),"columns":keys}));
     }
     if contains(evidence, &["search", "검색"]) { queries.push(json!({"name":"q","type":"string"})); }
-    if contains(evidence, &["filter", "category", "필터", "카테고리", "탭"]) {
+    if contains(evidence, &["filter", "category", "필터", "카테고리", "탭"])
+        || array(&entity["columns"]).iter().any(|column| column["type"]["kind"] == "enum") {
         for column in array(&entity["columns"]) {
             let name = text(&column["name"]);
             if column["type"]["kind"] == "enum" || name.ends_with("_id") || contains(name, &["category", "카테고리"]) {
@@ -92,15 +94,16 @@ pub(in crate::server::project_plan) fn draft(plan: &mut Value) {
     for feature in array(&plan["features"]) {
         let screens = units::feature_screens(plan, feature);
         let evidence = format!("{} {} {} {}", feature["scope"], feature["screens"], feature["acceptance"], json!(screens)).to_lowercase();
+        let operation_text = evidence.replace("등록·수정 불가", "").replace("미등록", "");
         let mut driven = BTreeMap::<&str, Vec<String>>::new();
         for (op, words) in [
             ("list", vec!["list", "table", "search", "filter", "pagination", "목록", "검색", "표"]),
             ("get", vec!["detail", "상세"]),
             ("create", vec!["form", "create", "signup", "input", "textarea", "폼", "등록", "문의"]),
             ("update", vec!["edit", "update", "수정"]),
-            ("delete", vec!["delete", "remove", "삭제", "admin", "cms", "관리"]),
+            ("delete", vec!["delete", "remove", "삭제"]),
         ] {
-            for word in words { if evidence.contains(word) { driven.entry(op).or_default().push(format!("keyword: {word}")); } }
+            for word in words { if operation_text.contains(word) { driven.entry(op).or_default().push(format!("keyword: {word}")); } }
         }
         let (mut counts, mut labels) = (BTreeMap::new(), vec![]);
         for screen in &screens {

@@ -36,12 +36,14 @@ fn list_contracts_draft_queries_only_from_relevant_evidence() {
     let mut plain = plan.clone();
     plain["features"][0]["scope"] = json!("List");
     wiring::draft(&mut plain);
-    assert_eq!(plain["endpointContracts"][0]["queryParams"], json!([]));
+    let plain_queries = array(&plain["endpointContracts"][0]["queryParams"]);
+    assert!(plain_queries.iter().any(|query| query["name"] == "state"));
+    assert!(!plain_queries.iter().any(|query| query["name"] == "page" || query["name"] == "sort" || query["name"] == "q"));
 }
 
 #[test]
 fn write_contracts_include_validation_and_delete_has_no_response_fields() {
-    let mut plan = plan("Create edit CMS", json!([
+    let mut plan = plan("Create edit delete CMS", json!([
         {"name":"email","type":{"kind":"varchar","length":120},"nullable":false},
         {"name":"phone","type":"text","nullable":true},
         {"name":"website_link","type":"text","nullable":true},

@@ -181,9 +181,9 @@ pub(super) fn draft(input: &ProjectPlanInput, plan: &mut Value) -> Result<(), De
         ));
     }
     plan["modelsDir"] = json!(dir);
-    if plan["modelsWorkingDirectory"].is_null() {
-        plan["modelsWorkingDirectory"] = json!(".");
-    }
+    plan["modelsWorkingDirectory"] = json!(Path::new(&dir).parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| ".".to_owned(), |parent| parent.to_string_lossy().replace('\\', "/")));
     let mut entities = if !input.entities.is_empty() {
         input.entities.clone()
     } else {
