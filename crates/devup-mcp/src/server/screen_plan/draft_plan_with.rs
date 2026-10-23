@@ -359,7 +359,10 @@ pub(super) fn draft_plan_with(
         };
         rank(&b.1).cmp(&rank(&a.1)).then_with(|| a.0.cmp(&b.0))
     });
-    if linked_page.is_none() && pages.len() > 1 {
+    let competing_pages = kept.iter().any(|screen| kept.iter().any(|other| {
+        screen.page_id != other.page_id && base_words(&screen.name) == base_words(&other.name)
+    }));
+    if linked_page.is_none() && competing_pages {
         questions.insert(0, question("base-page".into(), "Base Figma page".into(),
             "Screens span several Figma pages. Which page is the implementation source?".into(),
             pages.iter().map(|(id, name)| choice(name, "Use frames from this owning page only.", json!({"pageId": id}))).collect(), "base-page"));
@@ -370,7 +373,7 @@ pub(super) fn draft_plan_with(
             .collect::<Vec<_>>()
     } else { vec![kept.clone()] };
     let mut drafts = page_sets.iter().flat_map(|screens| group_screens(screens, &evidence.config)).collect::<Vec<_>>();
-    if linked_page.is_none() && pages.len() > 1 {
+    if linked_page.is_none() && competing_pages {
         for draft in &mut drafts {
             if let Some(page) = draft.frames.first().and_then(|frame| frame.page_id.as_ref()) {
                 draft.extra_when.push(when("base-page", "", json!({"pageId": page})));
