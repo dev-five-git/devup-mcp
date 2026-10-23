@@ -1,5 +1,12 @@
 use super::*;
 
+#[test]
+fn empty_prefix_header_preserves_thirty_character_capacity() {
+    let name = "123456789012345678901234567890";
+    assert_eq!(screen_plan::header("", name), name);
+    assert_eq!(screen_plan::header("Page", "Home"), "Page: Home");
+}
+
 #[tokio::test]
 async fn stale_status_id_returns_current_plan_and_executable_recovery() {
     let dir = TestDir::new();

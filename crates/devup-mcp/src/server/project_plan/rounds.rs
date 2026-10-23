@@ -51,9 +51,7 @@ fn spec_candidates(root: &Path) -> Vec<String> {
 fn ask(id: &str, prompt: String, options: &[&str]) -> Value {
     question(
         id.into(),
-        screen_plan::header("", id)
-            .trim_start_matches(": ")
-            .to_owned(),
+        screen_plan::header("", id),
         prompt,
         options
             .iter()

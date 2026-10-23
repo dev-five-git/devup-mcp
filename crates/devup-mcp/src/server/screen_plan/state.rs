@@ -816,6 +816,9 @@ fn truncate(value: &str, limit: usize) -> String {
 }
 
 pub(super) fn header(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        return truncate(name, HEADER_LIMIT);
+    }
     truncate(&format!("{prefix}: {name}"), HEADER_LIMIT)
 }
 
