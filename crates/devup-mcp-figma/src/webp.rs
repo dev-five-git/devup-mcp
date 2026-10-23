@@ -28,7 +28,9 @@ pub fn validate_webp_options(
     if quality.is_some_and(|q| q > 100) {
         return Err(invalid("WebP quality must be an integer from 0 to 100."));
     }
-    if format != AssetFormat::Webp && (quality.is_some() || lossless.is_some()) {
+    if !matches!(format, AssetFormat::Webp | AssetFormat::Auto)
+        && (quality.is_some() || lossless.is_some())
+    {
         return Err(invalid(
             "quality and lossless apply only to format webp; remove them or request webp.",
         ));

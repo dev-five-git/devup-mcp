@@ -48,9 +48,11 @@ pub struct AssetExportStage {
     pub elapsed_ms: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetFormat {
+    #[default]
+    Auto,
     Png,
     Webp,
     Jpg,
@@ -61,6 +63,7 @@ pub enum AssetFormat {
 impl AssetFormat {
     pub fn mime_type(self) -> &'static str {
         match self {
+            Self::Auto => "application/octet-stream",
             Self::Png => "image/png",
             Self::Webp => "image/webp",
             Self::Jpg => "image/jpeg",
@@ -71,6 +74,7 @@ impl AssetFormat {
 
     pub fn extension(self) -> &'static str {
         match self {
+            Self::Auto => "",
             Self::Png => "png",
             Self::Webp => "webp",
             Self::Jpg => "jpg",
@@ -137,6 +141,7 @@ pub struct AssetSelection {
     #[serde(default)]
     pub render_mode: AssetRenderMode,
     pub asset_id: String,
+    #[serde(default)]
     pub format: AssetFormat,
     pub scale: f64,
 }
@@ -425,7 +430,7 @@ pub fn validate_asset_options(
     }
     if max_width.is_some_and(|w| w == 0 || w > crate::MAX_WEBP_DIMENSION)
         || ((max_width.is_some() || srcset)
-            && (format != AssetFormat::Webp
+            && (!matches!(format, AssetFormat::Webp | AssetFormat::Auto)
                 || !mode.is_original()
                 || mode == AssetRenderMode::Fill))
     {
@@ -922,7 +927,12 @@ pub fn resolve_asset_selections(
             })
             .flatten();
             let asset = source_fill.unwrap_or(asset);
-            let render_mode = if source_fill.is_some() {
+            let format = if selection.format == AssetFormat::Auto {
+                if asset.image_hash.is_some() { AssetFormat::Webp } else { AssetFormat::Svg }
+            } else { selection.format };
+            let render_mode = if format == AssetFormat::Svg && selection.format == AssetFormat::Auto {
+                AssetRenderMode::Node
+            } else if source_fill.is_some() {
                 AssetRenderMode::OriginalSource
             } else {
                 selection.render_mode
@@ -945,10 +955,10 @@ pub fn resolve_asset_selections(
                 node_id: asset.node_id.clone(),
                 field: asset.field.clone(),
                 image_hash: asset.image_hash.clone(),
-                format: selection.format,
+                format,
                 scale: selection.scale,
                 render_mode,
-                quality: selection.quality,
+                quality: selection.quality.or((selection.format == AssetFormat::Auto && format == AssetFormat::Webp).then_some(85)),
                 lossless: selection.lossless,
             })
         })

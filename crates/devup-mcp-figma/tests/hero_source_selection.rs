@@ -5,6 +5,34 @@ use devup_mcp_figma::{
 use serde_json::json;
 
 #[test]
+fn omitted_source_format_resolves_vector_svg_and_photo_webp() {
+    let snapshot: Snapshot = serde_json::from_value(json!({
+        "fileKey":"defaults", "roots":["icon","photo"], "diagnostics":[], "nodes":{
+            "icon":{"id":"icon","type":"VECTOR","fields":{"name":"Icon","width":24,"height":24,"fills":[{"type":"SOLID","color":{"r":0,"g":0,"b":0}}]}},
+            "photo":{"id":"photo","type":"RECTANGLE","fields":{"name":"Photo","width":300,"height":200,"fills":[{"type":"IMAGE","imageHash":"photo","scaleMode":"FILL"}]}}
+        }
+    })).unwrap();
+    for (node, extension) in [("icon", "svg"), ("photo", "webp")] {
+        let selection: AssetSelection = serde_json::from_value(json!({
+            "assetId":format!("{node}:node"),"scale":2
+        }))
+        .unwrap();
+        let request = resolve_asset_selections(&snapshot, &[selection])
+            .unwrap()
+            .remove(0);
+        assert_eq!(request.format.extension(), extension);
+        assert_eq!(
+            request.render_mode,
+            if node == "icon" {
+                AssetRenderMode::Node
+            } else {
+                AssetRenderMode::OriginalSource
+            }
+        );
+    }
+}
+
+#[test]
 fn hero_node_target_selects_original_photo_without_baking_text_or_buttons() {
     let snapshot: Snapshot = serde_json::from_value(json!({
         "fileKey":"hero", "roots":["hero"], "diagnostics":[], "nodes":{
