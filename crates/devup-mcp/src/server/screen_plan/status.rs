@@ -63,7 +63,13 @@ pub(super) fn status_report(
         let page = evidence
             .routes
             .iter()
-            .find(|(pattern, _)| pattern == url || super::navigation::matches_route(pattern, url))
+            .find(|(pattern, page)| {
+                (pattern == url || super::navigation::matches_route(pattern, url))
+                    // A route of another app (apps/admin's `/`) is not this one.
+                    && route["app"].as_str().is_none_or(|app| {
+                        app == "." || std::path::Path::new(page).starts_with(app)
+                    })
+            })
             .map(|(_, page)| page.clone());
         let mut row_widths = DEFAULT_WIDTHS.iter().map(|width| u64::from(*width))
             .chain(widths.iter().copied())

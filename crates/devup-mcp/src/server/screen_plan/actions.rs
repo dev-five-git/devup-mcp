@@ -1,10 +1,8 @@
 /// `confirm`: every question that applies answered, in one call, or nothing
 /// changes.
 pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     let plan_id = input
         .plan_id
         .as_deref()
@@ -432,10 +430,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
 /// `assume`: what implementation decided without asking, appended to the
 /// confirmed plan so status and the final report carry it.
 pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "Assumptions belong to implementation, after confirm. Before confirm, put the decision to the user in the question rounds instead.",
@@ -540,10 +536,8 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
 
 /// Records a decision the work needs without stopping it.
 pub(super) fn defer(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "A decision before confirm is a question: put it in extraQuestions on draft.",
@@ -897,10 +891,8 @@ pub(super) async fn status(
     policy: &OutputPolicy,
     artifacts: &ArtifactStore,
 ) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Ok(json!({
             "status": "not-confirmed",
