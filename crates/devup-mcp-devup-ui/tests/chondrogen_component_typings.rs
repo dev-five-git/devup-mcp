@@ -159,3 +159,86 @@ fn chondrogen_scalar_props_and_image_elements_are_valid() {
         }
     }
 }
+
+#[test]
+fn caret_variants_keep_mask_sources_and_dimensions() {
+    let tsx = generate(include_str!("fixtures/chondrogen_caret_set.json"));
+    assert!(tsx.contains("maskImage={{"), "{tsx}");
+    for direction in ["caretdown", "caretleft", "caretright", "caretup"] {
+        assert!(tsx.contains(&format!("1-{direction}.svg")), "{tsx}");
+    }
+    assert!(tsx.contains("boxSize=\"24px\""), "{tsx}");
+    assert!(tsx.contains("}[property1]"), "{tsx}");
+}
+
+#[test]
+fn logo_variants_keep_scalar_image_sources() {
+    let tsx = generate(include_str!("fixtures/chondrogen_logo_set.json"));
+    assert!(tsx.contains("<Image"), "{tsx}");
+    assert!(tsx.contains("src={{"), "{tsx}");
+    assert!(
+        tsx.contains("1-gray.svg") && tsx.contains("logo-1.svg"),
+        "{tsx}"
+    );
+    assert!(tsx.contains("}[property1]"), "{tsx}");
+}
+
+#[test]
+fn dropdown_options_keep_state_styles() {
+    let tsx = generate(include_str!("fixtures/chondrogen_dropdown_option_set.json"));
+    assert!(tsx.contains("bg={{"), "{tsx}");
+    assert!(tsx.contains("}[property1]"), "{tsx}");
+    assert!(tsx.contains("typography="), "{tsx}");
+    assert!(tsx.contains("color="), "{tsx}");
+    assert!(tsx.contains("px=") && tsx.contains("py="), "{tsx}");
+}
+
+#[test]
+fn icon_button_text_boolean_controls_its_layer() {
+    let tsx = generate(include_str!("fixtures/chondrogen_icon_button_set.json"));
+    assert!(tsx.contains("text?: boolean"), "{tsx}");
+    assert!(tsx.contains("{text && ("), "{tsx}");
+    assert!(!tsx.contains("display=\"none\""), "{tsx}");
+}
+
+#[test]
+fn every_chondrogen_declared_prop_is_referenced_in_the_body() {
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for entry in std::fs::read_dir(fixtures).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_str().unwrap();
+        if !name.starts_with("chondrogen_") || !name.ends_with("_set.json") {
+            continue;
+        }
+        let tsx = generate(&std::fs::read_to_string(&path).unwrap());
+        let Some(interface) = tsx.split("Props {\n").nth(1) else {
+            continue;
+        };
+        let interface = interface.split("\n}").next().unwrap();
+        let body = tsx.split("  return (").nth(1).unwrap();
+        let identifiers = body
+            .split(|character: char| {
+                !character.is_ascii_alphanumeric() && character != '_' && character != '$'
+            })
+            .collect::<Vec<_>>();
+        for field in interface.lines() {
+            let property = field
+                .split(':')
+                .next()
+                .unwrap()
+                .trim()
+                .trim_end_matches('?');
+            assert!(
+                identifiers.contains(&property),
+                "{name}: unused {property}\n{tsx}"
+            );
+        }
+    }
+}
+
+#[test]
+fn responsive_values_omit_redundant_trailing_inheritance() {
+    let tsx = generate(include_str!("fixtures/chondrogen_board_row_set.json"));
+    assert!(!tsx.contains(", null]}"), "{tsx}");
+    assert!(!tsx.contains("={[\"1\"]}"), "{tsx}");
+}

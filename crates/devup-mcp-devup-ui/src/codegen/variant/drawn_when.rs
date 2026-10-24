@@ -130,7 +130,7 @@ fn changed_effect_props(
     let effect_name = definitions
         .iter()
         .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
-        .map(|definition| definition.name.clone());
+        .map(|definition| definition.source.clone());
     let keys = records
         .iter()
         .filter(|record| {
@@ -187,7 +187,7 @@ fn expression_for_prop(
     let effect_name = definitions
         .iter()
         .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
-        .map(|definition| definition.name.as_str());
+        .map(|definition| definition.source.as_str());
     let dependencies = dimensions
         .iter()
         .filter(|dimension| !dimension.boolean)
@@ -281,7 +281,7 @@ fn dimension_depends(
             let set = records
                 .iter()
                 .filter(|record| {
-                    record.values.get(&dimension.name) == Some(option)
+                    record.values.get(&dimension.source) == Some(option)
                         && effect_name.is_none_or(|name| {
                             record.values.get(name).map(String::as_str) == Some(effect_value)
                         })
@@ -362,14 +362,14 @@ fn nested_expression(
             .iter()
             .filter(|definition| !definition.boolean)
             .map(|definition| {
-                let value = if Some(definition.name.as_str()) == effect_name {
+                let value = if Some(definition.source.as_str()) == effect_name {
                     effect_value
                 } else if let Some(value) = pinned.get(&definition.name) {
                     value.as_str()
                 } else {
                     &definition.default
                 };
-                (definition.name.clone(), value.to_owned())
+                (definition.source.clone(), value.to_owned())
             })
             .collect::<BTreeMap<_, _>>();
         find_record(records, &filters).is_some()
@@ -486,7 +486,7 @@ fn viewport_expression(
             .iter()
             .filter(|definition| !definition.boolean)
             .map(|definition| {
-                let value = if Some(definition.name.as_str()) == effect_name {
+                let value = if Some(definition.source.as_str()) == effect_name {
                     effect_value
                 } else if definition.name.eq_ignore_ascii_case("viewport") {
                     viewport_value.unwrap_or(&definition.default)
@@ -495,7 +495,7 @@ fn viewport_expression(
                 } else {
                     &definition.default
                 };
-                (definition.name.clone(), value.to_owned())
+                (definition.source.clone(), value.to_owned())
             })
             .collect::<BTreeMap<_, _>>();
         find_record(records, &filters)
@@ -800,16 +800,22 @@ fn render_expression_value(expression: &Expression, depth: usize) -> String {
     match expression {
         Expression::Undefined => "undefined".into(),
         Expression::Literal(value) => serde_json::to_string(value).unwrap_or_default(),
-        Expression::Responsive(slots) => format!(
+        Expression::Responsive(slots) => {
+            let end = slots.iter().rposition(Option::is_some).map_or(0, |index| index + 1);
+            if end == 1 {
+                return serde_json::to_string(&slots[0]).unwrap_or_default();
+            }
+            format!(
             "[{}]",
-            slots
+            slots[..end]
                 .iter()
                 .map(|slot| slot
                     .as_ref()
                     .map_or("null".to_owned(), |value| serde_json::to_string(value).unwrap_or_default()))
                 .collect::<Vec<_>>()
                 .join(", ")
-        ),
+        )
+        },
         Expression::Variant(prop, values) => {
             let indent = "  ".repeat(depth);
             let child_indent = "  ".repeat(depth + 1);

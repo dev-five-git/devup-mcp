@@ -43,7 +43,6 @@ struct Record {
     tree: Tree,
     node_id: String,
 }
-
 #[derive(Clone, Debug)]
 struct Definition {
     /// The name as it is written in code.
@@ -57,7 +56,6 @@ struct Definition {
     /// which may carry a `#id` suffix that `name` has dropped.
     source: String,
 }
-
 #[derive(Clone, Debug)]
 enum Expression {
     Undefined,
@@ -70,7 +68,6 @@ enum Expression {
     Variant(String, Vec<(String, Expression)>),
     Conditional(String, String, String),
 }
-
 pub(super) fn generate_variant_component_set(
     snapshot: &Snapshot,
     set_id: &str,
@@ -195,7 +192,7 @@ pub(super) fn generate_variant_component_set(
         &records,
         &[],
         &mut unrepresented_variant_nodes,
-        effect.map(|definition| definition.name.as_str()),
+        effect.map(|definition| definition.source.as_str()),
         &default.values,
     );
     root.props = merged_props(
@@ -611,6 +608,9 @@ fn project_tree_inner(
         &options.length_tokens,
         &mut used_tokens,
     );
+    if visible_when(&view).is_some() && view.bool("visible") == Some(false) {
+        props.retain(|(name, _)| name != "display");
+    }
     if asset.is_some() {
         props.retain(|(name, _)| {
             !matches!(
