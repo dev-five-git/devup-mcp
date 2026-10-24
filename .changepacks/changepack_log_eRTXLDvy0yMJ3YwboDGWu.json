@@ -2,6 +2,6 @@
   "changes": {
     "Cargo.toml": "Patch"
   },
-  "note": "componentTsx: fix button set panic, expose component text as unique props even when declared names normalize alike, drop set-canvas placement, emit undefined for absent variant values, account explicitly for unrepresented variant children without claiming emitted property provenance",
+  "note": "componentTsx: fix button set panic, expose component text as unique props even when declared names normalize alike, drop set-canvas placement, emit undefined for absent variant values, preserve scalar typography and image sources across responsive variants, declare referenced boolean props, emit valid interaction selectors, and account explicitly for unrepresented variant children without claiming emitted property provenance",
   "date": "2026-10-24T00:21:08.585604600Z"
 }

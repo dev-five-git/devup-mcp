@@ -37,6 +37,7 @@ pub(super) struct Tree {
     /// In a responsive merge, the node each slot's width drew this element
     /// from and that node's text; empty everywhere else.
     pub slots: Vec<Option<(String, Option<String>)>>,
+    pub scalar_sources: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +63,7 @@ struct Definition {
 
 #[derive(Clone, Debug)]
 enum Expression {
+    Undefined,
     Literal(String),
     /// A devup-ui responsive array, written out slot by slot, narrowest first.
     /// `None` is the literal `null`, which is not "no value" but "whatever the
@@ -104,7 +106,7 @@ pub(super) fn generate_variant_component_set(
     if !merge_all && !definitions.iter().any(|definition| matches!(definition.name.to_ascii_lowercase().as_str(), "effect" | "viewport")) {
         return Ok(None);
     }
-    let records = set
+    let mut records = set
         .typed_view()
         .child_ids()
         .filter_map(|id| snapshot.nodes.get(id))
@@ -139,6 +141,18 @@ pub(super) fn generate_variant_component_set(
     if records.is_empty() {
         return Ok(None);
     }
+    if records.iter().any(|record| record.tree.component == "Image")
+        && records.iter().all(|record| is_asset_leaf(&record.tree))
+    {
+        for record in &mut records {
+            if let Some(mask) = record.tree.props.remove("maskImage") {
+                let source = mask.trim_start_matches("url(").trim_end_matches(')').to_owned();
+                record.tree.component = "Image".into();
+                record.tree.props.retain(|name, _| !matches!(name.as_str(), "bg" | "maskPos" | "maskRepeat" | "maskSize"));
+                record.tree.props.insert("src".into(), source);
+            }
+        }
+    }
     // A boolean property is not part of a variant's identity — it never appears
     // in `variantProperties` — so filtering records by it matches nothing.
     let default_filters = definitions
@@ -155,7 +169,7 @@ pub(super) fn generate_variant_component_set(
                 false,
             )
         })?;
-    let dimensions = definitions
+    let mut dimensions = definitions
         .iter()
         .filter(|definition| {
             !matches!(
@@ -167,7 +181,12 @@ pub(super) fn generate_variant_component_set(
         .collect::<Vec<_>>();
     let effect = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"));
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !records.iter().any(|record| record.tree.props.contains_key("src")) && definition.options.iter().all(|value| value.eq_ignore_ascii_case(&definition.default) || effect_selector(value).is_some()));
+    if effect.is_none()
+        && let Some(definition) = definitions.iter().find(|definition| definition.name.eq_ignore_ascii_case("effect"))
+    {
+        dimensions.push(definition.clone());
+    }
     let viewport = definitions
         .iter()
         .find(|definition| definition.name.eq_ignore_ascii_case("viewport"));
@@ -191,6 +210,7 @@ pub(super) fn generate_variant_component_set(
         None,
         &default.tree.props,
     );
+    root.scalar_sources = scalar_sources(&records, &definitions, &dimensions, viewport, effect.map_or("default", |definition| definition.default.as_str()), &[]);
     merge_child_props(
         &mut root,
         &records,
@@ -200,6 +220,7 @@ pub(super) fn generate_variant_component_set(
         effect.map_or("default", |definition| definition.default.as_str()),
         &[],
     );
+    bind_referenced_properties(&mut root, &mut dimensions);
 
     let mut selectors = BTreeMap::new();
     let mut transition_props = BTreeSet::new();
@@ -218,12 +239,14 @@ pub(super) fn generate_variant_component_set(
             );
             if !changed.is_empty() {
                 transition_props.extend(changed.keys().cloned());
-                selectors.insert(format!("_{effect_value}"), changed);
+                if let Some(selector) = effect_selector(effect_value) {
+                    selectors.insert(selector.to_owned(), changed);
+                }
             }
         }
     }
     let transition = transition(snapshot, &default.node_id, &transition_props);
-    let text_properties = bind_text_properties(snapshot, set, &mut root);
+    let text_properties = bind_text_properties(snapshot, set, &mut root, &dimensions);
     let component_name = legacy_component_name(set.typed_view().name().unwrap_or("Component"));
     let code = mark_node(
         &set.id,
@@ -503,6 +526,7 @@ fn project_tree_inner(
             drawn_when: Vec::new(),
             leading_comment: None,
             slots: Vec::new(),
+            scalar_sources: Vec::new(),
         });
     }
     let asset = super::image::asset_kind(snapshot, node, &options.asset_policies);
@@ -646,6 +670,7 @@ fn project_tree_inner(
         drawn_when: Vec::new(),
         leading_comment: None,
         slots: Vec::new(),
+        scalar_sources: Vec::new(),
     };
     Ok(super::image::project_tree(tree, snapshot, node, options))
 }
@@ -819,6 +844,9 @@ fn merged_props(
                 path.unwrap_or_default(),
                 &prop,
             )?;
+            if prop == "typography" {
+                return Some(typography_attribute(&expression));
+            }
             Some((prop.clone(), render_expression_attr(&prop, &expression)))
         })
         .collect()

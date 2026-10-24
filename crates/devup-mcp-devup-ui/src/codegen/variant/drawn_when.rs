@@ -104,6 +104,7 @@ fn merge_child_props(
             Some(&child_path),
             &child.props,
         );
+        child.scalar_sources = scalar_sources(records, definitions, dimensions, viewport, effect_value, &child_path);
         merge_child_props(
             child,
             records,
@@ -126,7 +127,7 @@ fn changed_effect_props(
 ) -> BTreeMap<String, Expression> {
     let effect_name = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"))
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
         .map(|definition| definition.name.clone());
     let keys = records
         .iter()
@@ -183,7 +184,7 @@ fn expression_for_prop(
 ) -> Option<Expression> {
     let effect_name = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"))
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
         .map(|definition| definition.name.as_str());
     let dependencies = dimensions
         .iter()
@@ -395,13 +396,13 @@ fn nested_expression(
                     ),
                 )
             })
-            .filter_map(|(option, value)| Some((option, value?)))
+            .map(|(option, value)| (option, value.unwrap_or(Expression::Undefined)))
             .collect::<Vec<_>>()
     };
 
     if rest.is_empty() {
         let values = branch(first, Vec::new());
-        if values.is_empty() {
+        if values.iter().all(|(_, value)| matches!(value, Expression::Undefined)) {
             return None;
         }
         // Every option that was drawn saying the same thing is not a choice at
@@ -426,12 +427,13 @@ fn nested_expression(
         }
         // One option carrying the only value reads better as the condition it
         // is than as a map with a single entry and a hole where the rest were.
-        if values.len() == 1
-            && let Expression::Literal(value) = &values[0].1
+        let present = values.iter().filter(|(_, value)| !matches!(value, Expression::Undefined)).collect::<Vec<_>>();
+        if present.len() == 1
+            && let Expression::Literal(value) = &present[0].1
         {
             return Some(Expression::Conditional(
                 first.name.clone(),
-                values[0].0.clone(),
+                present[0].0.clone(),
                 value.clone(),
             ));
         }
@@ -616,7 +618,7 @@ fn render_component(
     } else {
         let props = dimensions
             .iter()
-            .map(|definition| definition.name.clone())
+            .map(|definition| if definition.boolean { format!("{} = {}", definition.name, definition.default) } else { definition.name.clone() })
             .chain(text_properties.iter().map(|(name, default)| format!("{name} = {default}")))
             .collect::<Vec<_>>()
             .join(", ");
@@ -632,6 +634,17 @@ fn render_tree(
     transition: Option<&(String, String)>,
     depth: usize,
 ) -> String {
+    if !tree.scalar_sources.is_empty() {
+        let rendered = tree.scalar_sources.iter().map(|(source, display)| {
+            let mut image = tree.clone();
+            image.scalar_sources.clear();
+            image.props.insert("src".into(), source.clone());
+            image.props.insert("display".into(), display.clone());
+            render_tree(&image, selectors, transition, depth)
+        }).collect::<Vec<_>>().join("\n");
+        let indent = "  ".repeat(depth);
+        return format!("{indent}<>\n{rendered}\n{indent}</>");
+    }
     let indent = "  ".repeat(depth);
     let child_indent = "  ".repeat(depth + 1);
     let mut rendered_props = Vec::new();
@@ -647,9 +660,14 @@ fn render_tree(
             })
             .collect::<Vec<_>>()
             .join(",\n");
-        rendered_props.push(format!(
-            "{child_indent}{selector}={{{{\n{values}\n{child_indent}}}}}"
-        ));
+        if selector.starts_with('&') {
+            let selector = serde_json::to_string(selector).unwrap_or_default();
+            rendered_props.push(format!("{child_indent}selectors={{{{ {selector}: {{\n{values}\n{child_indent}}} }}}}"));
+        } else {
+            rendered_props.push(format!(
+                "{child_indent}{selector}={{{{\n{values}\n{child_indent}}}}}"
+            ));
+        }
     }
     for (name, expression) in &tree.props {
         rendered_props.push(format!(
@@ -741,6 +759,7 @@ fn needs_const(prop: &str) -> bool {
 
 fn render_expression_attr(prop: &str, expression: &Expression) -> String {
     match expression {
+        Expression::Undefined => "={undefined}".into(),
         Expression::Literal(value) => format!("=\"{value}\""),
         Expression::Variant(name, _) if needs_const(prop) => {
             let rendered = render_expression_value(expression, 0);
@@ -777,6 +796,7 @@ fn indent_attribute_expression(expression: &str, depth: usize) -> String {
 
 fn render_expression_value(expression: &Expression, depth: usize) -> String {
     match expression {
+        Expression::Undefined => "undefined".into(),
         Expression::Literal(value) => serde_json::to_string(value).unwrap_or_default(),
         Expression::Responsive(slots) => format!(
             "[{}]",

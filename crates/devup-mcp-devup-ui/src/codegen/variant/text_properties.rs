@@ -2,8 +2,9 @@ fn bind_text_properties(
     snapshot: &Snapshot,
     set: &RawNode,
     tree: &mut Tree,
+    dimensions: &[Definition],
 ) -> BTreeMap<String, String> {
-    let mut used = definitions(set).into_iter().map(|definition| definition.name)
+    let mut used = dimensions.iter().map(|definition| definition.name.clone())
         .collect::<BTreeSet<_>>();
     let mut properties = BTreeMap::new();
     for (name, definition) in set.typed_view()
