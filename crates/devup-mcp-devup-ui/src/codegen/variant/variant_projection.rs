@@ -378,13 +378,25 @@ fn set_has_non_asset_variant(snapshot: &Snapshot, node: &RawNode) -> bool {
         .string("mainComponentId")
         .or_else(|| view.string("componentId"))
         .and_then(|id| snapshot.nodes.get(id));
-    let Some(set) = view
+    let set_id = view
         .string("mainComponentSetId")
-        .or_else(|| master.and_then(|master| master.typed_view().string("parentId")))
+        .or_else(|| master.and_then(|master| master.typed_view().string("parentId")));
+    let Some(set) = set_id
         .and_then(|id| snapshot.nodes.get(id))
         .filter(|set| set.typed_view().node_type() == "COMPONENT_SET")
     else {
-        return false;
+        // A screen export carries the frames, not the page the set lives on.
+        // Another width's instance of the same set is the evidence left.
+        return set_id.is_some_and(|set_id| {
+            snapshot.nodes.values().any(|other| {
+                let other_view = other.typed_view();
+                other.id != node.id
+                    && other_view.node_type() == "INSTANCE"
+                    && other_view.string("mainComponentSetId") == Some(set_id)
+                    && other_view.string("mainComponentId") != view.string("mainComponentId")
+                    && style::asset_kind(snapshot, other).is_none()
+            })
+        });
     };
     set.typed_view()
         .child_ids()

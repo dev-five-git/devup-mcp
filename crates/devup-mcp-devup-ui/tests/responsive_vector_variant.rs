@@ -63,3 +63,21 @@ fn a_vector_only_variant_of_a_text_component_is_still_referenced() {
     );
     assert!(!merged.tsx.contains("{/* <Header"), "{}", merged.tsx);
 }
+
+#[test]
+fn a_screen_export_without_the_set_still_references_the_component() {
+    let mut snapshot = snapshot();
+    for id in ["set", "cm", "cmv", "cd", "cdt"] {
+        snapshot.nodes.remove(id);
+    }
+    let merged = merge_breakpoints(&snapshot, &CodegenOptions::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        merged.components.contains("Header"),
+        "{:?}\n{}",
+        merged.components,
+        merged.tsx
+    );
+    assert!(!merged.tsx.contains("{/* <Header"), "{}", merged.tsx);
+}
