@@ -124,9 +124,14 @@ pub(super) fn generate_variant_component_set(
             Some((node, values))
         })
         .map(|(node, values)| {
+            let mut tree = project_tree(snapshot, node, options, true)?;
+            tree.props.retain(|name, _| !POSITION_PROPS.contains(&name.as_str()));
+            if layout::holds_positioned_children(snapshot, node) {
+                tree.props.insert("pos".into(), "relative".into());
+            }
             Ok(Record {
                 values,
-                tree: project_tree(snapshot, node, options, true)?,
+                tree,
                 node_id: node.id.clone(),
             })
         })

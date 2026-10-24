@@ -3,7 +3,11 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"export function GradientButton() {
+"export interface GradientButtonProps {
+  text?: string
+}
+
+export function GradientButton({ text = "자세히 알아보기 →" }: GradientButtonProps) {
   return (
     <Center
       _active={{
@@ -35,7 +39,7 @@ expression: actual
         lineHeight="22px"
         wordBreak="keep-all"
       >
-        자세히 알아보기 →
+        {text}
       </Text>
     </Center>
   )

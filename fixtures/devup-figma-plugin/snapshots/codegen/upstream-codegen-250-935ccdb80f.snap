@@ -6,9 +6,10 @@ expression: actual
 "export interface ButtonProps {
   size: 'Md' | 'Sm'
   variant: 'primary' | 'white'
+  text1?: string
 }
 
-export function Button({ size, variant }: ButtonProps) {
+export function Button({ size, variant, text1 = "참가 신청하기" }: ButtonProps) {
   return (
     <Center
       _active={{
@@ -28,7 +29,7 @@ export function Button({ size, variant }: ButtonProps) {
         primary: "$primary",
         white: "$containerBackground"
       }[variant]}
-      border={variant === 'white' && "solid 1px $primaryAccent"}
+      border={variant === "white" ? "solid 1px $primaryAccent" : undefined}
       borderRadius={{
         Md: ["10px", null, null, null, "12px"],
         Sm: ["8px", null, null, null, "10px"]
@@ -71,7 +72,7 @@ export function Button({ size, variant }: ButtonProps) {
         lineHeight="normal"
         wordBreak="keep-all"
       >
-        참가 신청하기
+        {text1}
       </Text>
     </Center>
   )

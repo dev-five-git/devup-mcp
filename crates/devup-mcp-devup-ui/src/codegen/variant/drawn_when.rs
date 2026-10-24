@@ -604,7 +604,10 @@ fn render_component(
             .collect::<Vec<_>>()
             .join("\n");
         for name in text_properties.keys() {
-            fields.push_str(&format!("\n  {name}?: string"));
+            if !fields.is_empty() {
+                fields.push('\n');
+            }
+            fields.push_str(&format!("  {name}?: string"));
         }
         format!("export interface {name}Props {{\n{fields}\n}}\n\n")
     };
@@ -739,9 +742,6 @@ fn needs_const(prop: &str) -> bool {
 fn render_expression_attr(prop: &str, expression: &Expression) -> String {
     match expression {
         Expression::Literal(value) => format!("=\"{value}\""),
-        Expression::Conditional(name, option, value) => {
-            format!("={{{name} === '{option}' && \"{value}\"}}")
-        }
         Expression::Variant(name, _) if needs_const(prop) => {
             let rendered = render_expression_value(expression, 0);
             let object = rendered
@@ -777,14 +777,14 @@ fn indent_attribute_expression(expression: &str, depth: usize) -> String {
 
 fn render_expression_value(expression: &Expression, depth: usize) -> String {
     match expression {
-        Expression::Literal(value) => format!("\"{value}\""),
+        Expression::Literal(value) => serde_json::to_string(value).unwrap_or_default(),
         Expression::Responsive(slots) => format!(
             "[{}]",
             slots
                 .iter()
                 .map(|slot| slot
                     .as_ref()
-                    .map_or("null".to_owned(), |value| format!("\"{value}\"")))
+                    .map_or("null".to_owned(), |value| serde_json::to_string(value).unwrap_or_default()))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
@@ -794,6 +794,14 @@ fn render_expression_value(expression: &Expression, depth: usize) -> String {
             let lines = values
                 .iter()
                 .map(|(key, value)| {
+                    let key = if key.chars().enumerate().all(|(index, character)| {
+                        character.is_ascii_alphabetic() || character == '_' || character == '$'
+                            || (index > 0 && character.is_ascii_digit())
+                    }) && !key.is_empty() {
+                        key.clone()
+                    } else {
+                        serde_json::to_string(key).unwrap_or_default()
+                    };
                     format!(
                         "{child_indent}{key}: {}",
                         render_expression_value(value, depth + 1)
@@ -804,7 +812,9 @@ fn render_expression_value(expression: &Expression, depth: usize) -> String {
             format!("{{\n{lines}\n{indent}}}[{prop}]")
         }
         Expression::Conditional(prop, option, value) => {
-            format!("{prop} === '{option}' && \"{value}\"")
+            let option = serde_json::to_string(option).unwrap_or_default();
+            let value = serde_json::to_string(value).unwrap_or_default();
+            format!("{prop} === {option} ? {value} : undefined")
         }
     }
 }

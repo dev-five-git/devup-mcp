@@ -33,3 +33,14 @@ fn syntax_rejects_invalid_tsx_without_echoing_source_text() {
         assert_eq!(error.details["errors"][0]["category"], "syntax");
     }
 }
+
+#[test]
+fn fatal_parse_errors_are_normal_validation_errors() {
+    let source = "export function Button() { return <Box bg={{white-line: 'red'}[type]} /> }";
+    let error = std::panic::catch_unwind(|| validate_tsx(source))
+        .expect("validation must not unwind")
+        .expect_err("a hyphenated object key requires quotes");
+    assert_eq!(error.code, ErrorCode::DevupCodegenFailed);
+    assert_eq!(error.details["parserAborted"], true);
+    assert!(error.details.get("panicked").is_none());
+}

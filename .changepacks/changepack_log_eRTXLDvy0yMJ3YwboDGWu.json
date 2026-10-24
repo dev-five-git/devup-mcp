@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "componentTsx: fix button set panic, expose component text as props, drop set-canvas placement, emit undefined for absent variant values",
+  "date": "2026-10-24T00:21:08.585604600Z"
+}
