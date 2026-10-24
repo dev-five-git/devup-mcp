@@ -312,6 +312,21 @@ fn feedback_validation_catches_missing_routes_unmapped_actions_and_active_state(
 }
 
 #[test]
+fn a_primitive_rendered_as_link_with_props_href_is_wired() {
+    let inventory = json!({"found":true,"routes":[{"route":"/company","appliesTo":"."}]});
+    let source = r#"import Link from 'next/link'; export function Header(){return <><Text as={Link} props={{ href: '/company' }}>회사소개</Text><Text as={Link} props={{ href: '/missing' }}>없음</Text><Text>전체 보기</Text></>}"#;
+    let report = navigation::report(source, &inventory, None);
+    let findings = report["findings"].as_array().unwrap();
+    let unmapped = findings
+        .iter()
+        .filter(|f| f["rule"] == "interaction-unmapped")
+        .count();
+    assert_eq!(unmapped, 1, "{findings:?}");
+    assert!(findings.iter().any(|f| f["rule"] == "missing-static-route" && f["href"] == "/missing"));
+    assert_eq!(report["sourceHrefs"]["/company"], 1);
+}
+
+#[test]
 fn feedback_fixed_navigation_underline_is_an_unverified_info_candidate() {
     let source = r#"import Link from 'next/link'; const Header=()=> <nav><Link href='/services' style={{borderBottom:'3px solid red'}}>서비스</Link><Link href='/privacy' borderBottomWidth={3} borderBottomColor='$primary'>Privacy</Link><Link href='/terms' style={{borderBottom: active ? '3px solid red' : 'none'}}>Terms</Link><Link href='/about' style={{...props,borderBottom:'3px solid red'}}>About</Link><Link href='/selected' aria-current='page' borderBottom='3px solid red'>Selected</Link></nav>"#;
     let report = navigation::report(source, &json!({}), None);

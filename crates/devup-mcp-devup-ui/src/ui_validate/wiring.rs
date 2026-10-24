@@ -30,7 +30,7 @@ pub fn findings(source: &str) -> Vec<Violation> {
             found.push(error(comment.span, "deferred-wiring", "Deferred implementation comment leaves application wiring unfinished."));
         }
     }
-    let mut collector = Collector { source, found, functions: std::collections::BTreeMap::new(), forms: Vec::new(), submit_depth: 0 };
+    let mut collector = Collector { source, found, functions: std::collections::BTreeMap::new(), forms: Vec::new(), submit_depth: 0, link_depth: 0 };
     collector.visit_program(&parsed.program);
     for (span, handler) in &collector.forms {
         let body = collector.functions.get(handler).map(String::as_str).unwrap_or(handler);
@@ -93,6 +93,7 @@ struct Collector<'s> {
     functions: std::collections::BTreeMap<String, String>,
     forms: Vec<(Span, String)>,
     submit_depth: usize,
+    link_depth: usize,
 }
 
 fn attr_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
@@ -153,7 +154,8 @@ impl<'a> Visit<'a> for Collector<'_> {
             });
             self.forms.push((opening.span, text));
         }
-        if !spread && !has("disabled") && !has("readOnly") {
+        let links = matches!(effective.as_str(), "a" | "Link") || has("href");
+        if !spread && !has("disabled") && !has("readOnly") && self.link_depth == 0 {
             let input = matches!(effective.as_str(), "input" | "Input" | "select" | "Select" | "textarea" | "Textarea");
             let button = matches!(effective.as_str(), "button" | "Button");
             let submit = attribute("type").and_then(value_text).is_none_or(|kind| kind == "submit") && self.submit_depth > 0;
@@ -164,7 +166,9 @@ impl<'a> Visit<'a> for Collector<'_> {
             }
         }
         self.submit_depth += usize::from(submits);
+        self.link_depth += usize::from(links);
         walk::walk_jsx_element(self, node);
+        self.link_depth -= usize::from(links);
         self.submit_depth -= usize::from(submits);
     }
 }
@@ -180,6 +184,13 @@ const label = 'TODO';
 const view = <><input/><button>Sort</button><input name="q"/><button onClick={sort}>Sort</button></>;"#;
         let rules = findings(source).into_iter().map(|item| item.rule).collect::<Vec<_>>();
         assert_eq!(rules, ["deferred-wiring", "dead-control", "dead-control"]);
+    }
+
+    #[test]
+    fn a_control_rendered_inside_a_link_takes_the_link_destination() {
+        let source = r#"const view = <><Link href="/products"><Button text1="Go" /></Link><a href="/x"><button>X</button></a><Button text1="Dead" /></>;"#;
+        let rules = findings(source).into_iter().map(|item| item.rule).collect::<Vec<_>>();
+        assert_eq!(rules, ["dead-control"]);
     }
 
     #[test]

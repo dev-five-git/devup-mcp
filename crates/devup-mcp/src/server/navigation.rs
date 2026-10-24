@@ -131,7 +131,35 @@ impl<'a> Visit<'a> for Collector<'_> {
                 }
             })
             .collect();
-        let href = attrs.get("href").and_then(|a| literal(a));
+        let rendered_as = attrs.get("as").and_then(|a| match &a.value {
+            Some(JSXAttributeValue::StringLiteral(s)) => Some(s.value.to_string()),
+            Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
+                JSXExpression::StringLiteral(s) => Some(s.value.to_string()),
+                JSXExpression::Identifier(i) => Some(i.name.to_string()),
+                _ => None,
+            },
+            _ => None,
+        });
+        let name = rendered_as.as_deref().unwrap_or(name);
+        let href = attrs.get("href").and_then(|a| literal(a)).or_else(|| {
+            attrs.get("props").and_then(|a| match &a.value {
+                Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
+                    JSXExpression::ObjectExpression(o) => o.properties.iter().find_map(|p| match p {
+                        ObjectPropertyKind::ObjectProperty(p)
+                            if p.key.static_name().as_deref() == Some("href") =>
+                        {
+                            match &p.value {
+                                Expression::StringLiteral(s) => Some(s.value.to_string()),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }),
+                    _ => None,
+                },
+                _ => None,
+            })
+        });
         let is_link = name == "a" || self.link_names.contains(name);
         let native = matches!(name, "button" | "input" | "select" | "textarea")
             && !attrs
