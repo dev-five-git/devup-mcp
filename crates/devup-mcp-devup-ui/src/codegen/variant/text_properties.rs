@@ -3,20 +3,27 @@ fn bind_text_properties(
     set: &RawNode,
     tree: &mut Tree,
 ) -> BTreeMap<String, String> {
-    let properties = set.typed_view()
+    let mut used = definitions(set).into_iter().map(|definition| definition.name)
+        .collect::<BTreeSet<_>>();
+    let mut properties = BTreeMap::new();
+    for (name, definition) in set.typed_view()
         .value("componentPropertyDefinitions")
         .and_then(Value::as_object)
         .into_iter()
         .flatten()
         .filter(|(_, definition)| definition["type"] == "TEXT")
-        .map(|(name, definition)| (
-            name.clone(),
-            (instance_property_name(name.split('#').next().unwrap_or(name)), definition["defaultValue"].to_string()),
-        ))
-        .collect::<BTreeMap<_, _>>();
+    {
+        let base = instance_property_name(name.split('#').next().unwrap_or(name));
+        let mut property = base.clone();
+        let mut suffix = 2;
+        while used.contains(&property) {
+            property = format!("{base}{suffix}");
+            suffix += 1;
+        }
+        used.insert(property.clone());
+        properties.insert(name.clone(), (property, definition["defaultValue"].to_string()));
+    }
     let mut defaults = properties.values().cloned().collect::<BTreeMap<_, _>>();
-    let mut used = definitions(set).into_iter().map(|definition| definition.name)
-        .chain(defaults.keys().cloned()).collect::<BTreeSet<_>>();
     let mut fallback_index = 0;
     let mut pending = vec![tree];
     while let Some(node) = pending.pop() {

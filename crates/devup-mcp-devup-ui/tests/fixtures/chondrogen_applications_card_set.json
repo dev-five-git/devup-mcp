@@ -1,0 +1,2120 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "81:12380"
+  ],
+  "nodes": {
+    "81:12375": {
+      "id": "81:12375",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12379",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 32,
+          "x": 8822,
+          "y": 10251
+        },
+        "absoluteRenderBounds": {
+          "height": 14.919921875,
+          "width": 18.9443359375,
+          "x": 8822.8798828125,
+          "y": 10260.2998046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "01",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "01",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "NONE",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 32,
+        "x": 0,
+        "y": 32,
+        "styledTextSegments": [
+          {
+            "characters": "01",
+            "end": 2,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12376": {
+      "id": "81:12376",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "81:12379",
+        "childrenIds": [
+          "81:12377",
+          "81:12378"
+        ],
+        "absoluteBoundingBox": {
+          "height": 64,
+          "width": 586,
+          "x": 8874,
+          "y": 10251
+        },
+        "absoluteRenderBounds": {
+          "height": 64,
+          "width": 586,
+          "x": 8874,
+          "y": 10251
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 64,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 6,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 6,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "text",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 586,
+        "x": 52,
+        "y": 32
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12377": {
+      "id": "81:12377",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12376",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 586,
+          "x": 8874,
+          "y": 10251
+        },
+        "absoluteRenderBounds": {
+          "height": 21.671875,
+          "width": 212.6923828125,
+          "x": 8874.599609375,
+          "y": 10257.416015625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "신약 후보물질 스크리닝",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 24,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "신약 후보물질 스크리닝",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 586,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "신약 후보물질 스크리닝",
+            "end": 12,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12378": {
+      "id": "81:12378",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12376",
+        "absoluteBoundingBox": {
+          "height": 24,
+          "width": 586,
+          "x": 8874,
+          "y": 10291
+        },
+        "absoluteRenderBounds": {
+          "height": 14.7197265625,
+          "width": 506.4794921875,
+          "x": 8874.84765625,
+          "y": 10296.0244140625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:955",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 16,
+        "height": 24,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "염증 · 연골 분해 지표(IL-6, PGE2, MM",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 586,
+        "x": 0,
+        "y": 40,
+        "styledTextSegments": [
+          {
+            "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+            "end": 53,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12379": {
+      "id": "81:12379",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "81:12380",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "81:12375",
+          "81:12376"
+        ],
+        "absoluteBoundingBox": {
+          "height": 129,
+          "width": 638,
+          "x": 8822,
+          "y": 10219
+        },
+        "absoluteRenderBounds": {
+          "height": 129,
+          "width": 638,
+          "x": 8822,
+          "y": 10219
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 129,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 20,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 32,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 32,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 20,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "effect=selected, viewport=Desktop",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 32,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 32,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "selected",
+          "viewport": "Desktop"
+        },
+        "visible": true,
+        "width": 638,
+        "x": 21,
+        "y": 21
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12380": {
+      "id": "81:12380",
+      "type": "COMPONENT_SET",
+      "fields": {
+        "parentId": "19:963",
+        "parentType": "SECTION",
+        "parentName": "Components",
+        "childrenIds": [
+          "81:12379",
+          "81:12381",
+          "81:12431",
+          "81:12426"
+        ],
+        "absoluteBoundingBox": {
+          "height": 572,
+          "width": 680,
+          "x": 8801,
+          "y": 10198
+        },
+        "absoluteRenderBounds": {
+          "height": 572,
+          "width": 680,
+          "x": 8801,
+          "y": 10198
+        },
+        "bottomLeftRadius": 5,
+        "bottomRightRadius": 5,
+        "clipsContent": true,
+        "componentPropertyDefinitions": {
+          "effect": {
+            "defaultValue": "selected",
+            "type": "VARIANT",
+            "variantOptions": [
+              "selected",
+              "default"
+            ]
+          },
+          "viewport": {
+            "defaultValue": "Desktop",
+            "type": "VARIANT",
+            "variantOptions": [
+              "Desktop",
+              "Mobile"
+            ]
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 5,
+        "dashPattern": [
+          10,
+          5
+        ],
+        "defaultVariant": {
+          "$nodeId": "81:12379",
+          "$nodeType": "COMPONENT"
+        },
+        "height": 572,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 20,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 20,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 20,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 20,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ApplicationsCard",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 20,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 20,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 0.27843138575553894,
+              "r": 0.5921568870544434
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 5,
+        "topRightRadius": 5,
+        "visible": true,
+        "width": 680,
+        "x": 131,
+        "y": 9160
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12381": {
+      "id": "81:12381",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "81:12380",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "81:12382",
+          "81:12383"
+        ],
+        "absoluteBoundingBox": {
+          "height": 129,
+          "width": 638,
+          "x": 8822,
+          "y": 10368
+        },
+        "absoluteRenderBounds": {
+          "height": 129,
+          "width": 638,
+          "x": 8822,
+          "y": 10368
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 129,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 20,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 32,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 32,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 20,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "effect=default, viewport=Desktop",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 32,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 32,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default",
+          "viewport": "Desktop"
+        },
+        "visible": true,
+        "width": 638,
+        "x": 21,
+        "y": 170
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12382": {
+      "id": "81:12382",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12381",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 32,
+          "x": 8822,
+          "y": 10400
+        },
+        "absoluteRenderBounds": {
+          "height": 14.919921875,
+          "width": 18.9443359375,
+          "x": 8822.8798828125,
+          "y": 10409.2998046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:359",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "01",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:359",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.6682692170143127,
+              "g": 0.6104382276535034,
+              "r": 0.5815227627754211
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "01",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "NONE",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 32,
+        "x": 0,
+        "y": 32,
+        "styledTextSegments": [
+          {
+            "characters": "01",
+            "end": 2,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12383": {
+      "id": "81:12383",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "81:12381",
+        "childrenIds": [
+          "81:12384",
+          "81:12385"
+        ],
+        "absoluteBoundingBox": {
+          "height": 64,
+          "width": 586,
+          "x": 8874,
+          "y": 10400
+        },
+        "absoluteRenderBounds": {
+          "height": 64,
+          "width": 586,
+          "x": 8874,
+          "y": 10400
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 64,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 6,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 6,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "text",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 586,
+        "x": 52,
+        "y": 32
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12384": {
+      "id": "81:12384",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12383",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 586,
+          "x": 8874,
+          "y": 10400
+        },
+        "absoluteRenderBounds": {
+          "height": 21.671875,
+          "width": 212.6923828125,
+          "x": 8874.599609375,
+          "y": 10406.416015625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "신약 후보물질 스크리닝",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 24,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "신약 후보물질 스크리닝",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 586,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "신약 후보물질 스크리닝",
+            "end": 12,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12385": {
+      "id": "81:12385",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12383",
+        "absoluteBoundingBox": {
+          "height": 24,
+          "width": 586,
+          "x": 8874,
+          "y": 10440
+        },
+        "absoluteRenderBounds": {
+          "height": 14.7197265625,
+          "width": 506.4794921875,
+          "x": 8874.84765625,
+          "y": 10445.0244140625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:955",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 16,
+        "height": 24,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "염증 · 연골 분해 지표(IL-6, PGE2, MM",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 586,
+        "x": 0,
+        "y": 40,
+        "styledTextSegments": [
+          {
+            "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+            "end": 53,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12426": {
+      "id": "81:12426",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "81:12380",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "81:12427",
+          "81:12428"
+        ],
+        "absoluteBoundingBox": {
+          "height": 106,
+          "width": 638,
+          "x": 8822,
+          "y": 10643
+        },
+        "absoluteRenderBounds": {
+          "height": 106,
+          "width": 638,
+          "x": 8822,
+          "y": 10643
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 106,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 8,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 24,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 24,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 8,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "effect=default, viewport=Mobile",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 24,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 24,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default",
+          "viewport": "Mobile"
+        },
+        "visible": true,
+        "width": 638,
+        "x": 21,
+        "y": 445
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12427": {
+      "id": "81:12427",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12426",
+        "absoluteBoundingBox": {
+          "height": 25,
+          "width": 32,
+          "x": 8842,
+          "y": 10667
+        },
+        "absoluteRenderBounds": {
+          "height": 13.4287109375,
+          "width": 17.0498046875,
+          "x": 8842.7919921875,
+          "y": 10672.76953125
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:359",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "01",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:359",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.6682692170143127,
+              "g": 0.6104382276535034,
+              "r": 0.5815227627754211
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 18,
+        "height": 25,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "01",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 32,
+        "x": 20,
+        "y": 24,
+        "styledTextSegments": [
+          {
+            "characters": "01",
+            "end": 2,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12428": {
+      "id": "81:12428",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "81:12426",
+        "childrenIds": [
+          "81:12429",
+          "81:12430"
+        ],
+        "absoluteBoundingBox": {
+          "height": 57,
+          "width": 558,
+          "x": 8882,
+          "y": 10667
+        },
+        "absoluteRenderBounds": {
+          "height": 57,
+          "width": 558,
+          "x": 8882,
+          "y": 10667
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 57,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 6,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 6,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "text",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 558,
+        "x": 60,
+        "y": 24
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12429": {
+      "id": "81:12429",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12428",
+        "absoluteBoundingBox": {
+          "height": 28,
+          "width": 558,
+          "x": 8882,
+          "y": 10667
+        },
+        "absoluteRenderBounds": {
+          "height": 18.060546875,
+          "width": 177.2431640625,
+          "x": 8882.5,
+          "y": 10671.6796875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "신약 후보물질 스크리닝",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 28,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "신약 후보물질 스크리닝",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 558,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "신약 후보물질 스크리닝",
+            "end": 12,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12430": {
+      "id": "81:12430",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12428",
+        "absoluteBoundingBox": {
+          "height": 23,
+          "width": 558,
+          "x": 8882,
+          "y": 10701
+        },
+        "absoluteRenderBounds": {
+          "height": 13.7998046875,
+          "width": 474.82421875,
+          "x": 8882.794921875,
+          "y": 10705.8349609375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:955",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 15,
+        "height": 23,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "염증 · 연골 분해 지표(IL-6, PGE2, MM",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 558,
+        "x": 0,
+        "y": 34,
+        "styledTextSegments": [
+          {
+            "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+            "end": 53,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12431": {
+      "id": "81:12431",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "81:12380",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "81:12432",
+          "81:12433"
+        ],
+        "absoluteBoundingBox": {
+          "height": 106,
+          "width": 638,
+          "x": 8822,
+          "y": 10517
+        },
+        "absoluteRenderBounds": {
+          "height": 106,
+          "width": 638,
+          "x": 8822,
+          "y": 10517
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 106,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 8,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 24,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 24,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 8,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "effect=selected, viewport=Mobile",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 24,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 24,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "selected",
+          "viewport": "Mobile"
+        },
+        "visible": true,
+        "width": 638,
+        "x": 21,
+        "y": 319
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12432": {
+      "id": "81:12432",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12431",
+        "absoluteBoundingBox": {
+          "height": 25,
+          "width": 32,
+          "x": 8842,
+          "y": 10541
+        },
+        "absoluteRenderBounds": {
+          "height": 13.4287109375,
+          "width": 17.0498046875,
+          "x": 8842.7919921875,
+          "y": 10546.76953125
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "01",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 18,
+        "height": 25,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "01",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 32,
+        "x": 20,
+        "y": 24,
+        "styledTextSegments": [
+          {
+            "characters": "01",
+            "end": 2,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12433": {
+      "id": "81:12433",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "81:12431",
+        "childrenIds": [
+          "81:12434",
+          "81:12435"
+        ],
+        "absoluteBoundingBox": {
+          "height": 57,
+          "width": 558,
+          "x": 8882,
+          "y": 10541
+        },
+        "absoluteRenderBounds": {
+          "height": 57,
+          "width": 558,
+          "x": 8882,
+          "y": 10541
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 57,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 6,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 6,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "text",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 558,
+        "x": 60,
+        "y": 24
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12434": {
+      "id": "81:12434",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12433",
+        "absoluteBoundingBox": {
+          "height": 28,
+          "width": 558,
+          "x": 8882,
+          "y": 10541
+        },
+        "absoluteRenderBounds": {
+          "height": 18.060546875,
+          "width": 177.2431640625,
+          "x": 8882.5,
+          "y": 10545.6796875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "신약 후보물질 스크리닝",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 28,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "신약 후보물질 스크리닝",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 558,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "신약 후보물질 스크리닝",
+            "end": 12,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "81:12435": {
+      "id": "81:12435",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "81:12433",
+        "absoluteBoundingBox": {
+          "height": 23,
+          "width": 558,
+          "x": 8882,
+          "y": 10575
+        },
+        "absoluteRenderBounds": {
+          "height": 13.7998046875,
+          "width": 474.82421875,
+          "x": 8882.794921875,
+          "y": 10579.8349609375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:955",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 15,
+        "height": 23,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "염증 · 연골 분해 지표(IL-6, PGE2, MM",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 558,
+        "x": 0,
+        "y": 34,
+        "styledTextSegments": [
+          {
+            "characters": "염증 · 연골 분해 지표(IL-6, PGE2, MMP-13 등)로 후보물질의 효능을 평가합니다.",
+            "end": 53,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

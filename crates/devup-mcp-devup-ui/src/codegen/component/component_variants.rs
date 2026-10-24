@@ -269,6 +269,19 @@ fn finalize_codegen_output(
         .extend(unresolved_token_bindings(snapshot, root_id, options));
     output.projection_trace =
         build_projection_trace(snapshot, root_id, &output.tsx, &output.source_map);
+    for diagnostic in &output.diagnostics {
+        if diagnostic.code == "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK"
+            && let Some(node_id) = &diagnostic.node_id
+            && !output.projection_trace.entries.iter().any(|entry| &entry.node_id == node_id)
+        {
+            output.projection_trace.entries.push(crate::provenance::ProjectionTraceEntry {
+                node_id: node_id.clone(),
+                disposition: crate::provenance::ProjectionDisposition::Ignored,
+                reason: "unrepresented-variant-child".into(),
+                generated_range: None,
+            });
+        }
+    }
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     output
         .diagnostics
