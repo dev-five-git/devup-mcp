@@ -613,7 +613,10 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
         );
         return Ok(evidence);
     }
-    if inventory["truncation"]["truncated"] == true || inventory["unparsedFiles"] != 0 {
+    let routes_omitted = inventory["truncation"]["omitted"]["routes"]
+        .as_u64()
+        .map_or(inventory["truncation"]["truncated"] == true, |omitted| omitted > 0);
+    if routes_omitted || inventory["unparsedFiles"].as_u64().is_some_and(|n| n > 0) {
         evidence.inventory_note = Some(
             "The route inventory is truncated or has unparsed files; a route missing here may still exist.".into(),
         );
