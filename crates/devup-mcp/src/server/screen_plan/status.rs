@@ -60,15 +60,21 @@ pub(super) fn status_report(
             state
         }).collect::<Vec<_>>();
         states.extend(route_states.clone());
+        // A route of another app (apps/admin's `/`) is not this one.
+        let in_app = |page: &str| {
+            route["app"].as_str().is_none_or(|app| {
+                app == "." || std::path::Path::new(page).starts_with(app)
+            })
+        };
+        // A static route (`/news/notice`) wins over a dynamic sibling (`/news/[id]`).
         let page = evidence
             .routes
             .iter()
-            .find(|(pattern, page)| {
-                (pattern == url || super::navigation::matches_route(pattern, url))
-                    // A route of another app (apps/admin's `/`) is not this one.
-                    && route["app"].as_str().is_none_or(|app| {
-                        app == "." || std::path::Path::new(page).starts_with(app)
-                    })
+            .find(|(pattern, page)| pattern == url && in_app(page))
+            .or_else(|| {
+                evidence.routes.iter().find(|(pattern, page)| {
+                    super::navigation::matches_route(pattern, url) && in_app(page)
+                })
             })
             .map(|(_, page)| page.clone());
         let mut row_widths = DEFAULT_WIDTHS.iter().map(|width| u64::from(*width))

@@ -65,6 +65,20 @@ fn status_does_not_take_another_apps_page_for_this_route() {
 }
 
 #[test]
+fn status_prefers_a_static_route_over_its_dynamic_sibling() {
+    let mut plan = confirmed_plan();
+    plan["routes"][1]["url"] = json!("/news/notice");
+    plan["routes"][1]["file"] = json!(null);
+    let mut evidence = evidence();
+    evidence.routes = vec![
+        ("/news/[id]".to_owned(), "src/app/news/[id]/page.tsx".to_owned()),
+        ("/news/notice".to_owned(), "src/app/news/notice/page.tsx".to_owned()),
+    ];
+    let report = status_report(&plan, &evidence, None);
+    assert_eq!(report["rows"][1]["file"], "src/app/news/notice/page.tsx", "{report}");
+}
+
+#[test]
 fn r34_ancestor_plan_must_match_the_requested_app() {
     let fixture = Fixture::new();
     let mut plan = confirmed_plan();
