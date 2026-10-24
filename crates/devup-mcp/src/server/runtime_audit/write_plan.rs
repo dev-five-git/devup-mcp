@@ -53,9 +53,24 @@ fn write_plan(
     let mut written = None;
     let mut template_files = Vec::new();
     let mut transaction = OutputTransaction::new();
+    if let Some(path) = output_path {
+        let target = policy.resolve(path)?;
+        let display = target.display_path().display().to_string();
+        let bytes = serde_json::to_vec_pretty(&document)
+            .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
+        if bytes.len() > MAX_PLAN_BYTES {
+            return Err(invalid(
+                "The bound plan exceeds the ingest size limit; split the plan.",
+            ));
+        }
+        transaction.stage("plan", target, &bytes)?;
+        written = Some(display);
+    }
     if let Some(directory) = template_path {
-        transaction.refuse_existing();
+        let mut template_transaction = OutputTransaction::new();
+        template_transaction.refuse_existing();
         for (name, bytes) in [
+            ("dev-environment.mjs", include_bytes!("../../../../../harness/runtime-audit/dev-environment.mjs").as_slice()),
             ("resource-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/resource-checks.mjs").as_slice()),
             (
                 "run.mjs",
@@ -82,21 +97,9 @@ fn write_plan(
             let requested = Path::new(directory).join(name);
             let target = policy.resolve(&requested.to_string_lossy())?;
             template_files.push(json!({"path": target.display_path().display().to_string(), "sha256": sha256(bytes)}));
-            transaction.stage(name, target, bytes)?;
+            template_transaction.stage(name, target, bytes)?;
         }
-    }
-    if let Some(path) = output_path {
-        let target = policy.resolve(path)?;
-        let display = target.display_path().display().to_string();
-        let bytes = serde_json::to_vec_pretty(&document)
-            .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
-        if bytes.len() > MAX_PLAN_BYTES {
-            return Err(invalid(
-                "The bound plan exceeds the ingest size limit; split the plan.",
-            ));
-        }
-        transaction.stage("plan", target, &bytes)?;
-        written = Some(display);
+        template_transaction.commit()?;
     }
     transaction.commit()?;
     let mut result = document;
@@ -347,7 +350,7 @@ fn ingest_references(
                             && reported.is_some_and(|s| s["status"] == "completed"),
                     )
                 });
-                let status = match dimension
+                let status = if let Some(reason) = &check.unavailable_reason { if reason.starts_with("not-run:") { "not-run" } else { "inconclusive" } } else { match dimension
                     .as_ref()
                     .map(|row| &row["status"])
                     .or_else(|| item.map(|item| &item["status"]))
@@ -360,7 +363,7 @@ fn ingest_references(
                     Some("not-run") => "not-run",
                     Some(_) => "inconclusive",
                     None => "not-run",
-                };
+                }};
                 *counts.entry(status).or_default() += 1;
                 if status == "fail" && failures.len() < MAX_LISTED {
                     failures.push(json!({

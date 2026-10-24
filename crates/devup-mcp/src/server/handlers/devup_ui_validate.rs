@@ -200,6 +200,9 @@ impl DevupServer {
                     .clone(),
             );
         }
+        if let Some(action) = &report.next_action {
+            result["nextAction"] = action.clone();
+        }
         // A violation is a located, proven gap in devup-ui knowledge, which
         // makes this the one moment where naming the skill is a measurement
         // rather than a nudge. Raised only when the skill is actually absent:

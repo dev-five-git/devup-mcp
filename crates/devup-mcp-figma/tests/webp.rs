@@ -63,6 +63,30 @@ fn lossless_preserves_every_rgba_pixel_including_transparent_rgb_and_actual_iden
         assert_eq!(info["outputSize"]["width"], 93.0);
     }
 }
+
+#[test]
+fn flat_alpha_graphics_default_to_lossless_webp_without_overriding_explicit_lossy() {
+    let rgba = RgbaImage::from_fn(16, 16, |x, _| {
+        if x < 8 {
+            Rgba([203, 17, 91, 0])
+        } else {
+            Rgba([11, 201, 43, 127])
+        }
+    });
+    let png = encode(rgba.clone(), ImageFormat::Png);
+    let mut req = request(85, false);
+    req.lossless = None;
+    let entry = exported_asset_from_bytes(&req, &png).unwrap();
+    let bytes = STANDARD.decode(entry.data_base64.unwrap()).unwrap();
+    assert_eq!(image::load_from_memory(&bytes).unwrap().to_rgba8(), rgba);
+    assert_eq!(entry.render_info.unwrap()["compression"]["lossless"], true);
+    req.lossless = Some(false);
+    let explicit = exported_asset_from_bytes(&req, &png).unwrap();
+    assert_eq!(
+        explicit.render_info.unwrap()["compression"]["lossless"],
+        false
+    );
+}
 #[test]
 fn lossy_quality_changes_rgb_and_bytes_but_preserves_alpha_and_uses_honest_savings() {
     let rgba = pixels(128, 96);

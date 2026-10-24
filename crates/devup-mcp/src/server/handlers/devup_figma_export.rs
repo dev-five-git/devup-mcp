@@ -11,6 +11,15 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut input = workflow.input;
+        let manifest_added = !input.asset_requests.is_empty()
+            && !input
+                .outputs
+                .iter()
+                .any(|o| matches!(o.as_str(), "assetManifest" | "pageScaffold"))
+        ;
+        if manifest_added {
+            input.outputs.push("assetManifest".into());
+        }
         if input.preset.as_deref() == Some("web-ready-images") {
             for output in ["assetManifest", "imageAudit"] {
                 if !input.outputs.iter().any(|o| o == output) {
@@ -228,19 +237,13 @@ impl DevupServer {
             input.previous_design_fingerprints.as_deref(),
         )
         .map_err(to_mcp_error)?;
-        if !input.asset_requests.is_empty()
-            && !input
-                .outputs
-                .iter()
-                .any(|output| matches!(output.as_str(), "assetManifest" | "pageScaffold"))
-        {
-            return Err(to_mcp_error(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "Using assetRequests requires assetManifest in outputs.",
-                false,
-            )));
-        }
+
         let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
+        if reference_png_requested && input.frame_ids.len() == 1 && !input.all_screens && input.artifact_id.is_none() {
+            let mut target = parse_link(input.url.as_deref()).map_err(to_mcp_error)?;
+            target.node_id = input.frame_ids.pop();
+            input.url = Some(target.link(target.node_id.as_deref()));
+        }
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
             let target = if let Some(url) = &input.url {
                 FigmaTarget::parse(url).ok()
@@ -351,6 +354,9 @@ impl DevupServer {
                     // A frame the index does not describe leaves the question
                     // open, and an open question is collected, not refused.
                     if selected.len() == input.frame_ids.len()
+                        && !crate::server::projection::responsive_groups::confirmed(
+                            input.project_root.as_deref(), &input.frame_ids,
+                        ).map_err(to_mcp_error)?
                         && !devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(
                             &selected,
                         )
@@ -402,6 +408,7 @@ impl DevupServer {
                             theme_options: projection::theme_export::ThemeExportOptions {
                                 mode: input.devup_json_mode,
                                 project_root: input.project_root.clone(),
+                                figma_node_ids: input.figma_node_ids,
                             },
                             strict: input.strict,
                             output_paths: input.output_paths,
@@ -451,6 +458,7 @@ impl DevupServer {
                     theme_options: projection::theme_export::ThemeExportOptions {
                         mode: input.devup_json_mode,
                         project_root: input.project_root.clone(),
+                        figma_node_ids: input.figma_node_ids,
                     },
                     strict: input.strict,
                     output_paths: input.output_paths,
@@ -475,7 +483,7 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            return Ok(tool_result(with_project_checks(
+            let mut result = with_project_checks(
                 result,
                 input.project_root.as_deref(),
                 &skills::Lookup::new(
@@ -483,7 +491,14 @@ impl DevupServer {
                     self.output_policy.primary_root(),
                     self.client_name(),
                 ),
-            )));
+            );
+            if manifest_added {
+                let warning = json!({"code":"DEVUP_ASSET_MANIFEST_ADDED","message":"assetManifest was automatically added to outputs for assetRequests."});
+                if let Some(warnings) = result["warnings"].as_array_mut() { warnings.push(warning); }
+                else { result["warnings"] = json!([warning]); }
+            }
+            compact::refresh_reply_selection(&mut result, &input.response_selection).map_err(to_mcp_error)?;
+            return Ok(tool_result(result));
         }
 
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
@@ -558,6 +573,7 @@ impl DevupServer {
             theme_options: projection::theme_export::ThemeExportOptions {
                 mode: input.devup_json_mode,
                 project_root: input.project_root.clone(),
+                figma_node_ids: input.figma_node_ids,
             },
             strict: input.strict,
             output_paths: input.output_paths,
@@ -597,7 +613,7 @@ impl DevupServer {
             ok => ok,
         }
         .map_err(to_mcp_error)?;
-        Ok(tool_result(with_project_checks(
+        let mut result = with_project_checks(
             result,
             input.project_root.as_deref(),
             &skills::Lookup::new(
@@ -605,6 +621,13 @@ impl DevupServer {
                 self.output_policy.primary_root(),
                 self.client_name(),
             ),
-        )))
+        );
+        if manifest_added {
+            let warning = json!({"code":"DEVUP_ASSET_MANIFEST_ADDED","message":"assetManifest was automatically added to outputs for assetRequests."});
+            if let Some(warnings) = result["warnings"].as_array_mut() { warnings.push(warning); }
+            else { result["warnings"] = json!([warning]); }
+        }
+        compact::refresh_reply_selection(&mut result, &input.response_selection).map_err(to_mcp_error)?;
+        Ok(tool_result(result))
     }
 }

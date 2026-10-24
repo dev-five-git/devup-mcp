@@ -46,7 +46,7 @@ expression: actual
                     maxW="none"
                     objectFit="fill"
                     pos="absolute"
-                    src="/images/image 22.png"
+                    src="/images/section-1-image-22.png"
                     top="0"
                     transform="translate(-8.6836621635%, -5.9197301257%) matrix(1.2080793162, 0, 0, 1.2886179867, 0, 0)"
                     transformOrigin="0 0"

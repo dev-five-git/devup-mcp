@@ -72,16 +72,20 @@ pub fn validate_bundle(
         facts.boundary
     });
     let mut result = UiValidation {
+        next_action: None,
         ok: true,
         violations: vec![],
         theme_notes: vec![],
         checked_tokens: 0,
         available_token_count: theme.map_or(0, ProjectTheme::token_count),
     };
+    let mut fixable = 0;
     for file in files.iter().filter(|f| is_source(&f.path)) {
         let mut report = validate_source(&file.content, theme, strict, source_type(&file.path));
+        fixable += report.next_action.as_ref().and_then(|action| action["fixable"].as_u64()).unwrap_or(0) as usize;
         if !report.violations.iter().any(|v| v.rule == "invalid-syntax") {
             report.violations.extend(structural(file, boundary));
+            report.violations.extend(super::wiring::fixture_findings(files, &file.path, &file.content));
             report
                 .violations
                 .extend(super::site::interaction_findings(&file.path, &file.content));
@@ -99,6 +103,7 @@ pub fn validate_bundle(
         result.violations.extend(report.violations);
     }
     result.theme_notes.sort();
+    result.next_action = super::lint_fix_action(fixable);
     result.theme_notes.dedup();
     result.ok = result
         .violations

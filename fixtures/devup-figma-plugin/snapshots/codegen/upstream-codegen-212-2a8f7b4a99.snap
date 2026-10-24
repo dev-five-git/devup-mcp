@@ -13,7 +13,7 @@ expression: actual
         minW="0"
         objectFit="contain"
         objectPos="center"
-        src="/images/image.png"
+        src="/images/object-fit-contain-image.png"
       />
     </VStack>
   )

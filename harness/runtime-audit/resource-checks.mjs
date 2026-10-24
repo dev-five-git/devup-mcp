@@ -122,7 +122,7 @@ export function observeNativeAppearance(scope) {
       || (element.tagName === 'INPUT' && ['button', 'submit', 'reset'].includes(element.type));
     const frame = document.createElement('iframe');
     frame.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-    document.body.appendChild(frame);
+    (document.body ?? document.documentElement).appendChild(frame);
     const defaults = new Map();
     const defaultsFor = (element) => {
       const key = `${element.tagName}:${element.type ?? ''}`;

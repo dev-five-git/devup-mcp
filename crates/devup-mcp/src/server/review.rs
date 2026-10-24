@@ -71,6 +71,26 @@ fn has_line_height(value: &Value) -> bool {
 }
 
 fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
+    let sources = ["tsx", "componentTsx", "responsiveTsx"].into_iter()
+        .filter_map(|field| response[field].as_str()).collect::<Vec<_>>();
+    let referenced = sources.iter().flat_map(|source| super::asset_guard::asset_urls(source).into_iter().map(|(url, _)| url))
+        .collect::<std::collections::BTreeSet<_>>();
+    let written = response["assetManifest"]["assets"].as_array().into_iter().flatten()
+        .filter(|asset| asset["status"] == "exported" && asset["outputPath"].is_string())
+        .filter_map(|asset| asset["path"].as_str()).collect::<std::collections::BTreeSet<_>>();
+    let mut placeholders = response["assetManifest"]["assets"].as_array().into_iter().flatten()
+        .filter(|asset| asset["status"] != "exported" || asset["outputPath"].is_null())
+        .filter_map(|asset| asset["path"].as_str().map(str::to_owned))
+        .collect::<std::collections::BTreeSet<_>>();
+    placeholders.extend(referenced.iter().filter(|url| !written.contains(url.as_str())).cloned());
+    if !sources.is_empty() {
+        placeholders.extend(written.iter().filter(|url| !referenced.contains(**url)).map(|url| (*url).to_owned()));
+    }
+    if !placeholders.is_empty() {
+        out.push(json!({"severity":"required","scope":scope,"code":"ASSET_PLACEHOLDERS",
+            "paths":placeholders,"what":"Asset URLs lack a committed output file or a matching generated code reference.",
+            "how":"Export the assets with outputPath and assetPublicRoot before using the generated code."}));
+    }
     for item in response["responsiveReviewChecklist"]["items"]
         .as_array()
         .into_iter()
@@ -103,8 +123,15 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
         items_from_issues(scope, issues, out);
     }
     if response["quality"]["assets"] == "partial" || response["quality"]["assets"] == "failed" {
-        out.push(json!({"severity":"required","scope":scope,"code":"ASSETS_INCOMPLETE",
+        let progress = &response["exportJob"]["assetProgress"];
+        let requested = progress["total"].as_u64().filter(|total| *total > 0);
+        let incomplete = requested.is_none_or(|total| progress["exported"].as_u64() != Some(total));
+        out.push(json!({"severity":if incomplete {"required"} else {"info"},"scope":scope,"code":if incomplete {"ASSETS_INCOMPLETE"} else {"UNREQUESTED_ASSETS"},
             "what":"Some assets were not collected.","how":"Read assetSummary.unavailable[]; re-request those assets by id with assetRequests (original url, not artifactId)."}));
+    }
+    if response["quality"]["assets"] == "complete" && response["assetSummary"]["status"] == "partial" {
+        out.push(json!({"severity":"info","scope":scope,"code":"UNREQUESTED_ASSETS",
+            "what":"Requested assets were collected; other discovered assets remain unrequested.","how":"Read assetSummary.unavailable[] if those other assets are needed."}));
     }
     if response["quality"]["acquisition"] == "partial" {
         out.push(json!({"severity":"recommended","scope":scope,"code":"ACQUISITION_PARTIAL",
@@ -119,6 +146,7 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
 
 /// Add `summary` and, only when something needs review, `reviewChecklist`.
 pub(super) fn attach(result: &mut Value) {
+    if let Some(object) = result.as_object_mut() { object.remove("reviewChecklist"); }
     let mut items = vec![];
     if result["selectionEvidence"]["requiresFullDetailRead"] == true {
         items.push(json!({"severity":"required","scope":"response","code":"SELECTED_PROJECTION_DETAILS_RESOURCE",
@@ -179,6 +207,37 @@ mod tests {
         attach(&mut value);
         assert_eq!(value["summary"]["required"], 0);
         assert!(value.get("reviewChecklist").is_none());
+    }
+
+    #[test]
+    fn acquired_but_unwritten_assets_require_placeholder_review() {
+        let mut value = json!({"status":"complete","quality":{"assets":"complete"},
+            "assetManifest":{"assets":[
+                {"assetId":"1:1:fills:0","status":"exported","path":"/images/main-hero.webp"},
+                {"assetId":"1:2:node","status":"exported","path":"/icons/logo.svg","outputPath":"public/icons/logo.svg"}
+            ]}});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["severity"], "required");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/images/main-hero.webp"]));
+    }
+
+    #[test]
+    fn code_only_export_requires_each_unwritten_asset_url() {
+        let mut value = json!({"tsx":r#"export const Page = () => <><Image src="/images/photo.webp" /><Box maskImage="url('/icons/arrow.svg')" /><Box bgImage="url(/images/back.webp)" /></>;"#});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["severity"], "required");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/icons/arrow.svg", "/images/back.webp", "/images/photo.webp"]));
+    }
+
+    #[test]
+    fn written_file_without_matching_code_url_requires_review() {
+        let mut value = json!({"tsx":r#"export const Page = () => <Image src="/images/placeholder.png" />;"#,
+            "assetManifest":{"assets":[{"status":"exported","path":"/images/photo.webp","outputPath":"public/images/photo.webp"}]}});
+        attach(&mut value);
+        assert_eq!(value["reviewChecklist"][0]["code"], "ASSET_PLACEHOLDERS");
+        assert_eq!(value["reviewChecklist"][0]["paths"], json!(["/images/photo.webp", "/images/placeholder.png"]));
     }
 
     #[test]

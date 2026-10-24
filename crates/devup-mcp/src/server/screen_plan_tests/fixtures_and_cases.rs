@@ -967,7 +967,7 @@ async fn two_screens_on_one_url_return_a_retry_that_confirms() {
 }
 
 #[tokio::test]
-async fn draft_returns_one_proposal_row_per_question() {
+async fn draft_returns_only_recommended_path_proposal_rows() {
     let fixture = Fixture::new();
     let drafted = draft(
         &input(&fixture, "draft"),
@@ -978,7 +978,8 @@ async fn draft_returns_one_proposal_row_per_question() {
     .await
     .unwrap();
     let rows = array(&drafted["proposal"]);
-    assert_eq!(rows.len(), array(&drafted["questions"]).len());
+    assert!(rows.len() < array(&drafted["questions"]).len());
+    assert!(!array(&drafted["conditionalQuestions"]).is_empty());
     assert!(rows.iter().all(|row| row["recommended"].is_string()));
     assert!(
         text(&drafted["proposalMarkdown"]).starts_with("| # | topic | decision | recommended")

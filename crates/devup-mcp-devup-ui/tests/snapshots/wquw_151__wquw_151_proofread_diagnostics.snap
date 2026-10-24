@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
-assertion_line: 231
 expression: json!(output.diagnostics)
 ---
 [
@@ -210,9 +209,9 @@ expression: json!(output.diagnostics)
                 }
               },
               "color": {
-                "b": 0.9244915843009949,
-                "g": 0.9529501795768738,
-                "r": 0.9695512056350708
+                "b": 0.924491584301,
+                "g": 0.952950179577,
+                "r": 0.969551205635
               },
               "opacity": 1,
               "type": "SOLID",
@@ -287,7 +286,7 @@ expression: json!(output.diagnostics)
       "originalResourceId": null,
       "appliedValue": {
         "generatedSource": [
-          "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          >\n            <Box\n              aspectRatio=\"1\"\n              bg=\"$text\"\n              boxSize=\"20px\"\n              maskImage=\"url(/icons/Icons.svg)\"\n              maskPos=\"center\"\n              maskRepeat=\"no-repeat\"\n              maskSize=\"contain\"\n              transform=\"rotate(180deg)\"\n            />\n          </Flex>"
+          "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          >\n            <Box\n              aspectRatio=\"1\"\n              bg=\"$text\"\n              boxSize=\"20px\"\n              maskImage=\"url(/icons/icons.svg)\"\n              maskPos=\"center\"\n              maskRepeat=\"no-repeat\"\n              maskSize=\"contain\"\n              transform=\"rotate(180deg)\"\n            />\n          </Flex>"
         ],
         "fallback": null,
         "heightPreservation": {
@@ -550,9 +549,9 @@ expression: json!(output.diagnostics)
                 }
               },
               "color": {
-                "b": 0.9586742520332336,
-                "g": 0.96465665102005,
-                "r": 0.9695513844490051
+                "b": 0.958674252033,
+                "g": 0.96465665102,
+                "r": 0.969551384449
               },
               "opacity": 1,
               "type": "SOLID",
@@ -717,9 +716,9 @@ expression: json!(output.diagnostics)
                   }
                 },
                 "color": {
-                  "b": 0.1764705926179886,
-                  "g": 0.1764705926179886,
-                  "r": 0.4588235318660736
+                  "b": 0.176470592618,
+                  "g": 0.176470592618,
+                  "r": 0.458823531866
                 },
                 "opacity": 1,
                 "type": "SOLID",

@@ -2,6 +2,45 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied } from '../checks.mjs';
 import { observeSequence, observeSectionLayout, observeClippedContent, observeStylesApplied, runPlan } from '../run.mjs';
+import { observeInteraction } from '../run.mjs';
+import { evaluateInteraction } from '../checks.mjs';
+import { observeCompleteness } from '../run.mjs';
+
+test('decorative and marquee contrast is excluded without hiding ordinary animated text', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    await page.setContent('<style>@keyframes slide{to{transform:translateX(-50%)}}@keyframes fade{to{opacity:.8}}.track{width:2000px;animation:slide 10s linear infinite}</style><div aria-hidden="true">hidden</div><div role="presentation"><span>decoration</span></div><div style="overflow:hidden;width:300px"><div class="track"><span>marquee</span></div></div><p style="animation:fade 1s infinite">ordinary</p>');
+    const observed = await observeCompleteness(page, {}, 390);
+    assert.deepEqual(observed.texts.map((item) => item.text), ['ordinary']);
+    assert.deepEqual((await observeClippedContent(page)).clipped, []);
+  } finally { await browser.close(); }
+});
+
+test('browser sequence separates descending notices and pagination from numbered cards', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<main><section><div>6</div><div>5</div><div>4</div></section><nav aria-label="Pagination"><a href="?page=12">12</a><a href="?page=1">1</a><a href="?page=2">2</a></nav></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+    await page.setContent('<main><section style="display:flex"><span style="position:relative;top:1px">06</span><span>05</span><span style="position:relative;top:2px">04</span></section></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+  } finally { await browser.close(); }
+});
+
+test('browser interaction reports hover styles on a child of the focusable link', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>a{color:black}span:hover{color:red}</style><a href="/company"><span>Company</span></a>');
+    const observed = await observeInteraction(page, { state: 'hover' }, 1000);
+    assert.deepEqual(observed.items[0].childChanges, ['span']);
+    assert.match(evaluateInteraction({ state: 'hover' }, observed).reason, /state styles are on a child/);
+  } finally { await browser.close(); }
+});
 
 test('numbered cards and STEP labels in one <main> are judged as two sequences', async () => {
   const { chromium } = await import('playwright');
@@ -21,8 +60,11 @@ test('numbered cards and STEP labels in one <main> are judged as two sequences',
   } finally { await browser.close(); }
 });
 
-test('numbered labels that form no sequence are inconclusive, not a pass', () => {
-  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'inconclusive');
+test('numbered labels that form no sequence are not applicable', () => {
+  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'pass');
+  const at = (number, y) => ({ number, name: String(number), x: 0, y });
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(30, 0), at(4, 10), at(3, 20)]] }).status, 'pass');
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(6, 0), at(5, 10), at(4, 20)]] }).status, 'pass');
   assert.equal(evaluateSequenceOrder({ labels: 0, ungrouped: 0, groups: [] }).status, 'pass');
 });
 
@@ -87,6 +129,10 @@ test('internal nav and thumbnail clipping fails even without page overflow', asy
     assert.deepEqual(observed.clipped.map((item) => item.name), ['nav','tech']);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 858);
     await page.setContent('<div><button aria-label="Next">Next</button><div data-audit-carousel="true" style="width:200px;overflow:auto"><div style="width:600px">Thumbnails</div></div></div>');
+    assert.equal((await observeClippedContent(page)).clipped.length, 0);
+    // Headless Chromium draws no scrollbar gutter, yet a user's browser shows
+    // one on a plain overflow:auto tab strip, so it stays reachable content.
+    await page.setContent('<nav id="tabs" style="width:300px;overflow-x:auto"><div style="width:700px;white-space:nowrap">Tabs</div></nav>');
     assert.equal((await observeClippedContent(page)).clipped.length, 0);
   } finally { await browser.close(); }
 });

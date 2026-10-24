@@ -405,7 +405,7 @@ fn an_asset_is_not_given_the_opacity_its_export_already_carries() {
     );
     let picture = tsx
         .lines()
-        .find(|line| line.contains("/images/picture"))
+        .find(|line| line.contains("/images/card-picture"))
         .expect("the picture is an image");
     assert!(
         !picture.contains("opacity="),

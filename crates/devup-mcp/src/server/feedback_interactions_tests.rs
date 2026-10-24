@@ -174,6 +174,22 @@ fn feedback_shared_widgets_details_and_grouped_questions_require_review() {
     );
 }
 
+#[test]
+fn feedback44_export_wiring_guidance_keeps_states_on_the_anchor() {
+    let mut result = json!({"tsx":"<Box />","deliverable":{"isFinal":true}});
+    interactions::attach(&mut result, &design());
+    let issue = result["projectionIssues"].as_array().unwrap().iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_INTERACTION_UNMAPPED").unwrap();
+    let guidance = issue["details"]["nextAction"].as_str().unwrap();
+    assert!(guidance.contains("as={Link} props={{ href, 'aria-current'"));
+    for state in ["_hover={hoverStyles}", "_focusVisible={focusStyles}", "_active={activeStyles}"] {
+        assert!(guidance.contains(state), "{guidance}");
+    }
+    assert!(guidance.contains("not on a child wrapped in Link"));
+    assert_eq!(result["interactionCoverage"]["wiredCount"], 0);
+    assert_eq!(result["deliverable"]["isFinal"], false);
+}
+
 #[tokio::test]
 async fn feedback_context_routes_reuse_env_names_and_no_secret_values() {
     let p = Project::new();
@@ -293,6 +309,31 @@ fn feedback_validation_catches_missing_routes_unmapped_actions_and_active_state(
         1
     );
     assert_eq!(report["coverage"]["runtimeVerified"], false);
+}
+
+#[test]
+fn a_primitive_rendered_as_link_with_props_href_is_wired() {
+    let inventory = json!({"found":true,"routes":[{"route":"/company","appliesTo":"."}]});
+    let source = r#"import Link from 'next/link'; export function Header(){return <><Text as={Link} props={{ href: '/company' }}>회사소개</Text><Text as={Link} props={{ href: '/missing' }}>없음</Text><Text>전체 보기</Text></>}"#;
+    let report = navigation::report(source, &inventory, None);
+    let findings = report["findings"].as_array().unwrap();
+    let unmapped = findings
+        .iter()
+        .filter(|f| f["rule"] == "interaction-unmapped")
+        .count();
+    assert_eq!(unmapped, 1, "{findings:?}");
+    assert!(findings.iter().any(|f| f["rule"] == "missing-static-route" && f["href"] == "/missing"));
+    assert_eq!(report["sourceHrefs"]["/company"], 1);
+    let dynamic = r#"import Link from 'next/link'; const Menu=({items})=> <>{items.map((item)=> <Box as={Link} props={{ href: item.href }}>{item.label}</Box>)}</></>"#;
+    let report = navigation::report(dynamic, &inventory, None);
+    assert!(
+        !report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["rule"] == "interaction-unmapped"),
+        "{report}"
+    );
 }
 
 #[test]

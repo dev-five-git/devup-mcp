@@ -255,6 +255,14 @@ async function clippedText(page, subject) {
 export function observeClippedContent(page) {
   return page.evaluate(() => {
     const clipped = [];
+    // Headless Chromium hides every scrollbar (--hide-scrollbars), so a missing
+    // scrollbar gutter there says nothing about what a user sees. In that case
+    // only a scrollbar the page itself hid (scrollbar-width: none) counts.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
+    (document.body ?? document.documentElement).append(probe);
+    const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
+    probe.remove();
     for (const element of document.querySelectorAll('body *')) {
       if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const style = getComputedStyle(element);
@@ -264,7 +272,16 @@ export function observeClippedContent(page) {
       const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
       if (!horizontal && !vertical) continue;
       if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
-      const scrollbar = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const gutter = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const scrollbar = gutter || (browserHidesScrollbars && style.scrollbarWidth !== 'none');
+      // A scroller is reachable content only when the user can see it scrolls.
+      if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
+      if (element.closest('[aria-hidden="true"]')) continue;
+      const animated = [element, ...element.querySelectorAll('*')].some((node) => {
+        const s = getComputedStyle(node);
+        return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
+      });
+      if (animated) continue;
       const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
       if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
       clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
@@ -301,7 +318,7 @@ export function observeCompleteness(page, completeness, width, subject) {
     };
     const canvasProbe = document.createElement('span');
     canvasProbe.style.backgroundColor = 'Canvas';
-    document.body.appendChild(canvasProbe);
+    (document.body ?? document.documentElement).appendChild(canvasProbe);
     const canvasColor = getComputedStyle(canvasProbe).backgroundColor;
     canvasProbe.remove();
     const texts = [];
@@ -309,7 +326,17 @@ export function observeCompleteness(page, completeness, width, subject) {
     for (let index = 0; index < walker.length; index += 1) {
       const element = walker[index];
       const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').trim();
-      if (!own || !shown(element)) continue;
+      if (!own || !shown(element) || element.closest('[aria-hidden="true"], [role="presentation"], [role="none"]')) continue;
+      let marquee = false;
+      for (let track = element; track && track !== document.body; track = track.parentElement) {
+        const animations = track.getAnimations?.() ?? [];
+        const translates = animations.some((animation) => animation.effect?.getKeyframes().some((frame) => frame.transform || frame.translate));
+        if (!translates) continue;
+        for (let clip = track.parentElement; clip; clip = clip.parentElement) {
+          if (['hidden', 'clip'].includes(getComputedStyle(clip).overflowX) && track.scrollWidth > clip.clientWidth + 1) marquee = true;
+        }
+      }
+      if (marquee) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
       const style = getComputedStyle(element);
@@ -387,6 +414,7 @@ export function observeSequence(page) {
     for (const element of document.querySelectorAll('body *')) {
       if (element.children.length || !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const label = element.textContent.trim();
+      if (element.closest('nav[aria-label*="pag" i], [role="navigation"][aria-label*="pag" i]')) continue;
       const match = /^(?:(STEP)\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
       if (!match) continue;
       const box = element.getBoundingClientRect();
@@ -492,11 +520,19 @@ async function stateStyles(locator) {
   }, STATE_PROPERTIES);
 }
 
+async function childStateStyles(locator) {
+  return locator.evaluate((element, properties) => [...element.querySelectorAll('*')].map((child) => {
+    const style = getComputedStyle(child);
+    return { tag: child.tagName.toLowerCase(), styles: properties.map((property) => style[property]) };
+  }), STATE_PROPERTIES);
+}
+
 // Hover moves the mouse over the subject; focus sets keyboard modality first
 // so :focus-visible applies, as it does for a keyboard user. Both wait out
 // the shared transition before reading the styles.
 async function enterState(page, target, state, timeout) {
   const before = await stateStyles(target);
+  const childrenBefore = await childStateStyles(target);
   if (state === 'focus') {
     await page.keyboard.press('Shift');
     await target.focus({ timeout });
@@ -505,13 +541,16 @@ async function enterState(page, target, state, timeout) {
   }
   await page.waitForTimeout(450);
   const after = await stateStyles(target);
+  const childrenAfter = await childStateStyles(target);
+  const childChanges = childrenAfter.filter((child, index) => childrenBefore[index]
+    && child.styles.some((value, property) => value !== childrenBefore[index].styles[property])).map((child) => child.tag);
   if (state === 'focus') await target.evaluate((element) => element.blur());
   await page.mouse.move(0, 0);
   await page.waitForTimeout(state === 'focus' ? 0 : 300);
-  return { before, after };
+  return { before, after, childChanges };
 }
 
-async function observeInteraction(page, check, timeout) {
+export async function observeInteraction(page, check, timeout) {
   if (!check.subject) {
     const all = page.locator('a[href], button, [role="button"]');
     const items = [];
@@ -553,7 +592,8 @@ async function pageMetrics(page) {
       let inScroller = false;
       while (scroller && scroller !== document.body) {
         const overflowX = getComputedStyle(scroller).overflowX;
-        if (overflowX === 'auto' || overflowX === 'scroll') {
+        const scrollerRight = scroller.getBoundingClientRect().right + window.scrollX;
+        if (overflowX === 'auto' || overflowX === 'scroll' || ((overflowX === 'hidden' || overflowX === 'clip') && scrollerRight <= viewportWidth + 1)) {
           inScroller = true;
           break;
         }
@@ -767,7 +807,12 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           if (check.kind === 'view-transition') continue;
           if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
           const item = { index, kind: check.kind, label: check.label };
+          if (check.unavailableReason) {
+            record.checks.push({ ...item, status: check.unavailableReason.startsWith('not-run:') ? 'not-run' : 'inconclusive', reason: check.unavailableReason, measured: {} });
+            continue;
+          }
           if (check.kind === 'links-resolve') continue;
+          try {
           if (check.kind === 'page-health') {
             const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
             const errors = environmentErrors
@@ -902,6 +947,9 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
                 containerCount: container.count,
               }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
           record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+          } catch (error) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: `measurement unavailable at ${screen.id}/${viewport.width}/check ${index}: ${String(error?.message ?? error).split('\n')[0]}`, measured: {} });
+          }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
         const bytes = await page.screenshot({

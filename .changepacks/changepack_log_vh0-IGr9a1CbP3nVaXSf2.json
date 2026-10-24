@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "feedback batch 2-66: componentTsx exports component sets/variants/instances, data-figma-node-id opt-in (figmaNodeIds), search lists by type across pages, bridge referencePng frameIds, project-plan never drops on-disk columns and recovers existing plans, screen-plan condensed proposals and monorepo auditPlan lookup, runtime-audit emits all runner modules and isolates probe errors, figma-bridge-setup skill and component-first workflow",
+  "date": "2026-10-23T17:54:27.176404300Z"
+}

@@ -70,6 +70,17 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
 }
 
 #[tokio::test]
+async fn sort_findings_produce_one_action_across_bundle_files() -> anyhow::Result<()> {
+    let output = validate(json!({"files": [
+        {"path": "one.tsx", "content": "<Box p={0} boxSize=\"8px\" />"},
+        {"path": "two.tsx", "content": "<Box props={{}} pr=\"16px\" />"}
+    ]})).await?;
+    assert_eq!(output["nextAction"]["fixable"], 2);
+    assert_eq!(output["nextAction"]["command"], "bun run lint:fix");
+    Ok(())
+}
+
+#[tokio::test]
 async fn r12_failed_validation_explains_why_source_cannot_be_corrected_automatically()
 -> anyhow::Result<()> {
     for tsx in [
@@ -482,7 +493,7 @@ async fn r17_reference_png_recovery_has_frame_url() -> anyhow::Result<()> {
         anyhow::Ok(())
     });
     let client = ().serve(ct).await?;
-    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
+    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3","2:4"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
     let out = result.structured_content.unwrap();
     let text = out.to_string();
     assert!(text.contains("node-id=2-3"), "{out}");

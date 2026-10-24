@@ -104,7 +104,7 @@ pub(super) fn push_layout_props(
     let is_page_root = parent
         .map(|parent| parent.typed_view().node_type())
         .or_else(|| view.string("parentType"))
-        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE"));
     let fixed_w = view.string("layoutSizingHorizontal") == Some("FIXED");
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
@@ -227,8 +227,7 @@ pub(super) fn push_layout_props(
                 (own_height, parent_height),
                 (Some(height), Some(parent_height)) if parent_height > height
             );
-            let in_a_group =
-                parent.is_some_and(|parent| parent.typed_view().node_type() == "GROUP");
+            let in_a_group = parent.is_some_and(|parent| parent.node_type == "GROUP");
             let leaf_shape = !has_children && !holds_children && !is_asset && in_a_group;
             if leaf_shape && parent_wider {
                 width = own_width.map(px);

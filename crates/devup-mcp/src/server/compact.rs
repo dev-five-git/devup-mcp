@@ -415,6 +415,22 @@ pub fn pick(reply: &Value, options: &ResponseSelection) -> Result<Value, DevupEr
     Ok(picked)
 }
 
+pub fn refresh_reply_selection(reply: &mut Value, options: &ResponseSelection) -> Result<(), DevupError> {
+    if !options.active() { return Ok(()); }
+    let picked = pick(reply, options)?;
+    if let Some(selections) = reply["selected"]["selections"].as_array_mut() {
+        for (selection, current) in selections.iter_mut().zip(picked["selections"].as_array().unwrap()) {
+            if !selection["path"].as_str().is_some_and(|path| path == "nodes" || path.starts_with("nodes[") || path.starts_with("nodes."))
+                && current["state"] == "selected" {
+                *selection = current.clone();
+            }
+        }
+    } else {
+        reply["selected"] = json!({"selections":picked["selections"]});
+    }
+    Ok(())
+}
+
 /// Standalone outlines keep the small data body inline and move unrelated
 /// full acquisition/projection evidence into the same bounded resource path.
 pub fn outline_response(

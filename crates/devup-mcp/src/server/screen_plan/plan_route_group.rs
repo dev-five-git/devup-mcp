@@ -426,7 +426,33 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 json!({}),
             ));
         }
-        choices.truncate(MAX_OPTIONS - 1);
+        let state_host = page_screens
+            .iter()
+            .filter(|other| **other != index)
+            .map(|other| &drafts[*other])
+            .map(|host| {
+                let shared = host
+                    .words
+                    .iter()
+                    .filter(|word| screen.words.contains(word))
+                    .count();
+                (shared, host)
+            })
+            .filter(|(shared, _)| *shared > 0)
+            .max_by_key(|(shared, _)| *shared)
+            .map(|(_, host)| host);
+        choices.truncate(MAX_OPTIONS - 1 - usize::from(state_host.is_some()));
+        if let Some(host) = state_host {
+            choices.push(choice(
+                format!("State on {}", truncate(host.name(), 40)),
+                format!(
+                    "A different state of the page built from {} ({}); no URL of its own.",
+                    host.name(),
+                    host.id()
+                ),
+                json!({"state": host.id()}),
+            ));
+        }
         choices.push(choice(
             SKIP,
             "Leave it out of this build.",
@@ -443,6 +469,10 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
             format!(
                 "The evidence names {} different routes.",
                 candidates.iter().cloned().collect::<Vec<_>>().join(", ")
+            )
+        } else if let Some(route) = candidates.iter().next() {
+            format!(
+                "The evidence names {route}, but another screen in this plan names it too, so neither keeps it unasked."
             )
         } else {
             "No existing page, nav link, navigationTargets entry or routeAliases entry names it."
@@ -505,6 +535,13 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
     }
     if let Some(route) = route.filter(|route| route.contains('[')) {
         decisions.push("dynamic-segment");
+        let mut choices = vec![
+            choice("Sample data from the design", "Render the Figma content as fixture data for one id; wire real data later.", json!({"data":"sample"})),
+            choice("Wire to the API now", "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.", json!({"data":"api"})),
+        ];
+        if project_api_screen(evidence, &name, route) {
+            choices.swap(0, 1);
+        }
         push(
             questions,
             question(
@@ -513,18 +550,7 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 format!(
                     "{route} has a dynamic segment. Where does \"{name}\" get the record it shows?"
                 ),
-                vec![
-                    choice(
-                        "Sample data from the design",
-                        "Render the Figma content as fixture data for one id; wire real data later.",
-                        json!({"data": "sample"}),
-                    ),
-                    choice(
-                        "Wire to the API now",
-                        "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.",
-                        json!({"data": "api"}),
-                    ),
-                ],
+                choices,
                 "dynamic",
             ),
             &[],
@@ -646,4 +672,15 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
     "openDecisions": decisions,
     "notes": screen_notes[index],
 }));
+}
+
+fn project_api_screen(evidence: &ProjectEvidence, name: &str, route: &str) -> bool {
+    let Some(source) = read_small(&evidence.root.join(".devup/project-plan.json")) else { return false; };
+    let Ok(plan) = serde_json::from_str::<Value>(&source) else { return false; };
+    array(&plan["features"]).iter().any(|feature| {
+        let scope = text(&feature["scope"]).to_lowercase();
+        scope.split(|character: char| !character.is_alphanumeric()).any(|word| word == "api")
+            && (array(&feature["screens"]).iter().any(|screen| text(screen) == name || text(screen) == route)
+                || route.split('/').any(|segment| segment == text(&feature["id"])))
+    })
 }

@@ -8,10 +8,51 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import test from 'node:test';
-import { observeCompleteness, runPlan } from '../run.mjs';
+import { observeClippedContent, observeCompleteness, runPlan } from '../run.mjs';
+import { observeNativeAppearance } from '../resource-checks.mjs';
 
 const FIXTURES = new URL('../fixtures/', import.meta.url);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml' };
+
+test('measurement probes tolerate a document without a body', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<body><button>Test</button></body>');
+    await page.evaluate(() => document.body.remove());
+    assert.deepEqual(await observeClippedContent(page), { clipped: [] });
+    await observeCompleteness(page, {}, 800, { css: 'html' });
+    await observeNativeAppearance(page.locator('html'));
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a measurement exception is inconclusive and later checks still run', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-check-error-'));
+  try {
+    const plan = join(out, 'plan.json');
+    await writeFile(plan, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'check-error', plan: {
+      baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 800, height: 600 }],
+      screens: [{ id: 'home', routePath: '/', checks: [
+        { kind: 'text-align', subject: { css: '[' }, edge: 'left' },
+        { kind: 'page-health' },
+        { kind: 'bounds', unavailableReason: 'not-run: source anchors absent' },
+        { kind: 'page-health', unavailableReason: 'Design comparison inconclusive: reference expired' },
+      ] }],
+    } }));
+    const report = await runPlan({ plan, out, maxMinutes: 1 });
+    assert.equal(report.status, 'completed');
+    assert.deepEqual(report.runs[0].screens[0].checks.map((check) => check.status), ['inconclusive', 'pass', 'not-run', 'inconclusive']);
+    assert.match(report.runs[0].screens[0].checks[0].reason, /home\/800\/check 0/);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
 
 function serve() {
   const server = createServer(async (request, response) => {

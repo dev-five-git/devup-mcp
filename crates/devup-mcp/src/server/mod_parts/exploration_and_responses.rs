@@ -418,11 +418,6 @@ fn with_project_checks(
                 .map(|tsx| (key.to_owned(), tsx.to_owned()))
         })
         .collect();
-    // A Section export answers under `frames`, one entry per selected frame,
-    // and nothing at the top level. Reading only the top level checked the
-    // single-node `url` case and silently skipped every `frameIds` call —
-    // which is every Section workflow, and so every screen of the Braillify
-    // Studio handover this exists for.
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for frame in frames {
             let node = frame
@@ -444,9 +439,15 @@ fn with_project_checks(
     if produced_code {
         result = with_skill_gap(result, lookup);
     }
+    validation_guidance::attach_export_formatting(&mut result, &generated);
     let Some(project_root) = project_root else {
         return result;
     };
+    match screen_plan::export_progress(project_root) {
+        Ok(progress) if !progress.is_null() => result["planProgress"] = progress,
+        Err(error) => result["planProgress"] = json!({"state": "unavailable", "reason": error.message}),
+        _ => {}
+    }
     if generated.is_empty() {
         // Resource delivery hands the code back as a link, so there is no
         // source here to check. Saying so is the point: an absent verdict
@@ -516,7 +517,30 @@ fn with_project_checks(
             "Every token the generated TSX references exists in this project's devup.json."
         },
     });
+    if any_unknown {
+        let action = theme_sync_action(&result, project_root);
+        result["projectThemeValidation"]["nextAction"] = action.clone();
+        if result.get("nextAction").is_none_or(Value::is_null) {
+            result["nextAction"] = action;
+        }
+    }
     result
+}
+fn theme_sync_action(result: &Value, project_root: &str) -> Value {
+    let mut arguments = json!({
+        "outputs": ["devupJson"],
+        "devupJsonMode": "missing-only",
+        "projectRoot": project_root,
+        "scope": "file",
+    });
+    if let Some(url) = result.get("url").filter(|url| url.is_string()) {
+        arguments["url"] = url.clone();
+    }
+    json!({
+        "tool": "devup_figma_export",
+        "arguments": arguments,
+        "how": "The generated code references tokens missing from this project's devup.json. Sync devup.json with this call (additions only; existing tokens are kept) before using the tsx.",
+    })
 }
 
 fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidate {

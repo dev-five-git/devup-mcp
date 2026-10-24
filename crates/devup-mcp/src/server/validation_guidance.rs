@@ -8,6 +8,19 @@ use serde_json::{Value, json};
 
 use super::UiValidateInput;
 
+pub(super) fn attach_export_formatting(result: &mut Value, generated: &[(String, String)]) {
+    let fixable = generated.iter().map(|(_, tsx)| {
+        validate_devup_ui_tsx(tsx, None, false)
+            .next_action.and_then(|action| action["fixable"].as_u64()).unwrap_or(0) as usize
+    }).sum();
+    if let Some(action) = devup_mcp_devup_ui::ui_validate::lint_fix_action(fixable) {
+        result["formatting"] = json!({"nextAction": action});
+        if result.get("nextAction").is_none_or(Value::is_null) {
+            result["nextAction"] = action;
+        }
+    }
+}
+
 pub(super) fn guidance(
     input: &UiValidateInput,
     report: &UiValidation,

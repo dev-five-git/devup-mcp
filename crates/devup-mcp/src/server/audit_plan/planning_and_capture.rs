@@ -327,6 +327,7 @@ pub(super) fn url_plan(
     let mut nav_checked = false;
     for (width, frame_id, _) in &target.frames {
         let Some((artifact_id, payload)) = sources.frame(frame_id) else {
+            checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: frame artifact missing or expired; export the frame again."})));
             missing.push(json!({"kind": "frame", "nodeId": frame_id, "width": width,
                 "why": "No artifact passed holds this frame; section, asset and geometry checks for this width are missing.",
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["tsx", "referencePng"], "projectRoot": "<projectRoot>"}}}));
@@ -335,6 +336,7 @@ pub(super) fn url_plan(
         };
         let reference = sources.reference_png(frame_id);
         if reference.is_none() {
+            checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: referencePng missing or expired; export the frame again."})));
             missing.push(json!({"kind": "referencePng", "nodeId": frame_id, "width": width,
                 "why": format!("No referencePng for the frame drawn at {width}px, so its page comparison cannot run."),
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["referencePng"]}}}));
@@ -651,18 +653,15 @@ pub(super) fn slug(url: &str) -> String {
         .collect()
 }
 
-/// What auditPlan was asked for.
 pub(super) struct AuditRequest<'a> {
     pub root: &'a str,
     pub base_url: &'a str,
     pub base_urls: &'a BTreeMap<String, String>,
-    /// Only these URLs; empty means every confirmed URL.
     pub only: &'a [String],
     pub artifact_ids: &'a [String],
     pub thresholds: &'a VisualThresholds,
 }
 
-/// Writes every URL's plan, the runner once, and returns what to run.
 pub(super) async fn write(
     plan: &Value,
     request: &AuditRequest<'_>,
@@ -679,15 +678,11 @@ pub(super) async fn write(
     } = *request;
     let (sources, expired) = Sources::load(artifact_ids, store).await;
     let evidence = super::screen_plan::project_evidence(root).await?;
-    let routes = plan["routes"]
-        .as_array()
-        .into_iter()
-        .flatten()
+    let audit_routes = super::screen_plan::audit_routes(plan);
+    let routes = audit_routes.iter()
         .filter(|route| route["implementation"] == "page" && route["url"].is_string())
         .collect::<Vec<_>>();
     let records = super::export_record::records(Path::new(root));
-    // Every route as the concrete URLs it is audited at: a dynamic route at
-    // the URLs its params, the site's links or its Figma frame give.
     let mut concrete = Vec::<(usize, String, Option<Value>)>::new();
     let mut not_audited = Vec::new();
     for (index, route) in routes.iter().enumerate() {
@@ -751,11 +746,14 @@ pub(super) async fn write(
         let route = routes[*index];
         let url = url.as_str();
         let app = route["app"].as_str().unwrap_or_default();
-        let screen = if several_apps && !app.is_empty() {
+        let mut screen = if several_apps && !app.is_empty() {
             format!("{}-{}", slug(app), slug(url))
         } else {
             slug(url)
         };
+        if let Some(node) = route["state"]["nodeId"].as_str() {
+            screen.push_str(&format!("-state-{}", slug(node)));
+        }
         let frames = route["nodeIds"]
             .as_array()
             .into_iter()
@@ -782,16 +780,20 @@ pub(super) async fn write(
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
         let mut built = url_plan(&target, base, &sources, thresholds)?;
+        gate_source_anchors(&mut built, &Path::new(root).join(app));
+        if let Some(node) = route["state"]["nodeId"].as_str() {
+            built.notes.push(format!("State {} ({node}) on {url}: configure the runtime screen's steps to reach this state before running; no interaction is inferred from the frame name.", route["state"]["name"].as_str().unwrap_or_default()));
+            for check in &mut built.plan.screens[0].checks {
+                check.label = Some(format!("State {node}: {}", check.label.as_deref().unwrap_or(&check.kind)));
+            }
+        }
         for check in &mut built.plan.screens[0].checks {
             if check.kind == "links-resolve" {
                 check.planned_targets = routes.iter().filter_map(|route| route["url"].as_str().map(str::to_owned)).collect();
                 check.existing_routes = evidence.routes.iter().map(|(route, _)| route.clone()).collect();
             }
         }
-        let plan_path = Path::new(root)
-            .join(AUDIT_DIR)
-            .join(&screen)
-            .join("plan.json");
+        let plan_path = Path::new(root).join(AUDIT_DIR).join(&screen).join("plan.json");
         let report_dir = Path::new(root).join(AUDIT_DIR).join(&screen).join("report");
         let counts = built.plan.screens[0].checks.iter().fold(
             BTreeMap::<String, usize>::new(),
@@ -817,6 +819,7 @@ pub(super) async fn write(
         written.push(json!({
             "url": url,
             "screen": screen,
+            "state": route["state"],
             "planPath": created["writtenTo"],
             "planId": created["planId"],
             "reportDirectory": report_dir.display().to_string(),
@@ -826,6 +829,7 @@ pub(super) async fn write(
             "notes": built.notes,
             "dynamic": dynamic,
             "run": ["node", "run.mjs", "--plan", plan_path.display().to_string(), "--out", report_dir.display().to_string()],
+            "startServer": dev_server_command(Path::new(root), app, base),
         }));
     }
     let missing = written

@@ -9,6 +9,9 @@ async fn missing_sections_and_asset_files_fail_even_without_strict() -> anyhow::
     assert_eq!(result["ok"], false);
     assert_eq!(result["okReason"], "error-violations");
     let violations = result["violations"].as_array().unwrap();
+    let missing_asset = violations.iter().find(|finding| finding["rule"] == "asset-missing").unwrap();
+    assert_eq!(missing_asset["nextAction"]["tool"], "devup_figma_export");
+    assert_eq!(missing_asset["nextAction"]["assetUrl"], "/missing-photo.png");
     for rule in ["asset-missing", "section-coverage"] {
         assert!(
             violations

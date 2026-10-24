@@ -5,6 +5,7 @@ use devup_mcp_devup_ui::theme::{ThemeOutput, TokenUsage};
 pub struct ThemeExportOptions {
     pub mode: String,
     pub project_root: Option<String>,
+    pub figma_node_ids: bool,
 }
 
 pub fn validate(
@@ -19,7 +20,9 @@ pub fn validate(
             false,
         ));
     }
+    let file_wide = mode == "missing-only" && outputs.iter().any(|o| o == "devupJson");
     if mode != "full"
+        && !file_wide
         && (!outputs.iter().any(|o| o == "devupJson")
             || !outputs
                 .iter()
@@ -66,6 +69,25 @@ fn usage(result: &Map<String, Value>) -> Result<(TokenUsage, usize), DevupError>
     Ok((usage, count))
 }
 
+/// Every token name a generated devup.json defines.
+fn all_tokens(json: &str) -> TokenUsage {
+    let mut usage = TokenUsage::default();
+    let Ok(source) = serde_json::from_str::<Value>(json) else {
+        return usage;
+    };
+    if let Some(typography) = source.pointer("/theme/typography").and_then(Value::as_object) {
+        usage.typography.extend(typography.keys().cloned());
+    }
+    for category in ["colors", "length", "shadow"] {
+        if let Some(modes) = source["theme"][category].as_object() {
+            for values in modes.values().filter_map(Value::as_object) {
+                usage.tokens.extend(values.keys().cloned());
+            }
+        }
+    }
+    usage
+}
+
 pub fn generate(
     snapshot: &devup_mcp_devup_ui::theme::VariableSnapshot,
     scope: devup_mcp_devup_ui::theme::ThemeScope,
@@ -74,6 +96,9 @@ pub fn generate(
 ) -> Result<ThemeOutput, DevupError> {
     if matches!(options.mode.as_str(), "used-only" | "missing-only") {
         let (usage, count) = usage(result)?;
+        if count == 0 && options.mode == "missing-only" {
+            return generate_devup_json(snapshot, scope);
+        }
         if count == 0 {
             return Err(DevupError::new(
                 ErrorCode::DevupCodegenFailed,
@@ -145,8 +170,11 @@ pub fn prepare(
             json!({"skippedStyles":output.skipped_styles}),
         ));
     }
-    let (usage, code_count) = usage(result)?;
-    if options.mode != "full" && !options.mode.is_empty() {
+    let (mut usage, mut code_count) = usage(result)?;
+    if code_count == 0 && options.mode == "missing-only" {
+        usage = all_tokens(&output.json);
+        code_count = 1;
+    } else if options.mode != "full" && !options.mode.is_empty() {
         if code_count == 0 {
             return Err(DevupError::new(
                 ErrorCode::DevupCodegenFailed,

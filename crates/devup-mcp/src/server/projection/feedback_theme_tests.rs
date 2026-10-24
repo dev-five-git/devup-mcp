@@ -110,6 +110,27 @@ async fn feedback_integrated_large_code_hints_theme_and_resources_match_saved_by
 }
 
 #[tokio::test]
+async fn feedback_27_resource_delivery_spills_large_screen_metadata() {
+    let data = feedback_theme_payload();
+    let store = ArtifactStore::default();
+    let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(data.target.clone(), CollectionScope::Node));
+    let artifact = store.insert(key, data).await.unwrap();
+    let issues = (0..569).map(|index| json!({"code":"DEVUP_CODEGEN_PROPERTY_UNMAPPED","nodeId":format!("45:{index}"),"severity":"warning","fidelityImpact":"none","message":"Review mapping","details":{"originalValue":"x".repeat(2200)}})).collect::<Vec<_>>();
+    for fields in [vec!["tsx"], vec!["tsx", "devupJson"]] {
+        let mut result = json!({"status":"partial","tsx":"export const Main = () => <Box/>;","projectionIssues":issues,"projectThemeValidation":{"details":"t".repeat(700_000)},"quality":{"projection":"lossy"}});
+        if fields.contains(&"devupJson") { result["devupJson"] = json!("{}"); }
+        let outputs = projected_outputs_from_result(result.as_object().unwrap()).unwrap();
+        let args = json!({"artifactId":artifact.artifact_id,"outputs":fields,"delivery":"resource"});
+        let attachment = apply_delivery(&mut result, DeliveryMode::Resource, &store, &artifact, outputs, Some(&args)).await.unwrap();
+        commit_delivery(attachment);
+        assert!(result.get("tsx").is_none());
+        assert!(serde_json::to_vec(&super::super::tool_result(result.clone())).unwrap().len() <= super::super::delivery::MAX_INLINE_TOTAL_BYTES);
+        assert!(result["resources"].as_array().unwrap().iter().any(|resource| resource["name"] == "tsx"));
+        assert!(!store.output_manifests().await.is_empty());
+    }
+}
+
+#[tokio::test]
 async fn feedback_large_diagnostic_details_are_complete_bounded_and_reuse_resource_uris() {
     let data = feedback_theme_payload();
     let store = ArtifactStore::default();
@@ -251,6 +272,14 @@ fn feedback_theme_mode_validation_is_additive_and_rejects_unprovable_requests() 
     assert!(validate("used-only", &["devupJson".into()], None).is_err());
     assert!(validate("missing-only", &["devupJson".into(), "tsx".into()], None).is_err());
     assert!(validate("unknown", &["devupJson".into()], None).is_err());
+}
+
+#[test]
+fn r38_missing_only_accepts_a_file_wide_devup_json_without_code_output() {
+    use theme_export::validate;
+    assert!(validate("missing-only", &["devupJson".into()], Some("/p")).is_ok());
+    assert!(validate("missing-only", &["devupJson".into()], None).is_err());
+    assert!(validate("used-only", &["devupJson".into()], Some("/p")).is_err());
 }
 
 #[tokio::test]

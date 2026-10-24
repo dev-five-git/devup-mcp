@@ -605,10 +605,34 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
         "how": include_str!("../text/skills-report-d4500f82.md"),
         "boundary": include_str!("../text/skills-report-2e1e5387.md"),
     });
+    let mut obligations = serde_json::Map::new();
     if let Some(obligation) = changepacks_obligation(&lookup.project) {
-        report["repoObligations"] = serde_json::json!({ "changepacks": obligation });
+        obligations.insert("changepacks".into(), obligation);
+    }
+    if let Some(obligation) = lint_fix_obligation(&lookup.project) {
+        obligations.insert("lintFix".into(), obligation);
+    }
+    if !obligations.is_empty() {
+        report["repoObligations"] = serde_json::Value::Object(obligations);
     }
     report
+}
+
+fn lint_fix_obligation(project: &Path) -> Option<serde_json::Value> {
+    let text = std::fs::read_to_string(project.join("package.json")).ok()?;
+    let package: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let script = package["scripts"]["lint:fix"].as_str()?;
+    if script.trim().is_empty() {
+        return None;
+    }
+    Some(serde_json::json!({
+        "label": "format/sort via lint:fix",
+        "detected": "package.json scripts.lint:fix",
+        "script": script,
+        "runFirst": "bun run lint:fix",
+        "verifyAfter": "bunx oxlint --deny-warnings",
+        "obligation": "Run `bun run lint:fix` before any other verification. Never reorder JSX props, imports or formatting by hand and never run bare prettier: the project's lint rules own them. Fix by hand only what lint:fix cannot (type and logic errors).",
+    }))
 }
 
 /// Where a once-per-machine install would go, and why devup-mcp does not do it.

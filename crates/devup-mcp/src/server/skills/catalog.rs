@@ -65,6 +65,10 @@ type Documents = &'static [(&'static str, &'static str)];
 
 const EMBEDDED: &[(&str, Documents)] = &[
     (
+        "figma-bridge-setup",
+        &[("SKILL.md", include_str!("figma-bridge-setup/SKILL.md"))],
+    ),
+    (
         "devup-ui",
         &[("SKILL.md", include_str!("devup-ui/SKILL.md"))],
     ),
@@ -504,12 +508,27 @@ impl Lookup {
     /// has answered the question of which runtime it is for, and guessing
     /// differently would install into a directory nothing reads.
     pub fn existing_roots(&self) -> Vec<PathBuf> {
-        self.runtime
-            .project_roots()
+        self.project_dirs()
             .iter()
-            .map(|root| join_root(&self.project, root))
+            .flat_map(|dir| {
+                self.runtime
+                    .project_roots()
+                    .iter()
+                    .map(|root| join_root(dir, root))
+            })
             .filter(|path| path.is_dir())
             .collect()
+    }
+
+    /// The project and every directory up to its repository root, nearest
+    /// first; outside a repository only the project, since a runtime never
+    /// loads skills from above the repository it was started in.
+    pub fn project_dirs(&self) -> Vec<PathBuf> {
+        let ancestors = self.project.ancestors().map(Path::to_path_buf).collect::<Vec<_>>();
+        match ancestors.iter().position(|dir| dir.join(".git").exists()) {
+            Some(repo) => ancestors.into_iter().take(repo + 1).collect(),
+            None => vec![self.project.clone()],
+        }
     }
 
     /// The roots an install writes to: the first that already exists, else the
@@ -558,10 +577,15 @@ impl Lookup {
     /// noise that teaches them to ignore the field, and that is what it was.
     pub fn installed_paths(&self, name: &str) -> Vec<PathBuf> {
         let mut paths = self
-            .runtime
-            .project_roots()
+            .project_dirs()
             .iter()
-            .map(|root| install_path(&join_root(&self.project, root), name))
+            .flat_map(|dir| {
+                self.runtime
+                    .project_roots()
+                    .iter()
+                    .map(|root| install_path(&join_root(dir, root), name))
+                    .collect::<Vec<_>>()
+            })
             .chain(
                 self.user_roots()
                     .into_iter()

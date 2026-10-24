@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "componentTsx: fix button set panic, expose component text as unique props even when declared names normalize alike, drop set-canvas placement, emit undefined for absent variant values, preserve scalar typography and image sources across responsive variants including one-sided sources with explicit responsive visibility, prevent leaf variant image sources from leaking onto containers, declare referenced boolean props, emit valid interaction selectors, fix defect G by resolving variant values with original Figma property keys to preserve icon sources and state styles and keeping boolean-controlled hidden layers out of flattened assets, and account explicitly for unrepresented variant children without claiming emitted property provenance",
+  "date": "2026-10-24T00:21:08.585604600Z"
+}

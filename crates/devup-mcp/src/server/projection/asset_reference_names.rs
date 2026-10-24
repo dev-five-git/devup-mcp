@@ -16,8 +16,14 @@ fn with_host_safe_asset_paths(code: &str) -> String {
         };
         let after = at + prefix.len();
         safe.push_str(&rest[..after]);
+        let opener = rest[..at].chars().last().or_else(|| safe.chars().last());
+        let terminators: &[char] = match opener {
+            Some('"') => &['"'],
+            Some('\'') => &['\''],
+            _ => &['"', '\'', ')'],
+        };
         let mut end = rest[after..]
-            .find(['"', '\'', ')'])
+            .find(terminators)
             .map_or(rest.len(), |offset| after + offset);
         // srcSet contains several URLs followed by numeric density/width
         // descriptors. Keep each URL separate while retaining spaces inside

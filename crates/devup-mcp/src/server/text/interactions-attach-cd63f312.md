@@ -1,1 +1,1 @@
-Resolve every interactiveCandidate against real routes, record IDs and accessible controls; validate and test the wiring. Ask about unresolved targets together; never invent a destination.
+Verify routes and controls; never invent targets. Use <Text as={Link} props={{ href, 'aria-current': active ? 'page' : undefined }} _hover={hoverStyles} _focusVisible={focusStyles} _active={activeStyles}>Label</Text>, not on a child wrapped in Link. Use Flex/Box for block links; retain pseudo props, not css(). Validate and test.

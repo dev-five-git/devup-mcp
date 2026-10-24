@@ -738,11 +738,13 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
         .filter(|row| row["implementation"] == "page")
     {
         let url = text(&row["url"]);
-        let page = evidence
-            .routes
-            .iter()
-            .find(|(pattern, _)| pattern == url)
-            .map(|(_, page)| page.clone());
+        let page = row["file"].as_str().map(str::to_owned).or_else(|| {
+            evidence.routes.iter().find(|(pattern, page)| {
+                pattern == url && row["app"].as_str().is_none_or(|app| {
+                    app == "." || Path::new(page).starts_with(app)
+                })
+            }).map(|(_, page)| page.clone())
+        });
         let state = match &page {
             Some(page) => match read_small(&join_relative(&evidence.root, page)) {
                 Some(source)

@@ -4,5 +4,5 @@ expression: actual
 ---
 
 "export function SvgDetail() {
-  return <Image src="/icons/DevupUI.svg" />
+  return <Image src="/icons/devupui.svg" />
 }"

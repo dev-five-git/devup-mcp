@@ -139,12 +139,11 @@ So the order is fixed, and none of it is optional.
   any point - screens and routes, site files and facts, and your own
   (`extraQuestions`) - goes into the up-front rounds. Then finish the site
   without stopping.
-- **Never ask during implementation.** After `confirm`, ask the user nothing:
-  someone may have walked away from the keyboard, and a question three hours
-  in stops everything. When something new comes up, take the plan's
-  recommended or the most conservative option (leaving a frame unbuilt is
-  conservative; inventing a URL is not), record it with `devup_screen_plan`
-  `action: "assume"`, and keep going.
+- **Separate implementation choices from user decisions.** After `confirm`,
+  record ordinary implementation choices with `defer`/`assume` and continue.
+  A new decision requiring user authority still uses the runtime question tool;
+  continue independent work while its answer is pending. Never silently accept
+  a recommendation on the user's behalf.
 - **Ask with the question tool, never in prose.** Pass each round's
   `questions` to your runtime's structured question tool (`question` in
   OpenCode, `AskUserQuestion` in Claude Code, whatever yours is called). They
@@ -289,7 +288,8 @@ shows signs of it, scroll reveal ("None" unless the design shows motion), and
 recommended one first, `multiple`) for anything you would otherwise guess at
 any point in the job - where a form submits, contact details, external links,
 legal pages, a CMS or data source, the site's language. Collect every question
-the whole job will need now; after confirm, never ask - use `assume`.
+the whole job will need now. New user-owned decisions still use the question tool
+after confirm; ordinary implementation choices use `assume`.
 
 **Verified** - `devup_ui_validate` with `projectRoot` warns on interactive
 elements with no focus style, on too much motion (over 400ms, scale above
@@ -300,6 +300,10 @@ icon are warnings too. `status` reports site completeness item by item,
 including a "view transitions: enabled (mechanism) / skipped (reason)" line.
 
 ## Steps
+
+Before listing screens, call `devup_figma_auth` status. For disconnected,
+out-of-view or mismatched-host states, load `figma-bridge-setup` and perform
+its computer-use setup yourself. Verify status and a small read before export.
 
 1. **List the screens.** If you only have a Section link, `devup_figma_explore`
    lists them; if you already hold the frame ids, you have the list. Then
@@ -337,14 +341,31 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
    { bumped, pins }`); status shows it as the dependencies line. Skip only
    when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-6. **Implement URL by URL, without asking.** For each confirmed route, call
+6. **Extract components before pages.** The first implementation unit after
+   confirm is component extraction, after the dependency prerequisite above.
+   Export every used `COMPONENT_SET`/`COMPONENT` with `outputs: ["componentTsx"]`
+   into `components/common` or `components/layout`, one component per file.
+   Record each `mainComponent` id -> generated file in `.devup/component-map.json`,
+   retaining its artifact identity and variant/instance bindings. Reuse these
+   files instead of duplicating instance bodies or inventing a name-based mapping.
+   Assemble each confirmed page by screen-plan section: a section is a direct
+   child of the screen frame root, not the enclosing Figma SECTION. Start from
+   generated section TSX and wire imports to the recorded component files.
+   Never hand-write TSX from Figma nodes or reconstruct it from screenshots.
+   If this server cannot export the required section or preserve an instance
+   override, record the limitation; do not pretend an unsupported export exists.
+   Audit through the component/section file mapping and explicit rendered
+   targets, not DOM Figma attributes. Retain node -> file -> rendered-target
+   evidence; missing mapping coverage remains unverified, never a pass.
+
+   **Implement URL by URL.** For each confirmed route, call
    `devup_figma_export` with `projectRoot` and that screen's `frameIds`. With
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
    a different one. Add the plan's `defaults` (states, transition, reduced
    motion, metadata, lang, alt, image sizes, not-found) as you go, and run
-   `devup_ui_validate` with `projectRoot` on what you wrote. Answer anything
-   new yourself with the recommended or most conservative option and record it
-   with `assume`. Screens confirmed as a state of another page are built
+   `devup_ui_validate` with `projectRoot` on what you wrote. Record ordinary
+   choices with `assume`; ask user-owned decisions with the question tool.
+   Screens confirmed as a state of another page are built
    inside that page. An export of a frame the confirmed plan does not place
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
@@ -426,7 +447,7 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    looked at in its diff, never to pass a wrong shape. After
    `maxFixAttempts` (default 3) fix-and-rerun rounds a finding is recorded as
    `unresolved` with its screenshot and diff, and leaves the queue.
-10. **Never stop to wait; reorder the work.** A decision the work needs after
+10. **Continue independent work.** An ordinary implementation choice after
    confirm goes to `action: "defer"` (`decision: {id, about, question,
    options, recommended, destructive}`). Keep working: items it blocks move to
    the back of their URL's queue. When everything else is done, take each one
@@ -443,6 +464,13 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    Preserve screenshots, reports, Figma reference identities and diffs.
    Before reporting done, also:
 
+   - run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+     Never fix JSX prop order, import sorting or formatting errors by hand.
+     Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+     **Formatter ownership:** this template has no standalone prettier config.
+     Formatting is owned by eslint-plugin-devup's `devup(prettier)` rule inside oxlint.
+     Do not run `bunx prettier --write` or biome: their defaults produce a different
+     style (semicolons and double quotes), undoing the project's lint formatting.
    - every confirmed URL is implemented;
    - the build passes: `bun run build` (`vinext build` for every app);
    - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt
@@ -451,11 +479,10 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
      test` also runs `cargo tarpaulin` afterwards, which does not work on
      Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
-   - the production build carries no audit ids: each app's vite.config uses
-     the `vite-plugin-strip-figma-node-ids.mjs` auditPlan put beside it
-     (`plugins: [stripFigmaNodeIds(), vinext()]`), and after `bun run build`
-     `grep -rl data-figma-node-id dist` finds nothing. The audit itself runs
-     against `bun run dev` or an audit build, `DEVUP_AUDIT=1 bun run build`;
+    - the production build carries no audit ids: DevupUI strips them by default.
+      Do not change app build config for auditing or register a strip plugin.
+      `DEVUP_AUDIT=1` keeps opted-in attributes for audit builds; inspect the
+      ordinary production output to verify they are absent;
    - the site completeness block is filled.
 12. **Finish with the final report.** End your reply with status's
    `finalReport`: the URL x width table (health, geometry, drift / converter
@@ -538,13 +565,11 @@ evidence and replaces the question it would otherwise take:
 - `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
   forbids it, and `viewTransitions: false` opts out of view transitions.
-- `figmaNodeIds: false` stops exports from writing `data-figma-node-id(s)`
-  on the page, section, card and asset elements. The audit finds them by
-  it, so keep it on. Production builds drop them through the Vite plugin
-  auditPlan writes beside vite.config (`vite build` strips them unless
-  `DEVUP_AUDIT=1`); on the `next` CLI use `compiler.reactRemoveProperties:
-  process.env.DEVUP_AUDIT === '1' ? false : { properties:
-  ['^data-figma-node-ids?$'] }`.
+- Figma node attributes are off by default. Where the exporter supports it,
+  `figmaNodeIds: true` explicitly opts in; do not send unsupported parameters
+  to an older server. DevupUI strips these attributes by default and
+  `DEVUP_AUDIT=1` keeps them. Do not change app build config for auditing.
+  Missing audit anchors are unverified, not a reason to claim checks passed.
 - `maxFixAttempts` (default 3) is how many fix-and-rerun rounds a finding gets
   before it is unresolved.
 - Geometry has no tolerance to configure; it is exact.
@@ -552,3 +577,14 @@ evidence and replaces the question it would otherwise take:
   `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.
 
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.
+
+## Staged split, contract-first data and decisions
+
+These rules apply to every plan this workflow produces.
+
+- Split into stages. Stage 0 (supervisor): shared layout and repeated components such as Header, Footer, PageHero and SubNav (a component repeated across frames with the same structure and different text is shared), `devup.json` tokens, shared assets, backend foundation. Stage 1 (parallel workers): one worker per top-level menu or Figma group, each with its model, API, client and pages together. Stage 2 (supervisor): API wiring, `devup_stack_diff` zero drift, runtime audit, visual compare. Parallelism is the number of independent groups, not the number of routes.
+- Shared change requests: a worker never edits a shared component; it sends a request (what, why, diff) and the supervisor applies it once.
+- Confirm the ERD and the per-screen endpoint contract (list with page/sort/category/query, detail, create with field rules) in the same plan, before writing any page that shows data.
+- Done means real data, real handlers and no leftovers: no hard-coded fixture arrays standing in for an endpoint, no `TODO` or "replace when" comments, no inputs without a handler, no form submit without a network call, every referenced public asset present. A "wire to the API now" answer needs an `operationId` that exists in `openapi.json`; otherwise the screen is reported unfinished.
+- Ask every user-owned decision with the runtime question tool, before or after confirm: recommended option first, labelled "(Recommended)", two to four options and a header up to 30 characters. Show evidence in prose, never a numbered chat question ending with "tell me the numbers to change". Keep table approval separate from individual decisions in the same question call. Workers escalate to the supervisor. Record the chosen answer, decision id, affected model/endpoint/file and rationale with existing `defer`/`assume` actions, never an invented `ask` action. Model changes require source model updates and re-confirmation before dependent work. If no question tool exists, report the limitation and leave the user-owned decision unresolved; continue independent work.
+- After editing code, run `bun run lint:fix` first and fix by hand only what it cannot fix; do not re-sort JSX props or reformat by hand, and do not run a bare `prettier`.

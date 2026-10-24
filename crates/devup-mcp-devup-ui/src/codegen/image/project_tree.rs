@@ -27,6 +27,7 @@ pub(super) fn project_tree(
             drawn_when: Vec::new(),
             leading_comment: None,
             slots: Vec::new(),
+            scalar_sources: Vec::new(),
         };
     let visible = node.typed_view().value("fills").and_then(Value::as_array);
     if tree.component == "Image" {
