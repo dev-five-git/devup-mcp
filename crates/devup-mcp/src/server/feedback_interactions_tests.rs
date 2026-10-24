@@ -324,6 +324,16 @@ fn a_primitive_rendered_as_link_with_props_href_is_wired() {
     assert_eq!(unmapped, 1, "{findings:?}");
     assert!(findings.iter().any(|f| f["rule"] == "missing-static-route" && f["href"] == "/missing"));
     assert_eq!(report["sourceHrefs"]["/company"], 1);
+    let dynamic = r#"import Link from 'next/link'; const Menu=({items})=> <>{items.map((item)=> <Box as={Link} props={{ href: item.href }}>{item.label}</Box>)}</></>"#;
+    let report = navigation::report(dynamic, &inventory, None);
+    assert!(
+        !report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["rule"] == "interaction-unmapped"),
+        "{report}"
+    );
 }
 
 #[test]

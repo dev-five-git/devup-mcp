@@ -141,6 +141,17 @@ impl<'a> Visit<'a> for Collector<'_> {
             _ => None,
         });
         let name = rendered_as.as_deref().unwrap_or(name);
+        let props_href = attrs.get("props").is_some_and(|a| match &a.value {
+            Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
+                JSXExpression::ObjectExpression(o) => o.properties.iter().any(|p| {
+                    matches!(p, ObjectPropertyKind::ObjectProperty(p)
+                        if p.key.static_name().as_deref() == Some("href"))
+                }),
+                _ => false,
+            },
+            _ => false,
+        });
+        let has_href = attrs.contains_key("href") || props_href;
         let href = attrs.get("href").and_then(|a| literal(a)).or_else(|| {
             attrs.get("props").and_then(|a| match &a.value {
                 Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
@@ -246,7 +257,7 @@ impl<'a> Visit<'a> for Collector<'_> {
             && fixed_visual_marker(&attrs);
         if candidate || active || visual_marker {
             self.elements.push(json!({"element":name,"name":accessible_name.trim(),"line":line,"offset":element.span.start,
-                "candidate":candidate,"wired":wired || self.linked_ancestors>0,"href":href,"dynamicHref":attrs.contains_key("href") && href.is_none(),
+                "candidate":candidate,"wired":wired || self.linked_ancestors>0,"href":href,"dynamicHref":has_href && href.is_none(),
                 "nodeId":attrs.get("data-figma-node-id").and_then(|a|literal(a)),
                 "semanticControl":is_link || native,"nativeToggleOnly":native_toggle && !wired,"disabled":disabled,
                 "staticActive":active,"nonSemanticClick":handler && matches!(name,"div"|"span"|"Box"|"Flex"|"Text"|"Center"|"Grid"),
