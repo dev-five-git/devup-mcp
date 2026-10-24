@@ -405,6 +405,36 @@ mod tests {
         let _ = std::fs::remove_dir_all(&project);
     }
 
+    #[test]
+    fn an_app_directory_sees_skills_installed_at_its_repository_root() {
+        let repo = scratch("monorepo-skills");
+        std::fs::create_dir_all(repo.join(".git")).unwrap();
+        let installed = join_root(&repo, ".opencode/skill").join("devup-ui").join("SKILL.md");
+        std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        std::fs::write(&installed, "---\nname: devup-ui\n---\n").unwrap();
+        let app = repo.join("apps").join("front");
+        std::fs::create_dir_all(&app).unwrap();
+
+        let lookup = Lookup::project_only(app.clone(), Runtime::Opencode);
+        assert_eq!(lookup.installed_paths("devup-ui"), vec![installed.clone()]);
+        assert_eq!(lookup.target_roots(), vec![join_root(&repo, ".opencode/skill")]);
+
+        let outside = scratch("no-repo-skills");
+        let nested = outside.join("apps").join("front");
+        std::fs::create_dir_all(&nested).unwrap();
+        let lone = join_root(&outside, ".opencode/skill").join("devup-ui").join("SKILL.md");
+        std::fs::create_dir_all(lone.parent().unwrap()).unwrap();
+        std::fs::write(&lone, "x").unwrap();
+        assert!(
+            Lookup::project_only(nested, Runtime::Opencode)
+                .installed_paths("devup-ui")
+                .is_empty()
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
     /// The symmetric mistake, and the one that is silent: a file in a
     /// directory this runtime never opens is not loaded, and counting it says
     /// "installed" about a skill the agent will never see.
