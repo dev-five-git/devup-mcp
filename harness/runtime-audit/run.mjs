@@ -659,12 +659,54 @@ export function layoutFingerprint(page) {
   });
 }
 
+// Scroll-triggered reveals keep below-the-fold blocks at opacity 0 until they
+// enter the viewport. A user scrolls; the audit must too. Walk the page one
+// viewport at a time so IntersectionObservers fire, return to the top, then
+// wait until every running animation and transition has finished, so checks
+// measure the settled page rather than a block caught mid-fade.
+export async function settleScrollReveals(page, { stepMs = 120, maxMs = 15000 } = {}) {
+  return page.evaluate(async ({ stepMs, maxMs }) => {
+    const started = performance.now();
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    const step = Math.max(200, Math.floor(window.innerHeight * 0.8));
+    let y = 0;
+    let steps = 0;
+    while (performance.now() - started < maxMs) {
+      const bottom = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0) - window.innerHeight;
+      if (y >= bottom) break;
+      y = Math.min(y + step, bottom);
+      window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+      steps += 1;
+      await frame();
+      await sleep(stepMs);
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    await frame();
+    await frame();
+    const running = () => document.getAnimations().filter((animation) => {
+      if (animation.playState !== 'running') return false;
+      const timing = animation.effect?.getComputedTiming?.();
+      // An infinite loop (marquee, spinner) never settles; it is not a reveal.
+      return !(timing && timing.iterations === Infinity);
+    });
+    let pending = running();
+    while (pending.length && performance.now() - started < maxMs) {
+      await Promise.race([Promise.all(pending.map((animation) => animation.finished.catch(() => undefined))), sleep(500)]);
+      pending = running();
+    }
+    await frame();
+    return { steps, settled: pending.length === 0, waitedMs: Math.round(performance.now() - started) };
+  }, { stepMs, maxMs });
+}
+
 async function waitReady(page, plan, timeout) {
   await waitStylesStable(page).catch(() => null);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => undefined)));
   });
+  await settleScrollReveals(page).catch(() => null);
   if (plan.readiness?.selector) {
     await page.locator(plan.readiness.selector).first().waitFor({ state: 'visible', timeout: plan.readiness.timeoutMs ?? timeout });
   }

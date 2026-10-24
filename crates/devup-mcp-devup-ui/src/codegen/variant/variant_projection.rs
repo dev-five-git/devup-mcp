@@ -369,6 +369,30 @@ fn is_asset_leaf(tree: &Tree) -> bool {
             || (tree.component == "Box" && tree.props.contains_key("maskImage")))
 }
 
+/// Whether a sibling variant in the set is more than a shape. A header whose
+/// mobile variant is vectors only is still a component: flattening it to an
+/// `<Image>` loses the `<Header />` reference the other widths keep.
+fn set_has_non_asset_variant(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    let master = view
+        .string("mainComponentId")
+        .or_else(|| view.string("componentId"))
+        .and_then(|id| snapshot.nodes.get(id));
+    let Some(set) = view
+        .string("mainComponentSetId")
+        .or_else(|| master.and_then(|master| master.typed_view().string("parentId")))
+        .and_then(|id| snapshot.nodes.get(id))
+        .filter(|set| set.typed_view().node_type() == "COMPONENT_SET")
+    else {
+        return false;
+    };
+    set.typed_view()
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|variant| master.is_none_or(|master| master.id != variant.id))
+        .any(|variant| style::asset_kind(snapshot, variant).is_none())
+}
+
 /// Variant properties a component set uses to describe itself rather than to
 /// be told something, so an instance must not pass them.
 ///
@@ -486,7 +510,9 @@ fn project_tree_inner(
         // the spot with a `{/* <Logo /> */}` comment.
         let mut props = instance_variant_props(&view);
         let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
-        if is_asset_leaf(&expanded) || style::non_rendering_asset_reason(snapshot, node).is_some() {
+        if (is_asset_leaf(&expanded) && !set_has_non_asset_variant(snapshot, node))
+            || style::non_rendering_asset_reason(snapshot, node).is_some()
+        {
             // Spelling the shape out loses which component it came from, and
             // that is the one thing a reader needs to change it in the right
             // place. The reference leaves the call it declined to write.

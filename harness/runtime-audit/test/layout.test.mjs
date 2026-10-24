@@ -185,3 +185,36 @@ test('390px header navigation clipping fails until the narrow menu replaces it',
     assert.equal((await observeClippedContent(page)).clipped.length,0);
   } finally {await browser.close();}
 });
+
+test('scroll reveals are walked and settled before section visibility is judged', async () => {
+  const { settleScrollReveals } = await import('../run.mjs');
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.setContent(`<body style="margin:0"><main>
+      <section style="height:900px">Hero</section>
+      <section id="late" style="height:600px;opacity:0;transform:translateY(24px);transition:opacity .4s ease,transform .4s ease">About</section>
+      <div style="animation:spin 1s linear infinite">loop</div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      <script>
+        const late = document.getElementById('late');
+        new IntersectionObserver(([entry], io) => {
+          if (!entry.isIntersecting) return;
+          late.style.opacity = '1';
+          late.style.transform = 'none';
+          io.disconnect();
+        }).observe(late);
+      </script>
+    </main></body>`);
+    const before = await observeSectionLayout(page, { css: '#late' }, { css: 'main' });
+    assert.equal(before.sections[0].visible, false);
+    const settled = await settleScrollReveals(page);
+    assert.ok(settled.steps > 0, JSON.stringify(settled));
+    assert.equal(settled.settled, true, 'an infinite loop must not keep the wait open');
+    assert.equal(await page.evaluate(() => scrollY), 0);
+    const after = await observeSectionLayout(page, { css: '#late' }, { css: 'main' });
+    assert.equal(after.sections[0].visible, true);
+    assert.equal(evaluateSectionLayout(after).status, 'pass');
+  } finally { await browser.close(); }
+});
