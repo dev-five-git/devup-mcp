@@ -104,7 +104,9 @@ fn merge_child_props(
             Some(&child_path),
             &child.props,
         );
-        child.scalar_sources = scalar_sources(records, definitions, dimensions, viewport, effect_value, &child_path);
+        if child.component == "Image" {
+            child.scalar_sources = scalar_sources(records, definitions, dimensions, viewport, effect_value, &child_path);
+        }
         merge_child_props(
             child,
             records,

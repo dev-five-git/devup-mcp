@@ -4,13 +4,11 @@ use devup_mcp_figma::{
     DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, FidelityImpact, RawNode, Snapshot,
 };
 use serde_json::Value;
-
 use super::{
     component::{CodegenOptions, CodegenOutput, PropValue, legacy_component_name},
     layout, style, text,
 };
 use crate::provenance::mark_node;
-
 #[derive(Clone, Debug)]
 pub(super) struct Tree {
     pub node_id: String,
@@ -39,7 +37,6 @@ pub(super) struct Tree {
     pub slots: Vec<Option<(String, Option<String>)>>,
     pub scalar_sources: Vec<(String, String)>,
 }
-
 #[derive(Clone, Debug)]
 struct Record {
     values: BTreeMap<String, String>,
@@ -210,7 +207,9 @@ pub(super) fn generate_variant_component_set(
         None,
         &default.tree.props,
     );
-    root.scalar_sources = scalar_sources(&records, &definitions, &dimensions, viewport, effect.map_or("default", |definition| definition.default.as_str()), &[]);
+    if root.component == "Image" {
+        root.scalar_sources = scalar_sources(&records, &definitions, &dimensions, viewport, effect.map_or("default", |definition| definition.default.as_str()), &[]);
+    }
     merge_child_props(
         &mut root,
         &records,
@@ -831,6 +830,7 @@ fn merged_props(
         }
     }
     keys.into_iter()
+        .filter(|prop| prop != "src" || defaults.contains_key("src"))
         .filter_map(|prop| {
             let expression = expression_for_prop(
                 records,

@@ -28,7 +28,10 @@ fn scalar_sources(
         let tree = tree_at(&record.tree, path)?;
         (tree.component == "Image").then(|| tree.props.get("src").cloned()).flatten()
     }).collect::<BTreeSet<_>>();
-    if sources.len() < 2 {
+    if sources.is_empty() {
+        return Vec::new();
+    }
+    if sources.len() == 1 && expression_for_prop(records, definitions, dimensions, viewport, effect, None, path, "src").is_none_or(|expression| !has_responsive_value(&expression)) {
         return Vec::new();
     }
     sources.into_iter().filter_map(|source| {
@@ -43,9 +46,35 @@ fn scalar_sources(
             set(&mut record.tree, &source);
             record
         }).collect::<Vec<_>>();
-        let display = expression_for_prop(&visibility, definitions, dimensions, viewport, effect, None, path, "src")?;
+        let mut display = expression_for_prop(&visibility, definitions, dimensions, viewport, effect, None, path, "src")?;
+        fill_absent_display(&mut display);
         Some((render_expression_attr("src", &Expression::Literal(source)), render_expression_attr("display", &display)))
     }).collect()
+}
+
+fn has_responsive_value(expression: &Expression) -> bool {
+    match expression {
+        Expression::Responsive(_) => true,
+        Expression::Variant(_, values) => values.iter().any(|(_, value)| has_responsive_value(value)),
+        Expression::Undefined | Expression::Literal(_) | Expression::Conditional(_, _, _) => false,
+    }
+}
+
+fn fill_absent_display(expression: &mut Expression) {
+    match expression {
+        Expression::Responsive(slots) => {
+            for index in [0, slots.len().saturating_sub(1)] {
+                if let Some(slot) = slots.get_mut(index) {
+                    slot.get_or_insert_with(|| "none".into());
+                }
+            }
+        }
+        Expression::Variant(_, values) => {
+            for (_, value) in values { fill_absent_display(value); }
+        }
+        Expression::Undefined => *expression = Expression::Literal("none".into()),
+        Expression::Literal(_) | Expression::Conditional(_, _, _) => {}
+    }
 }
 
 fn effect_selector(value: &str) -> Option<&str> {
