@@ -15,8 +15,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 30182,
-          "sha256": "a71578fa186ff6aec43d0a85cb6163aa9018ac60ed64f9894e21b7da1033d4c0"
+          "bytes": 29525,
+          "sha256": "cd750ecb6b49340a2cf4c386ef7c69eeff4d495d115f58223b963430da9f87a2"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/cebcfb2a3f94649f297315e702dd468026474ff6/SKILL.md",
