@@ -1,3 +1,165 @@
+#[test]
+fn responsive_merge_diagnostics_survive_export_summary_without_opt_in() {
+    let data = responsive_payload();
+    let outputs = vec!["responsiveTsx".into()];
+    let codes = [
+        ("DEVUP_CODEGEN_RESPONSIVE_UNMATCHED", devup_mcp_figma::FidelityImpact::Approximated),
+        ("DEVUP_CODEGEN_RESPONSIVE_DRAWN_WIDTH_EMPTY", devup_mcp_figma::FidelityImpact::Lossy),
+    ];
+    let diagnostics = codes.iter().map(|(code, impact)| Diagnostic {
+        code: (*code).into(),
+        message: "Responsive merge requires review".into(),
+        node_id: Some("1:1".into()),
+        property: Some("w".into()),
+        details: Some(json!({"output":"responsiveTsx","slot":0,"width":390,
+            "originalValue":"390px","nextAction":"Inspect responsive merge provenance."})),
+        severity: Some(DiagnosticSeverity::Warning),
+        fidelity_impact: Some(*impact),
+        ..Diagnostic::default()
+    }).collect();
+    let (result,) = summarize_projection_diagnostics::summarize_projection_diagnostics(
+        summarize_projection_diagnostics::ProjectionDiagnostics {
+            payload: &data,
+            outputs: &outputs,
+            include_diagnostics: false,
+            root_layout: devup_mcp_devup_ui::codegen::RootLayout::Standalone,
+            asset_names_per_node: true,
+            scope: &"node".into(),
+            strict: false,
+            frame_ids: &Vec::new(),
+            all_screens: false,
+            asset_captures: &Vec::new(),
+            delivery: DeliveryMode::Inline,
+            result: json!({"responsiveTsx":"export default function Page() { return null }"})
+                .as_object().unwrap().clone(),
+            failures: Vec::new(),
+            warnings: Vec::new(),
+            completeness_report: &data.completeness_report(),
+            section_tsx_projected: false,
+            projection_diagnostics: diagnostics,
+            fidelity_reports: Vec::new(),
+            theme_conflict_count: 0,
+            theme_unresolved_count: 0,
+            component_name_for_components: &None,
+            target_kind: TargetKind::Screen,
+        },
+    ).unwrap();
+    let mut result = Value::Object(result);
+    super::super::review::attach(&mut result);
+    for (code, impact) in codes {
+        let issue = result["projectionIssues"].as_array().unwrap().iter()
+            .find(|issue| issue["code"] == code).unwrap();
+        assert_eq!(issue["details"]["output"], "responsiveTsx");
+        assert_eq!(issue["fidelityImpact"], json!(impact));
+        let review = result["reviewChecklist"].as_array().unwrap().iter()
+            .find(|item| item["code"] == code).unwrap();
+        assert_eq!(review["nodeIds"], json!(["1:1"]));
+        assert_eq!(review["severity"], if impact == devup_mcp_figma::FidelityImpact::Lossy {
+            "required"
+        } else {
+            "recommended"
+        });
+    }
+}
+
+#[tokio::test]
+async fn instance_overrides_reach_export_and_required_review_without_opt_in() {
+    for output in ["tsx", "componentTsx"] {
+        let mut data = payload();
+        let root = data.snapshot.roots[0].clone();
+        let mut master = data.snapshot.nodes[&root].clone();
+        master.id = "override-master".into();
+        master.node_type = "COMPONENT".into();
+        data.snapshot.nodes.insert(master.id.clone(), master);
+        let instance = data.snapshot.nodes.get_mut(&root).unwrap();
+        instance.node_type = "INSTANCE".into();
+        instance.fields.insert("mainComponentId".into(), json!("override-master"));
+        instance.fields.insert("overrides".into(), json!([{"id":root,"overriddenFields":["fills"]}]));
+        instance.fields.insert("fills".into(), json!([{"type":"SOLID","color":{"r":0,"g":0.5,"b":0.5}}]));
+        let mut result = project(data, operation(&[output])).await.unwrap();
+        super::super::review::attach(&mut result);
+        assert_eq!(result["instanceOverrides"][0]["instanceNodeId"], root, "{result}");
+        assert_eq!(result["instanceOverrides"][0]["resolution"], "resolved");
+        assert!(result[output].as_str().unwrap().contains("// @devup-override "));
+        assert!(result["projectionIssues"].as_array().unwrap().iter().any(|item|
+            item["code"] == "DEVUP_CODEGEN_INSTANCE_OVERRIDE"));
+        assert!(result["reviewChecklist"].as_array().unwrap().iter().any(|item|
+            item["code"] == "DEVUP_CODEGEN_INSTANCE_OVERRIDE" && item["severity"] == "required"));
+    }
+}
+
+#[tokio::test]
+async fn responsive_unmatched_diagnostic_reaches_export_review_without_opt_in() {
+    let mut data = responsive_payload();
+    for (root, children) in [
+        ("1:1", vec!["small"]),
+        ("1:2", vec!["wide-a", "wide-b"]),
+    ] {
+        data.snapshot.nodes.get_mut(root).unwrap().fields.insert("childrenIds".into(), json!(children));
+        for child in children {
+            data.snapshot.nodes.insert(child.into(), serde_json::from_value(json!({
+                "id":child,"type":"FRAME","fields":{
+                    "name":"Logo","parentId":root,"width":100,"height":24
+                }
+            })).unwrap());
+        }
+    }
+    let mut op = operation(&["responsiveTsx"]);
+    if let PendingOperation::Export { frame_ids, include_diagnostics, .. } = &mut op {
+        *frame_ids = vec!["1:1".into(), "1:2".into()];
+        *include_diagnostics = false;
+    }
+    let mut result = project(data, op).await.unwrap();
+    super::super::review::attach(&mut result);
+    assert!(result["responsiveTsx"].is_string(), "{result}");
+    let code = "DEVUP_CODEGEN_RESPONSIVE_UNMATCHED";
+    for items in [
+        &result["projectionIssues"],
+        &result["responsiveReviewChecklist"]["items"],
+        &result["reviewChecklist"],
+    ] {
+        assert!(items.as_array().unwrap().iter().any(|item| item["code"] == code), "{items}");
+    }
+}
+
+#[tokio::test]
+async fn suspicious_design_values_are_published_for_recommended_review_without_loss() {
+    let mut data = payload();
+    let root = data.snapshot.roots[0].clone();
+    let fields = &mut data.snapshot.nodes.get_mut(&root).unwrap().fields;
+    fields.insert("width".into(), json!(171));
+    fields.insert("height".into(), json!(80));
+    fields.insert("layoutSizingHorizontal".into(), json!("FIXED"));
+    fields.insert("layoutSizingVertical".into(), json!("FIXED"));
+    fields.remove("parentType");
+    fields.remove("childrenIds");
+    let mut result = project(data, operation(&["tsx"])).await.unwrap();
+    super::super::review::attach(&mut result);
+    let issue = result["projectionIssues"].as_array().unwrap().iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_SUSPICIOUS_VALUE").expect("published advisory");
+    assert_eq!(issue["fidelityImpact"], "none");
+    assert_eq!(issue["details"]["appliedValue"], "171px");
+    assert!(result["tsx"].as_str().unwrap().contains("w=\"171px\""));
+    assert_ne!(result["quality"]["projection"], "lossy");
+    assert!(result["reviewChecklist"].as_array().unwrap().iter().any(|item|
+        item["code"] == "DEVUP_CODEGEN_SUSPICIOUS_VALUE" && item["severity"] == "recommended"));
+}
+
+#[tokio::test]
+async fn stale_plugin_warning_is_visible_without_optional_diagnostics() {
+    let mut data = payload();
+    data.snapshot.diagnostics.push(serde_json::from_value(json!({
+        "code":"DEVUP_BRIDGE_PLUGIN_STALE", "message":"Plugin scripts are stale.",
+        "severity":"warning", "fidelityImpact":"none",
+        "details":{"pluginStale":true,"expected":"current","actual":"old"}
+    })).unwrap());
+    let result = project(data, operation(&["tsx"])).await.unwrap();
+    let issues = result["projectionIssues"].as_array().unwrap();
+    let warning = issues.iter().find(|issue| issue["code"] == "DEVUP_BRIDGE_PLUGIN_STALE").unwrap();
+    assert_eq!(warning["fidelityImpact"], "none");
+    assert_eq!(warning["details"]["pluginStale"], true);
+}
+
 #[tokio::test]
 async fn feedback36_confirmed_pair_merges_despite_different_names() {
     let directory = std::env::temp_dir().join(format!("feedback36-{}", rand::random::<u64>()));
@@ -15,7 +177,8 @@ async fn feedback36_confirmed_pair_merges_despite_different_names() {
         theme_options.project_root = Some(directory.to_string_lossy().into_owned());
     }
     let result = project(data, op).await.unwrap();
-    assert!(result["responsiveTsx"].is_string(), "{result}");
+    assert!(!std::fs::read_to_string(result["outputPaths"]["responsiveTsx"].as_str().unwrap()).unwrap().is_empty());
+    assert!(result.get("responsiveTsx").is_none());
     assert_eq!(result["responsiveSlots"], json!([0,4]));
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -89,9 +252,9 @@ async fn feedback66_component_roots_export_despite_uncaptured_nested_master() {
             output_paths.insert("componentTsx".into(), path.to_string_lossy().into_owned());
         }
         let result = project(data, op).await.unwrap();
-        let code = result["componentTsx"].as_str().expect("component definition");
+        let code = std::fs::read_to_string(&path).unwrap();
         assert!(code.contains("export function Button"), "{root}: {result}");
-        assert_eq!(std::fs::read_to_string(path).unwrap(), code);
+        assert!(result.get("componentTsx").is_none());
         assert!(result["failures"].as_array().unwrap().is_empty(), "{root}: {result}");
         std::fs::remove_dir_all(directory).unwrap();
     }

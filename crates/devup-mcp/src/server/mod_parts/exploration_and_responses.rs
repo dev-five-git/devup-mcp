@@ -432,9 +432,8 @@ fn with_project_checks(
             }
         }
     }
-    // Before the theme half, and before its `project_root` gate: a response
-    // that handed back code has to name the conventions that code is written
-    // in whether or not the caller told us where the project is.
+    generated.extend(projection::default_code_paths::written_sources(&result));
+    // Code delivery must name its conventions, independently of project_root.
     let produced_code = !generated.is_empty() || result.get("deliverable").is_some();
     if produced_code {
         result = with_skill_gap(result, lookup);

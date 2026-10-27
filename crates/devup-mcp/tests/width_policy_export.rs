@@ -138,7 +138,7 @@ async fn violations_link_to_the_sourcemap_the_export_returns() -> anyhow::Result
     .await?;
     let validated = call(
         "devup_ui_validate",
-        json!({"tsx": exported["tsx"], "sourceMap": exported["sourceMap"]}),
+        json!({"detail": "full", "tsx": exported["tsx"], "sourceMap": exported["sourceMap"]}),
     )
     .await?;
     let link = &validated["sourceMapLink"];

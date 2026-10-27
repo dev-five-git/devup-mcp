@@ -115,13 +115,18 @@ pub(crate) fn export_context(project_root: &str) -> Value {
 
 /// Added context is bounded independently and respects remaining inline space.
 pub(crate) fn attach(result: &mut Value, root: &str) {
-    let context = export_context(root);
+    let mut context = export_context(root);
+    if let Some(evidence) = result.as_object_mut().unwrap().remove("_navigationEvidence") {
+        context["ui"]["codeLinks"] = evidence["codeLinks"].clone();
+        context["ui"]["confirmedRoutes"] = evidence["confirmedRoutes"].clone();
+    }
     let suggestions =
         super::super::navigation::suggestions(&result["interactiveCandidates"], &context["ui"]);
+    summarize(&mut context, result, &suggestions, root);
     let mut added = json!({"projectContext":context,"routeSuggestions":suggestions});
     let wire_bytes = serde_json::to_vec(&super::super::tool_result(result.clone()))
         .map_or(usize::MAX, |v| v.len());
-    let budget = 65_536usize.min(
+    let budget = 4_096usize.min(
         super::super::delivery::MAX_INLINE_TOTAL_BYTES
             // Review, skills, theme-validation and job metadata are attached
             // around this boundary and are also duplicated in MCP content.
@@ -139,6 +144,8 @@ pub(crate) fn attach(result: &mut Value, root: &str) {
                 "/projectContext/ui/routes",
                 "/projectContext/ui/diagnostics",
                 "/projectContext/ui/excludedPaths",
+                "/projectContext/ui/nonPageDestinations",
+                "/projectContext/referencedAssets",
                 "/routeSuggestions",
             ];
             let path = pointers
@@ -172,4 +179,70 @@ pub(crate) fn attach(result: &mut Value, root: &str) {
         .as_object_mut()
         .unwrap()
         .extend(added.as_object().unwrap().clone());
+}
+
+fn summarize(context: &mut Value, result: &Value, suggestions: &Value, root: &str) {
+    let ui = &context["ui"];
+    let routes = ui["routes"].as_array().into_iter().flatten().filter(|route| suggestions.as_array().into_iter().flatten().any(|suggestion| suggestion["suggestions"].as_array().into_iter().flatten().any(|target| target["route"] == route["route"])))
+        .map(|route| json!({"route":route["route"],"page":route["page"],"appliesTo":route["appliesTo"],"components":route["components"]})).collect::<Vec<_>>();
+    let components = ui["components"].as_array().into_iter().flatten().filter(|component| routes.iter().any(|route| route["components"].as_array().is_some_and(|paths| paths.contains(&component["path"]))))
+        .map(|component| json!({"path":component["path"],"exports":component["exports"],"appliesTo":component["appliesTo"]})).collect::<Vec<_>>();
+    let mut urls = BTreeSet::new();
+    let mut sources = super::super::projection::default_code_paths::written_sources(result);
+    for scope in std::iter::once(result).chain(result["frames"].as_array().into_iter().flatten()) {
+        for output in ["tsx", "componentTsx", "responsiveTsx"] {
+            if let Some(source) = scope[output].as_str() { sources.push((output.into(), source.into())); }
+        }
+        for asset in scope["assetManifest"]["assets"].as_array().into_iter().flatten() {
+            if let Some(path) = asset["path"].as_str() { urls.insert(path.to_owned()); }
+        }
+    }
+    for (_, source) in sources { urls.extend(super::super::asset_guard::asset_urls(&source).into_iter().map(|(url, _)| url)); }
+    let destinations = ui["nonPageDestinations"].as_array().into_iter().flatten().filter(|destination| destination.as_str().is_some_and(|url| urls.contains(url) || suggestions.as_array().into_iter().flatten().any(|suggestion| suggestion["suggestions"].as_array().into_iter().flatten().any(|target| target["route"] == url)))).cloned().collect::<Vec<_>>();
+    let (public_files, _) = find_matching_files(Path::new(root), |path| path.components().any(|component| component.as_os_str() == "public"), usize::MAX);
+    let public_urls = public_files.iter().filter_map(|path| super::relative_display(Path::new(root), path).split_once("public/").map(|(_, asset)|format!("/{asset}"))).collect::<BTreeSet<_>>();
+    let assets = urls.into_iter().map(|url| json!({"exists":public_urls.contains(url.split(['?', '#']).next().unwrap_or(&url)),"url":url})).collect::<Vec<_>>();
+    let counts = json!({"routes":ui["totalRoutes"],"components":ui["totalComponents"],"publicFiles":public_files.len()});
+    let mut destinations = destinations;
+    destinations.extend(assets.iter().filter(|asset| asset["exists"] == true && !destinations.contains(&asset["url"])).map(|asset|asset["url"].clone()).collect::<Vec<_>>());
+    let summary = json!({"found":ui["found"],"routes":routes,"components":components,"nonPageDestinations":destinations,"customRoutingUnverified":ui["customRoutingUnverified"],"truncation":ui["truncation"]});
+    *context = json!({"state":"summary","counts":counts,"ui":summary,"referencedAssets":assets,
+        "nextAction":{"tool":"devup_project_context","arguments":{"projectRoot":root,"scope":"ui"},"alternativeScope":"routes","how":"Read ui for the full component inventory, or routes for page destinations."}});
+}
+
+pub(crate) async fn navigation_evidence(result: &mut Value, root: &str) {
+    let code_links = match super::super::screen_plan::project_evidence(root).await {
+        Ok(evidence) => evidence.nav_links.into_iter().map(|(label, href, evidence)|json!({"label":label,"href":href,"evidence":evidence})).collect::<Vec<_>>(),
+        Err(_) => vec![],
+    };
+    let plan = super::super::screen_plan::read_plan(root).ok().flatten().unwrap_or(Value::Null);
+    let mut confirmed = vec![];
+    if plan["status"] == "confirmed" {
+        for route in plan["routes"].as_array().into_iter().flatten() {
+            confirmed.push(json!({"name":route["name"],"route":route["url"]}));
+        }
+        for frame in plan["frameInventory"]["frames"].as_array().into_iter().flatten() {
+            if frame["route"].as_str().is_some_and(|route| route.starts_with('/')) {
+                confirmed.push(json!({"name":frame["name"],"route":frame["route"]}));
+            }
+        }
+        for label in plan["linkLabelCheck"]["labels"].as_array().into_iter().flatten().filter(|label|label["state"] == "route-bound") {
+            if let Some(url) = label["resolved"]["url"].as_str().filter(|url|url.starts_with('/')) {
+                confirmed.push(json!({"name":label["label"],"route":url}));
+            }
+        }
+    }
+    result["_navigationEvidence"] = json!({"codeLinks":code_links,"confirmedRoutes":confirmed});
+}
+
+pub(crate) async fn checked_export(mut result: Value, root: Option<&str>, lookup: &super::super::skills::Lookup) -> Value {
+    if result.get("interactionCoverage").is_some() && let Some(root) = root {
+        navigation_evidence(&mut result, root).await;
+    }
+    let mut result = super::super::with_project_checks(result, root, lookup);
+    if result["metadataDelivery"]["name"] == "written-export-details.json" && result["skillGap"].is_object() {
+        let gap = &result["skillGap"];
+        result["skillGap"] = json!({"missing":gap["missing"].as_array().into_iter().flatten().map(|item|json!({"skill":item["skill"],"whyYouNeedIt":item["whyYouNeedIt"]})).collect::<Vec<_>>(),"outdated":gap["outdated"],"runtime":gap["runtime"],"workspace":gap["workspace"],"nextAction":{"tool":"devup_skills","arguments":{"action":"status","projectRoot":root},"how":"Read skill installation details, install missing skills, then load them before editing generated code."}});
+    }
+    result
 }

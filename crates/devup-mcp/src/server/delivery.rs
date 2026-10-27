@@ -327,6 +327,7 @@ pub(crate) fn server_identity() -> Value {
     serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"buildId":crate::build_id(),
         "commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s|!s.is_empty()),
         "displayVersion":format!("{}+{}", env!("CARGO_PKG_VERSION"), crate::build_id()),
+        "builtAt":env!("DEVUP_MCP_BUILD_TIME").parse::<u64>().ok(),
         "identityGuidance":include_str!("text/delivery-server_identity-f8e03915.md"),
         // Cache-only. The lookup lives in a background task, so adding this to
         // the identity every response carries costs no network on the call path

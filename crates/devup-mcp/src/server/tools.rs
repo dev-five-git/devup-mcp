@@ -357,6 +357,14 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    /// Summary (default) returns compact, deduplicated findings; full preserves all diagnostics.
+    #[serde(default)]
+    pub detail: UiValidateDetail,
+    /// Files or recursive directories inside projectRoot. Exclusive with tsx/files;
+    /// at most 512 source files and 8 MiB read. Uses the project's disk theme.
+    #[serde(default)]
+    #[schemars(length(max = 512))]
+    pub paths: Vec<String>,
     /// Copy outputResults.tsx.sectionCoverage (or a Section frame's equivalent)
     /// from devup_figma_export to check that captured sections/assets remain.
     /// This is static JSX identity coverage, not proof of runtime visibility.
@@ -414,6 +422,14 @@ pub struct UiValidateInput {
     /// parent states no px width of its own.
     #[serde(default)]
     pub reference_width: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum UiValidateDetail {
+    #[default]
+    Summary,
+    Full,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

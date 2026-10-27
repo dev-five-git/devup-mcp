@@ -4,7 +4,6 @@ expression: actual
 ---
 
 "<Text
-  boxSize="100%"
   color="#00F"
   fontFamily="Arial"
   fontSize="20px"

@@ -69,7 +69,7 @@ fn feedback_interactions_preserve_targets_roles_states_and_unresolved_data() {
     );
     assert_eq!(
         schema["$defs"]["Role"]["enum"],
-        json!(["link", "button", "tab", "nav", "checkbox", "radio"])
+        json!(["link", "button", "tab", "nav", "checkbox", "radio", "marquee"])
     );
     assert_eq!(
         schema["$defs"]["InteractiveCandidate"]["properties"]["targetResolved"]["type"],
@@ -309,6 +309,30 @@ fn feedback_validation_catches_missing_routes_unmapped_actions_and_active_state(
         1
     );
     assert_eq!(report["coverage"]["runtimeVerified"], false);
+}
+
+#[tokio::test]
+async fn export_navigation_reads_existing_code_link_evidence() {
+    let p = Project::new();
+    p.write("src/app/company/location/page.tsx", "export default function Location(){return <main/>}");
+    p.write("src/app/layout.tsx", "import Link from 'next/link'; export default function Layout(){return <Link href='/company/location'>오시는길</Link>}");
+    let result = project_context::checked_export(json!({"interactionCoverage":{},"interactiveCandidates":[{"nodeId":"location","text":"오시는 길"}]}), Some(p.root()), &skills::Lookup::project_only(p.0.clone(), skills::Runtime::Codex)).await;
+    assert_eq!(result["routeSuggestions"][0]["targetResolved"], true);
+    assert_eq!(result["routeSuggestions"][0]["suggestions"][0]["route"], "/company/location");
+    assert!(result["routeSuggestions"][0]["suggestions"][0]["evidence"].as_str().unwrap().contains("layout.tsx:1"));
+    assert_eq!(result["projectContext"]["ui"]["routes"][0]["route"], "/company/location");
+}
+
+#[test]
+fn export_context_lists_only_referenced_assets_even_past_inventory_cap() {
+    let p = Project::new();
+    p.write("src/app/page.tsx", "export default function Home(){return <main/>}");
+    for index in 0..300 { p.write(&format!("public/images/image-{index:03}.png"), "image"); }
+    let mut result = json!({"tsx":"<><Image src='/images/image-299.png'/><Image src='/images/missing.png'/></>","interactiveCandidates":[]});
+    project_context::attach_export_context(&mut result, p.root());
+    assert_eq!(result["projectContext"]["counts"]["publicFiles"], 300);
+    assert_eq!(result["projectContext"]["ui"]["nonPageDestinations"], json!(["/images/image-299.png"]));
+    assert_eq!(result["projectContext"]["referencedAssets"], json!([{"url":"/images/image-299.png","exists":true},{"url":"/images/missing.png","exists":false}]));
 }
 
 #[test]
@@ -716,6 +740,7 @@ fn feedback_context_budget_caps_or_defers_explicitly() {
         );
         assert!(
             result["projectContext"]["exportContextLimits"]["truncated"] == true
+                || result["projectContext"]["state"] == "summary"
                 || result["projectContext"]["state"] == "deferred"
         );
     }
@@ -754,4 +779,44 @@ fn feedback_read_failures_and_direct_selection_preserve_review_and_source_maps()
     );
     assert_eq!(result["deliverable"]["isFinal"], false);
     assert!(result["summary"]["omittedReviewItems"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn broken_component_sets_do_not_hide_readable_reactions() {
+    for reason in ["in get_componentProperties: Component set for node has existing errors", "Component set is invalid"] {
+        let mut snapshot = design();
+        let node = snapshot.nodes.get_mut("nav").unwrap();
+        node.fields.insert("mainComponentSetId".into(), json!("set:1"));
+        node.fields.insert("mainComponentSetName".into(), json!("Navigation"));
+        for field in ["componentProperties", "variantProperties"] {
+            node.field_errors.insert(field.into(), reason.into());
+        }
+        let mut result = json!({"source":{"nodeId":"screen"},"tsx":"<Box/>","deliverable":{"isFinal":true}});
+        interactions::attach(&mut result, &snapshot);
+        let issues = result["projectionIssues"].as_array().unwrap();
+        let issue = issues.iter().find(|issue| issue["code"] == "DEVUP_DESIGN_COMPONENT_SET_ERROR").unwrap();
+        assert_eq!(issue["nodeId"], "nav");
+        assert_eq!(issue["details"]["componentSetId"], "set:1");
+        assert_eq!(issue["details"]["componentSetName"], "Navigation");
+        assert_eq!(issue["fidelityImpact"], "none");
+        assert!(!issues.iter().any(|issue| issue["code"] == "DEVUP_CODEGEN_INTERACTION_UNVERIFIED"));
+        let candidate = result["interactiveCandidates"].as_array().unwrap().iter().find(|candidate| candidate["nodeId"] == "nav").unwrap();
+        assert_eq!(candidate["prototypeActions"][0]["destinationId"], "portfolio-screen");
+    }
+}
+
+#[test]
+fn interaction_read_failure_names_node_and_field_but_state_only_failure_does_not_block() {
+    let mut snapshot = design();
+    snapshot.nodes.get_mut("nav").unwrap().field_errors.insert("reactions".into(), "permission denied".into());
+    let mut result = json!({"tsx":"<Box/>","deliverable":{"isFinal":true}});
+    interactions::attach(&mut result, &snapshot);
+    let issue = result["projectionIssues"].as_array().unwrap().iter().find(|issue| issue["code"] == "DEVUP_CODEGEN_INTERACTION_UNVERIFIED").unwrap();
+    let message = issue["message"].as_str().unwrap();
+    assert!(message.contains("nav") && message.contains("reactions"));
+    snapshot.nodes.get_mut("nav").unwrap().field_errors.clear();
+    snapshot.nodes.get_mut("timer").unwrap().field_errors.insert("variantProperties".into(), "not available".into());
+    let mut result = json!({"source":{"nodeId":"timer"},"tsx":"<Box/>","deliverable":{"isFinal":true}});
+    interactions::attach(&mut result, &snapshot);
+    assert_eq!(result["deliverable"]["isFinal"], true);
 }

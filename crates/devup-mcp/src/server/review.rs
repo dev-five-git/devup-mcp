@@ -37,15 +37,21 @@ fn items_from_issues(scope: &str, issues: &[Value], out: &mut Vec<Value>) {
             })
             .collect();
         let first = members[0];
-        let how = first["details"]["nextAction"]
+        let how = first["how"].as_str().map(str::to_owned).or_else(|| first["details"]["nextAction"]
             .as_str()
             .map(str::to_owned)
-            .or_else(|| first["details"]["nextAction"]["how"].as_str().map(str::to_owned))
-            .unwrap_or_else(|| {
-                "Compare the generated property with the raw Figma value for these nodes (export rawSnapshot with debug: true) before shipping.".into()
-            });
+            .or_else(|| first["details"]["nextAction"]["how"].as_str().map(str::to_owned)))
+            .unwrap_or_else(|| match code.as_str() {
+                "DEVUP_CODEGEN_INTERACTION_UNMAPPED" => "Wire href/onClick using linkSuggestions and routeSuggestions; test the destination/action.",
+                "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE" => "Use whiteSpace=\"pre-wrap\" or explicit spacing to preserve the intended text.",
+                "DEVUP_CODEGEN_LAYOUT_UNCOVERED" => "Check layoutSizingHorizontal/layoutSizingVertical against emitted w/h.",
+                "DEVUP_CODEGEN_INTERACTION_UNVERIFIED" => "Read interactionReadErrors before wiring or claiming interaction coverage.",
+                "DEVUP_CODEGEN_PROPERTY_UNMAPPED" => "Read projectionEvidence for the unmapped property and generated output.",
+                "DEVUP_CODEGEN_INSTANCE_OVERRIDE" => "Carry every instanceOverrides entry into a shared-component prop or variant, or explicitly report it as unresolved before replacing the inline instance.",
+                _ => "Compare the generated property with the raw Figma value for these nodes (export rawSnapshot with debug: true) before shipping.",
+            }.into());
         out.push(json!({
-            "severity": if lossy || code.starts_with("DEVUP_CODEGEN_INTERACTION_") { "required" } else { "recommended" },
+            "severity": if lossy || code.starts_with("DEVUP_CODEGEN_INTERACTION_") || code == "DEVUP_CODEGEN_INSTANCE_OVERRIDE" { "required" } else { "recommended" },
             "scope": scope,
             "code": code,
             "count": members.len(),
@@ -199,6 +205,24 @@ pub(super) fn attach(result: &mut Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_issue_preview_keeps_specific_guidance() {
+        let mut result = json!({"tsx":"code","projectionIssues":[{"code":"DEVUP_CODEGEN_LAYOUT_UNCOVERED","details":{"nextAction":{"how":"Check layoutSizingHorizontal against emitted w."}}}]});
+        super::super::compact::select(result.as_object_mut().unwrap(), &json!({}), &super::super::compact::ResponseSelection {response_fields:vec!["tsx".into()], ..Default::default()}).unwrap();
+        attach(&mut result);
+        let item = result["reviewChecklist"].as_array().unwrap().iter().find(|item| item["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED").unwrap();
+        assert_eq!(item["how"], "Check layoutSizingHorizontal against emitted w.");
+    }
+
+    #[test]
+    fn issue_defaults_name_the_evidence_to_use() {
+        for (code, guidance) in [("INTERACTION_UNMAPPED", "linkSuggestions"), ("TEXT_WHITESPACE_COLLAPSE", "pre-wrap"), ("LAYOUT_UNCOVERED", "layoutSizing"), ("INTERACTION_UNVERIFIED", "interactionReadErrors"), ("PROPERTY_UNMAPPED", "projectionEvidence")] {
+            let mut result = json!({"projectionIssues":[{"code":format!("DEVUP_CODEGEN_{code}")}]});
+            attach(&mut result);
+            assert!(result["reviewChecklist"][0]["how"].as_str().unwrap().contains(guidance), "{result}");
+        }
+    }
 
     #[test]
     fn clean_response_has_summary_and_no_checklist() {

@@ -75,7 +75,10 @@ fn all_tokens(json: &str) -> TokenUsage {
     let Ok(source) = serde_json::from_str::<Value>(json) else {
         return usage;
     };
-    if let Some(typography) = source.pointer("/theme/typography").and_then(Value::as_object) {
+    if let Some(typography) = source
+        .pointer("/theme/typography")
+        .and_then(Value::as_object)
+    {
         usage.typography.extend(typography.keys().cloned());
     }
     for category in ["colors", "length", "shadow"] {
@@ -193,6 +196,10 @@ pub fn prepare(
         }),
     );
     result.insert("skippedStyles".into(), json!(output.skipped_styles));
+    result.insert(
+        "themeModesDropped".into(),
+        json!(output.theme_modes_dropped),
+    );
     if let Some(root) = options.project_root.as_deref() {
         let lookup = super::super::project_context::theme_for_validation(Some(root))?;
         if let Some(existing) = lookup.theme {

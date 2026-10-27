@@ -4,5 +4,5 @@ expression: actual
 ---
 
 "export function CurriculumSubTitle() {
-  return <Box boxSize="100%" />
+  return <Box />
 }"

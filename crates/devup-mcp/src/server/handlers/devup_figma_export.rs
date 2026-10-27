@@ -46,6 +46,9 @@ impl DevupServer {
                 };
                 frames.extend(node);
             }
+            if let Some(response) = screen_plan::responsive_required(&project_root, &frames, &input.outputs).map_err(to_mcp_error)? {
+                return Ok(tool_result(response));
+            }
             let request = screen_plan::ExportRequest {
                 project_root: &project_root,
                 url: input.url.as_deref(),
@@ -127,7 +130,7 @@ impl DevupServer {
                 .wait_briefly(selection.active())
                 .await
                 .map_err(to_mcp_error)?;
-            let result = with_project_checks(
+            let result = project_context::checked_export(
                 result,
                 project_root.as_deref(),
                 &skills::Lookup::new(
@@ -135,7 +138,7 @@ impl DevupServer {
                     self.output_policy.primary_root(),
                     self.client_name(),
                 ),
-            );
+            ).await;
             if selection.active() {
                 return compact::pick(&result, selection)
                     .map(tool_result)
@@ -245,6 +248,8 @@ impl DevupServer {
             input.url = Some(target.link(target.node_id.as_deref()));
         }
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
+            // No url and no artifact is the file the attached bridge plugin
+            // has open, so its frames are linked as figma-bridge://current.
             let target = if let Some(url) = &input.url {
                 FigmaTarget::parse(url).ok()
             } else if let Some(id) = &input.artifact_id {
@@ -253,29 +258,65 @@ impl DevupServer {
                     .await
                     .map(|a| a.payload.target.clone())
             } else {
-                None
+                Some(FigmaTarget::bridge_current())
             };
-            let url = target
+            // One referencePng-only call per frame. The other outputs stay on
+            // the original multi-frame call: repeating responsiveTsx on a
+            // single frame would only be refused as responsive_required.
+            let reference_call = |url: &str| {
+                let mut arguments = json!({"url": url, "outputs": ["referencePng"], "scope": "node"});
+                if let Some(root) = &input.project_root {
+                    arguments["projectRoot"] = json!(root);
+                }
+                json!({"tool": "devup_figma_export", "arguments": arguments})
+            };
+            let reference_calls = target
                 .as_ref()
-                .zip(input.frame_ids.first())
-                .map(|(target, id)| target.link(Some(id)));
-            let mut arguments = json!(input);
-            for key in ["artifactId", "frameIds", "allScreens", "url"] {
-                arguments.as_object_mut().unwrap().remove(key);
-            }
-            arguments["scope"] = json!("node");
-            if let Some(url) = &url {
-                arguments["url"] = json!(url);
-            }
+                .map(|target| {
+                    input
+                        .frame_ids
+                        .iter()
+                        .map(|id| reference_call(&target.link(Some(id))))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let remaining_outputs = input
+                .outputs
+                .iter()
+                .filter(|output| *output != "referencePng")
+                .cloned()
+                .collect::<Vec<_>>();
+            let remaining_call = (!remaining_outputs.is_empty()).then(|| {
+                let mut arguments = json!(input);
+                arguments["outputs"] = json!(remaining_outputs);
+                json!({"tool": "devup_figma_export", "arguments": arguments})
+            });
+            let available = !reference_calls.is_empty();
+            let next_action = if let Some(first) = reference_calls.first() {
+                let mut next = first.clone();
+                next["omitArguments"] = json!(["artifactId", "frameIds", "allScreens"]);
+                next["how"] = json!(include_str!("../text/mod-devup_figma_export-1fe13d5b.md"));
+                next
+            } else {
+                let mut arguments = json!(input);
+                for key in ["artifactId", "frameIds", "allScreens", "url"] {
+                    arguments.as_object_mut().unwrap().remove(key);
+                }
+                arguments["scope"] = json!("node");
+                arguments["outputs"] = json!(["referencePng"]);
+                json!({"tool": "devup_figma_export", "arguments": arguments,
+                    "requiredArguments": ["url"],
+                    "omitArguments": ["artifactId", "frameIds", "allScreens"],
+                    "how": include_str!("../text/mod-devup_figma_export-1fe13d5b.md")})
+            };
             return Err(to_mcp_error(DevupError::with_details(
                 ErrorCode::DevupSnapshotUnsupported,
                 "referencePng can only be collected for a single Figma link target.",
                 false,
-                json!({"recoveryState":if url.is_some() {"available"} else {"manual-fix-required"},
-                    "nextAction":{"tool":"devup_figma_export","arguments":arguments,
-                        "requiredArguments":if url.is_some() {Vec::<&str>::new()} else {vec!["url"]},
-                        "omitArguments":["artifactId","frameIds","allScreens"],
-                        "how":include_str!("../text/mod-devup_figma_export-1fe13d5b.md")}}),
+                json!({"recoveryState": if available {"available"} else {"manual-fix-required"},
+                    "nextAction": next_action,
+                    "referenceCalls": reference_calls,
+                    "remainingCall": remaining_call}),
             )));
         }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
@@ -430,7 +471,7 @@ impl DevupServer {
                     )
                     .await
                     .map_err(to_mcp_error)?;
-                return Ok(tool_result(with_project_checks(
+                let mut result = project_context::checked_export(
                     result,
                     input.project_root.as_deref(),
                     &skills::Lookup::new(
@@ -438,7 +479,9 @@ impl DevupServer {
                         self.output_policy.primary_root(),
                         self.client_name(),
                     ),
-                )));
+                ).await;
+                compact::refresh_reply_selection(&mut result, &input.response_selection).map_err(to_mcp_error)?;
+                return Ok(tool_result(result));
             }
             validate_artifact_projection(
                 &artifact,
@@ -483,7 +526,7 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            let mut result = with_project_checks(
+            let mut result = project_context::checked_export(
                 result,
                 input.project_root.as_deref(),
                 &skills::Lookup::new(
@@ -491,7 +534,7 @@ impl DevupServer {
                     self.output_policy.primary_root(),
                     self.client_name(),
                 ),
-            );
+            ).await;
             if manifest_added {
                 let warning = json!({"code":"DEVUP_ASSET_MANIFEST_ADDED","message":"assetManifest was automatically added to outputs for assetRequests."});
                 if let Some(warnings) = result["warnings"].as_array_mut() { warnings.push(warning); }
@@ -613,7 +656,7 @@ impl DevupServer {
             ok => ok,
         }
         .map_err(to_mcp_error)?;
-        let mut result = with_project_checks(
+        let mut result = project_context::checked_export(
             result,
             input.project_root.as_deref(),
             &skills::Lookup::new(
@@ -621,7 +664,7 @@ impl DevupServer {
                 self.output_policy.primary_root(),
                 self.client_name(),
             ),
-        );
+        ).await;
         if manifest_added {
             let warning = json!({"code":"DEVUP_ASSET_MANIFEST_ADDED","message":"assetManifest was automatically added to outputs for assetRequests."});
             if let Some(warnings) = result["warnings"].as_array_mut() { warnings.push(warning); }

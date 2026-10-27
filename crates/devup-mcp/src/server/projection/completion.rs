@@ -29,16 +29,23 @@ pub(super) async fn complete_operation(
     }
     // What this export wrote for each marked node, so the audit can tell
     // code drift from a converter bug later.
-    if let Some(root) = project_root.as_deref()
-        && response.get("figmaNodeIds").is_some()
-    {
+    if let Some(root) = project_root.as_deref() {
         let root_node = payload.target.node_id.clone().unwrap_or_default();
+        let mut record_source = response.clone();
+        for (key, code) in default_code_paths::written_sources(&response) {
+            if let Some(frame_key) = key.strip_prefix("frame:") {
+                if let Some((id, output)) = frame_key.rsplit_once(':')
+                    && let Some(frames) = record_source["frames"].as_array_mut() {
+                    for frame in frames.iter_mut().filter(|frame| frame["nodeId"] == id) { frame[output] = json!(code); }
+                }
+            } else { record_source[&key] = json!(code); }
+        }
         match super::export_record::write(
             output_policy,
             root,
             &payload.target.file_key,
             &root_node,
-            &response,
+            &record_source,
         ) {
             Ok(path) => response["exportRecord"] = json!(path),
             Err(error) => response["exportRecordError"] = json!(error.message),

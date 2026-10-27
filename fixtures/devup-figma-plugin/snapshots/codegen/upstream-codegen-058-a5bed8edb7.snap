@@ -2,4 +2,5 @@
 source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
-"<Flex alignItems="center" boxSize="100%" justifyContent="space-between" />"
+
+"<Flex alignItems="center" justifyContent="space-between" />"

@@ -1,5 +1,6 @@
 //! Static navigation checks share the UI inventory; they never guess destinations.
 use std::collections::{BTreeMap, BTreeSet};
+use devup_mcp_devup_ui::effective_attributes::AttributeContext;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
@@ -33,6 +34,7 @@ struct Collector<'s> {
     link_names: BTreeSet<String>,
     elements: Vec<Value>,
     diagnostics: Vec<Value>,
+    attributes: AttributeContext,
 }
 
 // Only literal visual markers on a navigation candidate warrant this hint.
@@ -89,22 +91,6 @@ fn fixed_visual_marker(attrs: &BTreeMap<&str, &JSXAttribute<'_>>) -> bool {
             .is_some_and(|v| !v.is_empty() && v != "transparent"))
 }
 
-fn boolean(a: &JSXAttribute<'_>) -> Option<bool> {
-    match &a.value {
-        None => Some(true),
-        Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
-            JSXExpression::BooleanLiteral(b) => Some(b.value),
-            _ => None,
-        },
-        Some(JSXAttributeValue::StringLiteral(s)) => match s.value.as_str() {
-            "true" => Some(true),
-            "false" => Some(false),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 impl<'a> Visit<'a> for Collector<'_> {
     fn visit_import_declaration(&mut self, declaration: &ImportDeclaration<'a>) {
         if declaration.source.value == "next/link" {
@@ -131,74 +117,31 @@ impl<'a> Visit<'a> for Collector<'_> {
                 }
             })
             .collect();
-        let rendered_as = attrs.get("as").and_then(|a| match &a.value {
-            Some(JSXAttributeValue::StringLiteral(s)) => Some(s.value.to_string()),
-            Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
-                JSXExpression::StringLiteral(s) => Some(s.value.to_string()),
-                JSXExpression::Identifier(i) => Some(i.name.to_string()),
-                _ => None,
-            },
-            _ => None,
-        });
+        let effective = self.attributes.read(&element.opening_element);
+        let rendered_as = effective.rendered_as();
         let name = rendered_as.as_deref().unwrap_or(name);
-        let props_href = attrs.get("props").is_some_and(|a| match &a.value {
-            Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
-                JSXExpression::ObjectExpression(o) => o.properties.iter().any(|p| {
-                    matches!(p, ObjectPropertyKind::ObjectProperty(p)
-                        if p.key.static_name().as_deref() == Some("href"))
-                }),
-                _ => false,
-            },
-            _ => false,
-        });
-        let has_href = attrs.contains_key("href") || props_href;
-        let href = attrs.get("href").and_then(|a| literal(a)).or_else(|| {
-            attrs.get("props").and_then(|a| match &a.value {
-                Some(JSXAttributeValue::ExpressionContainer(c)) => match &c.expression {
-                    JSXExpression::ObjectExpression(o) => o.properties.iter().find_map(|p| match p {
-                        ObjectPropertyKind::ObjectProperty(p)
-                            if p.key.static_name().as_deref() == Some("href") =>
-                        {
-                            match &p.value {
-                                Expression::StringLiteral(s) => Some(s.value.to_string()),
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    }),
-                    _ => None,
-                },
-                _ => None,
-            })
-        });
+        let has_href = effective.contains("href");
+        let href = effective.literal("href");
         let is_link = name == "a" || self.link_names.contains(name);
         let native = matches!(name, "button" | "input" | "select" | "textarea")
-            && !attrs
-                .get("type")
-                .and_then(|a| literal(a))
+            && !effective.literal("type")
                 .is_some_and(|s| s == "hidden");
-        let handler = attrs
-            .keys()
-            .any(|k| matches!(*k, "onClick" | "onChange" | "onSubmit"));
+        let handler = ["onClick", "onChange", "onSubmit"].iter().any(|name| effective.contains(name));
         let static_target = href
             .as_deref()
             .is_some_and(|h| !h.trim().is_empty() && h != "#" && !h.starts_with("javascript:"));
-        let disabled = attrs.get("disabled").and_then(|a| boolean(a)) == Some(true);
+        let disabled = effective.boolean("disabled") == Some(true);
         let native_toggle = name == "input"
-            && attrs
-                .get("type")
-                .and_then(|a| literal(a))
+            && effective.literal("type")
                 .is_some_and(|s| ["checkbox", "radio"].contains(&s.as_str()));
         let form_control = native
             && self.form_ancestors > 0
             && (name != "button"
-                || attrs
-                    .get("type")
-                    .and_then(|a| literal(a))
+                || effective.literal("type")
                     .is_none_or(|t| t == "submit"));
         let wired = (is_link && static_target) || (native && handler) || form_control;
         let form_action =
-            name == "form" && (attrs.contains_key("action") || attrs.contains_key("onSubmit"));
+            name == "form" && (effective.contains("action") || effective.contains("onSubmit"));
         let own_text = element
             .children
             .iter()
@@ -211,11 +154,9 @@ impl<'a> Visit<'a> for Collector<'_> {
             })
             .collect::<Vec<_>>()
             .join(" ");
-        let accessible_name = attrs
-            .get("aria-label")
-            .and_then(|a| literal(a))
+        let accessible_name = effective.literal("aria-label")
             .unwrap_or(own_text);
-        let role = attrs.get("role").and_then(|a| literal(a));
+        let role = effective.literal("role");
         let nav = name == "nav"
             || role.as_deref() == Some("navigation")
             || matches!(
@@ -241,15 +182,11 @@ impl<'a> Visit<'a> for Collector<'_> {
             .filter(|b| *b == b'\n')
             .count()
             + 1;
-        let active = attrs
-            .get("aria-current")
-            .is_some_and(|a| literal(a).is_some_and(|s| s != "false"))
+        let active = effective.literal("aria-current").is_some_and(|s| s != "false")
             || ["data-active", "aria-selected"]
                 .iter()
-                .any(|k| attrs.get(k).is_some_and(|a| boolean(a) == Some(true)))
-            || attrs.get("data-state").is_some_and(|a| {
-                literal(a).is_some_and(|s| ["active", "selected"].contains(&s.as_str()))
-            });
+                .any(|k| effective.boolean(k) == Some(true))
+            || effective.literal("data-state").is_some_and(|s| ["active", "selected"].contains(&s.as_str()));
         let visual_marker = !active
             && ((candidate
                 && (self.nav_ancestors > 0 || nav || is_link || role.as_deref() == Some("tab")))
@@ -289,6 +226,7 @@ pub(super) fn source_evidence(source: &str) -> Value {
     }
     let mut collector = Collector {
         source,
+        attributes: AttributeContext::from_program(&parsed.program),
         ..Default::default()
     };
     // Imports may follow declarations; collect aliases before traversing JSX.
@@ -594,16 +532,45 @@ pub(super) fn suggestions(candidates: &Value, inventory: &Value) -> Value {
             ("reservation", vec!["reservation", "견적", "문의하기"]),
             ("about", vec!["about", "소개"]),
             ("services", vec!["services", "서비스"]),
+            ("location", vec!["location", "오시는 길", "찾아오시는 길", "map"]),
+            ("contact", vec!["contact", "문의", "연락"]),
+            ("company", vec!["company", "회사", "기업"]),
+            ("news", vec!["news", "뉴스", "소식"]),
+            ("notice", vec!["notice", "공지"]),
+            ("products", vec!["products", "제품"]),
+            ("technology", vec!["technology", "기술"]),
+            ("research", vec!["research", "연구"]),
+            ("patents", vec!["patents", "특허"]),
+            ("vision", vec!["vision", "비전"]),
+            ("history", vec!["history", "연혁"]),
+            ("ceo", vec!["ceo", "인사말"]),
+            ("careers", vec!["careers", "채용"]),
+            ("partners", vec!["partners", "파트너"]),
         ];
-        let options=array(&inventory["routes"]).iter().filter(|r| {
+        let compact = |value: &str| value.split_whitespace().collect::<String>().to_lowercase();
+        let matches_label = |value: &Value| value.as_str().is_some_and(|value| !value.is_empty() && ["text", "name"].iter().any(|key| candidate[*key].as_str().is_some_and(|text| compact(text) == compact(value))));
+        let mut options = array(&inventory["codeLinks"]).iter().filter(|link| matches_label(&link["label"]))
+            .map(|link| json!({"route":link["href"],"evidence":link["evidence"],"kind":"existing-code-link","requiresRecordId":link["href"].as_str().is_some_and(|s|s.contains('['))})).collect::<Vec<_>>();
+        let resolved = !options.is_empty();
+        if options.is_empty() {
+            options = array(&inventory["confirmedRoutes"]).iter().filter(|route| matches_label(&route["name"]))
+                .map(|route| json!({"route":route["route"],"evidence":"confirmed-screen-plan","requiresRecordId":route["route"].as_str().is_some_and(|s|s.contains('['))})).collect();
+        }
+        if options.is_empty() {
+            options=array(&inventory["routes"]).iter().filter(|r| {
             let route=r["route"].as_str().unwrap_or("").to_lowercase();
-            concepts.iter().any(|(segment,labels)|route.split('/').any(|s|s==*segment) && labels.iter().any(|s|label.contains(s)))
+            concepts.iter().any(|(segment,labels)|route.split('/').any(|s|s==*segment) && labels.iter().any(|s|compact(&label).contains(&compact(s))))
         }).map(|r|json!({"route":r["route"],"page":r["page"],"appliesTo":r["appliesTo"],"requiresRecordId":r["route"].as_str().is_some_and(|s|s.contains('['))})).collect::<Vec<_>>();
-        result.push(json!({"nodeId":candidate["nodeId"],"suggestions":options,"targetResolved":false,
-            "reason":if options.is_empty(){"No matching route evidence; ask for destination/action."}else{"Label/path heuristic only; confirm authority and record IDs before wiring. Suggestions never resolve a target automatically."}}));
+        }
+        result.push(json!({"nodeId":candidate["nodeId"],"suggestions":options,"targetResolved":resolved,
+            "reason":if resolved {"Matching existing code link provides a literal destination and file:line evidence; runtime wiring remains unverified."} else if options.is_empty(){"No matching route evidence; ask for destination/action."}else{"Plan/label/path suggestion only; confirm authority and record IDs before wiring."}}));
     }
     json!(result)
 }
+
+#[cfg(test)]
+#[path = "navigation_suggestion_tests.rs"]
+mod suggestion_tests;
 
 /// Compare only explicitly bound URLs. Figma destination node IDs remain unverified.
 pub(super) fn graph(

@@ -306,6 +306,7 @@ pub fn select(
     }
     let evidence_fields = [
         "projectionIssues",
+        "instanceOverrides",
         "projectionEvidence",
         "completenessReport",
         "fidelity",
@@ -339,7 +340,7 @@ pub fn select(
         .get("projectionIssues")
         .and_then(Value::as_array)
         .map_or(0, Vec::len);
-    let issues=result.get("projectionIssues").and_then(Value::as_array).map(|items|items.iter().take(10).map(|v|json!({"code":v["code"],"nodeId":v["nodeId"],"property":v["property"],"fidelityImpact":v["fidelityImpact"],"message":v["message"].as_str().map(|s|s.chars().take(240).collect::<String>())})).collect::<Vec<_>>()).unwrap_or_default();
+    let issues=result.get("projectionIssues").and_then(Value::as_array).map(|items|items.iter().take(10).map(|v|json!({"code":v["code"],"nodeId":v["nodeId"],"property":v["property"],"fidelityImpact":v["fidelityImpact"],"how":v["how"].as_str().or_else(|| v["details"]["nextAction"].as_str()).or_else(|| v["details"]["nextAction"]["how"].as_str()),"message":v["message"].as_str().map(|s|s.chars().take(240).collect::<String>())})).collect::<Vec<_>>()).unwrap_or_default();
     let output_results = result.get("outputResults").and_then(Value::as_object).map(|items| items.iter().map(|(name,v)|(name.clone(),json!({"state":v["state"],"projection":v["projection"],"bodyDelivery":"omitted-by-selection"}))).collect::<serde_json::Map<_,_>>());
     result.retain(|key, _| {
         matches!(
@@ -427,6 +428,15 @@ pub fn refresh_reply_selection(reply: &mut Value, options: &ResponseSelection) -
         }
     } else {
         reply["selected"] = json!({"selections":picked["selections"]});
+    }
+    if let Some(object) = reply.as_object_mut() {
+        object.retain(|key, _| matches!(key.as_str(),
+            "status" | "source" | "cache" | "quality" | "completeness" | "collection" |
+            "verificationScope" | "outputPaths" | "outputPathResults" | "resume" |
+            "responsiveEvidence" | "mappingComplete" | "projectionIssues" | "selectionEvidence" |
+            "deliverable" | "outputResults" | "selected" | "resources" | "delivery" |
+            "sizeEstimate" | "metadataDelivery" | "responseTruncated" | "artifactId" |
+            "exportJob" | "assetJob" | "summary" | "reviewChecklist" | "warnings"));
     }
     Ok(())
 }

@@ -248,7 +248,7 @@ pub(super) fn project_section_frames(input: SectionFrames<'_>) -> SectionFramePr
                     .iter()
                     .filter(
                         |d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None
-                            || d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                            || matches!(d.code.as_str(), "DEVUP_CODEGEN_PROPERTY_UNMAPPED" | "DEVUP_CODEGEN_SUSPICIOUS_VALUE")
                     )
                     .collect::<Vec<_>>()
             );

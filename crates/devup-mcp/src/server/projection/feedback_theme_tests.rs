@@ -20,6 +20,19 @@ fn feedback_theme_payload() -> CollectedPayload {
 }
 
 #[tokio::test]
+async fn feedback_theme_reports_dropped_modes_without_optional_diagnostics() {
+    let mut data = feedback_theme_payload();
+    data.variables.as_mut().unwrap().raw["collections"] = json!([
+        {"id":"empty","name":"Empty","defaultModeId":"one","modes":[{"modeId":"one","name":"Mode 1"}]}
+    ]);
+    let mut op = operation(&["devupJson"]);
+    if let PendingOperation::Export { include_diagnostics, .. } = &mut op { *include_diagnostics = false; }
+    let result = project(data, op).await.unwrap();
+    assert_eq!(result["themeModesDropped"][0]["collectionId"], "empty");
+    assert_eq!(result["themeModesDropped"][0]["reason"], "no-defined-color-values");
+}
+
+#[tokio::test]
 async fn feedback_theme_partial_export_keeps_code_and_valid_styles_with_named_issue() {
     let mut data = feedback_theme_payload();
     data.snapshot.nodes.get_mut("1:1").unwrap().fields.insert("textStyleId".into(), json!("bad"));

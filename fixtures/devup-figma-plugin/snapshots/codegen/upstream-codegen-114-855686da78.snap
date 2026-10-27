@@ -5,6 +5,7 @@ expression: actual
 
 "<Box h="50px" isolation="isolate" pos="relative" w="100px">
   <Box
+    aria-hidden="true"
     bg="url(/images/tileimageframe.png) repeat"
     borderRadius="inherit"
     inset="0"

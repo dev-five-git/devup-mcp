@@ -20,6 +20,19 @@ fn build_identity_composes_clean_dirty_and_safe_fallbacks() {
         None
     );
     assert_eq!(build_identity::git_identity(None, false), None);
+    assert_eq!(
+        build_identity::dirty_identity(Some("0123456789ab"), Some("1a2b3c4d")).as_deref(),
+        Some("0123456789ab-dirty.1a2b3c4d")
+    );
+    assert_ne!(
+        build_identity::dirty_identity(Some("0123456789ab"), Some("1a2b3c4d")),
+        build_identity::dirty_identity(Some("0123456789ab"), Some("5e6f7a8b")),
+        "two different uncommitted edits of one commit get different ids"
+    );
+    assert_eq!(
+        build_identity::dirty_identity(Some("0123456789ab"), Some("bad hash")).as_deref(),
+        Some("0123456789ab-dirty")
+    );
 }
 
 #[test]
@@ -74,11 +87,11 @@ fn version_build_id_reports_the_repository_dirty_state() {
         env!("DEVUP_MCP_GIT_DIRTY"),
     ) {
         ("git", "true") => assert!(
-            build_id.ends_with("-dirty"),
+            build_id.contains("-dirty"),
             "the build script saw a dirty tree, so --version must say so: {build_id}"
         ),
         ("git", "false") => assert!(
-            !build_id.ends_with("-dirty"),
+            !build_id.contains("-dirty"),
             "the build script saw a clean tree, so --version must not claim dirty: {build_id}"
         ),
         // An injected DEVUP_MCP_BUILD_ID carries whatever suffix its caller

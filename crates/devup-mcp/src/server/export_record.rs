@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 
 use super::output::{OutputPolicy, OutputTransaction};
 
+
 pub(super) const EXPORTS_DIR: &str = ".devup/exports";
 pub(super) const CONVERTER_BUGS_DIR: &str = ".devup/converter-bugs";
 const RECORD_KIND: &str = "devup-export-record";
@@ -191,9 +192,18 @@ pub(super) fn write(
             }
         }
     }
-    if nodes.is_empty() {
+    let generated = response["responsiveTsx"].as_str().or_else(|| response["tsx"].as_str()).or_else(|| response["componentTsx"].as_str());
+    if generated.is_none() && nodes.is_empty() && response["frames"].as_array().is_none_or(|frames| frames.is_empty()) {
         return Ok(None);
     }
+    let output = if response["responsiveTsx"].is_string() { Some("responsiveTsx") }
+        else if response["tsx"].is_string() { Some("tsx") }
+        else if response["componentTsx"].is_string() { Some("componentTsx") } else { output };
+    let mut frame_ids = response["responsiveEvidence"]["frames"].as_array().into_iter().flatten()
+        .chain(response["frames"].as_array().into_iter().flatten())
+        .filter_map(|frame| frame["nodeId"].as_str()).map(str::to_owned)
+        .collect::<std::collections::BTreeSet<_>>();
+    if frame_ids.is_empty() && !root_node_id.is_empty() { frame_ids.insert(root_node_id.to_owned()); }
     let mut source_map = BTreeMap::<String, Vec<Value>>::new();
     for entry in response["outputResults"]["tsx"]["_sourceMap"]
         .as_array()
@@ -222,10 +232,13 @@ pub(super) fn write(
         "output": output,
         "nodes": nodes,
         "responsive": response["figmaNodeIds"]["responsive"],
+        "frameIds": frame_ids,
+        "artifactId": response["artifactId"],
+        "generatedStyles": generated.map(style_elements),
     });
     let path = Path::new(project_root)
         .join(EXPORTS_DIR)
-        .join(format!("{}.json", file_name(root_node_id)));
+        .join(format!("{}.json", file_name(frame_ids.iter().next().map_or(root_node_id, String::as_str))));
     let target = policy.resolve(&path.to_string_lossy())?;
     let display = target.display_path().display().to_string();
     let bytes = serde_json::to_vec_pretty(&record).map_err(|error| {
@@ -404,3 +417,5 @@ pub(super) fn write_repro(
     transaction.commit()?;
     Ok((display, repro))
 }
+
+include!("export_record/generated_drift.rs");

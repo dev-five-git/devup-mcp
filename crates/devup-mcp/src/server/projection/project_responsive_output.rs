@@ -177,6 +177,12 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
             "responsiveReviewChecklist".into(),
             responsive_groups::review(&responsive_snapshot),
         );
+        for diagnostic in &merged.diagnostics {
+            projection_diagnostics.push(diagnostic.clone());
+            if let Some(review) = result.get_mut("responsiveReviewChecklist").and_then(|review| review.get_mut("items")).and_then(Value::as_array_mut) {
+                review.push(json!({"code":diagnostic.code,"nodeId":diagnostic.node_id,"details":diagnostic.details}));
+            }
+        }
         responsive_widths = responsive_snapshot
             .roots
             .iter()

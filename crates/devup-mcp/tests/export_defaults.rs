@@ -79,7 +79,10 @@ impl FigmaUpstream for Fixture {
 }
 
 async fn export(arguments: Value) -> anyhow::Result<Value> {
-    let server = DevupServer::new(Services::new(Arc::new(Auth), Arc::new(Fixture::default())));
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(Auth), Arc::new(Fixture::default())),
+        vec![std::env::temp_dir()],
+    )?;
     let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -101,6 +104,25 @@ async fn export(arguments: Value) -> anyhow::Result<Value> {
             .expect("structured error")
     );
     Ok(result.structured_content.unwrap())
+}
+
+#[tokio::test]
+async fn project_root_writes_default_code_without_inlining() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-default-export-{}", std::process::id()));
+    std::fs::create_dir_all(&root)?;
+    let output = export(json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","projectRoot":root})).await?;
+    let path = output["defaultOutputPaths"]["tsx"]
+        .as_str()
+        .expect("default code path");
+    assert!(path.ends_with("1-2.tsx"), "{output}");
+    assert!(!std::fs::read_to_string(path)?.is_empty());
+    assert!(output.get("tsx").is_none(), "{output}");
+    assert_eq!(
+        output["outputResults"]["tsx"]["bodyDelivery"],
+        "written-to-file"
+    );
+    std::fs::remove_dir_all(root)?;
+    Ok(())
 }
 
 async fn export_tool_schema() -> anyhow::Result<(Value, String)> {

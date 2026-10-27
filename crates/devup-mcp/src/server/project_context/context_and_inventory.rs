@@ -17,6 +17,7 @@ mod ui;
 mod export;
 pub(super) use export::attach as attach_export_context;
 pub(super) use export::export_context;
+pub(super) use export::checked_export;
 
 pub(super) fn routes_for_validation(project_root: Option<&str>) -> Value {
     project_root.map(export_context).map(|v|v["ui"].clone())

@@ -830,6 +830,8 @@ async fn project_operation(
                     asset_names_per_node,
                     strict,
                     output_paths,
+                    project_root: theme_options.project_root.clone(),
+                    default_node_id: if frame_ids.len() == 1 { frame_ids[0].clone() } else { payload.target.node_id.clone().unwrap_or_else(|| "export".into()) },
                     page_scaffold,
                     asset_captures,
                     web_ready_images,

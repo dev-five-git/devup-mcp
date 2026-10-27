@@ -64,7 +64,12 @@ async fn call_tool(tool: &str, arguments: Value) -> anyhow::Result<CallToolResul
         anyhow::Ok(())
     });
     let client = ().serve(client_transport).await?;
-    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap_or_default();
+    let mut arguments: Map<String, Value> = arguments.as_object().cloned().unwrap_or_default();
+    if tool == "devup_ui_validate" {
+        arguments
+            .entry("detail".to_owned())
+            .or_insert(json!("full"));
+    }
     let result = client
         .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments))
         .await?;
@@ -82,6 +87,53 @@ fn fixture_project_root() -> String {
         "{}/tests/fixtures/ground-truth-project",
         env!("CARGO_MANIFEST_DIR")
     )
+}
+
+#[tokio::test]
+async fn link_underline_paths_checks_project_src_reset_outside_selected_file() -> anyhow::Result<()>
+{
+    let root = std::env::temp_dir().join(format!(
+        "link-underline-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    std::fs::create_dir_all(root.join("src/components"))?;
+    std::fs::write(root.join("package.json"), "{}")?;
+    std::fs::write(
+        root.join("src/components/View.tsx"),
+        "export const View = () => <a href='/'>Go</a>;",
+    )?;
+    let arguments =
+        json!({"projectRoot":root.to_string_lossy(),"paths":["src/components/View.tsx"]});
+    let bare = call_tool("devup_ui_validate", arguments.clone())
+        .await?
+        .structured_content
+        .unwrap();
+    assert!(
+        bare["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["rule"] == "link-underline")
+    );
+    std::fs::write(
+        root.join("src/Reset.ts"),
+        "globalCss({ a: { textDecoration: 'none', color: 'inherit' } });",
+    )?;
+    let reset = call_tool("devup_ui_validate", arguments)
+        .await?
+        .structured_content
+        .unwrap();
+    assert!(
+        !reset["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["rule"] == "link-underline")
+    );
+    assert_eq!(reset["pathsRead"], 1);
+    std::fs::remove_dir_all(root)?;
+    Ok(())
 }
 
 #[tokio::test]
