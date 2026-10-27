@@ -52,3 +52,42 @@ connection from a running process alone.
 Status fields may differ on older hosts. This procedure doesn't assume a
 `hostStale` field or an `ensure` tool exists. Missing diagnostics require manual
 inspection, not an invented tool call. Never switch to metered OAuth silently.
+
+## Stale Plugin Build
+
+Check `paths.bridge.pluginStale` and each attached file's `pluginBuild`:
+`expected` and `actual` are script SHA-256 identities; `expectedProtocol` and
+`actualProtocol` identify the plugin wire contract. `state: stale-unknown`
+means an older plugin did not supply identity, not that it is current. Matching
+pluginVersion alone is insufficient. `DEVUP_BRIDGE_PLUGIN_STALE` on an export
+reports the identity of the plugin that served that acquisition, even on reuse.
+
+A plugin that sends `liveScripts: true` in its hello and speaks the same
+protocol is sent this server's scripts over the bridge socket
+(`scripts-update`) and reports the new hash on its own. Call status again
+after a second; if it now reads `current`, nothing else is needed. The steps
+below are for a plugin built before live scripts, a protocol mismatch, or a
+plugin whose update failed.
+
+1. Locate the real repository supplying this server and plugin. In `plugin/`,
+   run `npm ci`, then `npm run build`. Record the printed scriptsHash.
+2. Load computer-use and foreground Figma desktop and the intended file tab.
+   If necessary choose **Plugins > Development > Import plugin from manifest...**
+   and select that repository's `plugin/manifest.json`.
+3. Close the running Devup Bridge window and re-run
+   **Plugins > Development > Devup Bridge**. Reconnecting the old running window
+   does not load rebuilt scripts.
+4. Call `devup_figma_auth { action: "status" }`; require the attached plugin's
+   actual hash/protocol to match expected, `pluginStale: false`, and the intended
+   file/page/selection. Verify a small known-node read. If computer use is
+   unavailable, report the exact GUI step blocked rather than claiming reload.
+
+## Broken Design Component Sets
+
+`DEVUP_DESIGN_COMPONENT_SET_ERROR` means Figma itself refused component/state
+getters because the component set has existing errors or is invalid. It is not
+evidence that reactions were omitted or that the plugin is old. Report nodeId,
+component set name/id when known, and the original getter reason. Ask the user
+to open the set in Figma and fix the warning Figma shows on it. Never auto-edit
+the user's design. Readable reactions still contribute interaction candidates;
+this design error does not invalidate other nodes' interaction coverage.

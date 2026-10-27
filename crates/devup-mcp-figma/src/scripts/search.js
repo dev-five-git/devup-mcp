@@ -55,7 +55,8 @@ function score(name) {
 
 function excluded(node) {
   for (let current = node; current && current.type !== "DOCUMENT"; current = current.parent) {
-    if (current.visible === false || current.opacity === 0) return true;
+    // SECTION nodes have no opacity; reading it throws in the plugin API.
+    if (current.visible === false || ("opacity" in current && current.opacity === 0)) return true;
     const name = (current.name || "").toLowerCase();
     if (["trash", "archive", "draft", "copy", "hidden", "휴지통", "보관", "초안", "복사", "pdf", "저장용", "export", "출력"].some(keyword => name.includes(keyword))) return true;
   }
@@ -98,7 +99,7 @@ return {
     fields: {
       name: node.name,
       visible: node.visible !== false,
-      opacity: typeof node.opacity === "number" ? node.opacity : 1,
+      opacity: "opacity" in node && typeof node.opacity === "number" ? node.opacity : 1,
       searchCandidatesTruncated: node === root && ranked.length > candidates.length,
       parentId: node.parent && node.parent.type !== "DOCUMENT" ? node.parent.id : null,
       childrenIds: "children" in node ? node.children.map((child) => child.id) : [],

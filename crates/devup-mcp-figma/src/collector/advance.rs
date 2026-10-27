@@ -374,7 +374,7 @@ impl CollectorSession {
         }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
-            let snapshot_chunks = if self.request.metadata_only || self.request.variables_only {
+            let mut snapshot_chunks = if self.request.metadata_only || self.request.variables_only {
                 vec![SnapshotChunk {
                     file_key: self.request.target.file_key.clone(),
                     version: self.source_version.clone(),
@@ -391,6 +391,20 @@ impl CollectorSession {
                 self.restore_section_visual_order(chunks)?
             };
             self.finish_stats(&snapshot_chunks);
+            if let Some(served) = &self.stats.bridge {
+                let context = crate::PluginContext { scripts_hash: served.scripts_hash.clone(), protocol: served.protocol, ..Default::default() };
+                let build = context.plugin_build();
+                if build["pluginStale"] == true && let Some(chunk) = snapshot_chunks.first_mut() {
+                    chunk.diagnostics.push(crate::Diagnostic {
+                        code: "DEVUP_BRIDGE_PLUGIN_STALE".into(),
+                        message: "The serving Devup Bridge plugin has stale or unknown scripts; load figma-bridge-setup, rebuild and re-run the plugin with computer use, then verify devup_figma_auth status.".into(),
+                        severity: Some(crate::DiagnosticSeverity::Warning),
+                        fidelity_impact: Some(crate::FidelityImpact::None),
+                        details: Some(build),
+                        ..Default::default()
+                    });
+                }
+            }
             return Ok(CollectorStep::Complete(Box::new(CollectedParts {
                 target: self.request.target.clone(),
                 scope: self.request.scope,

@@ -281,6 +281,29 @@ fn a_plugin_origin(headers: &HeaderMap) -> bool {
     })
 }
 
+/// A plugin that can load scripts at run time (`liveScripts`) and speaks this
+/// protocol but runs older scripts gets this build's scripts. It answers with a
+/// new `hello` carrying the new hash, which matches and ends the exchange; a
+/// plugin that fails to load them sends nothing, so nothing repeats.
+fn offer_current_scripts(outbox: &mpsc::UnboundedSender<String>, hello: &Value) {
+    if script_update_needed(hello) {
+        let _ = outbox.send(
+            json!({
+                "kind": "scripts-update",
+                "scriptsHash": crate::PLUGIN_SCRIPTS_HASH,
+                "bundle": crate::PLUGIN_SCRIPTS_BUNDLE,
+            })
+            .to_string(),
+        );
+    }
+}
+
+fn script_update_needed(hello: &Value) -> bool {
+    hello["liveScripts"] == true
+        && hello["protocol"].as_u64() == Some(u64::from(crate::PLUGIN_PROTOCOL))
+        && hello["scriptsHash"].as_str() != Some(crate::PLUGIN_SCRIPTS_HASH)
+}
+
 /// 플러그인이 붙는 문.
 async fn plugin_socket(
     State(state): State<BridgeState>,
@@ -321,6 +344,7 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                 match value.get("kind").and_then(Value::as_str) {
                     Some("hello") => {
                         state.announce_server(&outbox);
+                        offer_current_scripts(&outbox, &value);
                         // 키가 없어도 등록한다. 건너뛰면 창은 "연결됨"이라고 하는데
                         // 어떤 읽기도 오지 않아 원인을 찾을 수 없다. 키 없는 연결을
                         // 어디까지 믿을지는 resolve 가 정한다.
@@ -358,6 +382,8 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                         if let Some(plugin) = inner.plugins.get_mut(&id) {
                             // 버전은 hello 에만 실려 온다. 맥락을 바꿔 끼워도 잃지 않는다.
                             context.plugin_version = plugin.context.plugin_version.take();
+                            context.scripts_hash = plugin.context.scripts_hash.take();
+                            context.protocol = plugin.context.protocol;
                             plugin.context = context;
                             state.plugins_changed(&mut inner);
                         }

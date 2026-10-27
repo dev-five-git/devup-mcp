@@ -37,6 +37,7 @@ const hardProtectedFields = new Set([
   "characters",
   "styledTextSegments",
   "boundVariables",
+  "overrides",
 ]);
 
 "__DEVUP_LARGE_VALUE_HELPERS__";

@@ -76,6 +76,7 @@ pub fn connection_report(
             "direct": direct_path(status, direct, usable.is_some()),
         },
         "nextAction": match active_path {
+            Some(ActivePath::Bridge) if attached.iter().any(|file| file.context.plugin_build()["pluginStale"] == true) => stale_plugin_action(),
             Some(ActivePath::Bridge) => bridge_next_action(attached),
             Some(ActivePath::Direct) => json!({
                 "tool": "devup_figma_export",
@@ -97,6 +98,10 @@ pub fn connection_report(
 }
 
 /// With plugins attached: the call to make, and whether it needs a url.
+fn stale_plugin_action() -> Value {
+    json!({"skill":"figma-bridge-setup","action":"A plugin that reports liveScripts is sent this server's scripts automatically; call devup_figma_auth status again after a second. If it is still stale, load the figma-bridge-setup skill. In the plugin directory run npm ci, then npm run build. Use computer use to foreground Figma desktop; import plugin/manifest.json via Plugins > Development > Import plugin from manifest if needed, close and re-run Devup Bridge, then verify devup_figma_auth status.","then":{"tool":"devup_figma_auth","arguments":{"action":"status"}}})
+}
+
 fn bridge_next_action(attached: &[AttachedFile]) -> Value {
     let [file] = attached else {
         return several_plugins(
@@ -450,6 +455,8 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
         "port": bridge.port,
         "host": bridge.host.as_ref().map(|host| peer(host, bridge.role == BridgeRole::Host)),
         "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
+        "pluginStale": bridge.attached_files.iter().any(|file| file.context.plugin_build()["pluginStale"] == true),
+        "expectedScriptsHash":devup_mcp_figma::PLUGIN_SCRIPTS_HASH,
         "attachedFilesNote": include_str!("../text/diagnostics-bridge_path-10545dbe.md"),
         "reason": bridge_reason(bridge),
     });
@@ -634,6 +641,9 @@ fn attached_file(file: &AttachedFile) -> Value {
         "contextFreshness":"last-delivered-event","observedAt":file.context.observed_at,
         "lastKnownSelection":file.context.last_known_selection,"lastKnownPage":file.context.last_known_page,
         "pluginVersion":file.context.plugin_version,
+        "scriptsHash":file.context.scripts_hash,"protocol":file.context.protocol,
+        "pluginBuild":file.context.plugin_build(),
+        "pluginStale":file.context.plugin_build()["pluginStale"],
         "displayContextEvidenceLimit":"Zoom is Figma viewport zoom; DPR belongs to the plugin UI iframe and does not verify screenshot capture scale.",
     });
     if let Some(in_view) = file.context.in_view {

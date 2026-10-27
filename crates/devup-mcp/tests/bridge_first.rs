@@ -108,6 +108,8 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 fn keyless_hello(file_name: &str) -> Value {
     json!({
         "kind": "hello",
+        "scriptsHash": devup_mcp_figma::PLUGIN_SCRIPTS_HASH,
+        "protocol": devup_mcp_figma::PLUGIN_PROTOCOL,
         "fileKey": null,
         "fileName": file_name,
         "currentPage": { "id": "0:1", "name": "Page 1" },
@@ -369,6 +371,9 @@ async fn an_older_plugin_cannot_promote_last_delivered_selection_to_current() ->
     assert_eq!(setup.remote_calls.load(Ordering::SeqCst), 0);
     Ok(())
 }
+
+#[path = "bridge_first/reference_png.rs"]
+mod reference_png;
 
 /// Calls one tool and returns its structured answer, error or not, polling an
 /// export job to completion the way a client does.

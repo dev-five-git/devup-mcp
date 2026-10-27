@@ -517,9 +517,20 @@ fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Opti
     let mut visible_children = Vec::new();
     for child_id in child_ids {
         let child = snapshot.nodes.get(child_id)?;
-        if child.typed_view().bool("visible") != Some(false) {
+        if child.typed_view().bool("visible") != Some(false)
+            || child.typed_view().value("componentPropertyReferences")
+                .and_then(|references| references.get("visible"))
+                .and_then(Value::as_str).is_some()
+        {
             visible_children.push(child);
         }
+    }
+
+    if visible_children.len() >= 2
+        && matches!(view.node_type(), "FRAME" | "INSTANCE" | "COMPONENT")
+        && matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL" | "GRID"))
+    {
+        return None;
     }
 
     visible_children

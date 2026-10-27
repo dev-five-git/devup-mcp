@@ -19,5 +19,6 @@
 
 // Source sections share this module to preserve privacy and test names.
 include!("bridge/transport_and_state.rs");
+include!("bridge/job_budgets.rs");
 include!("bridge/stamp_file_key.rs");
 include!("bridge/texts.rs");

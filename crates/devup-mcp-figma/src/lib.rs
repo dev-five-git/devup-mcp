@@ -12,6 +12,8 @@ mod explore;
 mod large_values;
 mod oauth;
 mod payload;
+mod plugin_scripts;
+pub use plugin_scripts::{PLUGIN_PROTOCOL, PLUGIN_SCRIPTS_BUNDLE, PLUGIN_SCRIPTS_HASH};
 mod resources;
 mod search;
 mod section;
