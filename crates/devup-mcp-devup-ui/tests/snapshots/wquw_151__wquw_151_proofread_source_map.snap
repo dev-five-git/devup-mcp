@@ -157,6 +157,13 @@ expression: output.source_map
       "elementIndex": 2
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.02em\"",
+      "nodeId": "3879:35520",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 2
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(28 * 140 / 100) = 39px",
       "generatedProperty": "lineHeight=\"39px\"",
       "nodeId": "3879:35520",
@@ -336,6 +343,13 @@ expression: output.source_map
       "elementIndex": 6
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35523",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 6
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35523",
@@ -406,6 +420,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35524",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 7
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35524",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 7
     },
@@ -612,6 +633,13 @@ expression: output.source_map
       "elementIndex": 11
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35528",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 11
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35528",
@@ -682,6 +710,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35529",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 12
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35529",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 12
     },
@@ -978,6 +1013,13 @@ expression: output.source_map
       "elementIndex": 17
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35535",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 17
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(15 * 160 / 100) = 24px",
       "generatedProperty": "lineHeight=\"24px\"",
       "nodeId": "3879:35535",
@@ -1098,6 +1140,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35536",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 22
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35536",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 22
     },
@@ -1254,6 +1303,13 @@ expression: output.source_map
       "elementIndex": 24
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35538",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 24
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35538",
@@ -1317,6 +1373,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35539",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 25
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35539",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 25
     },
@@ -1630,6 +1693,13 @@ expression: output.source_map
       "elementIndex": 32
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 32
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35545;1690:32933",
@@ -1768,6 +1838,13 @@ expression: output.source_map
       "elementIndex": 35
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 35
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35545;1690:32947",
@@ -1895,6 +1972,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"700\"",
       "nodeId": "3879:35547",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 37
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.02em\"",
+      "nodeId": "3879:35547",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 37
     },
@@ -2058,6 +2142,13 @@ expression: output.source_map
       "elementIndex": 40
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 40
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35549;1690:32933",
@@ -2196,6 +2287,13 @@ expression: output.source_map
       "elementIndex": 43
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 43
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35549;1690:32947",
@@ -2323,6 +2421,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35551",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 45
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35551",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 45
     },
@@ -2489,6 +2594,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 50
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 50
     },
@@ -2631,6 +2743,13 @@ expression: output.source_map
       "elementIndex": 53
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 53
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35553;1690:32947",
@@ -2758,6 +2877,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 55
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35555",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 55
     },
@@ -3011,6 +3137,13 @@ expression: output.source_map
       "elementIndex": 68
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 68
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35557;1690:32933",
@@ -3149,6 +3282,13 @@ expression: output.source_map
       "elementIndex": 71
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 71
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35557;1690:32947",
@@ -3276,6 +3416,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35559",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 73
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35559",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 73
     },
@@ -3446,6 +3593,13 @@ expression: output.source_map
       "elementIndex": 84
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 84
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35561;1690:32933",
@@ -3584,6 +3738,13 @@ expression: output.source_map
       "elementIndex": 87
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 87
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35561;1690:32947",
@@ -3711,6 +3872,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35563",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 89
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35563",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 89
     },
@@ -3968,6 +4136,13 @@ expression: output.source_map
       "elementIndex": 98
     },
     {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35566",
+      "property": "letterSpacing",
+      "resolution": "raw-fallback",
+      "elementIndex": 98
+    },
+    {
       "calculation": "round(fontSize * percent / 100) = round(18 * 170 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35566",
@@ -4086,6 +4261,13 @@ expression: output.source_map
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35568",
       "property": "fontWeight",
+      "resolution": "raw-fallback",
+      "elementIndex": 100
+    },
+    {
+      "generatedProperty": "letterSpacing=\"-0.01em\"",
+      "nodeId": "3879:35568",
+      "property": "letterSpacing",
       "resolution": "raw-fallback",
       "elementIndex": 100
     },

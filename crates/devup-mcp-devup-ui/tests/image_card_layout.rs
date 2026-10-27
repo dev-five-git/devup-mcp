@@ -428,6 +428,12 @@ fn omitted_or_absolute_images_and_non_flex_boxes_do_not_claim_intrinsic_flex_ris
                 .unwrap()
                 .fields
                 .remove("inferredAutoLayout");
+            snapshot
+                .nodes
+                .get_mut("root")
+                .unwrap()
+                .fields
+                .remove("layoutMode");
         }
         let output = generate(&snapshot);
         assert!(

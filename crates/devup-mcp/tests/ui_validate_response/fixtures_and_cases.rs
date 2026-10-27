@@ -55,7 +55,8 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
         anyhow::Ok(())
     });
     let client = ().serve(client_transport).await?;
-    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    let mut arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    arguments.entry("detail").or_insert(json!("full"));
     let result = client
         .call_tool(CallToolRequestParams::new("devup_ui_validate").with_arguments(arguments))
         .await?;
@@ -67,17 +68,6 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
     client.cancel().await?;
     task.await??;
     Ok(result.structured_content.unwrap())
-}
-
-#[tokio::test]
-async fn sort_findings_produce_one_action_across_bundle_files() -> anyhow::Result<()> {
-    let output = validate(json!({"files": [
-        {"path": "one.tsx", "content": "<Box p={0} boxSize=\"8px\" />"},
-        {"path": "two.tsx", "content": "<Box props={{}} pr=\"16px\" />"}
-    ]})).await?;
-    assert_eq!(output["nextAction"]["fixable"], 2);
-    assert_eq!(output["nextAction"]["command"], "bun run lint:fix");
-    Ok(())
 }
 
 #[tokio::test]

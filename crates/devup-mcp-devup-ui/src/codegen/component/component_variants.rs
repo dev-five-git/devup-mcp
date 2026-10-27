@@ -223,6 +223,11 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    for record in super::instance_overrides::instance_overrides(snapshot, root_id, options) {
+        output.tsx.push_str(&format!("\n// @devup-override {}\n", record.to_string()
+            .replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029")));
+        output.diagnostics.push(super::instance_overrides::diagnostic(record));
+    }
     super::image::attach_evidence(snapshot, options, &mut output);
     crate::provenance::account_for_sizing(snapshot, &mut output);
     validate_tsx(&output.tsx)?;

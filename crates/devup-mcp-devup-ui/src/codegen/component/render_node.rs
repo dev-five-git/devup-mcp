@@ -213,7 +213,7 @@ fn render_node(
     } else if layout::centres_its_only_child(snapshot, node) {
         "Center"
     } else {
-        match inferred_mode {
+        match inferred_mode.or_else(|| view.string("layoutMode")) {
             Some("GRID") => "Grid",
             Some("HORIZONTAL" | "VERTICAL")
                 if inferred_align("primaryAxisAlignItems") == Some("CENTER")
@@ -239,6 +239,7 @@ fn render_node(
         context.width_policy.as_ref(),
         super::image::original_image(node, &context.asset_policies),
     );
+    context.diagnostics.extend(layout::suspicious_values(snapshot, node, &props));
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
     // padding instead, which puts them where they belong on its own — so the
@@ -307,6 +308,7 @@ fn render_node(
         &context.length_tokens,
         &mut context.used_tokens,
     );
+    text::elide_tokenized_typography(&mut props, &context.typography_values, &context.length_tokens);
     // Last, as the plugin merges `getReactionProps` last: what a timed Smart
     // Animate changes becomes keyframes on the child it changes, or on the
     // frame itself.

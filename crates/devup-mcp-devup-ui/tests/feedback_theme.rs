@@ -217,7 +217,7 @@ fn collected_equal_typography_properties_are_elided_but_local_overrides_stay() {
 }
 
 #[test]
-fn responsive_typography_elides_only_properties_equal_at_every_slot() {
+fn responsive_typography_elides_values_the_token_defines_at_any_slot() {
     let options = CodegenOptions {
         text_style_tokens: [("title".into(), "heading".into())].into(),
         typography_values: [(
@@ -229,7 +229,20 @@ fn responsive_typography_elides_only_properties_equal_at_every_slot() {
     };
     let output = generate_component(&text(700), "t", &options).unwrap();
     assert!(!output.tsx.contains("fontWeight="), "{}", output.tsx);
-    assert!(output.tsx.contains("fontSize=\"32px\""), "{}", output.tsx);
+    assert!(!output.tsx.contains("fontSize="), "{}", output.tsx);
+    let mut overridden = text(700);
+    overridden
+        .nodes
+        .get_mut("t")
+        .unwrap()
+        .fields
+        .insert("fontSize".into(), json!(24));
+    let overridden = generate_component(&overridden, "t", &options).unwrap();
+    assert!(
+        overridden.tsx.contains("fontSize=\"24px\""),
+        "{}",
+        overridden.tsx
+    );
     assert!(
         generate_component(&text(400), "t", &options)
             .unwrap()

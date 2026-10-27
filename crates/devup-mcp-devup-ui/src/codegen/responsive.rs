@@ -24,6 +24,7 @@
 
 // Source sections share this module to preserve privacy and test names.
 include!("responsive/breakpoint_merge.rs");
+include!("responsive/child_alignment.rs");
 include!("responsive/width_label.rs");
 include!("responsive/merge_content.rs");
 include!("responsive/impl.rs");

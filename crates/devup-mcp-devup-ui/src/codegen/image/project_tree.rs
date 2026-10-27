@@ -146,6 +146,7 @@ pub(super) fn project_tree(
         .filter(|(_, p)| p["visible"] != false && p["opacity"] != 0)
     {
         let mut props: BTreeMap<String, String> = [
+            ("aria-hidden", "true"),
             ("pos", "absolute"),
             ("inset", "0"),
             ("zIndex", "-1"),

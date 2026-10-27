@@ -6,6 +6,35 @@ mod tests {
     use crate::theme::parse_project_theme;
 
     #[test]
+    fn effective_navigation_attributes_and_transitions_are_recognized() {
+        for attrs in [
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} transition="color .2s""#,
+            r#"{...{ props: { href: '/x', ['aria-current']: active ? 'page' : undefined }, _hover: { transition: 'color .2s' } }}"#,
+            r#"props={active ? { href: '/x', 'aria-current': 'page' } : { href: '/x', 'aria-current': undefined }} selectors={{ '&:hover': { transitionDuration: '200ms' } }}"#,
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} className={css({ transition: 'color .2s' })}"#,
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} className={linkStyle}"#,
+        ] {
+            let source = format!(r#"import RouteLink from 'next/link'; const linkStyle = css({{ transition: 'color .2s' }}); const Header = () => <nav><Text as={{RouteLink}} {attrs} _hover={{{{color: '$primary'}}}} _focusVisible={{{{outline: 'solid'}}}}>Company</Text></nav>"#);
+            let findings = site::interaction_findings("Header.tsx", &source);
+            assert!(!findings.iter().any(|v| matches!(v.rule, "nav-current" | "hover-transition")), "{source}: {findings:?}");
+            assert_eq!(site::interaction_coverage("Header.tsx", &source).interactive, 1);
+        }
+    }
+
+    #[test]
+    fn narrow_safe_rows_do_not_report_fixed_columns() {
+        for source in [
+            r#"<Flex display={['none',null,null,null,'flex']}><Box w="400px"/><Box w="400px"/></Flex>"#,
+            r#"<Flex><Box display={['none', 'block']} w="400px"/><Box display={['none','block']} w="400px"/></Flex>"#,
+            r#"<Flex flexDir={['column', 'row']}><Box w="400px"/><Box w="400px"/></Flex>"#,
+            r#"<Flex w={['100%',null,'1200px']}><Box w={['100%',null,'400px']}/><Box w={['auto',null,'400px']}/></Flex>"#,
+        ] {
+            let report = validate_devup_ui_tsx(source, None, false);
+            assert!(!report.violations.iter().any(|v| v.rule == "narrow-fixed-columns"), "{source}: {:?}", report.violations);
+        }
+    }
+
+    #[test]
     fn prop_sort_findings_are_one_lint_fix_action() {
         let report = serde_json::to_value(validate_devup_ui_tsx(
             r#"<><Box p={0} boxSize="8px" /><Box props={{}} pr="16px" /></>"#,
@@ -530,5 +559,5 @@ mod tests {
 #[path = "../ui_structure.rs"]
 mod structure;
 pub use structure::{
-    MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle,
+    MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle, validate_sources,
 };

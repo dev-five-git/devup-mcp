@@ -3,6 +3,7 @@ mod compat;
 mod component;
 mod evidence;
 mod image;
+pub mod instance_overrides;
 mod layout;
 pub mod node_ids;
 mod property_derivations;

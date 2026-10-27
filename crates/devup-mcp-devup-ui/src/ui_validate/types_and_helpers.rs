@@ -6,6 +6,11 @@ mod blur_layers;
 pub mod site;
 #[path = "wiring.rs"]
 pub mod wiring;
+#[path = "visual_behavior.rs"]
+pub mod visual_behavior;
+#[cfg(test)]
+#[path = "visual_behavior_tests.rs"]
+mod visual_behavior_tests;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -153,6 +158,7 @@ fn validate_source(
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
     violations.extend(wiring::findings(tsx));
+    violations.extend(visual_behavior::findings(tsx));
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));

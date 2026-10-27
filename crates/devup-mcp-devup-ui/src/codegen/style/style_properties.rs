@@ -6,15 +6,6 @@ use super::{
     layout::{format_number, px, string_prop},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AssetKind {
-    Svg,
-    SvgMask,
-    Png,
-}
-pub(crate) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
-    asset_kind_nested(snapshot, node, false)
-}
 fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
     let view = node.typed_view();
     if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
@@ -91,6 +82,13 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
         {
             visible_children.push(child);
         }
+    }
+
+    if visible_children.len() >= 2
+        && matches!(view.node_type(), "FRAME" | "INSTANCE" | "COMPONENT")
+        && matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL" | "GRID"))
+    {
+        return None;
     }
 
     visible_children

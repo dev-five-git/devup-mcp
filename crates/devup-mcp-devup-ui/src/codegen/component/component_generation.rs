@@ -387,11 +387,7 @@ pub fn generate_component_set_target(
             target_id.to_owned(),
         )
     };
-    let code = if !main && generated.tsx.contains("<Box />") {
-        generated.tsx.replace("<Box />", "<Box boxSize=\"100%\" />")
-    } else {
-        generated.tsx.clone()
-    };
+    let code = generated.tsx.clone();
     let variants = if main {
         component_variants(
             snapshot,

@@ -144,10 +144,9 @@ fn is_placement_prop(name: &str) -> bool {
 fn merge_children(
     by_slot: &BySlot<Tree>,
     precedence: &Precedence,
-    notes: &mut Vec<Unrepresented>,
+    context: &mut MergeContext<'_>,
 ) -> Vec<Tree> {
-    let maps: BySlot<Vec<(String, Vec<&Tree>)>> =
-        std::array::from_fn(|slot| by_slot[slot].as_ref().map(children_to_map));
+    let maps = align_children(by_slot, context);
     let orders = maps
         .iter()
         .flatten()
@@ -212,7 +211,7 @@ fn merge_children(
                     }
                 }
             }
-            merged.extend(merge_trees(&children, precedence, notes));
+            merged.extend(merge_trees(&children, precedence, context));
         }
     }
     merged
@@ -300,6 +299,7 @@ pub struct Unrepresented {
 /// A screen's widths, folded into one tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MergedScreen {
+    pub diagnostics: Vec<devup_mcp_figma::Diagnostic>,
     /// The merged JSX, indented for a component body.
     pub tsx: String,
     /// Every element name the JSX mentions, primitives and components alike.
@@ -464,22 +464,40 @@ fn merge_discovered_breakpoints(
         }
     }
     slots.sort_unstable();
-    let mut unrepresented = Vec::new();
-    let Some(tree) = merge_trees(&by_slot, &precedence, &mut unrepresented) else {
+    let mut context = MergeContext { snapshot, notes: Vec::new(), diagnostics: Vec::new(), slot_widths };
+    let Some(mut tree) = merge_trees(&by_slot, &precedence, &mut context) else {
         return Ok(None);
     };
+    // Each width's root is as wide as its frame, so the merged root would
+    // say `w={['360px', ..., '1920px']}`: the frame widths, not a layout. A
+    // page or section is a block that already takes its container's width.
+    let root_fluid = tree
+        .props
+        .get("w")
+        .and_then(|value| slot_values(value))
+        .is_some_and(|values| {
+            values.len() > 1
+                && values
+                    .iter()
+                    .flatten()
+                    .all(|value| value.ends_with("px"))
+        });
+    if root_fluid {
+        tree.props.remove("w");
+    }
     let mut components = BTreeSet::new();
     collect_components(&tree, &mut components);
     let tsx = render_merged(&tree, 2);
-    let (contract, gaps) = verify_merge(snapshot, options, &roots, &tree, &tsx);
+    let (contract, gaps) = verify_merge(snapshot, options, &roots, &tree, &tsx, root_fluid);
     let elements = merged_elements(&tree, &slot_widths);
     Ok(Some(MergedScreen {
+        diagnostics: context.diagnostics,
         elements,
         verified: gaps.is_empty() && contract.iter().all(|entry| entry["verified"] == true),
         tsx,
         components,
         slots,
-        unrepresented,
+        unrepresented: context.notes,
         contract,
         gaps,
     }))
@@ -749,6 +767,7 @@ fn verify_merge(
     roots: &BySlot<String>,
     tree: &Tree,
     tsx: &str,
+    root_fluid: bool,
 ) -> (Vec<Value>, Vec<Value>) {
     let attributes = generated_attributes(tsx);
     let tags = element_tags(tsx);
@@ -778,6 +797,7 @@ fn verify_merge(
                         tags: &tags,
                         attributes: &attributes,
                         by_element: &by_element,
+                        root_fluid,
                     };
                     check.run(&owned_elements(&output), &mut ok, &mut gaps);
                 }
@@ -825,4 +845,5 @@ struct WidthCheck<'a> {
     tags: &'a [String],
     attributes: &'a [GeneratedAttribute],
     by_element: &'a [Vec<usize>],
+    root_fluid: bool,
 }

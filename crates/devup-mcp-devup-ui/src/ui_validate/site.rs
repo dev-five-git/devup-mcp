@@ -24,6 +24,7 @@
 //!   neither `metadata` nor `generateMetadata`.
 
 use super::{Severity, Violation};
+use crate::effective_attributes::AttributeContext;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{Visit, walk};
@@ -120,6 +121,7 @@ struct Collector<'s> {
     source: &'s str,
     nav_depth: usize,
     elements: Vec<Element>,
+    attributes: AttributeContext,
 }
 
 fn attribute_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
@@ -130,28 +132,6 @@ fn attribute_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
         },
         JSXAttributeItem::SpreadAttribute(_) => None,
     }
-}
-
-/// The literal or identifier `as` names, if any: `as="a"`, `as={Link}`.
-fn as_value(node: &JSXOpeningElement<'_>) -> Option<String> {
-    node.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        if !matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "as") {
-            return None;
-        }
-        match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => Some(value.value.to_string()),
-            Some(JSXAttributeValue::ExpressionContainer(container)) => {
-                match &container.expression {
-                    JSXExpression::Identifier(id) => Some(id.name.to_string()),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    })
 }
 
 fn element_name(node: &JSXOpeningElement<'_>) -> String {
@@ -216,26 +196,14 @@ impl<'a> Visit<'a> for Collector<'_> {
     fn visit_jsx_element(&mut self, node: &JSXElement<'a>) {
         let opening = &node.opening_element;
         let tag = element_name(opening);
-        let as_tag = as_value(opening);
-        let names = opening
-            .attributes
-            .iter()
-            .filter_map(attribute_name)
-            .collect::<Vec<_>>();
-        let has = |name: &str| names.contains(&name);
+        let attributes = self.attributes.read(opening);
+        let as_tag = attributes.rendered_as();
+        let has = |name: &str| attributes.contains(name);
         let effective = as_tag.clone().unwrap_or_else(|| tag.clone());
-        let nav = effective == "nav"
-            || opening.attributes.iter().any(|item| {
-                matches!(item, JSXAttributeItem::Attribute(attribute)
-                    if matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "role")
-                    && matches!(&attribute.value, Some(JSXAttributeValue::StringLiteral(value)) if value.value == "navigation"))
-            });
+        let nav = effective == "nav" || attributes.literal("role").as_deref() == Some("navigation");
         // A spread may carry the states; nothing here can see into it.
-        let spread = opening
-            .attributes
-            .iter()
-            .any(|item| matches!(item, JSXAttributeItem::SpreadAttribute(_)));
-        let link = matches!(effective.as_str(), "a" | "Link");
+        let spread = attributes.unresolved_spread;
+        let link = matches!(effective.as_str(), "a" | "Link") || self.attributes.link_names.contains(&effective);
         let button = effective == "button";
         let input = matches!(effective.as_str(), "input" | "select" | "textarea");
         let role = if input {
@@ -270,7 +238,7 @@ impl<'a> Visit<'a> for Collector<'_> {
                 hover: has("_hover"),
                 focus: has("_focusVisible") || has("_focus") || has("_focusWithin"),
                 active: has("_active"),
-                transition: names.iter().any(|name| name.starts_with("transition")),
+                transition: attributes.transition,
                 motion_reduce: has("_motionReduce"),
                 aria_label: has("aria-label") || has("aria-labelledby"),
                 aria_current: has("aria-current"),
@@ -308,6 +276,7 @@ fn collect(path: &str, source: &str) -> Option<Vec<Element>> {
         source,
         nav_depth: 0,
         elements: Vec::new(),
+        attributes: AttributeContext::from_program(&parsed.program),
     };
     collector.visit_program(&parsed.program);
     Some(collector.elements)
@@ -413,7 +382,7 @@ fn scales(text: &str) -> Vec<f64> {
         .collect()
 }
 
-fn violation(
+pub(super) fn violation(
     source: &str,
     span: Span,
     rule: &'static str,
