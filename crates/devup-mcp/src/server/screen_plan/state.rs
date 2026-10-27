@@ -518,6 +518,7 @@ pub(super) struct ProjectEvidence {
     pub root: PathBuf,
     /// Route pages and the components they render, relative to `root`.
     pub sources: Vec<String>,
+    pub route_sources: BTreeMap<String, Vec<String>>,
     pub icon_files: Vec<String>,
     pub og_files: Vec<String>,
     /// (value, where it was found).
@@ -627,6 +628,8 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
     let mut owner = BTreeMap::<String, BTreeSet<String>>::new();
     for route in array(&inventory["routes"]) {
         let path = text(&route["route"]).to_owned();
+        evidence.route_sources.insert(path.clone(), std::iter::once(text(&route["page"]).to_owned())
+            .chain(array(&route["components"]).iter().map(|component| text(component).to_owned())).collect());
         evidence
             .routes
             .push((path.clone(), text(&route["page"]).to_owned()));

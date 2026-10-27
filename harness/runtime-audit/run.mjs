@@ -277,6 +277,10 @@ export function observeClippedContent(page) {
       // A scroller is reachable content only when the user can see it scrolls.
       if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
       if (element.closest('[aria-hidden="true"]')) continue;
+      const media = [...element.querySelectorAll('img, svg, video, canvas')];
+      const decorative = style.pointerEvents === 'none' && !element.textContent.trim()
+        && media.every((node) => node.tagName === 'IMG' ? node.getAttribute('alt') === '' : node.tagName.toLowerCase() === 'svg');
+      if (decorative) continue;
       const animated = [element, ...element.querySelectorAll('*')].some((node) => {
         const s = getComputedStyle(node);
         return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
@@ -345,8 +349,42 @@ export function observeCompleteness(page, completeness, width, subject) {
       let imageBehind = false;
       let backgroundExposed = true;
       let opacity = 1;
-      for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const covers = (candidate) => {
+        const box = candidate.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && centerX >= box.left && centerX <= box.right && centerY >= box.top && centerY <= box.bottom;
+      };
+      const opaque = (color) => /^rgb\(/.test(color) || /,\s*1\)$/.test(color);
+      const stackingContext = (nodeStyle) => nodeStyle.isolation === 'isolate'
+        || (nodeStyle.position !== 'static' && nodeStyle.zIndex !== 'auto')
+        || Number(nodeStyle.opacity) < 1 || nodeStyle.transform !== 'none' || nodeStyle.filter !== 'none';
+      let child = null;
+      for (let node = element; node && node.nodeType === 1; child = node, node = node.parentElement) {
         const nodeStyle = getComputedStyle(node);
+        // A positioned child with a negative z-index (a background layer the
+        // generator draws as a sibling of the content) paints between this
+        // node's own background and the text. It is visible when this node is
+        // its stacking context or paints no background of its own.
+        if (backgroundExposed && child && (stackingContext(nodeStyle) || !opaque(nodeStyle.backgroundColor))) {
+          const underlays = [...node.children].filter((layer) => {
+            if (layer === child || !shown(layer)) return false;
+            const layerStyle = getComputedStyle(layer);
+            return layerStyle.position !== 'static' && layerStyle.zIndex !== 'auto' && Number(layerStyle.zIndex) < 0 && covers(layer);
+          });
+          // Later siblings paint above earlier ones; nearest first means last first.
+          for (const layer of underlays.reverse()) {
+            const painted = [layer, ...layer.querySelectorAll('*')].filter((part) => shown(part) && covers(part)).reverse();
+            for (const part of painted) {
+              const partStyle = getComputedStyle(part);
+              if (/^(IMG|PICTURE|VIDEO|CANVAS|SVG|svg)$/.test(part.tagName) || (partStyle.backgroundImage && partStyle.backgroundImage !== 'none')) imageBehind = true;
+              if (partStyle.backgroundColor && partStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                backgrounds.push(partStyle.backgroundColor);
+                layers.push({ color: partStyle.backgroundColor, opacity: Number(partStyle.opacity) });
+              }
+            }
+          }
+        }
         opacity *= Number(nodeStyle.opacity);
         layers.push({ color: nodeStyle.backgroundColor, opacity: Number(nodeStyle.opacity) });
         if (backgroundExposed) {
@@ -700,6 +738,49 @@ export async function settleScrollReveals(page, { stepMs = 120, maxMs = 15000 } 
   }, { stepMs, maxMs });
 }
 
+export async function freezeAnimations(page) {
+  return page.evaluate(() => {
+    if (window.__devupFrozenMotion) return window.__devupFrozenMotion.report;
+    const animations = document.getAnimations().filter((animation) => animation.playState === 'running' || animation.pending);
+    const saved = animations.map((animation) => ({ animation, currentTime: animation.currentTime, playState: animation.playState }));
+    const selector = (element) => {
+      if (!(element instanceof Element)) return '(unknown target)';
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const parts = [];
+      while (element && element !== document.documentElement) {
+        const siblings = [...element.parentElement.children];
+        parts.unshift(`${element.localName}:nth-child(${siblings.indexOf(element) + 1})`);
+        element = element.parentElement;
+      }
+      return `html > ${parts.join(' > ')}`;
+    };
+    const selectors = [...new Set(animations.map((animation) => selector(animation.effect?.target)))];
+    for (const animation of animations) {
+      animation.pause();
+      animation.currentTime = 0;
+    }
+    const style = document.createElement('style');
+    style.textContent = '*,*::before,*::after{transition-property:none!important;transition-duration:0s!important;transition-delay:0s!important}';
+    document.documentElement.append(style);
+    const report = { count: selectors.length, selectors, animationCount: animations.length };
+    window.__devupFrozenMotion = { saved, style, report };
+    return report;
+  });
+}
+
+export async function restoreAnimations(page) {
+  await page.evaluate(() => {
+    const frozen = window.__devupFrozenMotion;
+    if (!frozen) return;
+    frozen.style.remove();
+    for (const { animation, currentTime, playState } of frozen.saved) {
+      animation.currentTime = currentTime;
+      if (playState === 'running') animation.play();
+    }
+    delete window.__devupFrozenMotion;
+  });
+}
+
 async function waitReady(page, plan, timeout) {
   await waitStylesStable(page).catch(() => null);
   await page.evaluate(async () => {
@@ -835,6 +916,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         }
         reached = true;
         record.url = page.url();
+        record.frozenAnimations = await freezeAnimations(page);
         const layoutBefore = await layoutFingerprint(page);
         const metrics = await pageMetrics(page);
         if (metrics.viewportWidth !== viewport.width) {
@@ -940,7 +1022,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
               second = await freshLoad({
                 browser, contextOptions, url: page.url(), timeout: stepTimeout,
                 install: (fresh) => guardOrigins(fresh, allowed, blocked),
-                ready: (fresh) => waitReady(fresh, plan, stepTimeout),
+                 ready: async (fresh) => { await waitReady(fresh, plan, stepTimeout); await freezeAnimations(fresh); },
               });
             } catch (error) {
               reloadError = String(error?.message ?? error).split('\n')[0];
@@ -949,20 +1031,21 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             continue;
           }
           if (check.kind === 'rendered-completeness') {
-            record.checks.push({ ...item, ...evaluateRenderedCompleteness(check.completeness, await observeCompleteness(page, check.completeness, viewport.width)) });
+            const observed = await observeCompleteness(page, check.completeness, viewport.width);
+            const frame = screen.figma?.frames?.find((frame) => frame.width === viewport.width);
+            const result = evaluateRenderedCompleteness(check.completeness, observed);
+            if (frame?.height && observed.pageHeight < frame.height) {
+              result.status = 'fail';
+              result.reason = `the page is ${observed.pageHeight}px tall, shorter than the ${frame.height}px drawn frame`;
+            }
+            record.checks.push({ ...item, ...result });
             continue;
           }
           if (check.kind === 'no-clipped-text') {
             record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
             continue;
           }
-          if (check.kind === 'interaction') {
-            const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
-            record.checks.push({ ...item, ...(observed.error
-              ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
-              : evaluateInteraction(check, observed)) });
-            continue;
-          }
+          if (check.kind === 'interaction') continue;
           if (check.kind === 'capture') {
             const target = locate(page, check.subject);
             const count = await target.count();
@@ -971,7 +1054,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
               continue;
             }
             const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-c${index}.png`;
-            const bytes = await target.screenshot({ animations: 'disabled', caret: 'hide' });
+            const bytes = await target.screenshot({ animations: 'allow', caret: 'hide' });
             await writeFile(join(out, shot), bytes);
             record.checks.push({ ...item, status: 'pass', reason: 'captured for the server to compare with its Figma render', measured: {}, screenshot: { path: shot, sha256: sha256(bytes), bytes: bytes.length } });
             continue;
@@ -994,10 +1077,14 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
+        const frame = screen.figma?.drawnWidths?.includes(viewport.width)
+          ? screen.figma.frames?.find((frame) => frame.width === viewport.width)
+          : undefined;
+        const captureHeight = frame?.height ? Math.min(metrics.fullHeight, frame.height) : metrics.fullHeight;
         const bytes = await page.screenshot({
           fullPage: true,
-          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: metrics.fullHeight },
-          animations: 'disabled',
+          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: captureHeight },
+          animations: 'allow',
           caret: 'hide',
         });
         await writeFile(join(out, name), bytes);
@@ -1007,6 +1094,14 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         const layoutAfter = await layoutFingerprint(page).catch(() => null);
         if (layoutAfter !== layoutBefore) {
           environmentErrors.push({ kind: 'layout-unstable', message: `${screen.id}: layout changed between measurement and screenshot` });
+        }
+        await restoreAnimations(page);
+        for (const [index, check] of screen.checks.entries()) {
+          if (check.kind !== 'interaction' || check.unavailableReason || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
+          const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
+          record.checks.push({ index, kind: check.kind, label: check.label, ...(observed.error
+            ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
+            : evaluateInteraction(check, observed)) });
         }
         // Links on this page, so a dynamic route ([slug]) can be audited at the
         // URLs the site itself links to.
@@ -1049,6 +1144,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         if (!invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) throw error;
         notMeasured('inconclusive', record.reason);
       } finally {
+        await restoreAnimations(page).catch(() => {});
         environmentErrors.push(...await readServerLog());
         if (invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) reached = false;
       }

@@ -40,6 +40,7 @@ pub(super) fn status_report(
     let audited = !widths.is_empty();
     let mut rows = Vec::new();
     let mut states = Vec::new();
+    let export_records = super::export_record::records(&evidence.root);
     for route in array(&plan["routes"]) {
         if route["implementation"] == "state" {
             states.push(json!({"screen": route["screen"], "name": route["name"], "hostUrl": route["hostUrl"]}));
@@ -133,6 +134,7 @@ pub(super) fn status_report(
             "nodeIds": route["nodeIds"],
             "figmaPages": route["pages"],
             "states": route_states,
+            "generatedExport": responsive_status(plan, route, evidence, &export_records),
             "file": page.clone().map_or_else(|| route["file"].clone(), Value::from),
             "implemented": implemented_state(page.is_some(), &route["drawnWidths"], &per_width),
             "widths": per_width,
@@ -344,6 +346,13 @@ pub(super) fn status_report(
     for item in &mut queue {
         if let Some(row) = rows.iter().find(|row| row["url"] == item["url"]) {
             item["states"] = row["states"].clone();
+            item["generatedExport"] = row["generatedExport"].clone();
+            if row["generatedExport"]["required"] == true {
+                item["nextExport"] = row["generatedExport"]["nextAction"].clone();
+            }
+            if row["generatedExport"]["issue"].is_string() || row["generatedExport"]["generatedDrift"]["findings"].as_array().is_some_and(|findings| !findings.is_empty()) {
+                item["done"] = json!(false);
+            }
         }
     }
     let theme_queue = theme_sync_queue(plan, &evidence.root.to_string_lossy());
@@ -355,6 +364,8 @@ pub(super) fn status_report(
     let final_report = super::audit_plan::final_report(plan, &rows, &trailing) + &link_markdown;
     let blocking_urls = rows.iter().filter(|row| {
         row["implemented"] != "yes" || array(&row["widths"]).iter().any(|width| width["result"] != "pass")
+            || row["generatedExport"]["issue"].is_string()
+            || row["generatedExport"]["generatedDrift"]["findings"].as_array().is_some_and(|findings| !findings.is_empty())
     }).map(|row| row["url"].clone()).collect::<Vec<_>>();
     let done = blocking_urls.is_empty() && !theme_pending && !links_fail && incomplete == 0 && open.is_empty();
     let converter_bugs = plan["audit"]["converterBugs"]
@@ -384,6 +395,7 @@ pub(super) fn status_report(
         "audit": audit.map(|audit| json!({"verdict": audit["verdict"], "planId": audit["planId"], "reason": audit["reason"]})),
         "markdownTable": table,
         "assumptions": assumptions,
+        "componentWidthMismatches": plan["componentWidthMismatches"],
         "siteCompleteness": completeness,
         "defaults": plan["defaults"],
         "designFixes": design_fixes,
@@ -686,12 +698,11 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
     let Some(requested) = request.scaffold_route else {
         return Ok(Gate::Open);
     };
-    let [frame] = request.frames.as_slice() else {
-        return Ok(Gate::Open);
-    };
+    let Some(frame) = request.frames.first() else { return Ok(Gate::Open); };
     let Some(row) = row_of(frame) else {
         return Ok(Gate::Open);
     };
+    if request.frames.iter().any(|frame| row_of(frame) != Some(row)) { return Ok(Gate::Open); }
     let Some(planned) = row["url"].as_str() else {
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,

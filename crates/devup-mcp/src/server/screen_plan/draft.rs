@@ -532,6 +532,8 @@ pub(super) async fn draft_with(
     let proposal_rows = proposal(array(&plan["questions"]));
     Ok(json!({
         "status": "draft",
+        "componentWidthMismatches": plan["componentWidthMismatches"],
+        "assumptions": plan["assumptions"],
         "planId": plan["planId"],
         "proposal": proposal_rows,
         "proposalMarkdown": proposal_markdown(&proposal_rows),

@@ -12,3 +12,6 @@
 include!("audit_plan/planning_and_capture.rs");
 include!("audit_plan/static_params.rs");
 include!("audit_plan/prerequisites.rs");
+include!("audit_plan/component_width.rs");
+include!("audit_plan/plan_document.rs");
+include!("audit_plan/dynamic_urls.rs");

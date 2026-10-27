@@ -71,6 +71,39 @@ function serve() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+test('tall drawn frames clip the main screenshot and short pages fail completeness', async () => {
+  const server = createServer((request, response) => {
+    const height = request.url === '/short' ? 5900 : 6174;
+    response.writeHead(200, { 'content-type': 'text/html' }).end(`<body style="margin:0;height:${height}px;background:#123456"></body>`);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-tall-frame-'));
+  try {
+    const plan = join(out, 'plan.json');
+    await writeFile(plan, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'tall', plan: {
+      baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 1440, height: 900 }],
+      screens: ['tall', 'short'].map((id) => ({ id, routePath: `/${id}`,
+        figma: { nodeId: 'home', drawnWidths: [1440], frames: [{ width: 1440, height: 5953, nodeId: 'home' }] },
+        checks: [{ kind: 'rendered-completeness', completeness: { frameHeight: 5953 } }],
+      })),
+    } }));
+    const report = await runPlan({ plan, out, maxMinutes: 1 });
+    const [tall, short] = report.runs[0].screens;
+    const bytes = await readFile(join(out, tall.screenshot.path));
+    assert.equal(bytes.readUInt32BE(16), 1440);
+    assert.equal(bytes.readUInt32BE(20), 5953);
+    assert.equal(tall.checks[0].status, 'pass');
+    assert.equal(short.checks[0].status, 'fail');
+    assert.match(short.checks[0].reason, /5900.*5953/);
+    const shortBytes = await readFile(join(out, short.screenshot.path));
+    assert.equal(shortBytes.readUInt32BE(20), 5900);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
 const CHECKS = [
   { kind: 'no-horizontal-overflow', label: 'page' },
   { kind: 'contained', label: 'badge text', subject: { testId: 'badge-text' }, container: { testId: 'badge' } },
@@ -460,6 +493,31 @@ test('white outline no-fill button overrides the reset and retains contrast over
     assert.deepEqual(paintedBackground, [16, 24, 32, 255]);
     assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'pass');
     await page.locator('.hero').evaluate((element) => { element.style.background = 'white'; });
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'fail');
+  } finally { await browser.close(); }
+});
+
+test('a negative z-index sibling layer behind text counts as its background', async () => {
+  const { chromium } = await import('playwright');
+  const { evaluateNoLowContrastText } = await import('../checks.mjs');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // The generator draws a section background as an absolutely positioned
+    // sibling with z-index -1 inside an isolated container.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1"><div style="position:absolute;inset:0;background:#001a38"></div></div>
+      <p style="color:white">Over navy</p></section>`);
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'pass');
+    // An image layer cannot be judged from colours: inconclusive, never a false fail.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1"><img alt="" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>" style="width:100%;height:100%"></div>
+      <p style="color:white">Over a photo</p></section>`);
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'inconclusive');
+    // White text on a white underlay still fails.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1;background:white"></div>
+      <p style="color:white">Invisible</p></section>`);
     assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'fail');
   } finally { await browser.close(); }
 });

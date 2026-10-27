@@ -12,7 +12,8 @@ impl DevupServer {
     ) -> Result<CallToolResult, ErrorData> {
         let mut result = match input.action.as_str() {
             "draft" => {
-                let (screens, source) = self.plan_screens(&input).await.map_err(to_mcp_error)?;
+                let (screens, mut source) = self.plan_screens(&input).await.map_err(to_mcp_error)?;
+                self.plan_component_widths(&input, &screens, &mut source).await.map_err(to_mcp_error)?;
                 let mut assets = input.assets.clone();
                 assets.extend(
                     source["assetCandidates"]

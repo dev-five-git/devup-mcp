@@ -6,6 +6,52 @@ import { observeInteraction } from '../run.mjs';
 import { evaluateInteraction } from '../checks.mjs';
 import { observeCompleteness } from '../run.mjs';
 
+test('geometry freezes marquee at its start and restores animation and transitions', async () => {
+  const { freezeAnimations, restoreAnimations } = await import('../run.mjs');
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>@keyframes slide{to{transform:translateX(-200px)}}#track{animation:slide 10s linear infinite;transition:color .2s}</style><div id="track">Marquee</div>');
+    await page.evaluate(() => { const animation = document.getAnimations()[0]; animation.currentTime = 5000; });
+    assert.ok((await page.locator('#track').boundingBox()).x < 0);
+    const frozen = await freezeAnimations(page);
+    assert.equal(frozen.count, 1);
+    assert.deepEqual(frozen.selectors, ['#track']);
+    assert.equal((await page.locator('#track').boundingBox()).x, 8);
+    assert.equal(await page.locator('#track').evaluate((e) => getComputedStyle(e).transitionDuration), '0s');
+    await restoreAnimations(page);
+    assert.equal(await page.evaluate(() => document.getAnimations()[0].playState), 'running');
+    assert.equal(await page.locator('#track').evaluate((e) => getComputedStyle(e).transitionDuration), '0.2s');
+  } finally { await browser.close(); }
+});
+
+test('runner measures an infinite marquee at rest and declares frozen targets', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const server = createServer((request, response) => {
+    response.setHeader('content-type', 'text/html');
+    response.end('<style>body{margin:0}@keyframes slide{to{transform:translateX(-200px)}}#track{width:200px;height:40px;animation:slide 10s linear infinite}</style><main><div id="track">Marquee</div></main><script>document.getAnimations()[0].currentTime=5000</script>');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = await mkdtemp(join(tmpdir(), 'devup-marquee-'));
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const path = join(dir, 'plan.json');
+    await writeFile(path, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'marquee', plan: { baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 390, height: 900 }], screens: [{ id: 'home', routePath: '/', checks: [{ kind: 'bounds', subject: { css: '#track' }, container: { css: 'main' }, expected: { x: 0, y: 0, width: 200, height: 40 } }] }] } }));
+    const report = await runPlan({ plan: path, out: join(dir, 'out'), maxMinutes: 1 });
+    const screen = report.runs[0].screens[0];
+    assert.equal(screen.checks[0].status, 'pass', JSON.stringify(screen));
+    assert.deepEqual(screen.frozenAnimations.selectors, ['#track']);
+    assert.equal(screen.frozenAnimations.count, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('decorative and marquee contrast is excluded without hiding ordinary animated text', async () => {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch();
@@ -134,6 +180,21 @@ test('internal nav and thumbnail clipping fails even without page overflow', asy
     // one on a plain overflow:auto tab strip, so it stays reachable content.
     await page.setContent('<nav id="tabs" style="width:300px;overflow-x:auto"><div style="width:700px;white-space:nowrap">Tabs</div></nav>');
     assert.equal((await observeClippedContent(page)).clipped.length, 0);
+  } finally { await browser.close(); }
+});
+
+test('a decorative fill layer cropping its image is not clipped content', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 858, height: 900 } });
+  const svg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>";
+  try {
+    const layer = (alt) => `<section style="position:relative;height:200px"><div id="layer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:-1"><img alt="${alt}" src="${svg}" style="display:block;width:100%;height:110%"></div></section>`;
+    await page.setContent(layer(''));
+    assert.equal((await observeClippedContent(page)).clipped.length, 0);
+    // A meaningful image cut off by its box is still reported.
+    await page.setContent(layer('Product photo'));
+    assert.deepEqual((await observeClippedContent(page)).clipped.map((item) => item.name), ['layer']);
   } finally { await browser.close(); }
 });
 

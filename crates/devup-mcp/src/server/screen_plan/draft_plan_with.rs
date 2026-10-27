@@ -649,6 +649,8 @@ pub(super) fn draft_plan_with(
         "routes": [],
         "assumptions": [],
     });
+    let mismatches = array(&plan["source"]["componentWidthMismatches"]).to_vec();
+    apply_component_width_mismatches(&mut plan, &mismatches);
     refresh_inventory_checks(&mut plan);
     Ok(plan)
 }

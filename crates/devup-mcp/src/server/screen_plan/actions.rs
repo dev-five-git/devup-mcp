@@ -394,6 +394,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "nodeIds": route["nodeIds"],
                 "drawnWidths": route["drawnWidths"],
                 "states": state_exports(route),
+                "nextExport": if multi_width(route) { responsive_export_action(&plan, route, root) } else { Value::Null },
             })
         })
         .collect::<Vec<_>>());
@@ -593,11 +594,12 @@ pub(super) async fn audit_plan(
     }
     let config = read_config(root)?.unwrap_or_default();
     let thresholds = config.visual_thresholds.clone().unwrap_or_default();
+    let base_url = audit_base_url(input, &plan);
     let mut result = super::audit_plan::write(
         &plan,
         &super::audit_plan::AuditRequest {
             root,
-            base_url: input.base_url.as_deref().unwrap_or("http://localhost:3000"),
+            base_url: &base_url,
             base_urls: &input.base_urls,
             only: &input.urls,
             artifact_ids: &input.artifacts,
@@ -612,6 +614,7 @@ pub(super) async fn audit_plan(
     entries.retain(|entry| !replaced.contains(&entry["url"]));
     for written in array(&result["plans"]) {
         entries.push(json!({"url": written["url"], "screen": written["screen"],
+            "app": written["app"], "baseUrl": written["baseUrl"],
             "state": written["state"],
             "missingReferences": written["missingReferences"], "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
@@ -630,6 +633,10 @@ pub(super) async fn audit_plan(
     }
     plan["assumptions"] = json!(assumptions);
     let max_fix_attempts = config.max_fix_attempts.unwrap_or(3);
+    if let Some(mismatch) = base_url_mismatch(&entries) {
+        result["baseUrlMismatch"] = mismatch;
+    }
+    plan["audit"]["baseUrl"] = json!(base_url);
     plan["audit"]["plans"] = json!(entries);
     plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
     plan["audit"]["generatedAt"] = json!(now());
@@ -896,6 +903,8 @@ pub(super) async fn status(
     if plan["status"] != "confirmed" {
         return Ok(json!({
             "status": "not-confirmed",
+            "componentWidthMismatches": plan["componentWidthMismatches"],
+            "assumptions": plan["assumptions"],
             "planId": plan["planId"],
             "questionRounds": question_rounds(array(&plan["questions"]), per_round(&plan)),
             "questions": ask_shape(array(&plan["questions"])),

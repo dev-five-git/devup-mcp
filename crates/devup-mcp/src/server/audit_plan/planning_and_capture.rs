@@ -74,6 +74,7 @@ impl VisualThresholds {
 /// its referencePng and the native renders of its sections and assets.
 pub(super) struct Sources {
     payloads: Vec<(String, Arc<CollectedPayload>)>,
+    substitutions: Vec<Value>,
 }
 
 impl Sources {
@@ -87,12 +88,19 @@ impl Sources {
                     "issue": "missing or expired; export the frame again and pass the new artifactId"})),
             }
         }
-        (Self { payloads }, missing)
+        (
+            Self {
+                payloads,
+                substitutions: Vec::new(),
+            },
+            missing,
+        )
     }
 
     #[cfg(test)]
     pub(super) fn from_payloads(payloads: Vec<(String, CollectedPayload)>) -> Self {
         Self {
+            substitutions: Vec::new(),
             payloads: payloads
                 .into_iter()
                 .map(|(id, payload)| (id, Arc::new(payload)))
@@ -128,6 +136,12 @@ impl Sources {
     /// A native-node PNG of the node at scale 1, the only render an element
     /// capture at deviceScaleFactor 1 can be compared with pixel for pixel.
     fn native_render(&self, node_id: &str) -> Option<(&str, &str)> {
+        let node_id = self
+            .substitutions
+            .iter()
+            .find(|row| row["nodeId"] == node_id)
+            .and_then(|row| row["correctNodeId"].as_str())
+            .unwrap_or(node_id);
         self.payloads.iter().find_map(|(id, payload)| {
             payload
                 .assets
@@ -251,6 +265,7 @@ pub(super) struct UrlPlan {
     pub plan: PlanInput,
     pub missing: Vec<Value>,
     pub notes: Vec<String>,
+    pub substitutions: Vec<Value>,
 }
 
 pub(super) fn url_plan(
@@ -259,6 +274,8 @@ pub(super) fn url_plan(
     sources: &Sources,
     thresholds: &VisualThresholds,
 ) -> Result<UrlPlan, DevupError> {
+    let (effective, substitutions) = sources.effective(&target.frames);
+    let sources = &effective;
     let origin = url::Url::parse(base_url)
         .map_err(|_| invalid(format!("baseUrl {base_url} is not a URL.")))?
         .origin()
@@ -307,15 +324,21 @@ pub(super) fn url_plan(
 
     // Health and containment at every width.
     let mut checks = vec![
-        check(json!({"kind":"links-resolve", "label":"all connected URLs resolve", "plannedTargets":[target.url]})),
-        check(json!({"kind": "no-clipped-content", "label": "navigation and card content not cut off"})),
+        check(
+            json!({"kind":"links-resolve", "label":"all connected URLs resolve", "plannedTargets":[target.url]}),
+        ),
+        check(
+            json!({"kind": "no-clipped-content", "label": "navigation and card content not cut off"}),
+        ),
         check(json!({"kind": "sequence-order", "label": "numbered cards in reading order"})),
         check(json!({"kind": "section-layout", "label": "responsive sections and text columns"})),
         check(json!({"kind": "page-health", "label": "page health"})),
         check(json!({"kind": "styles-applied", "label": "page styles delivered"})),
         check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
         check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),
-        check(json!({"kind": "native-appearance", "label": "controls drawn without native browser chrome"})),
+        check(
+            json!({"kind": "native-appearance", "label": "controls drawn without native browser chrome"}),
+        ),
         check(json!({"kind": "stale-resources", "label": "no stale or missing build resources"})),
         check(json!({"kind": "no-horizontal-overflow", "label": "no horizontal overflow"})),
         check(json!({"kind": "no-clipped-text", "label": "no clipped text"})),
@@ -325,16 +348,26 @@ pub(super) fn url_plan(
     let mut frame_refs = Vec::new();
     let assets_everywhere = sources.asset_nodes();
     let mut nav_checked = false;
-    for (width, frame_id, _) in &target.frames {
+    for (width, frame_id, target_height) in &target.frames {
+        let frame_height = target_height
+            .or_else(|| {
+                sources
+                    .frame(frame_id)
+                    .and_then(|(_, payload)| bounds(payload, frame_id).map(|bounds| bounds.height))
+            })
+            .map(|height| height.round() as u32);
         let Some((artifact_id, payload)) = sources.frame(frame_id) else {
             checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: frame artifact missing or expired; export the frame again."})));
             missing.push(json!({"kind": "frame", "nodeId": frame_id, "width": width,
                 "why": "No artifact passed holds this frame; section, asset and geometry checks for this width are missing.",
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["tsx", "referencePng"], "projectRoot": "<projectRoot>"}}}));
-            frame_refs.push(json!({"width": width, "nodeId": frame_id}));
+            frame_refs.push(json!({"width": width, "height": frame_height, "nodeId": frame_id}));
             continue;
         };
-        let reference = sources.reference_png(frame_id);
+        let corrected = substitutions.iter().any(|row| row["screen"] == *frame_id);
+        let reference = (!corrected)
+            .then(|| sources.reference_png(frame_id))
+            .flatten();
         if reference.is_none() {
             checks.push(check(json!({"kind": "page-health", "label": "design reference unavailable", "widths": [width], "unavailableReason": "Design comparison inconclusive: referencePng missing or expired; export the frame again."})));
             missing.push(json!({"kind": "referencePng", "nodeId": frame_id, "width": width,
@@ -342,7 +375,7 @@ pub(super) fn url_plan(
                 "call": {"tool": "devup_figma_export", "arguments": {"url": format!("<link to node {frame_id}>"), "outputs": ["referencePng"]}}}));
         }
         frame_refs.push(
-            json!({"width": width, "nodeId": frame_id, "artifactId": reference,
+            json!({"width": width, "height": frame_height, "nodeId": frame_id, "artifactId": reference,
             "threshold": thresholds.for_node(frame_id, "page")}),
         );
         let _ = artifact_id;
@@ -378,7 +411,10 @@ pub(super) fn url_plan(
                     "subject": node(section), "container": node(frame_id), "nodeId": section}),
                 ));
             }
-            if !is_asset && bounds(payload, section).is_some_and(|section_box| section_box.width >= frame_box.width * 0.5) {
+            if !is_asset
+                && bounds(payload, section)
+                    .is_some_and(|section_box| section_box.width >= frame_box.width * 0.5)
+            {
                 layout.push(check(json!({"kind": "section-layout", "label": format!("{name} remains a visible section"), "subject": node_at(*width, section), "container": node_at(*width, frame_id),
                     "widths": viewports.iter().filter(|viewport| {
                         target.frames.iter().filter(|(drawn, _, _)| *drawn <= viewport.width).max_by_key(|(drawn, _, _)| *drawn)
@@ -424,7 +460,15 @@ pub(super) fn url_plan(
                     *width,
                     thresholds.for_node(section, scope),
                 )),
-                None => renders_missing.push(section.clone()),
+                None => renders_missing.push(
+                    sources
+                        .substitutions
+                        .iter()
+                        .find(|row| row["nodeId"] == *section)
+                        .and_then(|row| row["correctNodeId"].as_str())
+                        .unwrap_or(section)
+                        .to_owned(),
+                ),
             }
         }
         // Assets below the sections, each against its own render and in
@@ -555,6 +599,7 @@ pub(super) fn url_plan(
         plan,
         missing,
         notes,
+        substitutions,
     })
 }
 
@@ -676,10 +721,34 @@ pub(super) async fn write(
         artifact_ids,
         thresholds,
     } = *request;
-    let (sources, expired) = Sources::load(artifact_ids, store).await;
+    let mut ids = artifact_ids.to_vec();
+    ids.extend(
+        plan["source"]["componentWidthArtifacts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned),
+    );
+    ids.sort();
+    ids.dedup();
+    let (mut sources, expired) = Sources::load(&ids, store).await;
+    let persisted_references = persist_references(root, &sources, policy)?;
+    let expired = expired
+        .into_iter()
+        .map(|mut entry| {
+            entry["persistedReferences"] = json!(stored_references(root));
+            entry
+        })
+        .collect::<Vec<_>>();
+    sources.substitutions = plan["componentWidthMismatches"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
     let evidence = super::screen_plan::project_evidence(root).await?;
     let audit_routes = super::screen_plan::audit_routes(plan);
-    let routes = audit_routes.iter()
+    let routes = audit_routes
+        .iter()
         .filter(|route| route["implementation"] == "page" && route["url"].is_string())
         .collect::<Vec<_>>();
     let records = super::export_record::records(Path::new(root));
@@ -784,16 +853,29 @@ pub(super) async fn write(
         if let Some(node) = route["state"]["nodeId"].as_str() {
             built.notes.push(format!("State {} ({node}) on {url}: configure the runtime screen's steps to reach this state before running; no interaction is inferred from the frame name.", route["state"]["name"].as_str().unwrap_or_default()));
             for check in &mut built.plan.screens[0].checks {
-                check.label = Some(format!("State {node}: {}", check.label.as_deref().unwrap_or(&check.kind)));
+                check.label = Some(format!(
+                    "State {node}: {}",
+                    check.label.as_deref().unwrap_or(&check.kind)
+                ));
             }
         }
         for check in &mut built.plan.screens[0].checks {
             if check.kind == "links-resolve" {
-                check.planned_targets = routes.iter().filter_map(|route| route["url"].as_str().map(str::to_owned)).collect();
-                check.existing_routes = evidence.routes.iter().map(|(route, _)| route.clone()).collect();
+                check.planned_targets = routes
+                    .iter()
+                    .filter_map(|route| route["url"].as_str().map(str::to_owned))
+                    .collect();
+                check.existing_routes = evidence
+                    .routes
+                    .iter()
+                    .map(|(route, _)| route.clone())
+                    .collect();
             }
         }
-        let plan_path = Path::new(root).join(AUDIT_DIR).join(&screen).join("plan.json");
+        let plan_path = Path::new(root)
+            .join(AUDIT_DIR)
+            .join(&screen)
+            .join("plan.json");
         let report_dir = Path::new(root).join(AUDIT_DIR).join(&screen).join("report");
         let counts = built.plan.screens[0].checks.iter().fold(
             BTreeMap::<String, usize>::new(),
@@ -816,9 +898,12 @@ pub(super) async fn write(
             store,
         )
         .await?;
+        write_component_substitutions(&plan_path, policy, &built.substitutions)?;
         written.push(json!({
             "url": url,
             "screen": screen,
+            "app": app,
+            "baseUrl": base,
             "state": route["state"],
             "planPath": created["writtenTo"],
             "planId": created["planId"],
@@ -827,6 +912,7 @@ pub(super) async fn write(
             "checks": counts,
             "missingReferences": built.missing,
             "notes": built.notes,
+            "componentSubstitutions": built.substitutions,
             "dynamic": dynamic,
             "run": ["node", "run.mjs", "--plan", plan_path.display().to_string(), "--out", report_dir.display().to_string()],
             "startServer": dev_server_command(Path::new(root), app, base),
@@ -848,6 +934,7 @@ pub(super) async fn write(
         "productionStrip": strip,
         "missingReferences": missing,
         "expiredArtifacts": expired,
+        "persistedReferences": persisted_references,
         "runner": {"directory": runner.display().to_string(), "state": template_state,
             "install": [["npm", "ci"], ["npx", "playwright", "install", "chromium"]],
             "ifInstallFails": "Record it with devup_screen_plan action status, auditPlanPath and toolingUnavailable: the URL's audit stays inconclusive and the work goes on."},
@@ -894,106 +981,4 @@ fn hidden_elements(records: &[Value], frames: &[(u32, String, Option<f64>)]) -> 
         }
     }
     hidden
-}
-
-/// The concrete URLs a dynamic route is audited at, and where they came from.
-pub(super) struct Dynamic {
-    pub urls: Vec<String>,
-    pub source: &'static str,
-    pub why: String,
-    pub assumption: Option<String>,
-}
-
-/// `[slug]` -> ("slug", false); `[...slug]` and `[[...slug]]` -> ("slug", true).
-fn params(pattern: &str) -> Vec<(String, bool)> {
-    pattern
-        .split('/')
-        .filter(|segment| segment.starts_with('[') && segment.ends_with(']'))
-        .map(|segment| {
-            let inner = segment.trim_matches(|c| c == '[' || c == ']');
-            match inner.strip_prefix("...") {
-                Some(name) => (name.to_owned(), true),
-                None => (inner.to_owned(), false),
-            }
-        })
-        .collect()
-}
-
-fn fill(pattern: &str, values: &BTreeMap<String, String>) -> Option<String> {
-    let mut out = Vec::new();
-    for segment in pattern.split('/') {
-        if segment.starts_with('[') && segment.ends_with(']') {
-            let inner = segment.trim_matches(|c| c == '[' || c == ']');
-            out.push(values.get(inner.trim_start_matches("...")).cloned()?);
-        } else {
-            out.push(segment.to_owned());
-        }
-    }
-    Some(out.join("/"))
-}
-
-/// Every literal value of `key` in `text`: `key: 'a'`, `"key": "a"`, or
-/// `key: ['a', 'b']` (joined with `/` for a catch-all).
-pub(super) fn values_of(text: &str, key: &str) -> Vec<String> {
-    let mut found = Vec::new();
-    let bytes = text.as_bytes();
-    let mut from = 0;
-    while let Some(at) = text[from..].find(key) {
-        let start = from + at;
-        from = start + key.len();
-        let before = start.checked_sub(1).map(|i| bytes[i] as char);
-        if before.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '$' || c == '.') {
-            continue;
-        }
-        let mut rest = text[from..].trim_start_matches(['"', '\'']).trim_start();
-        let Some(after) = rest.strip_prefix(':') else {
-            continue;
-        };
-        rest = after.trim_start();
-        let quoted = |rest: &str| -> Option<(String, usize)> {
-            let quote = rest
-                .chars()
-                .next()
-                .filter(|c| matches!(c, '"' | '\'' | '`'))?;
-            let end = rest[1..].find(quote)?;
-            Some((rest[1..=end].to_owned(), end + 2))
-        };
-        if let Some((value, _)) = quoted(rest) {
-            found.push(value);
-        } else if let Some(list) = rest.strip_prefix('[') {
-            let end = list.find(']').unwrap_or(list.len());
-            let parts = list[..end]
-                .split(',')
-                .filter_map(|part| quoted(part.trim()).map(|(value, _)| value))
-                .collect::<Vec<_>>();
-            if !parts.is_empty() {
-                found.push(parts.join("/"));
-            }
-        }
-    }
-    found.dedup();
-    found
-}
-
-/// Local modules a page imports: `./x`, `../x` or `@/x`, with the names
-/// imported from each.
-fn local_imports(source: &str) -> Vec<(String, String)> {
-    let mut found = Vec::new();
-    for line in source.lines() {
-        let line = line.trim();
-        let Some(rest) = line.strip_prefix("import ") else {
-            continue;
-        };
-        let Some((names, module)) = rest.rsplit_once(" from ") else {
-            continue;
-        };
-        let module = module
-            .trim()
-            .trim_end_matches(';')
-            .trim_matches(['"', '\'']);
-        if module.starts_with("./") || module.starts_with("../") || module.starts_with("@/") {
-            found.push((names.to_owned(), module.to_owned()));
-        }
-    }
-    found
 }
