@@ -24,6 +24,10 @@ description: |
 
 ## Project intake comes first
 
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Never discard `// @devup-override` annotations or the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item silently.
+
+For a confirmed multi-width URL, `responsiveTsx` is the deliverable. Export all sibling frameIds in width order using screen-plan status's next export action. Never start from single-width `tsx`/`componentTsx` for its page or sections. Only wire links/events/data; never change generated layout values, collapse arrays, or add hard-coded sizes/layout wrappers. Review `generatedExport.generatedDrift` in status; its confidence-labelled findings are heuristic and missing mappings remain unverified.
+
 `/devup` is the entry point for new projects, existing features, bug fixes,
 Figma page implementation and refactors. Figma screen planning is a branch
 of the confirmed project plan; complete this section before the screen workflow below.
@@ -588,3 +592,6 @@ These rules apply to every plan this workflow produces.
 - Done means real data, real handlers and no leftovers: no hard-coded fixture arrays standing in for an endpoint, no `TODO` or "replace when" comments, no inputs without a handler, no form submit without a network call, every referenced public asset present. A "wire to the API now" answer needs an `operationId` that exists in `openapi.json`; otherwise the screen is reported unfinished.
 - Ask every user-owned decision with the runtime question tool, before or after confirm: recommended option first, labelled "(Recommended)", two to four options and a header up to 30 characters. Show evidence in prose, never a numbered chat question ending with "tell me the numbers to change". Keep table approval separate from individual decisions in the same question call. Workers escalate to the supervisor. Record the chosen answer, decision id, affected model/endpoint/file and rationale with existing `defer`/`assume` actions, never an invented `ask` action. Model changes require source model updates and re-confirmation before dependent work. If no question tool exists, report the limitation and leave the user-owned decision unresolved; continue independent work.
 - After editing code, run `bun run lint:fix` first and fix by hand only what it cannot fix; do not re-sort JSX props or reformat by hand, and do not run a bare `prettier`.
+## Wrong-Width Component Masters
+
+Treat `DEVUP_DESIGN_COMPONENT_WIDTH_MISMATCH` as an automatically resolved design placement error. The screen plan records the strict same-width majority, the expected master and a correct sibling instance, plus native-node PNG comparisons when available (otherwise `render=unavailable`). Follow that assumption without another question. Header/Footer/Nav remains one responsive component across widths, not a second variant. Audit planning substitutes the correct sibling's height and children at screen width and the suspect's original y position. The original whole-page PNG still depicts the design error and must not be accepted as a corrected-page visual reference.

@@ -1,5 +1,9 @@
 # Using devup-mcp
 
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. `DEVUP_CODEGEN_INSTANCE_OVERRIDE` is a required review item; `// @devup-override` annotations retain its evidence in generated TSX. A missing captured value or master is unresolved, never evidence that an override is safe to discard.
+
+For a confirmed URL with multiple drawn widths, `responsiveTsx` is the deliverable. Use all sibling frameIds in width order from screen-plan status or `responsiveRequired.nextAction`. Never start from single-width `tsx` or `componentTsx` for that page or its sections. Only wire links, events and data; never change layout values, collapse responsive arrays, add fixed heights or layout wrappers. `generatedExport.generatedDrift` reports heuristic layout changes against recorded generated styles with source paths and confidence; missing mappings are unverified, not a pass.
+
 ## Project intake comes first
 
 `/devup` is the entry point for new projects, existing features, bug fixes,

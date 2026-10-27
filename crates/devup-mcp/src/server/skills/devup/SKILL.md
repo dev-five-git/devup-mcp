@@ -13,6 +13,10 @@ description: |
 
 ## Project intake comes first
 
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Never discard `// @devup-override` annotations or the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item silently.
+
+For a confirmed multi-width URL, `responsiveTsx` is the deliverable. Export all sibling frameIds in width order using screen-plan status's next export action. Never start from single-width `tsx`/`componentTsx` for its page or sections. Only wire links/events/data; never change generated layout values, collapse arrays, or add hard-coded sizes/layout wrappers. Review `generatedExport.generatedDrift` in status; its confidence-labelled findings are heuristic and missing mappings remain unverified.
+
 `/devup` is the entry point for new projects, existing features, bug fixes,
 Figma page implementation and refactors. Figma screen planning is a branch
 of the confirmed project plan; complete this section before the screen workflow below.
