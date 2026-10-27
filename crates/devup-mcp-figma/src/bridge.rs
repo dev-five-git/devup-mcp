@@ -21,4 +21,5 @@
 include!("bridge/transport_and_state.rs");
 include!("bridge/job_budgets.rs");
 include!("bridge/stamp_file_key.rs");
+include!("bridge/fallback_reasons.rs");
 include!("bridge/texts.rs");

@@ -414,7 +414,7 @@ impl<'t> TsxVisitor<'t> {
             message: format!(
                 include_str!("../text/ui_validate-report_hardcoded_value_Violation-63c589c5.md")
             , kind = kind, named = named, prop_name = prop_name, text = text),
-            suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change colors in other modes.")),
+            suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change the {kind} in other modes.")),
         });
     }
 
