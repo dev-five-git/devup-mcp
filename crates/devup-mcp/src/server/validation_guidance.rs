@@ -94,6 +94,21 @@ fn corrected_tsx(
             "hardcoded-length" => theme.length_tokens_matching_px(value),
             _ => return None,
         };
+        let suggested = finding
+            .context
+            .get("tokenMatches")
+            .and_then(Value::as_array)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|e| e["token"].as_str()?.strip_prefix('$').map(str::to_owned))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let matches = matches
+            .into_iter()
+            .filter(|name| suggested.contains(name))
+            .collect::<Vec<_>>();
         let [token] = matches.as_slice() else {
             return None;
         };

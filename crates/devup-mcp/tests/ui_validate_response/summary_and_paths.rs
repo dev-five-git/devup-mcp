@@ -24,6 +24,27 @@ async fn summary_caps_distinct_findings_without_losing_error_counts() -> anyhow:
 }
 
 #[tokio::test]
+async fn summary_groups_hardcoded_values_across_files() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-validation-group-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(root.join("src"))?;
+    std::fs::write(root.join("devup.json"), r#"{"theme":{"length":{"default":{"space8":"8px"}}}}"#)?;
+    std::fs::write(root.join("src/A.tsx"), "export function A() { return <Box gap=\"8px\" p=\"8px\" left=\"0px\" /> }")?;
+    std::fs::write(root.join("src/B.tsx"), "export function B() {\n  return <Box gap=\"8px\" />\n}")?;
+    let output = validate(json!({"paths":["src"],"projectRoot":root,"detail":"summary"})).await?;
+    let rows = output["violations"].as_array().unwrap();
+    let grouped = rows.iter().filter(|row| row["value"] == "8px").collect::<Vec<_>>();
+    assert_eq!(grouped.len(), 1, "{rows:?}");
+    let row = grouped[0];
+    assert_eq!(row["count"], 3);
+    assert_eq!(row["tokens"], json!(["$space8"]));
+    assert_eq!(row["props"], json!(["gap", "p"]));
+    assert_eq!(row["files"].as_array().unwrap().len(), 2);
+    assert!(!rows.iter().any(|row| row["value"] == "0px"));
+    std::fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn paths_expands_sources_and_uses_disk_theme() -> anyhow::Result<()> {
     let root = std::env::temp_dir().join(format!("devup-validation-paths-{}", rand::random::<u64>()));
     std::fs::create_dir_all(root.join("src/app"))?;

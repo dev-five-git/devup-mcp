@@ -554,6 +554,82 @@ mod tests {
         assert!(lenient.ok);
         assert!(!strict.ok);
     }
+
+    fn purpose_named_length_theme() -> ProjectTheme {
+        parse_project_theme(
+            r##"{ "theme": { "length": { "default": {
+                "space0": "0px", "spacing24": "24px", "sizeStrokeBorder": "1px",
+                "radius12": "12px", "space12": "12px"
+            } } } }"##,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn zero_lengths_are_never_reported() {
+        let tsx = r##"export const X = () => <Box left="0px" top="-0px" m="0.0px" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&purpose_named_length_theme()), true);
+        assert!(report.ok);
+        assert!(
+            report.violations.iter().all(|v| v.rule != "hardcoded-length"),
+            "{:?}",
+            report.violations
+        );
+    }
+
+    #[test]
+    fn a_token_named_for_another_purpose_is_info_without_advice() {
+        let tsx = r##"export const X = () => <Box borderRadius="24px" h="1px" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&purpose_named_length_theme()), true);
+        assert!(report.ok, "{:?}", report.violations);
+        let lengths = report
+            .violations
+            .iter()
+            .filter(|v| v.rule == "hardcoded-length")
+            .collect::<Vec<_>>();
+        assert_eq!(lengths.len(), 2);
+        for finding in lengths {
+            assert_eq!(finding.severity, Severity::Info);
+            assert!(finding.suggestion.is_none());
+            assert!(finding.context.contains_key("otherPurposeTokens"));
+            assert!(finding.message.contains("different purpose"));
+        }
+    }
+
+    #[test]
+    fn a_token_named_for_the_same_purpose_is_preferred() {
+        let theme = purpose_named_length_theme();
+        let radius = validate_devup_ui_tsx(
+            r##"export const X = () => <Box borderRadius="12px" />;"##,
+            Some(&theme),
+            false,
+        );
+        let gap = validate_devup_ui_tsx(
+            r##"export const X = () => <Box gap="12px" />;"##,
+            Some(&theme),
+            false,
+        );
+        let radius = &radius.violations[0];
+        let gap = &gap.violations[0];
+        assert_eq!(radius.severity, Severity::Warning);
+        assert_eq!(gap.severity, Severity::Warning);
+        assert!(radius.message.contains("$radius12") && !radius.message.contains("$space12"));
+        assert!(gap.message.contains("$space12") && !gap.message.contains("$radius12"));
+    }
+
+    #[test]
+    fn mode_advice_is_stated_once() {
+        let report = validate_devup_ui_tsx(
+            r##"export const X = () => <Box borderRadius="16px" />;"##,
+            Some(&fixture_theme()),
+            false,
+        );
+        let finding = &report.violations[0];
+        assert!(!finding.message.contains("mode"));
+        assert!(finding.suggestion.as_deref().unwrap().contains("allModesMatch"));
+        assert_eq!(finding.context["value"], "16px");
+        assert_eq!(finding.context["prop"], "borderRadius");
+    }
 }
 
 #[path = "../ui_structure.rs"]

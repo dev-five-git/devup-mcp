@@ -354,19 +354,60 @@ impl<'t> TsxVisitor<'t> {
             return;
         }
         if is_length_like_prop(prop_name) && is_px_length(text) {
+            if is_zero_length(text) {
+                return;
+            }
             let tokens = self
                 .theme
                 .map(|theme| theme.length_tokens_matching_px(text))
                 .unwrap_or_default();
+            let prop_kind = LengthKind::of_prop(prop_name);
+            let (fitting, other): (Vec<_>, Vec<_>) = tokens
+                .into_iter()
+                .partition(|name| prop_kind.accepts(LengthKind::of_token(name)));
+            if fitting.is_empty() && !other.is_empty() {
+                self.report_other_purpose_length(prop_name, prop_kind, text, &other, span);
+                return;
+            }
             self.report_hardcoded_value(
                 "hardcoded-length",
                 "length",
                 prop_name,
                 text,
-                &tokens,
+                &fitting,
                 span,
             );
         }
+    }
+
+    /// The value equals a token, but every such token is named for another
+    /// purpose (`$spacing24` for a radius, a stroke width for a height).
+    /// Replacing would couple unrelated design decisions, so this is info
+    /// with no replacement advice.
+    fn report_other_purpose_length(
+        &mut self,
+        prop_name: &str,
+        prop_kind: LengthKind,
+        text: &str,
+        tokens: &[String],
+        span: Span,
+    ) {
+        let named = tokens.iter().map(|name| format!("${name}")).collect::<Vec<_>>().join(", ");
+        self.violations.push(Violation {
+            rule: "hardcoded-length",
+            severity: Severity::Info,
+            context: serde_json::Map::from_iter([
+                ("value".into(), serde_json::json!(text)),
+                ("prop".into(), serde_json::json!(prop_name)),
+                ("otherPurposeTokens".into(), serde_json::json!(tokens.iter().map(|name| format!("${name}")).collect::<Vec<_>>())),
+            ]),
+            byte_range: [span.start as usize, span.end as usize],
+            message: format!(
+                "{prop_name} uses hardcoded length {text}; only {named} has this value, and it is named for a different purpose than {}.",
+                prop_kind.label()
+            ),
+            suggestion: None,
+        });
     }
 
     /// Every literal remains visible. Only exact matches justify a warning
@@ -389,7 +430,10 @@ impl<'t> TsxVisitor<'t> {
             self.violations.push(Violation {
                 rule,
                 severity: Severity::Info,
-                context: Default::default(),
+                context: serde_json::Map::from_iter([
+                    ("value".into(), serde_json::json!(text)),
+                    ("prop".into(), serde_json::json!(prop_name)),
+                ]),
                 byte_range: [span.start as usize, span.end as usize],
                 message: format!("{prop_name} uses hardcoded {kind} {text}; {context}."),
                 suggestion: None,
@@ -409,12 +453,16 @@ impl<'t> TsxVisitor<'t> {
         self.violations.push(Violation {
             rule,
             severity: Severity::Warning,
-            context: serde_json::Map::from_iter([("tokenMatches".into(), serde_json::json!(token_matches))]),
+            context: serde_json::Map::from_iter([
+                ("tokenMatches".into(), serde_json::json!(token_matches)),
+                ("value".into(), serde_json::json!(text)),
+                ("prop".into(), serde_json::json!(prop_name)),
+            ]),
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
                 include_str!("../text/ui_validate-report_hardcoded_value_Violation-63c589c5.md")
             , kind = kind, named = named, prop_name = prop_name, text = text),
-            suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change the {kind} in other modes.")),
+            suggestion: Some(format!("Use {named} where tokenMatches[].allModesMatch is true; otherwise the {kind} changes in the modes it does not match.")),
         });
     }
 
@@ -696,6 +744,92 @@ fn is_hex_color(text: &str) -> bool {
         return false;
     };
     matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|character| character.is_ascii_hexdigit())
+}
+
+fn is_zero_length(text: &str) -> bool {
+    text.strip_suffix("px")
+        .map(|number| number.strip_prefix('-').unwrap_or(number))
+        .and_then(|number| number.parse::<f64>().ok())
+        .is_some_and(|number| number == 0.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LengthKind {
+    Radius,
+    Stroke,
+    Space,
+    Size,
+    Text,
+    Unknown,
+}
+
+impl LengthKind {
+    fn of_prop(prop: &str) -> Self {
+        if prop.contains("Radius") {
+            return Self::Radius;
+        }
+        if prop.starts_with("border") && prop.ends_with("Width")
+            || matches!(prop, "outlineWidth" | "strokeWidth")
+        {
+            return Self::Stroke;
+        }
+        if matches!(prop, "fontSize" | "lineHeight" | "letterSpacing" | "wordSpacing") {
+            return Self::Text;
+        }
+        if matches!(
+            prop,
+            "gap" | "columnGap" | "rowGap" | "gridGap" | "gridColumnGap" | "gridRowGap"
+                | "borderSpacing" | "top" | "right" | "bottom" | "left" | "outlineOffset"
+        ) || prop.starts_with("padding")
+            || prop.starts_with("margin")
+            || matches!(
+                prop,
+                "p" | "px" | "py" | "pt" | "pr" | "pb" | "pl" | "m" | "mx" | "my" | "mt" | "mr" | "mb" | "ml"
+            )
+        {
+            return Self::Space;
+        }
+        if matches!(prop, "w" | "h" | "boxSize" | "width" | "height" | "flexBasis" | "bgSize")
+            || prop.starts_with("min")
+            || prop.starts_with("max")
+        {
+            return Self::Size;
+        }
+        Self::Unknown
+    }
+
+    fn of_token(name: &str) -> Self {
+        let name = name.to_ascii_lowercase();
+        let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
+        if has(&["radius", "rounded", "corner"]) {
+            Self::Radius
+        } else if has(&["stroke", "border", "outline"]) {
+            Self::Stroke
+        } else if has(&["space", "spacing", "gap", "gutter", "padding", "margin", "inset"]) {
+            Self::Space
+        } else if has(&["font", "leading", "tracking", "lineheight"]) {
+            Self::Text
+        } else if has(&["size", "width", "height", "icon", "avatar"]) {
+            Self::Size
+        } else {
+            Self::Unknown
+        }
+    }
+
+    fn accepts(self, token: Self) -> bool {
+        self == Self::Unknown || token == Self::Unknown || self == token
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Radius => "a corner radius",
+            Self::Stroke => "a stroke width",
+            Self::Space => "spacing",
+            Self::Size => "a size",
+            Self::Text => "a text metric",
+            Self::Unknown => "this prop",
+        }
+    }
 }
 
 fn is_px_length(text: &str) -> bool {
