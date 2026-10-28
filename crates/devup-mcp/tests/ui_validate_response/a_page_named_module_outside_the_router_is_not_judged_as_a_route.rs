@@ -232,6 +232,35 @@ async fn hardcoded_values_report_the_figma_binding_behind_them() -> anyhow::Resu
     Ok(())
 }
 
+/// A value the design hardcodes too is info even when a theme token shares
+/// it, so strict passes; a bound one stays a warning.
+#[tokio::test]
+async fn an_unbound_value_matching_a_token_is_info() -> anyhow::Result<()> {
+    let tsx = r##"<Box w="100%"><Box p="16px" /></Box>"##;
+    let entry = |variable: Option<&str>| {
+        json!({"nodeId": "1:2", "property": "paddingLeft", "generatedProperty": "p=\"16px\"",
+            "resolution": "raw-fallback", "elementIndex": 1, "variableId": variable})
+    };
+    let plain = validate(json!({"tsx": tsx, "projectRoot": fixture_project_root(), "strict": true})).await?;
+    let finding = |out: &Value| {
+        out["violations"].as_array().unwrap().iter()
+            .find(|v| v["rule"] == "hardcoded-length").cloned().expect("hardcoded length")
+    };
+    assert_eq!(finding(&plain)["severity"], "warning", "{plain}");
+    for (variable, severity, ok) in [(None, "info", true), (Some("VariableID:1:1"), "warning", false)] {
+        for detail in ["full", "summary"] {
+            let out = validate(json!({
+                "tsx": tsx, "projectRoot": fixture_project_root(), "strict": true, "detail": detail,
+                "sourceMap": {"entries": [entry(variable)]},
+            }))
+            .await?;
+            assert_eq!(finding(&out)["severity"], severity, "{detail}: {out}");
+            assert_eq!(out["ok"], ok, "{detail}: {out}");
+        }
+    }
+    Ok(())
+}
+
 /// Layout risks and what was never rendered are reported beside the rules,
 /// and do not move `ok` or `okReason`.
 #[tokio::test]

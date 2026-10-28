@@ -83,6 +83,7 @@ pub(super) fn summarize(result: &mut serde_json::Value, sources: &[( &str, &str)
             }
             let kind = if finding["rule"] == "hardcoded-color" { "color" } else { "length" };
             let message = match (finding["severity"].as_str(), tokens.is_empty()) {
+                (_, false) if binding["state"] == "unbound" && finding["severity"] != "warning" => format!("hardcoded {kind} {value}; the Figma design hardcodes it too, so {} only shares the value", tokens.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")),
                 (Some("warning"), false) => format!("hardcoded {kind} {value}; devup.json defines it as {}", tokens.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")),
                 (_, false) => format!("hardcoded {kind} {value}; only tokens named for another purpose have this value"),
                 _ => format!("hardcoded {kind} {value}; no matching token"),

@@ -255,6 +255,55 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
     }
 }
 
+/// A hardcoded value whose Figma node binds no variable is what the design
+/// says, so a token that only shares the value is a coincidence: the finding
+/// drops to info and offers no replacement. Runs before severities are
+/// counted, so `ok`, `okReason`, `strict` and `correctedTsx` all see it.
+fn relax_unbound_token_matches(
+    violations: &mut [devup_mcp_devup_ui::ui_validate::Violation],
+    input: &UiValidateInput,
+) {
+    use devup_mcp_devup_ui::ui_validate::Severity;
+    let Some(source_map) = &input.source_map else {
+        return;
+    };
+    if input.files.is_some() {
+        return;
+    }
+    let entries = source_map
+        .entries
+        .iter()
+        .chain(&source_map.tsx)
+        .collect::<Vec<_>>();
+    for violation in violations.iter_mut().filter(|v| {
+        v.severity == Severity::Warning && matches!(v.rule, "hardcoded-color" | "hardcoded-length")
+    }) {
+        let (Some(element), Some(attribute)) = (
+            violation.context.get("elementIndex").and_then(Value::as_u64),
+            violation.context.get("attribute").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let generated = entries
+            .iter()
+            .copied()
+            .filter(|entry| entry.element_index == usize::try_from(element).ok())
+            .filter(|entry| {
+                entry.generated_property.as_deref().is_some_and(|generated| {
+                    generated == attribute || generated.starts_with(&format!("{attribute}="))
+                })
+            })
+            .collect::<Vec<_>>();
+        if generated.is_empty() || generated.iter().any(|entry| entry.variable_id.is_some()) {
+            continue;
+        }
+        violation.severity = Severity::Info;
+        violation.suggestion = Some(
+            "The Figma design hardcodes this value too (no variable bound), so keeping it matches the design. Bind a variable in Figma and export again if it should follow the theme.".into(),
+        );
+    }
+}
+
 /// Whether the Figma node behind a hardcoded value bound a variable. A value
 /// match against the theme is a coincidence of numbers; the binding is what
 /// the designer chose, so it outranks `tokenMatches`. Unbound means the

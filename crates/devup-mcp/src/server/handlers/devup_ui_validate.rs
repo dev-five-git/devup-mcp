@@ -171,6 +171,12 @@ impl DevupServer {
         // And with no theme the token check is skipped rather than passed,
         // which a bare `checkedTokens` cannot distinguish.
         use devup_mcp_devup_ui::ui_validate::Severity;
+        relax_unbound_token_matches(&mut report.violations, &input);
+        if input.strict {
+            report.ok = report.violations.iter().all(|finding| {
+                !matches!(finding.severity, Severity::Error | Severity::Warning)
+            });
+        }
         let count_severity = |severity| {
             report
                 .violations
