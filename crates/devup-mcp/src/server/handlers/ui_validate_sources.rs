@@ -114,7 +114,13 @@ pub(super) fn summarize(result: &mut serde_json::Value, sources: &[( &str, &str)
         groups.insert(key, rows.len());
         rows.push(row);
     }
+    let rank = |row: &Value| match row["severity"].as_str() { Some("error") => 0, Some("warning") => 1, _ => 2 };
+    rows.sort_by_key(|row| rank(row));
     let total = rows.len();
+    let hidden = rows.iter().skip(100).fold(std::collections::BTreeMap::<String, u64>::new(), |mut counts, row| {
+        *counts.entry(row["severity"].as_str().unwrap_or("info").to_owned()).or_default() += 1;
+        counts
+    });
     rows.truncate(100);
     let risk_count = result["layoutRisks"].as_array().map_or(0, Vec::len);
     if let Some(object) = result.as_object_mut() {
@@ -124,5 +130,5 @@ pub(super) fn summarize(result: &mut serde_json::Value, sources: &[( &str, &str)
     result["layoutRiskCount"] = json!(risk_count);
     result["detail"] = json!("summary");
     result["full"] = json!({"how":"repeat with detail: \"full\""});
-    if total > 100 { result["violationsTruncated"] = json!({"shown":100,"total":total}); }
+    if total > 100 { result["violationsTruncated"] = json!({"shown":100,"total":total,"hiddenBySeverity":hidden,"order":"error, warning, info"}); }
 }

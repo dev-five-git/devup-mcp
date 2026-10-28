@@ -259,7 +259,7 @@ impl Collector<'_> {
             .count()
             >= 2
         {
-            self.risks.push(json!({"rule":"column-reading-order", "confidence":"medium", "elementIndex":parent.ordinal,
+            self.risks.push(json!({"rule":"column-reading-order", "confidence":"medium", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "message":"Column wrappers can collapse cards in column order (01,03,02,04). Use one Grid or flex-wrap in design reading order, or explicit breakpoint order; run sequence-order at every width."}));
         }
         let row = parent.tag == "Flex"
@@ -300,7 +300,7 @@ impl Collector<'_> {
                 .is_some_and(|value| value.contains("wrap"))
             || direction(parent).is_some_and(|value| narrow_value(value).starts_with("column"));
         if navigation && measured_navigation > 390.0 && !mobile_alternative {
-            self.risks.push(json!({"rule":"navigation-fit", "confidence":"high", "elementIndex":parent.ordinal,
+            self.risks.push(json!({"rule":"navigation-fit", "confidence":"high", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "contentWidth":measured_navigation, "narrowViewport":390,
                 "message":"Header navigation cannot fit a narrow container. With no mobile menu frame, propose a drawer behind a menu button below the content-fit breakpoint; verify no-clipped-content at every width."}));
         }
@@ -324,7 +324,7 @@ impl Collector<'_> {
                 })
         });
         if row && !mobile_alternative && (fixed_children >= 2 || wide_only) {
-            self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal,
+            self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "message":"A multi-column row keeps fixed child widths without a narrow column or wrap rule. Supply narrow responsive layout props and verify section-layout, overflow and clipped text at 390/858px."}));
         }
         let width = pixels(parent.attrs.get("w"))

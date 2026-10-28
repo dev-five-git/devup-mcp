@@ -169,7 +169,8 @@ fn validate_source(
             Some("navigation-fit") => "navigation-fit",
             _ => continue,
         };
-        violations.push(Violation { rule, severity: Severity::Warning, byte_range: [0, 0],
+        let start = risk["byteStart"].as_u64().and_then(|value| usize::try_from(value).ok()).unwrap_or(0);
+        violations.push(Violation { rule, severity: Severity::Warning, byte_range: [start, start],
             context: risk.as_object().cloned().unwrap_or_default(),
             message: risk["message"].as_str().unwrap_or_default().to_owned(),
             suggestion: Some("Use reading-order DOM and explicit narrow layout props, then run the runtime audit at every required width.".into()) });

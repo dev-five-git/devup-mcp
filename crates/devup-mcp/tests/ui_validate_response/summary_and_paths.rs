@@ -17,9 +17,27 @@ async fn summary_caps_distinct_findings_without_losing_error_counts() -> anyhow:
     let elements = (0..105).map(|index| format!("<Text invalidProp{index}={{1}} />")).collect::<String>();
     let output = validate(json!({"detail":"summary","tsx":format!("<>\n{elements}</>")})).await?;
     assert_eq!(output["violations"].as_array().unwrap().len(), 100);
-    assert_eq!(output["violationsTruncated"], json!({"shown":100,"total":105}));
+    assert_eq!(
+        output["violationsTruncated"],
+        json!({"shown":100,"total":105,"hiddenBySeverity":{"error":5},"order":"error, warning, info"})
+    );
     assert_eq!(output["violationCounts"]["error"], 105);
     assert!(output["violations"].as_array().unwrap().iter().all(|row| row["line"] == 2));
+    Ok(())
+}
+
+#[tokio::test]
+async fn summary_lists_warnings_before_info_and_layout_risks_point_at_their_element() -> anyhow::Result<()> {
+    let tsx = "export function A() {\n  return (\n    <Box>\n      <Flex flexDir=\"column\"><Text>01</Text></Flex>\n      <Flex flexDir=\"column\"><Text>02</Text></Flex>\n    </Box>\n  )\n}\nconst B = () => <Box color=\"#123456\" />";
+    let output = validate(json!({"detail":"summary","tsx":tsx})).await?;
+    let rows = output["violations"].as_array().unwrap();
+    let ranks = rows
+        .iter()
+        .map(|row| match row["severity"].as_str() { Some("error") => 0, Some("warning") => 1, _ => 2 })
+        .collect::<Vec<_>>();
+    assert!(ranks.windows(2).all(|pair| pair[0] <= pair[1]), "{rows:?}");
+    let order = rows.iter().find(|row| row["rule"] == "column-reading-order").expect("column-reading-order");
+    assert_eq!(order["line"], 3, "{order:?}");
     Ok(())
 }
 
