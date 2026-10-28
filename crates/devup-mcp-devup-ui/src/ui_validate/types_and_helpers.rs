@@ -400,6 +400,7 @@ impl<'t> TsxVisitor<'t> {
             context: serde_json::Map::from_iter([
                 ("value".into(), serde_json::json!(text)),
                 ("prop".into(), serde_json::json!(prop_name)),
+                ("lengthKind".into(), serde_json::json!(prop_kind.name())),
                 ("otherPurposeTokens".into(), serde_json::json!(tokens.iter().map(|name| format!("${name}")).collect::<Vec<_>>())),
             ]),
             byte_range: [span.start as usize, span.end as usize],
@@ -439,6 +440,7 @@ impl<'t> TsxVisitor<'t> {
                 message: format!("{prop_name} uses hardcoded {kind} {text}; {context}."),
                 suggestion: None,
             });
+            self.tag_length_kind(rule, prop_name);
             return;
         }
         let named = tokens
@@ -465,6 +467,19 @@ impl<'t> TsxVisitor<'t> {
             , kind = kind, named = named, prop_name = prop_name, text = text),
             suggestion: Some(format!("Use {named} where tokenMatches[].allModesMatch is true; otherwise the {kind} changes in the modes it does not match.")),
         });
+        self.tag_length_kind(rule, prop_name);
+    }
+
+    fn tag_length_kind(&mut self, rule: &str, prop_name: &str) {
+        if rule != "hardcoded-length" {
+            return;
+        }
+        if let Some(last) = self.violations.last_mut() {
+            last.context.insert(
+                "lengthKind".into(),
+                serde_json::json!(LengthKind::of_prop(prop_name).name()),
+            );
+        }
     }
 
     fn check_unknown_prop(&mut self, prop_name: &str, span: Span) {
@@ -819,6 +834,17 @@ impl LengthKind {
 
     fn accepts(self, token: Self) -> bool {
         self == Self::Unknown || token == Self::Unknown || self == token
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Radius => "radius",
+            Self::Stroke => "stroke",
+            Self::Space => "space",
+            Self::Size => "size",
+            Self::Text => "text",
+            Self::Unknown => "other",
+        }
     }
 
     fn label(self) -> &'static str {

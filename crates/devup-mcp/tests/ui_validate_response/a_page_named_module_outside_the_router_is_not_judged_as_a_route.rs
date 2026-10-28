@@ -261,6 +261,23 @@ async fn an_unbound_value_matching_a_token_is_info() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Summary rows group a length by what it measures, so a radius never
+/// shares a row with spacing of the same value.
+#[tokio::test]
+async fn summary_rows_split_lengths_by_kind() -> anyhow::Result<()> {
+    let tsx = r##"<Box w="100%"><Box p="16px" borderRadius="16px" gap="16px" /></Box>"##;
+    let out = validate(json!({"tsx": tsx, "projectRoot": fixture_project_root(), "detail": "summary"})).await?;
+    let rows = out["violations"].as_array().unwrap().iter()
+        .filter(|v| v["rule"] == "hardcoded-length" && v["value"] == "16px")
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2, "{out}");
+    let space = rows.iter().find(|row| row["lengthKind"] == "space").expect("space row");
+    let radius = rows.iter().find(|row| row["lengthKind"] == "radius").expect("radius row");
+    assert_eq!(space["count"], 2, "{space}");
+    assert_eq!(radius["props"], json!(["borderRadius"]), "{radius}");
+    Ok(())
+}
+
 /// Layout risks and what was never rendered are reported beside the rules,
 /// and do not move `ok` or `okReason`.
 #[tokio::test]

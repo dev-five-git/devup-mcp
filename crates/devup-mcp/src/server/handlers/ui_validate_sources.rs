@@ -66,7 +66,8 @@ pub(super) fn summarize(result: &mut serde_json::Value, sources: &[( &str, &str)
             let tokens = finding["tokenMatches"].as_array().map(|matches| matches.iter().map(|m| m["token"].clone()).collect::<Vec<_>>())
                 .or_else(|| finding["otherPurposeTokens"].as_array().cloned()).unwrap_or_default();
             let binding = finding.get("designBinding").cloned().unwrap_or(Value::Null);
-            let key = format!("{}|{}|{value}|{}|{}", finding["rule"], finding["severity"], json!(tokens), binding["state"]);
+            let length_kind = finding.get("lengthKind").cloned().unwrap_or(Value::Null);
+            let key = format!("{}|{}|{value}|{}|{}|{}", finding["rule"], finding["severity"], json!(tokens), binding["state"], length_kind);
             let line = finding.get("line").cloned().unwrap_or(Value::Null);
             let prop = finding.get("prop").cloned().unwrap_or(Value::Null);
             let file = name.cloned().unwrap_or(Value::Null);
@@ -92,6 +93,7 @@ pub(super) fn summarize(result: &mut serde_json::Value, sources: &[( &str, &str)
                 "count":1,"props":[prop],"files":[{"sourceName":file,"lines":[line]}]});
             if !tokens.is_empty() { row["tokens"] = json!(tokens); }
             if !binding.is_null() { row["designBinding"] = binding; }
+            if !length_kind.is_null() { row["lengthKind"] = length_kind; }
             if let Some(suggestion) = finding.get("suggestion").filter(|value| !value.is_null()) { row["suggestion"] = suggestion.clone(); }
             value_groups.insert(key, rows.len());
             rows.push(row);
