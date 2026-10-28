@@ -198,6 +198,40 @@ async fn violations_link_to_the_source_map_on_element_index() -> anyhow::Result<
     Ok(())
 }
 
+/// A hardcoded value says whether its Figma node bound a variable there:
+/// a bound one outranks any token that only shares the value, an unbound
+/// one means the design hardcodes it too.
+#[tokio::test]
+async fn hardcoded_values_report_the_figma_binding_behind_them() -> anyhow::Result<()> {
+    let tsx = r##"<Box w="100%"><Text color="#123456">Hi</Text></Box>"##;
+    let entry = |variable: Option<&str>| {
+        json!({"nodeId": "1:2", "property": "fills", "generatedProperty": "color=\"#123456\"",
+            "resolution": "raw-fallback", "elementIndex": 1, "variableId": variable})
+    };
+    for (variable, state) in [(Some("VariableID:9:345"), "bound"), (None, "unbound")] {
+        for detail in ["full", "summary"] {
+            let out = validate(json!({
+                "tsx": tsx,
+                "projectRoot": fixture_project_root(),
+                "detail": detail,
+                "sourceMap": {"entries": [entry(variable)]},
+            }))
+            .await?;
+            let violation = out["violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["rule"] == "hardcoded-color")
+                .expect("hardcoded colour");
+            assert_eq!(violation["designBinding"]["state"], state, "{detail}: {violation}");
+            if let Some(variable) = variable {
+                assert_eq!(violation["designBinding"]["variableIds"][0], variable);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Layout risks and what was never rendered are reported beside the rules,
 /// and do not move `ok` or `okReason`.
 #[tokio::test]

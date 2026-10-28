@@ -465,6 +465,9 @@ pub struct SourceMapEntryInput {
     pub resolution: Option<String>,
     #[serde(default)]
     pub element_index: Option<usize>,
+    /// The Figma variable the property was bound to, when it was.
+    #[serde(default)]
+    pub variable_id: Option<String>,
 }
 
 /// `layers` selects which cross-layer drift checks to run

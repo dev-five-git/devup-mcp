@@ -214,6 +214,7 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         };
         let matches = entries
             .iter()
+            .copied()
             .filter(|entry| entry.element_index == usize::try_from(element).ok())
             .filter(|entry| {
                 entry
@@ -224,15 +225,25 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
                     })
             })
             .take(3)
-            .map(|entry| {
-                json!({"nodeId": entry.node_id, "property": entry.property,
-                    "generatedProperty": entry.generated_property, "resolution": entry.resolution})
-            })
             .collect::<Vec<_>>();
-        if !matches.is_empty() {
-            linked += 1;
-            violation["source"] = json!(matches);
+        if matches.is_empty() {
+            continue;
         }
+        linked += 1;
+        if violation["rule"]
+            .as_str()
+            .is_some_and(|rule| rule.starts_with("hardcoded-"))
+        {
+            violation["designBinding"] = design_binding(&matches);
+        }
+        violation["source"] = json!(
+            matches
+                .iter()
+                .map(|entry| json!({"nodeId": entry.node_id, "property": entry.property,
+                    "generatedProperty": entry.generated_property, "resolution": entry.resolution,
+                    "variableId": entry.variable_id}))
+                .collect::<Vec<_>>()
+        );
     }
     let unlinked = result["violations"].as_array().map_or(0, Vec::len) - linked;
     result["sourceMapLink"] = json!({"state": "linked", "linkedViolations": linked,
@@ -241,6 +252,24 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         result["sourceMapLink"]["unlinkedReason"] = json!(include_str!(
             "../text/mod-attach_layout_and_source_links-a7298619.md"
         ));
+    }
+}
+
+/// Whether the Figma node behind a hardcoded value bound a variable. A value
+/// match against the theme is a coincidence of numbers; the binding is what
+/// the designer chose, so it outranks `tokenMatches`. Unbound means the
+/// design itself hardcodes the value, and no token replacement is implied.
+fn design_binding(entries: &[&crate::server::tools::SourceMapEntryInput]) -> Value {
+    let variables = entries
+        .iter()
+        .filter_map(|entry| entry.variable_id.as_deref())
+        .collect::<std::collections::BTreeSet<_>>();
+    if variables.is_empty() {
+        json!({"state": "unbound",
+            "note": "The Figma node has no variable bound to this property: the design also hardcodes it. tokenMatches are value coincidences, not the designer's choice."})
+    } else {
+        json!({"state": "bound", "variableIds": variables,
+            "note": "Use the token generated for this Figma variable (devupJson/variable mapping), not a token that merely shares the value."})
     }
 }
 
