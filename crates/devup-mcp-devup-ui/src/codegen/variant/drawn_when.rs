@@ -104,6 +104,9 @@ fn merge_child_props(
             Some(&child_path),
             &child.props,
         );
+        if child.component == "Image" {
+            child.scalar_sources = scalar_sources(records, definitions, dimensions, viewport, effect_value, &child_path);
+        }
         merge_child_props(
             child,
             records,
@@ -126,8 +129,8 @@ fn changed_effect_props(
 ) -> BTreeMap<String, Expression> {
     let effect_name = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"))
-        .map(|definition| definition.name.clone());
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
+        .map(|definition| definition.source.clone());
     let keys = records
         .iter()
         .filter(|record| {
@@ -183,8 +186,8 @@ fn expression_for_prop(
 ) -> Option<Expression> {
     let effect_name = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"))
-        .map(|definition| definition.name.as_str());
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !dimensions.iter().any(|dimension| dimension.name == definition.name))
+        .map(|definition| definition.source.as_str());
     let dependencies = dimensions
         .iter()
         .filter(|dimension| !dimension.boolean)
@@ -278,7 +281,7 @@ fn dimension_depends(
             let set = records
                 .iter()
                 .filter(|record| {
-                    record.values.get(&dimension.name) == Some(option)
+                    record.values.get(&dimension.source) == Some(option)
                         && effect_name.is_none_or(|name| {
                             record.values.get(name).map(String::as_str) == Some(effect_value)
                         })
@@ -359,14 +362,14 @@ fn nested_expression(
             .iter()
             .filter(|definition| !definition.boolean)
             .map(|definition| {
-                let value = if Some(definition.name.as_str()) == effect_name {
+                let value = if Some(definition.source.as_str()) == effect_name {
                     effect_value
                 } else if let Some(value) = pinned.get(&definition.name) {
                     value.as_str()
                 } else {
                     &definition.default
                 };
-                (definition.name.clone(), value.to_owned())
+                (definition.source.clone(), value.to_owned())
             })
             .collect::<BTreeMap<_, _>>();
         find_record(records, &filters).is_some()
@@ -395,13 +398,13 @@ fn nested_expression(
                     ),
                 )
             })
-            .filter_map(|(option, value)| Some((option, value?)))
+            .map(|(option, value)| (option, value.unwrap_or(Expression::Undefined)))
             .collect::<Vec<_>>()
     };
 
     if rest.is_empty() {
         let values = branch(first, Vec::new());
-        if values.is_empty() {
+        if values.iter().all(|(_, value)| matches!(value, Expression::Undefined)) {
             return None;
         }
         // Every option that was drawn saying the same thing is not a choice at
@@ -426,12 +429,13 @@ fn nested_expression(
         }
         // One option carrying the only value reads better as the condition it
         // is than as a map with a single entry and a hole where the rest were.
-        if values.len() == 1
-            && let Expression::Literal(value) = &values[0].1
+        let present = values.iter().filter(|(_, value)| !matches!(value, Expression::Undefined)).collect::<Vec<_>>();
+        if present.len() == 1
+            && let Expression::Literal(value) = &present[0].1
         {
             return Some(Expression::Conditional(
                 first.name.clone(),
-                values[0].0.clone(),
+                present[0].0.clone(),
                 value.clone(),
             ));
         }
@@ -482,7 +486,7 @@ fn viewport_expression(
             .iter()
             .filter(|definition| !definition.boolean)
             .map(|definition| {
-                let value = if Some(definition.name.as_str()) == effect_name {
+                let value = if Some(definition.source.as_str()) == effect_name {
                     effect_value
                 } else if definition.name.eq_ignore_ascii_case("viewport") {
                     viewport_value.unwrap_or(&definition.default)
@@ -491,7 +495,7 @@ fn viewport_expression(
                 } else {
                     &definition.default
                 };
-                (definition.name.clone(), value.to_owned())
+                (definition.source.clone(), value.to_owned())
             })
             .collect::<BTreeMap<_, _>>();
         find_record(records, &filters)
@@ -577,11 +581,12 @@ fn render_component(
     tree: &Tree,
     selectors: &BTreeMap<String, BTreeMap<String, Expression>>,
     transition: Option<&(String, String)>,
+    text_properties: &BTreeMap<String, String>,
 ) -> String {
-    let interface = if dimensions.is_empty() {
+    let interface = if dimensions.is_empty() && text_properties.is_empty() {
         String::new()
     } else {
-        let fields = dimensions
+        let mut fields = dimensions
             .iter()
             .map(|definition| {
                 if definition.boolean {
@@ -602,14 +607,21 @@ fn render_component(
             })
             .collect::<Vec<_>>()
             .join("\n");
+        for name in text_properties.keys() {
+            if !fields.is_empty() {
+                fields.push('\n');
+            }
+            fields.push_str(&format!("  {name}?: string"));
+        }
         format!("export interface {name}Props {{\n{fields}\n}}\n\n")
     };
-    let signature = if dimensions.is_empty() {
+    let signature = if dimensions.is_empty() && text_properties.is_empty() {
         format!("export function {name}()")
     } else {
         let props = dimensions
             .iter()
-            .map(|definition| definition.name.as_str())
+            .map(|definition| if definition.boolean { format!("{} = {}", definition.name, definition.default) } else { definition.name.clone() })
+            .chain(text_properties.iter().map(|(name, default)| format!("{name} = {default}")))
             .collect::<Vec<_>>()
             .join(", ");
         format!("export function {name}({{ {props} }}: {name}Props)")
@@ -624,6 +636,17 @@ fn render_tree(
     transition: Option<&(String, String)>,
     depth: usize,
 ) -> String {
+    if !tree.scalar_sources.is_empty() {
+        let rendered = tree.scalar_sources.iter().map(|(source, display)| {
+            let mut image = tree.clone();
+            image.scalar_sources.clear();
+            image.props.insert("src".into(), source.clone());
+            image.props.insert("display".into(), display.clone());
+            render_tree(&image, selectors, transition, depth)
+        }).collect::<Vec<_>>().join("\n");
+        let indent = "  ".repeat(depth);
+        return format!("{indent}<>\n{rendered}\n{indent}</>");
+    }
     let indent = "  ".repeat(depth);
     let child_indent = "  ".repeat(depth + 1);
     let mut rendered_props = Vec::new();
@@ -639,9 +662,14 @@ fn render_tree(
             })
             .collect::<Vec<_>>()
             .join(",\n");
-        rendered_props.push(format!(
-            "{child_indent}{selector}={{{{\n{values}\n{child_indent}}}}}"
-        ));
+        if selector.starts_with('&') {
+            let selector = serde_json::to_string(selector).unwrap_or_default();
+            rendered_props.push(format!("{child_indent}selectors={{{{ {selector}: {{\n{values}\n{child_indent}}} }}}}"));
+        } else {
+            rendered_props.push(format!(
+                "{child_indent}{selector}={{{{\n{values}\n{child_indent}}}}}"
+            ));
+        }
     }
     for (name, expression) in &tree.props {
         rendered_props.push(format!(
@@ -733,10 +761,8 @@ fn needs_const(prop: &str) -> bool {
 
 fn render_expression_attr(prop: &str, expression: &Expression) -> String {
     match expression {
+        Expression::Undefined => "={undefined}".into(),
         Expression::Literal(value) => format!("=\"{value}\""),
-        Expression::Conditional(name, option, value) => {
-            format!("={{{name} === '{option}' && \"{value}\"}}")
-        }
         Expression::Variant(name, _) if needs_const(prop) => {
             let rendered = render_expression_value(expression, 0);
             let object = rendered
@@ -772,23 +798,38 @@ fn indent_attribute_expression(expression: &str, depth: usize) -> String {
 
 fn render_expression_value(expression: &Expression, depth: usize) -> String {
     match expression {
-        Expression::Literal(value) => format!("\"{value}\""),
-        Expression::Responsive(slots) => format!(
+        Expression::Undefined => "undefined".into(),
+        Expression::Literal(value) => serde_json::to_string(value).unwrap_or_default(),
+        Expression::Responsive(slots) => {
+            let end = slots.iter().rposition(Option::is_some).map_or(0, |index| index + 1);
+            if end == 1 {
+                return serde_json::to_string(&slots[0]).unwrap_or_default();
+            }
+            format!(
             "[{}]",
-            slots
+            slots[..end]
                 .iter()
                 .map(|slot| slot
                     .as_ref()
-                    .map_or("null".to_owned(), |value| format!("\"{value}\"")))
+                    .map_or("null".to_owned(), |value| serde_json::to_string(value).unwrap_or_default()))
                 .collect::<Vec<_>>()
                 .join(", ")
-        ),
+        )
+        },
         Expression::Variant(prop, values) => {
             let indent = "  ".repeat(depth);
             let child_indent = "  ".repeat(depth + 1);
             let lines = values
                 .iter()
                 .map(|(key, value)| {
+                    let key = if key.chars().enumerate().all(|(index, character)| {
+                        character.is_ascii_alphabetic() || character == '_' || character == '$'
+                            || (index > 0 && character.is_ascii_digit())
+                    }) && !key.is_empty() {
+                        key.clone()
+                    } else {
+                        serde_json::to_string(key).unwrap_or_default()
+                    };
                     format!(
                         "{child_indent}{key}: {}",
                         render_expression_value(value, depth + 1)
@@ -799,7 +840,9 @@ fn render_expression_value(expression: &Expression, depth: usize) -> String {
             format!("{{\n{lines}\n{indent}}}[{prop}]")
         }
         Expression::Conditional(prop, option, value) => {
-            format!("{prop} === '{option}' && \"{value}\"")
+            let option = serde_json::to_string(option).unwrap_or_default();
+            let value = serde_json::to_string(value).unwrap_or_default();
+            format!("{prop} === {option} ? {value} : undefined")
         }
     }
 }

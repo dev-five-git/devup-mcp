@@ -64,6 +64,15 @@ pub fn validate_bundle(
     strict: bool,
 ) -> Result<UiValidation, String> {
     check_bundle(files)?;
+    Ok(validate_sources(files, theme, strict))
+}
+
+/// Validate source files whose envelope has already been checked by the caller.
+pub fn validate_sources(
+    files: &[SourceFile],
+    theme: Option<&ProjectTheme>,
+    strict: bool,
+) -> UiValidation {
     let boundary = files.iter().filter(|f| is_source(&f.path)).any(|file| {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, &file.content, source_type(&file.path)).parse();
@@ -72,16 +81,25 @@ pub fn validate_bundle(
         facts.boundary
     });
     let mut result = UiValidation {
+        next_action: None,
         ok: true,
         violations: vec![],
         theme_notes: vec![],
         checked_tokens: 0,
         available_token_count: theme.map_or(0, ProjectTheme::token_count),
     };
+    let mut fixable = 0;
+    let global_link_decoration = files.iter().filter(|file| is_source(&file.path))
+        .any(|file| super::visual_behavior::has_global_link_decoration(&file.content));
     for file in files.iter().filter(|f| is_source(&f.path)) {
         let mut report = validate_source(&file.content, theme, strict, source_type(&file.path));
+        if global_link_decoration {
+            report.violations.retain(|finding| finding.rule != "link-underline");
+        }
+        fixable += report.next_action.as_ref().and_then(|action| action["fixable"].as_u64()).unwrap_or(0) as usize;
         if !report.violations.iter().any(|v| v.rule == "invalid-syntax") {
             report.violations.extend(structural(file, boundary));
+            report.violations.extend(super::wiring::fixture_findings(files, &file.path, &file.content));
             report
                 .violations
                 .extend(super::site::interaction_findings(&file.path, &file.content));
@@ -99,12 +117,13 @@ pub fn validate_bundle(
         result.violations.extend(report.violations);
     }
     result.theme_notes.sort();
+    result.next_action = super::lint_fix_action(fixable);
     result.theme_notes.dedup();
     result.ok = result
         .violations
         .iter()
         .all(|v| v.severity != Severity::Error && !(strict && v.severity == Severity::Warning));
-    Ok(result)
+    result
 }
 fn is_source(path: &str) -> bool {
     path.ends_with(".tsx")

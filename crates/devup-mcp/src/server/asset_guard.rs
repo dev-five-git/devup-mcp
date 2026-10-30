@@ -155,7 +155,9 @@ pub(super) fn export_coverage(
         {
             continue;
         }
-        if depth <= 1 || node.node_type == "SECTION" || assets.contains(id) {
+        if node.node_type != "COMPONENT_SET"
+            && (depth <= 1 || node.node_type == "SECTION" || assets.contains(id))
+        {
             wanted.insert(id.to_owned());
         }
         // Leaf assets (including a flattened wrapper) represent all their children.
@@ -290,6 +292,12 @@ pub(super) fn violations(sources: &[(&str, &str)], project_root: Option<&str>) -
             let mut context = Map::new();
             context.insert("assetUrl".into(), json!(url));
             context.insert("publicDirs".into(), json!(looked_in));
+            context.insert("nextAction".into(), json!({
+                "tool": "devup_figma_export",
+                "how": "Use the original Figma URL and the discovered icon nodeId in assetRequests; set outputPath under public/ to serve this assetUrl. Do not invent node IDs or replace the missing icon with a placeholder.",
+                "assetUrl": url,
+                "requiredInputs": ["url", "assetRequests[].nodeId", "assetRequests[].outputPath"]
+            }));
             if !name.is_empty() {
                 context.insert("sourceName".into(), json!(name));
             }
@@ -331,7 +339,7 @@ fn served(dirs: &[PathBuf], url: &str) -> bool {
 
 /// Root-relative asset URLs with their byte ranges: the quoted value of a
 /// `src` prop or property, and the inside of every `url(...)`.
-fn asset_urls(source: &str) -> Vec<(String, [usize; 2])> {
+pub(super) fn asset_urls(source: &str) -> Vec<(String, [usize; 2])> {
     #[derive(Default)]
     struct Literals {
         src: Vec<[usize; 2]>,

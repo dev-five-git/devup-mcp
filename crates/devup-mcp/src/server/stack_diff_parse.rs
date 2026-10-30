@@ -519,15 +519,69 @@ fn object_config(tokens: &[Token]) -> Option<String> {
 /// references, which must first be expanded through OpenAPI's devup tags.
 type References = Vec<(String, String)>;
 
-pub(in crate::server) fn client_references(source: &str) -> (References, References) {
+/// Names bound directly to a `createApi(...)` result in this source:
+/// `export const client = createApi({ ... })`.
+pub(in crate::server) fn api_client_bindings(source: &str) -> Vec<String> {
     let tokens = tokenize(source, false);
+    let mut names = Vec::new();
+    for i in 2..tokens.len() {
+        if word(&tokens, i, "createApi")
+            && symbol(&tokens, i - 1, '=')
+            && let Some(name) = tokens[i - 2].word()
+        {
+            names.push(name.to_owned());
+        }
+    }
+    names
+}
+
+/// The receivers whose `.get(...)`-style calls are client calls in this
+/// source: `api`, any local `createApi` binding, and any name in `known`
+/// (bindings found elsewhere in the project) that this source imports,
+/// under its local alias.
+fn client_receivers(tokens: &[Token], source: &str, known: &BTreeSet<String>) -> BTreeSet<String> {
+    let mut receivers = BTreeSet::from(["api".to_owned()]);
+    receivers.extend(api_client_bindings(source));
+    for i in 0..tokens.len() {
+        if word(tokens, i, "import")
+            && symbol(tokens, i + 1, '{')
+            && let Some(end) = group_end(tokens, i + 1)
+            && word(tokens, end + 1, "from")
+        {
+            for part in comma_parts(&tokens[i + 2..end]) {
+                let part = if word(part, 0, "type") { &part[1..] } else { part };
+                let Some(imported) = part.first().and_then(Token::word) else { continue };
+                if !known.contains(imported) {
+                    continue;
+                }
+                let local = if word(part, 1, "as") { part.get(2).and_then(Token::word) } else { Some(imported) };
+                if let Some(local) = local {
+                    receivers.insert(local.to_owned());
+                }
+            }
+        }
+    }
+    receivers
+}
+
+#[cfg(test)]
+pub(in crate::server) fn client_references(source: &str) -> (References, References) {
+    client_references_with(source, &BTreeSet::new())
+}
+
+pub(in crate::server) fn client_references_with(
+    source: &str,
+    known_clients: &BTreeSet<String>,
+) -> (References, References) {
+    let tokens = tokenize(source, false);
+    let receivers = client_receivers(&tokens, source, known_clients);
     let mut calls = Vec::new();
     let mut configs = Vec::new();
     for i in 0..tokens.len() {
         let Some(name) = tokens[i].word() else {
             continue;
         };
-        if name == "api"
+        if (name == "api" || (receivers.contains(name) && (i == 0 || !symbol(&tokens, i - 1, '.'))))
             && symbol(&tokens, i + 1, '.')
             && let Some(method) = tokens.get(i + 2).and_then(Token::word)
             && http_method(method)
@@ -537,7 +591,7 @@ pub(in crate::server) fn client_references(source: &str) -> (References, Referen
             && first.len() == 1
             && let Some(path) = first[0].literal()
         {
-            calls.push((format!("api.{method}("), path.to_owned()));
+            calls.push((format!("{name}.{method}("), path.to_owned()));
         }
         if matches!(
             name,

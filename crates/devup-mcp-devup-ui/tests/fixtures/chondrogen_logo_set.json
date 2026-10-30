@@ -1,0 +1,3665 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "136:19763"
+  ],
+  "nodes": {
+    "136:19763": {
+      "id": "136:19763",
+      "type": "COMPONENT_SET",
+      "fields": {
+        "parentId": "19:963",
+        "parentType": "SECTION",
+        "parentName": "Components",
+        "childrenIds": [
+          "37:217",
+          "136:19764"
+        ],
+        "absoluteBoundingBox": {
+          "height": 416,
+          "width": 1142,
+          "x": 10847,
+          "y": 1294
+        },
+        "absoluteRenderBounds": {
+          "height": 416,
+          "width": 1142,
+          "x": 10847,
+          "y": 1294
+        },
+        "bottomLeftRadius": 5,
+        "bottomRightRadius": 5,
+        "clipsContent": true,
+        "componentPropertyDefinitions": {
+          "속성 1": {
+            "defaultValue": "기본",
+            "type": "VARIANT",
+            "variantOptions": [
+              "기본",
+              "gray"
+            ]
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 5,
+        "dashPattern": [
+          10,
+          5
+        ],
+        "defaultVariant": {
+          "$nodeId": "37:217",
+          "$nodeType": "COMPONENT"
+        },
+        "height": 416,
+        "itemSpacing": 0,
+        "layoutGrow": 0,
+        "layoutMode": "NONE",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Logo",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 0.27843138575553894,
+              "r": 0.5921568870544434
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 5,
+        "topRightRadius": 5,
+        "visible": true,
+        "width": 1142,
+        "x": 2177,
+        "y": 256
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19764": {
+      "id": "136:19764",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "136:19763",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "136:19765",
+          "136:19766",
+          "136:19779"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 1102,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 1102,
+          "x": 10867,
+          "y": 1512
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 178,
+        "itemSpacing": 0,
+        "layoutGrow": 0,
+        "layoutMode": "NONE",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "속성 1=gray",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "속성 1": "gray"
+        },
+        "visible": true,
+        "width": 1102,
+        "x": 20,
+        "y": 218
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19765": {
+      "id": "136:19765",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19764",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7843137383460999,
+                  "g": 0.7686274647712708,
+                  "r": 0.7490196228027344
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7647058963775635,
+                  "g": 0.7490196228027344,
+                  "r": 0.729411780834198
+                },
+                "position": 0.30000001192092896
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 0.44999998807907104
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7019608020782471,
+                  "g": 0.686274528503418,
+                  "r": 0.6666666865348816
+                },
+                "position": 0.6100000143051147
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.686274528503418,
+                  "g": 0.6705882549285889,
+                  "r": 0.6509804129600525
+                },
+                "position": 0.7599999904632568
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.6823529601097107,
+                  "g": 0.6666666865348816,
+                  "r": 0.6470588445663452
+                },
+                "position": 0.9100000262260436
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.6823529601097107,
+                  "g": 0.6666666865348816,
+                  "r": 0.6470588445663452
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.6454866528511047,
+                0,
+                0.31524205207824707
+              ],
+              [
+                0,
+                0.6454866528511047,
+                0.204462930560112
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "sphere",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19766": {
+      "id": "136:19766",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:19764",
+        "childrenIds": [
+          "136:19767",
+          "136:19769"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "height": 178,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Clip path group",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19767": {
+      "id": "136:19767",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:19766",
+        "childrenIds": [
+          "136:19768"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": null,
+        "height": 178,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "MIN",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "isMask": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "sphere-clip",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19768": {
+      "id": "136:19768",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19767",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0,
+              "g": 0,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19769": {
+      "id": "136:19769",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:19766",
+        "childrenIds": [
+          "136:19770",
+          "136:19771",
+          "136:19772",
+          "136:19773",
+          "136:19774",
+          "136:19775",
+          "136:19776",
+          "136:19777",
+          "136:19778"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Group",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19770": {
+      "id": "136:19770",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.41999998688697815,
+                  "b": 0.6705882549285889,
+                  "g": 0.6549019813537598,
+                  "r": 0.6352941393852234
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.20000000298023224,
+                  "b": 0.6705882549285889,
+                  "g": 0.6549019813537598,
+                  "r": 0.6352941393852234
+                },
+                "position": 0.550000011920929
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.6705882549285889,
+                  "g": 0.6549019813537598,
+                  "r": 0.6352941393852234
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                1.252997875213623,
+                0,
+                0.08783221244812012
+              ],
+              [
+                0,
+                1.252997875213623,
+                -0.7154324054718018
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "shade-outside-orbit",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19771": {
+      "id": "136:19771",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1512
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.14000000059604645,
+                  "b": 0.8156862854957581,
+                  "g": 0.800000011920929,
+                  "r": 0.7803921699523926
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.8156862854957581,
+                  "g": 0.800000011920929,
+                  "r": 0.7803921699523926
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                1.9364598989486697,
+                0,
+                0.468456894159317
+              ],
+              [
+                0,
+                1.9364598989486697,
+                -0.5502269268035889
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "light-left-overlay",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19772": {
+      "id": "136:19772",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 37.27400207519531,
+          "width": 72.59410095214844,
+          "x": 10963.125,
+          "y": 1638.8858642578125
+        },
+        "absoluteRenderBounds": {
+          "height": 37.2740478515625,
+          "width": 72.59375,
+          "x": 10963.125,
+          "y": 1638.8858642578125
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.550000011920929,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 0.30000001192092896
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.5,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 0.75
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8151227831840515,
+                -0.2092042565345764,
+                0.19614684581756592
+              ],
+              [
+                0.4074420928955078,
+                0.41853103041648865,
+                0.08879981189966202
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 37.27400207519531,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "rim-highlight (Stroke)",
+        "opacity": 1,
+        "strokeAlign": "CENTER",
+        "strokeWeight": 3.849999904632568,
+        "visible": true,
+        "width": 72.59410095214844,
+        "x": 96.12515258789062,
+        "y": 126.88589477539062
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19773": {
+      "id": "136:19773",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 101.65419006347656,
+          "width": 101.57887268066406,
+          "x": 10887.373046875,
+          "y": 1548.818115234375
+        },
+        "absoluteRenderBounds": {
+          "height": 101.6541748046875,
+          "width": 101.5791015625,
+          "x": 10887.373046875,
+          "y": 1548.818115234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8784313797950745,
+                  "g": 0.8627451062202454,
+                  "r": 0.843137264251709
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7803921699523926,
+                  "g": 0.7647058963775635,
+                  "r": 0.7450980544090271
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8613659739494324,
+                0.45280781388282776,
+                -0.1629999577999115
+              ],
+              [
+                -0.4524722993373871,
+                0.8620046973228455,
+                0.31514695286750793
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 101.65419006347656,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "core",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 101.57887268066406,
+        "x": 20.373069763183594,
+        "y": 36.818145751953125
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19774": {
+      "id": "136:19774",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 60.4782829284668,
+          "width": 60.47827911376953,
+          "x": 10905.2109375,
+          "y": 1569.554443359375
+        },
+        "absoluteRenderBounds": {
+          "height": 60.478271484375,
+          "width": 60.478515625,
+          "x": 10905.2109375,
+          "y": 1569.554443359375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9803921580314636,
+                  "g": 0.9647058844566344,
+                  "r": 0.945098042488098
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8509804010391235,
+                  "g": 0.8352941274642944,
+                  "r": 0.8156862854957581
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8080573678016663,
+                0.5874120593070984,
+                -0.19792257249355316
+              ],
+              [
+                -0.5874120593070984,
+                0.8080573678016663,
+                0.3895654380321502
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 60.4782829284668,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ring",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 60.47827911376953,
+        "x": 38.210899353027344,
+        "y": 57.55449295043945
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19775": {
+      "id": "136:19775",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 32.88132858276367,
+          "width": 32.88132858276367,
+          "x": 10918.421875,
+          "y": 1582.765380859375
+        },
+        "absoluteRenderBounds": {
+          "height": 32.88134765625,
+          "width": 32.880859375,
+          "x": 10918.421875,
+          "y": 1582.765380859375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7529411911964417,
+                  "g": 0.7372549176216125,
+                  "r": 0.7176470756530762
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.729411780834198,
+                  "g": 0.7137255072593689,
+                  "r": 0.6941176652908325
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.9339293241500854,
+                0.3536636531352997,
+                -0.14337609708309174
+              ],
+              [
+                -0.3536636531352997,
+                0.9339293241500854,
+                0.2099337726831436
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 32.88132858276367,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ring-center",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 32.88132858276367,
+        "x": 51.421836853027344,
+        "y": 70.76543426513672
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19776": {
+      "id": "136:19776",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 145.2490692138672,
+          "width": 151.74325561523438,
+          "x": 10867.23046875,
+          "y": 1528.1748046875
+        },
+        "absoluteRenderBounds": {
+          "height": 145.2490234375,
+          "width": 151.7431640625,
+          "x": 10867.23046875,
+          "y": 1528.1748046875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9960784316062928,
+                  "g": 0.9803921580314636,
+                  "r": 0.9607843160629272
+                },
+                "position": 0.1899999976158142
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9607843160629272,
+                  "g": 0.945098042488098,
+                  "r": 0.9254902005195618
+                },
+                "position": 0.3799999952316284
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9254902005195618,
+                  "g": 0.9098039269447328,
+                  "r": 0.8901960849761963
+                },
+                "position": 0.5
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8823529481887817,
+                  "g": 0.8666666746139526,
+                  "r": 0.8470588326454163
+                },
+                "position": 0.6600000262260437
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8509804010391235,
+                  "g": 0.8352941274642944,
+                  "r": 0.8156862854957581
+                },
+                "position": 0.8399999737739563
+              }
+            ],
+            "gradientTransform": [
+              [
+                -1.6364001035690308,
+                1.5055831670761108,
+                -0.08484271168708801
+              ],
+              [
+                -1.5728986263275146,
+                -1.5663667917251587,
+                2.0555288791656494
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 145.2490692138672,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-outer (Stroke)",
+        "opacity": 1,
+        "strokeAlign": "CENTER",
+        "strokeWeight": 5.050000190734863,
+        "visible": true,
+        "width": 151.74325561523438,
+        "x": 0.23043431341648105,
+        "y": 16.174827575683594
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19777": {
+      "id": "136:19777",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 83.3648681640625,
+          "width": 151.09185791015625,
+          "x": 10886.0341796875,
+          "y": 1569.19287109375
+        },
+        "absoluteRenderBounds": {
+          "height": 83.3648681640625,
+          "width": 151.091796875,
+          "x": 10886.0341796875,
+          "y": 1569.19287109375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.9960784316062928,
+              "g": 0.9803921580314636,
+              "r": 0.9607843160629272
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 83.3648681640625,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-inner",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 151.09185791015625,
+        "x": 19.033720016479492,
+        "y": 57.192928314208984
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19778": {
+      "id": "136:19778",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19769",
+        "absoluteBoundingBox": {
+          "height": 44.28451156616211,
+          "width": 98.18855285644533,
+          "x": 10887.1845703125,
+          "y": 1548.9384765625
+        },
+        "absoluteRenderBounds": {
+          "height": 44.2845458984375,
+          "width": 98.1884765625,
+          "x": 10887.1845703125,
+          "y": 1548.9384765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9960784316062928,
+                  "g": 0.9803921580314636,
+                  "r": 0.9607843160629272
+                },
+                "position": 0.029999999329447743
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9647058844566344,
+                  "g": 0.9490196108818054,
+                  "r": 0.929411768913269
+                },
+                "position": 0.119999997317791
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9254902005195618,
+                  "g": 0.9098039269447328,
+                  "r": 0.8901960849761963
+                },
+                "position": 0.3499999940395355
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.8999999761581421,
+                  "b": 0.8705882430076599,
+                  "g": 0.8549019694328308,
+                  "r": 0.8352941274642944
+                },
+                "position": 0.6200000047683716
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.6000000238418579,
+                  "b": 0.843137264251709,
+                  "g": 0.8274509906768799,
+                  "r": 0.8078431487083435
+                },
+                "position": 0.8600000143051147
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.8313725590705872,
+                  "g": 0.8156862854957581,
+                  "r": 0.7960784435272217
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.9895601272583008,
+                -0.06226864457130432,
+                0.0533602200448513
+              ],
+              [
+                0.13806335628032684,
+                0.446306437253952,
+                0.05430806800723076
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 44.28451156616211,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-inner-tail",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 98.18855285644533,
+        "x": 20.18492317199707,
+        "y": 36.938419342041016
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19779": {
+      "id": "136:19779",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:19764",
+        "childrenIds": [
+          "136:19780",
+          "136:19781",
+          "136:19782",
+          "136:19783",
+          "136:19784",
+          "136:19785",
+          "136:19786",
+          "136:19787",
+          "136:19788",
+          "136:19789"
+        ],
+        "absoluteBoundingBox": {
+          "height": 105.2799835205078,
+          "width": 875.4388427734375,
+          "x": 11093.16015625,
+          "y": 1547.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 105.280029296875,
+          "width": 875.4388427734375,
+          "x": 11093.16015625,
+          "y": 1547.1201171875
+        },
+        "height": 105.2799835205078,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ChondroGen",
+        "opacity": 1,
+        "visible": true,
+        "width": 875.4388427734375,
+        "x": 226.16015625,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19780": {
+      "id": "136:19780",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 73.6400146484375,
+          "x": 11894.958984375,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 73.6396484375,
+          "x": 11894.958984375,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7964744567871094,
+              "g": 0.7761158347129822,
+              "r": 0.7543532252311707
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.6400146484375,
+        "x": 1027.95947265625,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19781": {
+      "id": "136:19781",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 76.44000244140625,
+          "x": 11804.509765625,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 76.4404296875,
+          "x": 11804.509765625,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7964744567871094,
+              "g": 0.7761158347129822,
+              "r": 0.7543532252311707
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 76.44000244140625,
+        "x": 937.509765625,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19782": {
+      "id": "136:19782",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 100.8000030517578,
+          "width": 92.4000244140625,
+          "x": 11700.005859375,
+          "y": 1551.60009765625
+        },
+        "absoluteRenderBounds": {
+          "height": 100.800048828125,
+          "width": 92.400390625,
+          "x": 11700.005859375,
+          "y": 1551.60009765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7964744567871094,
+              "g": 0.7761158347129822,
+              "r": 0.7543532252311707
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100.8000030517578,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 92.4000244140625,
+        "x": 833.00537109375,
+        "y": 39.60009765625
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19783": {
+      "id": "136:19783",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 79.65997314453125,
+          "x": 11611.73046875,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 79.66015625,
+          "x": 11611.73046875,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.65997314453125,
+        "x": 744.73095703125,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19784": {
+      "id": "136:19784",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 43.259979248046875,
+          "x": 11563.26953125,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 43.259765625,
+          "x": 11563.26953125,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 43.259979248046875,
+        "x": 696.26904296875,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19785": {
+      "id": "136:19785",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 104.86000061035156,
+          "width": 79.239990234375,
+          "x": 11463.7958984375,
+          "y": 1547.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 104.8599853515625,
+          "width": 79.240234375,
+          "x": 11463.7958984375,
+          "y": 1547.1201171875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 104.86000061035156,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.239990234375,
+        "x": 596.7958984375,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19786": {
+      "id": "136:19786",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 73.63998413085938,
+          "x": 11376.779296875,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 73.6396484375,
+          "x": 11376.779296875,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.63998413085938,
+        "x": 509.779296875,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19787": {
+      "id": "136:19787",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 79.66000366210938,
+          "x": 11283.185546875,
+          "y": 1575.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 79.66015625,
+          "x": 11283.185546875,
+          "y": 1575.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.66000366210938,
+        "x": 416.18505859375,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19788": {
+      "id": "136:19788",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 103.8800048828125,
+          "width": 73.64000701904297,
+          "x": 11196.16796875,
+          "y": 1547.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 103.8800048828125,
+          "width": 73.6396484375,
+          "x": 11196.16796875,
+          "y": 1547.1201171875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 103.8800048828125,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.64000701904297,
+        "x": 329.16845703125,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:19789": {
+      "id": "136:19789",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:19779",
+        "absoluteBoundingBox": {
+          "height": 100.8000030517578,
+          "width": 91.27999877929688,
+          "x": 11093.16015625,
+          "y": 1551.60009765625
+        },
+        "absoluteRenderBounds": {
+          "height": 100.800048828125,
+          "width": 91.2802734375,
+          "x": 11093.16015625,
+          "y": 1551.60009765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.7291667461395264,
+              "g": 0.7133524417877197,
+              "r": 0.6952789425849915
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100.8000030517578,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 91.27999877929688,
+        "x": 226.16015625,
+        "y": 39.60009765625
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9027": {
+      "id": "136:9027",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "37:217",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7490196228027344,
+                  "g": 0.5607843399047852,
+                  "r": 0.03921568766236305
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.6823529601097107,
+                  "g": 0.5058823823928833,
+                  "r": 0.007843137718737125
+                },
+                "position": 0.30000001192092896
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.5607843399047852,
+                  "g": 0.3764705955982208,
+                  "r": 0.003921568859368563
+                },
+                "position": 0.44999998807907104
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.46666666865348816,
+                  "g": 0.2823529541492462,
+                  "r": 0
+                },
+                "position": 0.6100000143051147
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.40784314274787903,
+                  "g": 0.22745098173618317,
+                  "r": 0
+                },
+                "position": 0.7599999904632568
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.3843137323856354,
+                  "g": 0.2078431397676468,
+                  "r": 0.003921568859368563
+                },
+                "position": 0.9100000262260436
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.3843137323856354,
+                  "g": 0.2117647081613541,
+                  "r": 0.003921568859368563
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.6454866528511047,
+                0,
+                0.31524205207824707
+              ],
+              [
+                0,
+                0.6454866528511047,
+                0.204462930560112
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "sphere",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9028": {
+      "id": "136:9028",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "37:217",
+        "childrenIds": [
+          "136:9029",
+          "136:9031"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "height": 178,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Clip path group",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9029": {
+      "id": "136:9029",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:9028",
+        "childrenIds": [
+          "136:9030"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": null,
+        "height": 178,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "MIN",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "isMask": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "sphere-clip",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9030": {
+      "id": "136:9030",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9029",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0,
+              "g": 0,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9031": {
+      "id": "136:9031",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "136:9028",
+        "childrenIds": [
+          "136:9032",
+          "136:9033",
+          "136:9034",
+          "136:9035",
+          "136:9036",
+          "136:9037",
+          "136:9038",
+          "136:9039",
+          "136:9040"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Group",
+        "opacity": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9032": {
+      "id": "136:9032",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.41999998688697815,
+                  "b": 0.3333333432674408,
+                  "g": 0.16470588743686676,
+                  "r": 0
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.20000000298023224,
+                  "b": 0.3333333432674408,
+                  "g": 0.16470588743686676,
+                  "r": 0
+                },
+                "position": 0.550000011920929
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.3333333432674408,
+                  "g": 0.16470588743686676,
+                  "r": 0
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                1.252997875213623,
+                0,
+                0.08783221244812012
+              ],
+              [
+                0,
+                1.252997875213623,
+                -0.7154324054718018
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "shade-outside-orbit",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9033": {
+      "id": "136:9033",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 178,
+          "x": 10867,
+          "y": 1314
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.14000000059604645,
+                  "b": 0.8470588326454163,
+                  "g": 0.6509804129600525,
+                  "r": 0.10588235408067705
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.8470588326454163,
+                  "g": 0.6509804129600525,
+                  "r": 0.10588235408067705
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                1.9364598989486697,
+                0,
+                0.468456894159317
+              ],
+              [
+                0,
+                1.9364598989486697,
+                -0.5502269268035889
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_RADIAL",
+            "visible": true
+          }
+        ],
+        "height": 178,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "light-left-overlay",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 178,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9034": {
+      "id": "136:9034",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 37.27400207519531,
+          "width": 72.59410095214844,
+          "x": 10963.125,
+          "y": 1440.8858642578125
+        },
+        "absoluteRenderBounds": {
+          "height": 37.2740478515625,
+          "width": 72.59375,
+          "x": 10963.125,
+          "y": 1440.8858642578125
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.5764706134796143,
+                  "g": 0.3529411852359772,
+                  "r": 0.04313725605607033
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.550000011920929,
+                  "b": 0.5764706134796143,
+                  "g": 0.3529411852359772,
+                  "r": 0.04313725605607033
+                },
+                "position": 0.30000001192092896
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.5,
+                  "b": 0.5764706134796143,
+                  "g": 0.3529411852359772,
+                  "r": 0.04313725605607033
+                },
+                "position": 0.75
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.5764706134796143,
+                  "g": 0.3529411852359772,
+                  "r": 0.04313725605607033
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8151227831840515,
+                -0.2092042565345764,
+                0.19614684581756592
+              ],
+              [
+                0.4074420928955078,
+                0.41853103041648865,
+                0.08879981189966202
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 37.27400207519531,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "rim-highlight (Stroke)",
+        "opacity": 1,
+        "strokeAlign": "CENTER",
+        "strokeWeight": 3.849999904632568,
+        "visible": true,
+        "width": 72.59410095214844,
+        "x": 96.12515258789062,
+        "y": 126.88589477539062
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9035": {
+      "id": "136:9035",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 101.65419006347656,
+          "width": 101.57887268066406,
+          "x": 10887.373046875,
+          "y": 1350.818115234375
+        },
+        "absoluteRenderBounds": {
+          "height": 101.6541748046875,
+          "width": 101.5791015625,
+          "x": 10887.373046875,
+          "y": 1350.818115234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8156862854957581,
+                  "g": 0.7843137383460999,
+                  "r": 0.03921568766236305
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.5882353186607361,
+                  "g": 0.4313725531101227,
+                  "r": 0
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8613659739494324,
+                0.45280781388282776,
+                -0.1629999577999115
+              ],
+              [
+                -0.4524722993373871,
+                0.8620046973228455,
+                0.31514695286750793
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 101.65419006347656,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "core",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 101.57887268066406,
+        "x": 20.373069763183594,
+        "y": 36.818145751953125
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9036": {
+      "id": "136:9036",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 60.4782829284668,
+          "width": 60.47827911376953,
+          "x": 10905.2109375,
+          "y": 1371.554443359375
+        },
+        "absoluteRenderBounds": {
+          "height": 60.478271484375,
+          "width": 60.478515625,
+          "x": 10905.2109375,
+          "y": 1371.554443359375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8745098114013672,
+                  "g": 0.9333333373069764,
+                  "r": 0.6705882549285889
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.7607843279838562,
+                  "g": 0.7215686440467834,
+                  "r": 0.0235294122248888
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.8080573678016663,
+                0.5874120593070984,
+                -0.19792257249355316
+              ],
+              [
+                -0.5874120593070984,
+                0.8080573678016663,
+                0.3895654380321502
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 60.4782829284668,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ring",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 60.47827911376953,
+        "x": 38.210899353027344,
+        "y": 57.55449295043945
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9037": {
+      "id": "136:9037",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 32.88132858276367,
+          "width": 32.88132858276367,
+          "x": 10918.421875,
+          "y": 1384.765380859375
+        },
+        "absoluteRenderBounds": {
+          "height": 32.88134765625,
+          "width": 32.880859375,
+          "x": 10918.421875,
+          "y": 1384.765380859375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.6196078658103943,
+                  "g": 0.4745098054409027,
+                  "r": 0.007843137718737125
+                },
+                "position": 0
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.545098066329956,
+                  "g": 0.3764705955982208,
+                  "r": 0.003921568859368563
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.9339293241500854,
+                0.3536636531352997,
+                -0.14337609708309174
+              ],
+              [
+                -0.3536636531352997,
+                0.9339293241500854,
+                0.2099337726831436
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 32.88132858276367,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ring-center",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 32.88132858276367,
+        "x": 51.421836853027344,
+        "y": 70.76543426513672
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9038": {
+      "id": "136:9038",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 145.2490692138672,
+          "width": 151.74325561523438,
+          "x": 10867.23046875,
+          "y": 1330.1748046875
+        },
+        "absoluteRenderBounds": {
+          "height": 145.2490234375,
+          "width": 151.7431640625,
+          "x": 10867.23046875,
+          "y": 1330.1748046875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9843137264251708,
+                  "g": 0.9764705896377563,
+                  "r": 0.9607843160629272
+                },
+                "position": 0.1899999976158142
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9803921580314636,
+                  "g": 0.91372549533844,
+                  "r": 0.7764706015586853
+                },
+                "position": 0.3799999952316284
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9725490212440492,
+                  "g": 0.8588235378265381,
+                  "r": 0.6039215922355652
+                },
+                "position": 0.5
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.95686274766922,
+                  "g": 0.7843137383460999,
+                  "r": 0.3843137323856354
+                },
+                "position": 0.6600000262260437
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9333333373069764,
+                  "g": 0.729411780834198,
+                  "r": 0.21960784494876864
+                },
+                "position": 0.8399999737739563
+              }
+            ],
+            "gradientTransform": [
+              [
+                -1.6364001035690308,
+                1.5055831670761108,
+                -0.08484271168708801
+              ],
+              [
+                -1.5728986263275146,
+                -1.5663667917251587,
+                2.0555288791656494
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 145.2490692138672,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-outer (Stroke)",
+        "opacity": 1,
+        "strokeAlign": "CENTER",
+        "strokeWeight": 5.050000190734863,
+        "visible": true,
+        "width": 151.74325561523438,
+        "x": 0.23043431341648105,
+        "y": 16.174827575683594
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9039": {
+      "id": "136:9039",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 83.3648681640625,
+          "width": 151.09185791015625,
+          "x": 10886.0341796875,
+          "y": 1371.19287109375
+        },
+        "absoluteRenderBounds": {
+          "height": 83.3648681640625,
+          "width": 151.091796875,
+          "x": 10886.0341796875,
+          "y": 1371.19287109375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.9843137264251708,
+              "g": 0.9803921580314636,
+              "r": 0.9647058844566344
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 83.3648681640625,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-inner",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 151.09185791015625,
+        "x": 19.033720016479492,
+        "y": 57.192928314208984
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9040": {
+      "id": "136:9040",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9031",
+        "absoluteBoundingBox": {
+          "height": 44.28451156616211,
+          "width": 98.18855285644533,
+          "x": 10887.1845703125,
+          "y": 1350.9384765625
+        },
+        "absoluteRenderBounds": {
+          "height": 44.2845458984375,
+          "width": 98.1884765625,
+          "x": 10887.1845703125,
+          "y": 1350.9384765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "gradientStops": [
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9843137264251708,
+                  "g": 0.9803921580314636,
+                  "r": 0.9647058844566344
+                },
+                "position": 0.029999999329447743
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.9176470637321472,
+                  "g": 0.9529411792755128,
+                  "r": 0.7686274647712708
+                },
+                "position": 0.119999997317791
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 0.8549019694328308,
+                  "g": 0.8941176533699036,
+                  "r": 0.5607843399047852
+                },
+                "position": 0.3499999940395355
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.8999999761581421,
+                  "b": 0.8274509906768799,
+                  "g": 0.8156862854957581,
+                  "r": 0.2705882489681244
+                },
+                "position": 0.6200000047683716
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0.6000000238418579,
+                  "b": 0.8039215803146362,
+                  "g": 0.7607843279838562,
+                  "r": 0.14901961386203766
+                },
+                "position": 0.8600000143051147
+              },
+              {
+                "boundVariables": {},
+                "color": {
+                  "a": 0,
+                  "b": 0.772549033164978,
+                  "g": 0.7215686440467834,
+                  "r": 0.11372549086809158
+                },
+                "position": 1
+              }
+            ],
+            "gradientTransform": [
+              [
+                0.9895601272583008,
+                -0.06226864457130432,
+                0.0533602200448513
+              ],
+              [
+                0.13806335628032684,
+                0.446306437253952,
+                0.05430806800723076
+              ]
+            ],
+            "opacity": 1,
+            "type": "GRADIENT_LINEAR",
+            "visible": true
+          }
+        ],
+        "height": 44.28451156616211,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "orbit-inner-tail",
+        "opacity": 1,
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 98.18855285644533,
+        "x": 20.18492317199707,
+        "y": 36.938419342041016
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9041": {
+      "id": "136:9041",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "37:217",
+        "childrenIds": [
+          "136:9042",
+          "136:9043",
+          "136:9044",
+          "136:9045",
+          "136:9046",
+          "136:9047",
+          "136:9048",
+          "136:9049",
+          "136:9050",
+          "136:9051"
+        ],
+        "absoluteBoundingBox": {
+          "height": 105.2799835205078,
+          "width": 875.4388427734375,
+          "x": 11093.16015625,
+          "y": 1349.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 105.280029296875,
+          "width": 875.4388427734375,
+          "x": 11093.16015625,
+          "y": 1349.1201171875
+        },
+        "height": 105.2799835205078,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ChondroGen",
+        "opacity": 1,
+        "visible": true,
+        "width": 875.4388427734375,
+        "x": 226.16015625,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9042": {
+      "id": "136:9042",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 73.6400146484375,
+          "x": 11894.958984375,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 73.6396484375,
+          "x": 11894.958984375,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.6980392336845398,
+              "g": 0.6117647290229797,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.6400146484375,
+        "x": 1027.95947265625,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9043": {
+      "id": "136:9043",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 76.44000244140625,
+          "x": 11804.509765625,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 76.4404296875,
+          "x": 11804.509765625,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.6980392336845398,
+              "g": 0.6117647290229797,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 76.44000244140625,
+        "x": 937.509765625,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9044": {
+      "id": "136:9044",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 100.8000030517578,
+          "width": 92.4000244140625,
+          "x": 11700.005859375,
+          "y": 1353.60009765625
+        },
+        "absoluteRenderBounds": {
+          "height": 100.800048828125,
+          "width": 92.400390625,
+          "x": 11700.005859375,
+          "y": 1353.60009765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.6980392336845398,
+              "g": 0.6117647290229797,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100.8000030517578,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 92.4000244140625,
+        "x": 833.00537109375,
+        "y": 39.60009765625
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9045": {
+      "id": "136:9045",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 79.65997314453125,
+          "x": 11611.73046875,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 79.66015625,
+          "x": 11611.73046875,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.65997314453125,
+        "x": 744.73095703125,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9046": {
+      "id": "136:9046",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 43.259979248046875,
+          "x": 11563.26953125,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 43.259765625,
+          "x": 11563.26953125,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 43.259979248046875,
+        "x": 696.26904296875,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9047": {
+      "id": "136:9047",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 104.86000061035156,
+          "width": 79.239990234375,
+          "x": 11463.7958984375,
+          "y": 1349.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 104.8599853515625,
+          "width": 79.240234375,
+          "x": 11463.7958984375,
+          "y": 1349.1201171875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 104.86000061035156,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.239990234375,
+        "x": 596.7958984375,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9048": {
+      "id": "136:9048",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 75.60000610351562,
+          "width": 73.63998413085938,
+          "x": 11376.779296875,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 75.5999755859375,
+          "width": 73.6396484375,
+          "x": 11376.779296875,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 75.60000610351562,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.63998413085938,
+        "x": 509.779296875,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9049": {
+      "id": "136:9049",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 76.58000183105469,
+          "width": 79.66000366210938,
+          "x": 11283.185546875,
+          "y": 1377.39990234375
+        },
+        "absoluteRenderBounds": {
+          "height": 76.5799560546875,
+          "width": 79.66015625,
+          "x": 11283.185546875,
+          "y": 1377.39990234375
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 76.58000183105469,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 79.66000366210938,
+        "x": 416.18505859375,
+        "y": 63.39990234375
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9050": {
+      "id": "136:9050",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 103.8800048828125,
+          "width": 73.64000701904297,
+          "x": 11196.16796875,
+          "y": 1349.1201171875
+        },
+        "absoluteRenderBounds": {
+          "height": 103.8800048828125,
+          "width": 73.6396484375,
+          "x": 11196.16796875,
+          "y": 1349.1201171875
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 103.8800048828125,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 73.64000701904297,
+        "x": 329.16845703125,
+        "y": 35.1201171875
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "136:9051": {
+      "id": "136:9051",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "136:9041",
+        "absoluteBoundingBox": {
+          "height": 100.8000030517578,
+          "width": 91.27999877929688,
+          "x": 11093.16015625,
+          "y": 1353.60009765625
+        },
+        "absoluteRenderBounds": {
+          "height": 100.800048828125,
+          "width": 91.2802734375,
+          "x": 11093.16015625,
+          "y": 1353.60009765625
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "SCALE"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.3803921639919281,
+              "g": 0.2078431397676468,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100.8000030517578,
+        "isAsset": true,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Vector",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "visible": true,
+        "width": 91.27999877929688,
+        "x": 226.16015625,
+        "y": 39.60009765625
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "37:217": {
+      "id": "37:217",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "136:19763",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "136:9027",
+          "136:9028",
+          "136:9041"
+        ],
+        "absoluteBoundingBox": {
+          "height": 178,
+          "width": 1102,
+          "x": 10867,
+          "y": 1314
+        },
+        "absoluteRenderBounds": {
+          "height": 178,
+          "width": 1102,
+          "x": 10867,
+          "y": 1314
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 178,
+        "itemSpacing": 0,
+        "layoutGrow": 0,
+        "layoutMode": "NONE",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "속성 1=기본",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "속성 1": "기본"
+        },
+        "visible": true,
+        "width": 1102,
+        "x": 20,
+        "y": 20
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

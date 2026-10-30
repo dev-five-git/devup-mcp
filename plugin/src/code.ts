@@ -5,7 +5,8 @@
 // 둘을 postMessage 로 잇는 구조가 강제된다.
 //
 // 읽기 전용이다. SCRIPTS 는 devup-mcp 의 읽기 스크립트에서 생성되며 문서를
-// 바꾸는 호출을 포함하지 않는다.
+// 바꾸는 호출을 포함하지 않는다. 붙은 devup-mcp 가 더 새 스크립트를 보내면
+// (`devup-scripts-update`) 같은 생성기가 만든 그 묶음으로 갈아 끼운다.
 
 import { SCRIPTS, type ScriptParams } from './generated/scripts'
 
@@ -67,6 +68,18 @@ interface StatusMessage extends Context {
 interface ContextMessage extends Context {
   kind: 'devup-context'
 }
+
+/**
+ * UI → 메인. 붙은 devup-mcp 가 이 빌드보다 새 스크립트를 보냈다. `bundle` 은
+ * 스크립트 이름 → 함수 객체를 돌려주는 함수 식이다.
+ */
+interface ScriptsUpdateMessage {
+  kind: 'devup-scripts-update'
+  scriptsHash: string
+  bundle: string
+}
+
+type Script = (p: ScriptParams) => Promise<unknown>
 
 /** UI → 메인. `devup-decode` 의 답 — 디코딩하지 못했으면 png 가 null 이다. */
 interface DecodedMessage {
@@ -172,15 +185,50 @@ function fillParams(partial: Partial<ScriptParams>): ScriptParams {
   }
 }
 
+/**
+ * 지금 실행하는 스크립트. 처음에는 빌드에 들어간 것이고, devup-mcp 가 더 새
+ * 스크립트를 보내면 바뀐다 — 플러그인을 닫고 다시 실행하지 않아도 된다. 돌고 있던
+ * 작업은 시작할 때 고른 함수로 끝난다.
+ */
+let scripts: Record<string, Script> = SCRIPTS
+
+/**
+ * 받은 스크립트로 갈아 끼운다. 간접 eval 은 전역에서 돌아 `figma` 를 그대로 본다.
+ * 모양이 맞지 않으면 지금 것을 그대로 둔다 — 반쯤 바뀐 상태는 없다.
+ */
+function loadScripts(update: ScriptsUpdateMessage) {
+  try {
+    const load = (0, eval)(update.bundle) as unknown
+    if (typeof load !== 'function') throw new Error('the bundle is not a function')
+    const next = (load as () => unknown)()
+    if (
+      typeof next !== 'object' ||
+      next === null ||
+      Object.keys(next).length === 0 ||
+      !Object.values(next).every((value) => typeof value === 'function')
+    ) {
+      throw new Error('the bundle did not return named scripts')
+    }
+    scripts = next as Record<string, Script>
+    figma.ui.postMessage({ kind: 'devup-scripts-updated', scriptsHash: update.scriptsHash })
+  } catch (error) {
+    figma.ui.postMessage({
+      kind: 'devup-scripts-updated',
+      scriptsHash: update.scriptsHash,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 async function runJob(job: JobMessage): Promise<ResultMessage> {
-  const script = SCRIPTS[job.script]
+  const script = scripts[job.script]
   if (!script) {
     // devup-mcp 가 이 플러그인보다 새 스크립트를 아는 상태. 어느 쪽이 오래됐는지
     // 알 수 있도록 아는 목록을 함께 돌려준다.
     return {
       kind: 'devup-result',
       requestId: job.requestId,
-      error: `DEVUP_BRIDGE_UNKNOWN_SCRIPT: ${job.script} (아는 스크립트: ${Object.keys(SCRIPTS).join(', ')})`,
+      error: `DEVUP_BRIDGE_UNKNOWN_SCRIPT: ${job.script} (아는 스크립트: ${Object.keys(scripts).join(', ')})`,
     }
   }
   try {
@@ -317,6 +365,11 @@ figma.ui.onmessage = (message: unknown) => {
 
   if (msg.kind === 'devup-cancel') {
     withdraw((message as CancelMessage).requestId)
+    return
+  }
+
+  if (msg.kind === 'devup-scripts-update') {
+    loadScripts(message as ScriptsUpdateMessage)
     return
   }
 

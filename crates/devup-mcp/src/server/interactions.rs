@@ -7,6 +7,14 @@ use serde_json::{Value, json};
 
 const MAX_CANDIDATES: usize = 128;
 const MAX_DETAILS: usize = 64;
+#[path = "interactions/marquee.rs"]
+mod marquee;
+fn component_set_error(field: &str, error: &str) -> bool {
+    matches!(field, "componentProperties" | "variantProperties")
+        && (error.contains("Component set for node has existing errors")
+            || error.contains("Component set is invalid"))
+}
+
 fn bounded(value: &Value, depth: usize, truncated: &mut bool) -> Value {
     if depth == 0 && (value.is_object() || value.is_array()) {
         *truncated = true;
@@ -52,6 +60,7 @@ pub(super) enum Role {
     Nav,
     Checkbox,
     Radio,
+    Marquee,
 }
 
 #[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
@@ -235,6 +244,10 @@ pub(super) fn candidates(snapshot: &Snapshot, roots: &[String]) -> Vec<Interacti
     let mut result = vec![];
     for id in &ids {
         let node = &snapshot.nodes[id];
+        if let Some(candidate) = marquee::candidate(snapshot, node) {
+            result.push(candidate);
+            continue;
+        }
         let name = str_field(node, "name");
         let text = node_text(snapshot, id);
         let prototype_actions = actions(node);
@@ -439,7 +452,10 @@ pub(super) fn evidence(snapshot: &Snapshot, roots: &[String]) -> Value {
             ]
             .contains(&field.as_str())
             {
-                read_errors.push(json!({"nodeId":id,"field":field,"reason":error}));
+                read_errors.push(json!({"nodeId":id,"field":field,"reason":error,
+                    "classification":if component_set_error(field,error){"design-component-set-error"}else{"read-error"},
+                    "componentSetId":view.string("mainComponentSetId"),
+                    "componentSetName":view.string("mainComponentSetName")}));
             }
         }
         if let Some(master) = view
@@ -513,7 +529,7 @@ pub(super) fn evidence(snapshot: &Snapshot, roots: &[String]) -> Value {
                 "shapeAndStateVerified":false}));
         }
     }
-    let mut shared = masters.into_iter().filter(|(_,members)| members.len()>1).map(|(master,mut members)| {
+    let mut shared = masters.into_iter().map(|(master,mut members)| {
         let signatures: BTreeSet<_> = members.iter().map(|m| json!([m["text"],m["variantProperties"],m["componentProperties"]]).to_string()).collect();
         let total=members.len(); members.truncate(24);
         json!({"componentId":master,"instances":members,"instanceCount":total,"instancesOmitted":total-members.len(),"variantDifferences":signatures.len()>1,
@@ -593,11 +609,20 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
             );
         }
     }
-    if data["interactionReadErrors"]
-        .as_array()
-        .is_some_and(|a| !a.is_empty())
-    {
-        result.as_object_mut().unwrap().entry("projectionIssues").or_insert(json!([])).as_array_mut().unwrap().push(json!({"code":"DEVUP_CODEGEN_INTERACTION_UNVERIFIED","severity":"warning","fidelityImpact":"none","message":"Interaction/state fields could not be read; candidate coverage is incomplete.","details":{"classification":"interaction-unverified","nextAction":"Review interactionReadErrors and recollect failed fields before claiming interaction coverage."}}));
+    let read_errors = data["interactionReadErrors"].as_array().unwrap();
+    for error in read_errors.iter().filter(|error| error["classification"] == "design-component-set-error") {
+        result.as_object_mut().unwrap().entry("projectionIssues").or_insert(json!([])).as_array_mut().unwrap().push(json!({
+            "code":"DEVUP_DESIGN_COMPONENT_SET_ERROR","nodeId":error["nodeId"],"property":error["field"],
+            "severity":"warning","fidelityImpact":"none",
+            "message":"the Figma component set is broken; open it in Figma and fix its error (Figma shows a warning on the set)",
+            "details":error}));
+    }
+    let unreadable = read_errors.iter().filter(|error| error["classification"] != "design-component-set-error"
+        && matches!(error["field"].as_str(),Some("reactions" | "mainComponentId" | "mainComponentSetId")))
+        .collect::<Vec<_>>();
+    if !unreadable.is_empty() {
+        let fields = unreadable.iter().map(|error| format!("{} on node {}",error["field"].as_str().unwrap(),error["nodeId"].as_str().unwrap())).collect::<Vec<_>>().join(", ");
+        result.as_object_mut().unwrap().entry("projectionIssues").or_insert(json!([])).as_array_mut().unwrap().push(json!({"code":"DEVUP_CODEGEN_INTERACTION_UNVERIFIED","severity":"warning","fidelityImpact":"none","message":format!("Interaction fields could not be read: {fields}; candidate coverage is incomplete."),"details":{"classification":"interaction-unverified","readErrors":unreadable,"nextAction":"Review interactionReadErrors and recollect failed fields before claiming interaction coverage."}}));
         if result["deliverable"].is_object() {
             result["deliverable"]["isFinal"] = json!(false);
             result["deliverable"]["note"] =
@@ -636,6 +661,7 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
     let unknown_targets = result_candidates(&data)
         .iter()
         .filter(|c| {
+            if c["role"] == "marquee" { return false; }
             c["prototypeActions"]
                 .as_array()
                 .is_none_or(|a| a.is_empty() || a.iter().any(|a| !a["url"].is_string()))

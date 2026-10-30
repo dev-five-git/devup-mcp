@@ -4,6 +4,16 @@ use devup_mcp_devup_ui::codegen::responsive::{
 };
 use devup_mcp_figma::ExploreCandidate;
 
+pub(crate) fn confirmed(project_root: Option<&str>, ids: &[String]) -> Result<bool, DevupError> {
+    let Some(root) = project_root else { return Ok(false) };
+    let Some(plan) = super::super::screen_plan::read_plan(root)? else { return Ok(false) };
+    Ok(plan["status"] == "confirmed" && ids.len() >= 2 && plan["routes"].as_array().is_some_and(|routes| {
+        routes.iter().any(|route| route["nodeIds"].as_array().is_some_and(|nodes| {
+            nodes.len() == ids.len() && ids.iter().all(|id| nodes.contains(&json!(id)))
+        }))
+    }))
+}
+
 pub fn discover(candidates: &[ExploreCandidate], artifact_id: &str) -> Vec<Value> {
     let mut buckets = BTreeMap::<(Option<String>, String), Vec<&ExploreCandidate>>::new();
     for candidate in candidates.iter().filter(|candidate| {

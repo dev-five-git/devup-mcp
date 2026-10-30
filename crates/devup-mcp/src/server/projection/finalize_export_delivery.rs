@@ -9,6 +9,8 @@ pub(super) struct ExportDelivery<'a> {
     pub(super) asset_names_per_node: bool,
     pub(super) strict: bool,
     pub(super) output_paths: BTreeMap<String, String>,
+    pub(super) project_root: Option<String>,
+    pub(super) default_node_id: String,
     pub(super) page_scaffold: Option<page_scaffold::PageScaffoldOptions>,
     pub(super) asset_captures: Vec<devup_mcp_figma::AssetSelection>,
     pub(super) web_ready_images: bool,
@@ -43,7 +45,9 @@ pub(super) async fn finalize_export_delivery(
         outputs,
         asset_names_per_node,
         strict,
-        output_paths,
+        mut output_paths,
+        project_root,
+        default_node_id,
         page_scaffold,
         asset_captures,
         web_ready_images,
@@ -66,6 +70,15 @@ pub(super) async fn finalize_export_delivery(
         mut asset_resource_outputs,
         responsive_widths,
     } = input;
+    result.insert("_defaultNodeId".into(), json!(default_node_id));
+    default_code_paths::apply(&mut result, &mut output_paths, project_root.as_deref(), output_policy);
+    result.remove("_defaultNodeId");
+    for output in ["tsx", "componentTsx", "responsiveTsx"] {
+        if output_paths.contains_key(output)
+            && let Some(code) = result.get(output).and_then(Value::as_str) {
+            pending_text_outputs.insert(output.into(), code.into());
+        }
+    }
     if scaffold_requested
         && let Some(refusal) =
             page_scaffold::directory_refusal(&result, &output_paths, output_policy)?
@@ -163,6 +176,10 @@ pub(super) async fn finalize_export_delivery(
     super::super::asset_guard::refresh_export_asset_urls(&mut value);
     audit_delivered_properties(&mut value);
     super::super::interactions::attach(&mut value, &payload.snapshot);
+    attach_instance_overrides(&mut value, payload, &payload.snapshot.roots);
+    if let Some(root) = project_root.as_deref() {
+        super::super::screen_plan::attach_component_width_plan(&mut value, root)?;
+    }
     attach_diagnostic_screens(&mut value, &owners);
     super::super::verdict_scope::attach(&mut value);
     attach_verification_scope(&mut value, &responsive_widths);
@@ -235,7 +252,7 @@ pub(super) async fn finalize_export_delivery(
     }
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for frame in frames {
-            for field in ["tsx", "componentTsx", "sourceMap"] {
+            for field in ["tsx", "componentTsx", "responsiveTsx", "sourceMap"] {
                 let Some(contents) = frame.get(field) else {
                     continue;
                 };
@@ -462,16 +479,31 @@ pub(super) async fn finalize_export_delivery(
         } else {
             super::super::compact::select(&mut result, summary, &response_selection)
         };
-        selected.map_err(|mut error| {
-        let mut recovery=recovery_arguments.clone();
-        recovery.as_object_mut().unwrap().remove("path");
-        recovery.as_object_mut().unwrap().remove("responseFields");
-        if outputs.iter().all(|o|o=="outline") { recovery["responseLimit"]=json!(response_selection.response_limit.min(25)); }
-        error.details=json!({"artifactId":artifact.artifact_id,"maxSelectedBytes":65536,
-            "nextAction":{"tool":"devup_figma_export","arguments":recovery,
-                "how":"Read original outputs as bounded resources, or select a narrower path or lower responseLimit against this same artifact. Scalar values are never silently truncated."}});
-        error
-    })?
+        match selected {
+            Ok(details) => details,
+            Err(mut error) => {
+                let mut recovery = recovery_arguments.clone();
+                recovery.as_object_mut().unwrap().remove("path");
+                recovery.as_object_mut().unwrap().remove("responseFields");
+                if outputs.iter().all(|o| o == "outline") {
+                    recovery["responseLimit"] = json!(response_selection.response_limit.min(25));
+                }
+                let next = json!({"tool":"devup_figma_export","arguments":recovery,
+                    "how":"Read original outputs as bounded resources, or select a narrower path or lower responseLimit against this same artifact. Scalar values are never silently truncated."});
+                if error.code != ErrorCode::DevupFigmaResponseTooLarge {
+                    error.details = json!({"artifactId":artifact.artifact_id,"maxSelectedBytes":65536,"nextAction":next});
+                    return Err(error);
+                }
+                transaction.commit()?;
+                let paths = result
+                    .get("outputPaths")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                return Ok(json!({"status":"complete","written":true,
+                    "artifactId":artifact.artifact_id,"outputPaths":paths,
+                    "responseTruncated":{"reason":error.message,"maxSelectedBytes":65536,"nextAction":next}}));
+            }
+        }
     } else {
         None
     };
@@ -479,6 +511,10 @@ pub(super) async fn finalize_export_delivery(
     let mut projected_outputs = projected_outputs;
     projected_outputs.extend(asset_resource_outputs);
     projected_outputs.extend(compact_details);
+    if !response_selection.active() && project_root.is_some() {
+        default_code_paths::omit_written(&mut result);
+        default_code_paths::compact_written(&mut result, &mut projected_outputs, &artifact.artifact_id)?;
+    }
     let mut result = Value::Object(result);
     let attachment = apply_delivery(
         &mut result,
@@ -499,6 +535,7 @@ pub(super) async fn finalize_export_delivery(
         return Err(error);
     }
     commit_delivery(attachment);
+    if let Some(object) = result.as_object_mut() { default_code_paths::omit_written(object); }
     if let Some(path) = result["outputPaths"].get("designFingerprints").cloned() {
         result["outputPathResults"]["committed"] = json!({"designFingerprints":path});
     }

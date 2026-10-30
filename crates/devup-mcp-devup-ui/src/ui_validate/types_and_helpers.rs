@@ -4,6 +4,13 @@ use std::collections::BTreeSet;
 mod blur_layers;
 #[path = "site.rs"]
 pub mod site;
+#[path = "wiring.rs"]
+pub mod wiring;
+#[path = "visual_behavior.rs"]
+pub mod visual_behavior;
+#[cfg(test)]
+#[path = "visual_behavior_tests.rs"]
+mod visual_behavior_tests;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -57,6 +64,8 @@ pub struct Violation {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_action: Option<serde_json::Value>,
     /// Whether this TSX may be used as it stands.
     ///
     /// `false` when any violation is [`Severity::Error`] — a syntax
@@ -139,6 +148,7 @@ fn validate_source(
 
     let available_token_count = theme.map(ProjectTheme::token_count).unwrap_or(0);
     let mut visitor = TsxVisitor {
+        fixable: 0,
         theme,
         checked_tokens: 0,
         violations: Vec::new(),
@@ -147,6 +157,8 @@ fn validate_source(
     };
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
+    violations.extend(wiring::findings(tsx));
+    violations.extend(visual_behavior::findings(tsx));
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));
@@ -157,7 +169,8 @@ fn validate_source(
             Some("navigation-fit") => "navigation-fit",
             _ => continue,
         };
-        violations.push(Violation { rule, severity: Severity::Warning, byte_range: [0, 0],
+        let start = risk["byteStart"].as_u64().and_then(|value| usize::try_from(value).ok()).unwrap_or(0);
+        violations.push(Violation { rule, severity: Severity::Warning, byte_range: [start, start],
             context: risk.as_object().cloned().unwrap_or_default(),
             message: risk["message"].as_str().unwrap_or_default().to_owned(),
             suggestion: Some("Use reading-order DOM and explicit narrow layout props, then run the runtime audit at every required width.".into()) });
@@ -234,6 +247,7 @@ fn validate_source(
         .unwrap_or_default();
 
     UiValidation {
+        next_action: lint_fix_action(visitor.fixable),
         ok,
         violations,
         theme_notes,
@@ -243,6 +257,7 @@ fn validate_source(
 }
 
 struct TsxVisitor<'t> {
+    fixable: usize,
     theme: Option<&'t ProjectTheme>,
     checked_tokens: usize,
     violations: Vec<Violation>,
@@ -340,19 +355,61 @@ impl<'t> TsxVisitor<'t> {
             return;
         }
         if is_length_like_prop(prop_name) && is_px_length(text) {
+            if is_zero_length(text) {
+                return;
+            }
             let tokens = self
                 .theme
                 .map(|theme| theme.length_tokens_matching_px(text))
                 .unwrap_or_default();
+            let prop_kind = LengthKind::of_prop(prop_name);
+            let (fitting, other): (Vec<_>, Vec<_>) = tokens
+                .into_iter()
+                .partition(|name| prop_kind.accepts(LengthKind::of_token(name)));
+            if fitting.is_empty() && !other.is_empty() {
+                self.report_other_purpose_length(prop_name, prop_kind, text, &other, span);
+                return;
+            }
             self.report_hardcoded_value(
                 "hardcoded-length",
                 "length",
                 prop_name,
                 text,
-                &tokens,
+                &fitting,
                 span,
             );
         }
+    }
+
+    /// The value equals a token, but every such token is named for another
+    /// purpose (`$spacing24` for a radius, a stroke width for a height).
+    /// Replacing would couple unrelated design decisions, so this is info
+    /// with no replacement advice.
+    fn report_other_purpose_length(
+        &mut self,
+        prop_name: &str,
+        prop_kind: LengthKind,
+        text: &str,
+        tokens: &[String],
+        span: Span,
+    ) {
+        let named = tokens.iter().map(|name| format!("${name}")).collect::<Vec<_>>().join(", ");
+        self.violations.push(Violation {
+            rule: "hardcoded-length",
+            severity: Severity::Info,
+            context: serde_json::Map::from_iter([
+                ("value".into(), serde_json::json!(text)),
+                ("prop".into(), serde_json::json!(prop_name)),
+                ("lengthKind".into(), serde_json::json!(prop_kind.name())),
+                ("otherPurposeTokens".into(), serde_json::json!(tokens.iter().map(|name| format!("${name}")).collect::<Vec<_>>())),
+            ]),
+            byte_range: [span.start as usize, span.end as usize],
+            message: format!(
+                "{prop_name} uses hardcoded length {text}; only {named} has this value, and it is named for a different purpose than {}.",
+                prop_kind.label()
+            ),
+            suggestion: None,
+        });
     }
 
     /// Every literal remains visible. Only exact matches justify a warning
@@ -375,11 +432,15 @@ impl<'t> TsxVisitor<'t> {
             self.violations.push(Violation {
                 rule,
                 severity: Severity::Info,
-                context: Default::default(),
+                context: serde_json::Map::from_iter([
+                    ("value".into(), serde_json::json!(text)),
+                    ("prop".into(), serde_json::json!(prop_name)),
+                ]),
                 byte_range: [span.start as usize, span.end as usize],
                 message: format!("{prop_name} uses hardcoded {kind} {text}; {context}."),
                 suggestion: None,
             });
+            self.tag_length_kind(rule, prop_name);
             return;
         }
         let named = tokens
@@ -395,13 +456,30 @@ impl<'t> TsxVisitor<'t> {
         self.violations.push(Violation {
             rule,
             severity: Severity::Warning,
-            context: serde_json::Map::from_iter([("tokenMatches".into(), serde_json::json!(token_matches))]),
+            context: serde_json::Map::from_iter([
+                ("tokenMatches".into(), serde_json::json!(token_matches)),
+                ("value".into(), serde_json::json!(text)),
+                ("prop".into(), serde_json::json!(prop_name)),
+            ]),
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
                 include_str!("../text/ui_validate-report_hardcoded_value_Violation-63c589c5.md")
             , kind = kind, named = named, prop_name = prop_name, text = text),
-            suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change colors in other modes.")),
+            suggestion: Some(format!("Use {named} where tokenMatches[].allModesMatch is true; otherwise the {kind} changes in the modes it does not match.")),
         });
+        self.tag_length_kind(rule, prop_name);
+    }
+
+    fn tag_length_kind(&mut self, rule: &str, prop_name: &str) {
+        if rule != "hardcoded-length" {
+            return;
+        }
+        if let Some(last) = self.violations.last_mut() {
+            last.context.insert(
+                "lengthKind".into(),
+                serde_json::json!(LengthKind::of_prop(prop_name).name()),
+            );
+        }
     }
 
     fn check_unknown_prop(&mut self, prop_name: &str, span: Span) {
@@ -518,6 +596,23 @@ impl<'t> TsxVisitor<'t> {
 
 impl<'a, 't> Visit<'a> for TsxVisitor<'t> {
     fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
+        let mut previous = None;
+        for attribute in &element.attributes {
+            let JSXAttributeItem::Attribute(attribute) = attribute else {
+                previous = None;
+                continue;
+            };
+            let JSXAttributeName::Identifier(name) = &attribute.name else {
+                previous = None;
+                continue;
+            };
+            let name = name.name.as_str();
+            let current = (!matches!(name, "key" | "ref"), name);
+            if previous.is_some_and(|previous| previous > current) {
+                self.fixable += 1;
+            }
+            previous = Some(current);
+        }
         let tag_name = jsx_element_name(&element.name);
         // Resolve before visiting attributes so maxLength before as works too.
         // A later spread/dynamic as can override a literal; do not assume its tag.
@@ -667,6 +762,103 @@ fn is_hex_color(text: &str) -> bool {
     matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|character| character.is_ascii_hexdigit())
 }
 
+fn is_zero_length(text: &str) -> bool {
+    text.strip_suffix("px")
+        .map(|number| number.strip_prefix('-').unwrap_or(number))
+        .and_then(|number| number.parse::<f64>().ok())
+        .is_some_and(|number| number == 0.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LengthKind {
+    Radius,
+    Stroke,
+    Space,
+    Size,
+    Text,
+    Unknown,
+}
+
+impl LengthKind {
+    fn of_prop(prop: &str) -> Self {
+        if prop.contains("Radius") {
+            return Self::Radius;
+        }
+        if prop.starts_with("border") && prop.ends_with("Width")
+            || matches!(prop, "outlineWidth" | "strokeWidth")
+        {
+            return Self::Stroke;
+        }
+        if matches!(prop, "fontSize" | "lineHeight" | "letterSpacing" | "wordSpacing") {
+            return Self::Text;
+        }
+        if matches!(
+            prop,
+            "gap" | "columnGap" | "rowGap" | "gridGap" | "gridColumnGap" | "gridRowGap"
+                | "borderSpacing" | "top" | "right" | "bottom" | "left" | "outlineOffset"
+        ) || prop.starts_with("padding")
+            || prop.starts_with("margin")
+            || matches!(
+                prop,
+                "p" | "px" | "py" | "pt" | "pr" | "pb" | "pl" | "m" | "mx" | "my" | "mt" | "mr" | "mb" | "ml"
+            )
+        {
+            return Self::Space;
+        }
+        if matches!(prop, "w" | "h" | "boxSize" | "width" | "height" | "flexBasis" | "bgSize")
+            || prop.starts_with("min")
+            || prop.starts_with("max")
+        {
+            return Self::Size;
+        }
+        Self::Unknown
+    }
+
+    fn of_token(name: &str) -> Self {
+        let name = name.to_ascii_lowercase();
+        let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
+        if has(&["radius", "rounded", "corner"]) {
+            Self::Radius
+        } else if has(&["stroke", "border", "outline"]) {
+            Self::Stroke
+        } else if has(&["space", "spacing", "gap", "gutter", "padding", "margin", "inset"]) {
+            Self::Space
+        } else if has(&["font", "leading", "tracking", "lineheight"]) {
+            Self::Text
+        } else if has(&["size", "width", "height", "icon", "avatar"]) {
+            Self::Size
+        } else {
+            Self::Unknown
+        }
+    }
+
+    fn accepts(self, token: Self) -> bool {
+        self == Self::Unknown || token == Self::Unknown || self == token
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Radius => "radius",
+            Self::Stroke => "stroke",
+            Self::Space => "space",
+            Self::Size => "size",
+            Self::Text => "text",
+            Self::Unknown => "other",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Radius => "a corner radius",
+            Self::Stroke => "a stroke width",
+            Self::Space => "spacing",
+            Self::Size => "a size",
+            Self::Text => "a text metric",
+            Self::Unknown => "this prop",
+        }
+    }
+}
+
 fn is_px_length(text: &str) -> bool {
     let Some(number) = text.strip_suffix("px") else {
         return false;
@@ -693,4 +885,14 @@ pub fn rule_names() -> BTreeSet<&'static str> {
     ]
     .into_iter()
     .collect()
+}
+
+pub fn lint_fix_action(fixable: usize) -> Option<serde_json::Value> {
+    (fixable > 0).then(|| serde_json::json!({
+        "command": "bun run lint:fix",
+        "fixable": fixable,
+        "label": format!("bun run lint:fix (fixable {fixable})"),
+        "then": "bunx oxlint --deny-warnings",
+        "reason": "Detected adjacent JSX prop-order inversions under eslint-plugin-devup defaults. Run the project's fixer, never sort or format by hand. Custom lint configuration and other formatting rules are not checked here; fix only non-fixable leftovers after oxlint."
+    }))
 }

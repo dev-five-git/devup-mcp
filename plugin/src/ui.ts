@@ -42,6 +42,8 @@ interface ResultMessage {
 }
 
 declare const __PLUGIN_VERSION__: string
+declare const __SCRIPTS_HASH__: string
+declare const __PLUGIN_PROTOCOL__: number
 
 interface ServerInfo {
   version: string
@@ -50,6 +52,9 @@ interface ServerInfo {
 
 const RETRY_MS = 2000
 let serverInfo: ServerInfo | null = null
+
+/** 메인 스레드가 지금 실행하는 스크립트의 해시. 서버가 보낸 스크립트로 바뀌면 따라 바뀐다. */
+let scriptsHash = __SCRIPTS_HASH__
 
 /** 이 창이 화면에 보이는지. Figma 가 가려지거나 최소화되면 거짓이 된다. */
 const inView = () => document.visibilityState === 'visible'
@@ -106,26 +111,7 @@ function connect() {
 
   ws.onopen = () => {
     render('on', 'devup-mcp 에 연결됨')
-    // 어느 파일인지 먼저 알려야 devup-mcp 가 요청을 이 소켓으로 보낼 수 있다.
-    // 페이지와 선택도 함께 보낸다 — url 없는 요청은 그것으로 대상을 고른다.
-    ws.send(
-      JSON.stringify({
-        kind: 'hello',
-        sessionId: SESSION_ID,
-        pluginVersion: __PLUGIN_VERSION__,
-        fileKey: bridgeStatus?.fileKey ?? null,
-        fileName: bridgeStatus?.fileName ?? '',
-        currentPage: bridgeStatus?.currentPage ?? null,
-        selection: bridgeStatus?.selection ?? [],
-        selectionCount: bridgeStatus?.selectionCount ?? 0,
-        zoom: bridgeStatus?.zoom ?? null,
-        uiDevicePixelRatio: window.devicePixelRatio,
-        observedAt: bridgeStatus?.observedAt,
-        lastKnownSelection: bridgeStatus?.lastKnownSelection,
-        lastKnownPage: bridgeStatus?.lastKnownPage,
-        inView: inView(),
-      }),
-    )
+    sendHello(ws)
   }
 
   ws.onmessage = (event) => {
@@ -141,6 +127,21 @@ function connect() {
       render('on', 'devup-mcp 에 연결됨')
       return
     }
+    const update = job as { kind?: string; scriptsHash?: unknown; bundle?: unknown }
+    if (update?.kind === 'scripts-update') {
+      if (typeof update.scriptsHash !== 'string' || typeof update.bundle !== 'string') return
+      parent.postMessage(
+        {
+          pluginMessage: {
+            kind: 'devup-scripts-update',
+            scriptsHash: update.scriptsHash,
+            bundle: update.bundle,
+          },
+        },
+        '*',
+      )
+      return
+    }
     // 작업은 그대로 메인 스레드로 넘긴다. UI 는 내용을 해석하지 않는다.
     parent.postMessage({ pluginMessage: job }, '*')
   }
@@ -154,6 +155,35 @@ function connect() {
 
   // onclose 가 뒤따르므로 여기서 재시도를 걸면 두 번 걸린다.
   ws.onerror = () => {}
+}
+
+/**
+ * 어느 파일인지 먼저 알려야 devup-mcp 가 요청을 이 소켓으로 보낼 수 있다.
+ * 페이지와 선택도 함께 보낸다 — url 없는 요청은 그것으로 대상을 고른다.
+ * 스크립트가 바뀐 뒤에도 다시 보내 새 해시를 알린다.
+ */
+function sendHello(ws: WebSocket) {
+  ws.send(
+    JSON.stringify({
+      kind: 'hello',
+      sessionId: SESSION_ID,
+      pluginVersion: __PLUGIN_VERSION__,
+      scriptsHash,
+      protocol: __PLUGIN_PROTOCOL__,
+      liveScripts: true,
+      fileKey: bridgeStatus?.fileKey ?? null,
+      fileName: bridgeStatus?.fileName ?? '',
+      currentPage: bridgeStatus?.currentPage ?? null,
+      selection: bridgeStatus?.selection ?? [],
+      selectionCount: bridgeStatus?.selectionCount ?? 0,
+      zoom: bridgeStatus?.zoom ?? null,
+      uiDevicePixelRatio: window.devicePixelRatio,
+      observedAt: bridgeStatus?.observedAt,
+      lastKnownSelection: bridgeStatus?.lastKnownSelection,
+      lastKnownPage: bridgeStatus?.lastKnownPage,
+      inView: inView(),
+    }),
+  )
 }
 
 /**
@@ -234,6 +264,13 @@ window.onmessage = (event: MessageEvent) => {
     void decodeToPng(msg.bytes, msg.maxEdge, msg.width, msg.height).then((png) => {
       parent.postMessage({ pluginMessage: { kind: 'devup-decoded', id: msg.id, png } }, '*')
     })
+    return
+  }
+
+  if (msg.kind === 'devup-scripts-updated') {
+    if (typeof msg.error === 'string' || typeof msg.scriptsHash !== 'string') return
+    scriptsHash = msg.scriptsHash
+    if (socket && socket.readyState === WebSocket.OPEN) sendHello(socket)
     return
   }
 

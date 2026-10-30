@@ -4,5 +4,26 @@ expression: actual
 ---
 
 "export function Border() {
-  return <Image borderTop="solid 1px #000" src="/icons/border.svg" />
+  return (
+    <Flex alignItems="center" boxShadow="0 -1px 0 0 #000">
+      <Box
+        bg="#FFF"
+        borderBottom="solid 1px #000"
+        borderLeft="solid 1px #000"
+        borderRight="solid 1px #000"
+        h="140px"
+        overflow="hidden"
+        w="80px"
+      />
+      <Box
+        bg="#FFF"
+        borderBottom="solid 1px #000"
+        borderLeft="solid 1px #000"
+        borderRight="solid 1px #000"
+        flex="1"
+        h="140px"
+        overflow="hidden"
+      />
+    </Flex>
+  )
 }"

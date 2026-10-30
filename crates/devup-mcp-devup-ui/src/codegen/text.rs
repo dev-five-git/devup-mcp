@@ -63,9 +63,7 @@ pub(super) fn push_text_props(
     if let Some(weight) = value("fontWeight").and_then(Value::as_f64) {
         string_prop(props, "fontWeight", format_number(weight));
     }
-    if typography.is_none()
-        && let Some(letter_spacing) = letter_spacing(value("letterSpacing"))
-    {
+    if let Some(letter_spacing) = letter_spacing(value("letterSpacing")) {
         string_prop(props, "letterSpacing", letter_spacing);
     }
     if let Some(line_height) = line_height(
@@ -168,37 +166,144 @@ pub(super) fn push_text_props(
 }
 
 fn elide_typography_duplicates(props: &mut Vec<Prop>, typography: &Value) {
-    // A responsive property can be omitted only when every effective slot
-    // defines that same value, including the first width. Never select an
-    // active viewport from a text node's own width.
-    let values = match typography {
-        Value::Object(value) => vec![value],
-        Value::Array(slots) if slots.first().is_some_and(Value::is_object) => {
-            let Some(values) = slots
-                .iter()
-                .filter(|slot| !slot.is_null())
-                .map(Value::as_object)
-                .collect::<Option<Vec<_>>>()
-            else {
-                return;
-            };
-            values
-        }
-        _ => return,
+    elide_metrics(props, typography, &BTreeMap::new());
+}
+
+/// The metrics a `typography` token already sets.
+///
+/// A text with a text style applied reports the style's own metrics as they
+/// resolve in the mode of the frame it is drawn in: a desktop frame says
+/// `40px` for an `h2` that is `28px` on mobile. Figma detaches the style
+/// when one of its metrics is edited, so a value the token defines at any
+/// width is the token speaking, not an override. Writing it beside
+/// `typography` pins every width to the drawn one and breaks the token's
+/// responsive values; it is left out. A value the token defines at no width
+/// is a real override and stays. A responsive value (a length token) stays
+/// only where it differs from the token width by width.
+fn elide_metrics(
+    props: &mut Vec<Prop>,
+    typography: &Value,
+    lengths: &BTreeMap<String, super::component::LengthToken>,
+) {
+    const METRICS: [&str; 4] = ["fontSize", "fontWeight", "lineHeight", "letterSpacing"];
+    let Some(slots) = typography_slots(typography) else {
+        return;
     };
     props.retain(|(name, PropValue::String(value))| {
-        if !matches!(name.as_str(), "fontSize" | "fontWeight" | "lineHeight") {
+        if !METRICS.contains(&name.as_str()) {
             return true;
         }
-        !values.iter().all(|values| {
-            values.get(name).is_some_and(|expected| {
-                expected.as_str().is_some_and(|expected| expected == value)
-                    || expected
-                        .as_f64()
-                        .is_some_and(|expected| value.parse::<f64>().ok() == Some(expected))
+        let expected = (0..SERIES)
+            .map(|slot| {
+                slots[slot]
+                    .and_then(|slot_values| slot_values.get(name))
+                    .map(|value| series(&resolve_length(value, lengths))[slot].clone())
+                    .unwrap_or(Value::Null)
             })
-        })
+            .collect::<Vec<_>>();
+        if expected.iter().all(Value::is_null) {
+            return true;
+        }
+        let written = resolve_length(&Value::String(value.clone()), lengths);
+        let elided = if written.is_array() {
+            series(&written)
+                .iter()
+                .zip(&expected)
+                .all(|(written, expected)| same_metric(written, expected))
+        } else {
+            expected
+                .iter()
+                .any(|expected| same_metric(&written, expected))
+        };
+        !elided
     });
+}
+
+const SERIES: usize = 5;
+
+/// A token's slot objects, the last one carried forward over `null`.
+fn typography_slots(
+    typography: &Value,
+) -> Option<[Option<&serde_json::Map<String, Value>>; SERIES]> {
+    match typography {
+        Value::Object(value) => Some([Some(value); SERIES]),
+        Value::Array(slots) if slots.first().is_some_and(Value::is_object) => {
+            let mut carried = None;
+            let mut out = [None; SERIES];
+            for (slot, entry) in out.iter_mut().enumerate() {
+                match slots.get(slot) {
+                    Some(Value::Object(value)) => carried = Some(value),
+                    Some(Value::Null) | None => {}
+                    Some(_) => return None,
+                }
+                *entry = carried;
+            }
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
+/// A value as each slot reads it: a scalar everywhere, an array carried
+/// forward over `null`.
+fn series(value: &Value) -> Vec<Value> {
+    match value {
+        Value::Array(values) => {
+            let mut carried = Value::Null;
+            (0..SERIES)
+                .map(|slot| {
+                    if let Some(value) = values.get(slot).filter(|value| !value.is_null()) {
+                        carried = value.clone();
+                    }
+                    carried.clone()
+                })
+                .collect()
+        }
+        value => vec![value.clone(); SERIES],
+    }
+}
+
+fn resolve_length(
+    value: &Value,
+    lengths: &BTreeMap<String, super::component::LengthToken>,
+) -> Value {
+    match value {
+        Value::String(name) if name.starts_with('$') => lengths
+            .values()
+            .find(|token| token.token == name[1..])
+            .map_or_else(|| value.clone(), |token| token.value.clone()),
+        _ => value.clone(),
+    }
+}
+
+fn same_metric(left: &Value, right: &Value) -> bool {
+    fn text(value: &Value) -> Option<String> {
+        match value {
+            Value::String(value) => Some(value.clone()),
+            Value::Number(value) => Some(value.to_string()),
+            _ => None,
+        }
+    }
+    let (Some(left), Some(right)) = (text(left), text(right)) else {
+        return false;
+    };
+    left == right || matches!((left.parse::<f64>(), right.parse::<f64>()), (Ok(l), Ok(r)) if l == r)
+}
+
+pub(super) fn elide_tokenized_typography(
+    props: &mut Vec<Prop>,
+    typography_values: &BTreeMap<String, Value>,
+    lengths: &BTreeMap<String, super::component::LengthToken>,
+) {
+    let Some(typography) = props.iter().find_map(|(name, PropValue::String(value))| {
+        (name == "typography")
+            .then(|| typography_values.get(value))
+            .flatten()
+    }) else {
+        return;
+    };
+    let typography = typography.clone();
+    elide_metrics(props, &typography, lengths);
 }
 
 fn is_resolved_value(value: &Value) -> bool {
@@ -468,9 +573,7 @@ fn typography_props(
     if let Some(value) = segment.get("fontWeight").and_then(Value::as_f64) {
         string_prop(&mut props, "fontWeight", format_number(value));
     }
-    if typography.is_none()
-        && let Some(value) = letter_spacing(segment.get("letterSpacing"))
-    {
+    if let Some(value) = letter_spacing(segment.get("letterSpacing")) {
         string_prop(&mut props, "letterSpacing", value);
     }
     if let Some(value) = line_height(

@@ -9,6 +9,33 @@
 //! `std::fs::` in it at all.
 
 use super::*;
+
+#[test]
+fn export_groups_prop_sorting_without_a_project_root() {
+    let project = scratch("lint-fix");
+    let checked = with_project_checks(
+        json!({"tsx": "<Box p={0} boxSize=\"8px\" />"}),
+        None,
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    assert_eq!(checked["formatting"]["nextAction"]["fixable"], 1);
+    assert_eq!(checked["nextAction"]["command"], "bun run lint:fix");
+    std::fs::remove_dir_all(project).unwrap();
+}
+
+#[test]
+fn export_preserves_an_existing_tool_action_when_grouping_sorting() {
+    let project = scratch("lint-fix-action");
+    let action = json!({"tool": "devup_figma_export", "arguments": {"jobId": "pending"}});
+    let checked = with_project_checks(
+        json!({"frames": [{"nodeId": "1:2", "tsx": "<Box p={0} boxSize=\"8px\" />"}], "nextAction": action}),
+        None,
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    assert_eq!(checked["formatting"]["nextAction"]["fixable"], 1);
+    assert_eq!(checked["nextAction"], action);
+    std::fs::remove_dir_all(project).unwrap();
+}
 fn scratch(label: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
         "devup-export-gap-{label}-{}-{}",
@@ -228,4 +255,34 @@ fn the_export_tool_description_still_says_to_call_devup_skills() {
             "the rule about {rule} is back to living only in the guide"
         );
     }
+}
+
+#[test]
+fn r38_tsx_with_tokens_missing_from_the_project_theme_points_at_a_missing_only_sync() {
+    let project = scratch("theme-sync");
+    std::fs::write(
+        project.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"primary":"#000"}}}}"##,
+    )
+    .unwrap();
+    let checked = with_project_checks(
+        json!({"status": "complete", "url": "https://www.figma.com/design/k/n?node-id=1-2", "tsx": "<Box bg=\"$notInProject\" />"}),
+        project.to_str(),
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    let action = &checked["nextAction"];
+    assert_eq!(action["tool"], "devup_figma_export");
+    assert_eq!(action["arguments"]["outputs"], json!(["devupJson"]));
+    assert_eq!(action["arguments"]["devupJsonMode"], "missing-only");
+    assert_eq!(action["arguments"]["projectRoot"], project.to_str().unwrap());
+    assert!(action["how"].as_str().unwrap().contains("before using the tsx"));
+    assert_eq!(checked["projectThemeValidation"]["nextAction"], *action);
+
+    let clean = with_project_checks(
+        json!({"status": "complete", "tsx": "<Box bg=\"$primary\" />"}),
+        project.to_str(),
+        &skills::Lookup::project_only(project.clone(), skills::Runtime::Codex),
+    );
+    assert!(clean.get("nextAction").is_none());
+    let _ = std::fs::remove_dir_all(&project);
 }

@@ -8,10 +8,51 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import test from 'node:test';
-import { observeCompleteness, runPlan } from '../run.mjs';
+import { observeClippedContent, observeCompleteness, runPlan } from '../run.mjs';
+import { observeNativeAppearance } from '../resource-checks.mjs';
 
 const FIXTURES = new URL('../fixtures/', import.meta.url);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml' };
+
+test('measurement probes tolerate a document without a body', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<body><button>Test</button></body>');
+    await page.evaluate(() => document.body.remove());
+    assert.deepEqual(await observeClippedContent(page), { clipped: [] });
+    await observeCompleteness(page, {}, 800, { css: 'html' });
+    await observeNativeAppearance(page.locator('html'));
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a measurement exception is inconclusive and later checks still run', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-check-error-'));
+  try {
+    const plan = join(out, 'plan.json');
+    await writeFile(plan, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'check-error', plan: {
+      baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 800, height: 600 }],
+      screens: [{ id: 'home', routePath: '/', checks: [
+        { kind: 'text-align', subject: { css: '[' }, edge: 'left' },
+        { kind: 'page-health' },
+        { kind: 'bounds', unavailableReason: 'not-run: source anchors absent' },
+        { kind: 'page-health', unavailableReason: 'Design comparison inconclusive: reference expired' },
+      ] }],
+    } }));
+    const report = await runPlan({ plan, out, maxMinutes: 1 });
+    assert.equal(report.status, 'completed');
+    assert.deepEqual(report.runs[0].screens[0].checks.map((check) => check.status), ['inconclusive', 'pass', 'not-run', 'inconclusive']);
+    assert.match(report.runs[0].screens[0].checks[0].reason, /home\/800\/check 0/);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
 
 function serve() {
   const server = createServer(async (request, response) => {
@@ -29,6 +70,39 @@ function serve() {
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
+
+test('tall drawn frames clip the main screenshot and short pages fail completeness', async () => {
+  const server = createServer((request, response) => {
+    const height = request.url === '/short' ? 5900 : 6174;
+    response.writeHead(200, { 'content-type': 'text/html' }).end(`<body style="margin:0;height:${height}px;background:#123456"></body>`);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-tall-frame-'));
+  try {
+    const plan = join(out, 'plan.json');
+    await writeFile(plan, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'tall', plan: {
+      baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 1440, height: 900 }],
+      screens: ['tall', 'short'].map((id) => ({ id, routePath: `/${id}`,
+        figma: { nodeId: 'home', drawnWidths: [1440], frames: [{ width: 1440, height: 5953, nodeId: 'home' }] },
+        checks: [{ kind: 'rendered-completeness', completeness: { frameHeight: 5953 } }],
+      })),
+    } }));
+    const report = await runPlan({ plan, out, maxMinutes: 1 });
+    const [tall, short] = report.runs[0].screens;
+    const bytes = await readFile(join(out, tall.screenshot.path));
+    assert.equal(bytes.readUInt32BE(16), 1440);
+    assert.equal(bytes.readUInt32BE(20), 5953);
+    assert.equal(tall.checks[0].status, 'pass');
+    assert.equal(short.checks[0].status, 'fail');
+    assert.match(short.checks[0].reason, /5900.*5953/);
+    const shortBytes = await readFile(join(out, short.screenshot.path));
+    assert.equal(shortBytes.readUInt32BE(20), 5900);
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});
 
 const CHECKS = [
   { kind: 'no-horizontal-overflow', label: 'page' },
@@ -419,6 +493,31 @@ test('white outline no-fill button overrides the reset and retains contrast over
     assert.deepEqual(paintedBackground, [16, 24, 32, 255]);
     assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'pass');
     await page.locator('.hero').evaluate((element) => { element.style.background = 'white'; });
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'fail');
+  } finally { await browser.close(); }
+});
+
+test('a negative z-index sibling layer behind text counts as its background', async () => {
+  const { chromium } = await import('playwright');
+  const { evaluateNoLowContrastText } = await import('../checks.mjs');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // The generator draws a section background as an absolutely positioned
+    // sibling with z-index -1 inside an isolated container.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1"><div style="position:absolute;inset:0;background:#001a38"></div></div>
+      <p style="color:white">Over navy</p></section>`);
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'pass');
+    // An image layer cannot be judged from colours: inconclusive, never a false fail.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1"><img alt="" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>" style="width:100%;height:100%"></div>
+      <p style="color:white">Over a photo</p></section>`);
+    assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'inconclusive');
+    // White text on a white underlay still fails.
+    await page.setContent(`<section style="position:relative;isolation:isolate;padding:40px">
+      <div style="position:absolute;inset:0;z-index:-1;background:white"></div>
+      <p style="color:white">Invisible</p></section>`);
     assert.equal(evaluateNoLowContrastText({}, await observeCompleteness(page, {}, 800)).status, 'fail');
   } finally { await browser.close(); }
 });

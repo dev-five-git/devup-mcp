@@ -96,6 +96,9 @@ pub struct FigmaExportInput {
     pub component_name: Option<String>,
     #[serde(default)]
     pub include_diagnostics: bool,
+    /// Opt in to data-figma-node-id attributes for runtime design audits.
+    #[serde(default)]
+    pub figma_node_ids: bool,
     #[serde(default = "default_scope")]
     #[schemars(extend("enum" = super::validation::COLLECTION_SCOPES))]
     pub scope: String,
@@ -153,6 +156,7 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub all_screens: bool,
     /// Recommend 1–3 assets per call, maximum 6. Slow calls return an assetJob for status/resume.
+    /// assetManifest is automatically added to outputs with a warning when omitted.
     #[serde(default)]
     #[schemars(extend("maxItems" = 6))]
     pub asset_requests: Vec<FigmaAssetRequestInput>,
@@ -276,9 +280,10 @@ pub struct FigmaAssetRequestInput {
     /// Emit name.webp (1x) and name@2x.webp, capped at source resolution.
     #[serde(default)]
     pub srcset: bool,
-    #[serde(default = "default_asset_format")]
+    /// Omitted: raster image fills (original-source) become WebP q85, anything else PNG.
+    #[serde(default)]
     #[schemars(extend("enum" = super::validation::ASSET_FORMATS))]
-    pub format: String,
+    pub format: Option<String>,
     #[serde(default = "default_asset_scale")]
     #[schemars(extend("exclusiveMinimum" = 0, "maximum" = 4))]
     pub scale: f64,
@@ -297,6 +302,7 @@ pub struct FigmaSearchInput {
     /// plugin is attached: omitted, the whole file that plugin has open.
     #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
     pub query: String,
     #[serde(default)]
     pub node_types: Vec<String>,
@@ -351,6 +357,14 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    /// Summary (default) returns compact, deduplicated findings; full preserves all diagnostics.
+    #[serde(default)]
+    pub detail: UiValidateDetail,
+    /// Files or recursive directories inside projectRoot. Exclusive with tsx/files;
+    /// at most 512 source files and 8 MiB read. Uses the project's disk theme.
+    #[serde(default)]
+    #[schemars(length(max = 512))]
+    pub paths: Vec<String>,
     /// Copy outputResults.tsx.sectionCoverage (or a Section frame's equivalent)
     /// from devup_figma_export to check that captured sections/assets remain.
     /// This is static JSX identity coverage, not proof of runtime visibility.
@@ -412,6 +426,14 @@ pub struct UiValidateInput {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub enum UiValidateDetail {
+    #[default]
+    Summary,
+    Full,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SectionCoverageInput {
     pub node_ids: Vec<String>,
     /// Asset references in the original generated output, including masks and backgrounds.
@@ -443,6 +465,9 @@ pub struct SourceMapEntryInput {
     pub resolution: Option<String>,
     #[serde(default)]
     pub element_index: Option<usize>,
+    /// The Figma variable the property was bound to, when it was.
+    #[serde(default)]
+    pub variable_id: Option<String>,
 }
 
 /// `layers` selects which cross-layer drift checks to run
@@ -500,10 +525,6 @@ fn default_true() -> bool {
 /// answering a question nobody asks while enlarging every response.
 fn default_outputs() -> Vec<String> {
     vec!["tsx".to_owned()]
-}
-
-fn default_asset_format() -> String {
-    "png".to_owned()
 }
 
 fn default_asset_scale() -> f64 {

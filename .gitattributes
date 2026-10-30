@@ -13,3 +13,7 @@ crates/devup-mcp/src/server/skills/manifest.json -text
 crates/devup-mcp/src/server/text/** -text
 crates/devup-mcp-figma/src/text/** -text
 crates/devup-mcp-devup-ui/src/text/** -text
+
+# The live plugin scripts bundle is fingerprinted byte for byte in
+# plugin_scripts.rs; a CRLF checkout would fail that check on Windows alone.
+crates/devup-mcp-figma/src/plugin_scripts_bundle.js -text

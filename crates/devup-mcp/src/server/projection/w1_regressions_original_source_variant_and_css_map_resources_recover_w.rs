@@ -635,7 +635,7 @@ async fn p3_public_mapping_and_dedup_rewrite_inline_and_written_tsx() {
         output_paths.insert("tsx".into(), tsx_path.to_string_lossy().into());
     }
     let result = project(p3_asset_payload(b"first image"), op).await.unwrap();
-    let code = result["tsx"].as_str().unwrap();
+    let code = std::fs::read_to_string(&tsx_path).unwrap();
     assert!(code.contains("/icons/BI%20icon.png"), "{code}");
     assert_eq!(std::fs::read_to_string(&tsx_path).unwrap(), code);
     assert_eq!(std::fs::read(&first_path).unwrap(), b"first image");

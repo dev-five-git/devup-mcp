@@ -14,6 +14,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn plugin_identity_status_distinguishes_current_stale_and_unknown() {
+        for (hash, protocol, state) in [
+            (Some(devup_mcp_figma::PLUGIN_SCRIPTS_HASH), Some(devup_mcp_figma::PLUGIN_PROTOCOL), "current"),
+            (Some("old-build"), Some(devup_mcp_figma::PLUGIN_PROTOCOL), "stale"),
+            (None, None, "stale-unknown"),
+        ] {
+            let mut file = attached(None, Some(1));
+            file.context.scripts_hash = hash.map(str::to_owned);
+            file.context.protocol = protocol;
+            let report = connection_report(AuthStatus::Disconnected, &absent_direct_snapshot(), Some(&bridge_with(vec![file])));
+            assert_eq!(report["paths"]["bridge"]["pluginStale"], state != "current");
+            assert_eq!(report["paths"]["bridge"]["attachedFiles"][0]["pluginBuild"]["state"], state);
+            if state == "current" {
+                assert_eq!(report["nextAction"]["tool"], "devup_figma_export");
+            } else {
+                assert_eq!(report["nextAction"]["skill"], "figma-bridge-setup");
+            }
+        }
+    }
+
     /// `doctor` used to answer every connection question with "log in",
     /// because `direct` was the only path it knew. It now reports the cheaper
     /// one first, and distinguishes the three states that need three different
@@ -87,6 +108,8 @@ mod tests {
                 selection_count: selected,
                 in_view: Some(false),
                 plugin_version: Some("0.4.6".to_owned()),
+                scripts_hash: Some(devup_mcp_figma::PLUGIN_SCRIPTS_HASH.into()),
+                protocol: Some(devup_mcp_figma::PLUGIN_PROTOCOL),
                 ..Default::default()
             },
         }

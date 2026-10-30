@@ -1,5 +1,21 @@
 # Real-render verification
 
+At drawn widths, `figma.frames[].height` records the reference frame height,
+independently of the viewport height (tall frames can use a 900px viewport).
+The main page screenshot is clipped at the top-left to the drawn frame size
+when the page is at least that tall. Content below the frame remains covered by
+the layout and completeness checks, not the page pixel comparison. A shorter
+page is captured at its actual height, never padded: completeness and ingest's
+`page-height` finding report the actual and required heights. Older plans without
+a frame height keep full-page captures; re-plan to enable frame-sized captures.
+
+Geometry and captures pause running animations at `currentTime = 0` and disable
+CSS transitions after scroll reveals settle. The runner restores motion before
+interaction and view-transition checks, without changing reduced-motion media
+preferences. Each screen reports `frozenAnimations` with unique target count,
+selectors and animation count. Ingest exposes this as executor-declared evidence,
+not independently verified browser state.
+
 For a dev server, capture its stdout/stderr to a log and pass
 `--server-log /absolute/path/server.log` to `run.mjs` (or `serverLog` to
 `runPlan`). The file must already exist. Only output appended during the audit

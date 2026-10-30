@@ -5,6 +5,38 @@ mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
 
+    #[test]
+    fn formatter_ownership_warning_is_carried_in_every_frontend_workflow() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            for required in ["no standalone prettier config", "devup(prettier)", "Do not run `bunx prettier --write` or biome", "semicolons and double quotes"] {
+                assert!(text.contains(required), "{name}: {required}");
+            }
+        }
+    }
+
+    #[test]
+    fn verification_starts_with_lint_fix_then_oxlint() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            assert!(text.contains("bun run lint:fix` first, then `bunx oxlint --deny-warnings`"), "{name}");
+            assert!(text.contains("Fix only non-fixable leftovers by hand"), "{name}");
+        }
+    }
+
+    #[test]
+    fn user_decisions_override_never_wait_without_prose_questions() {
+        let text = include_str!("devup/SKILL.md");
+        for required in [
+            "This rule takes precedence over",
+            "OpenCode `question` or Claude Code `AskUserQuestion`",
+            "Do not invent a project-plan `ask` action",
+            "Record the chosen answer, not an unaccepted recommendation",
+        ] {
+            assert!(text.contains(required), "missing decision guidance: {required}");
+        }
+    }
+
     /// /devup per runtime: Claude Code gets it as the devup skill, OpenCode as
     /// a command file, and a runtime with no verified command location is
     /// told so instead of given a guessed path.
@@ -95,6 +127,14 @@ mod tests {
     /// upstream revision it copied, an `own` one must not pretend to have a
     /// revision it cannot have, and an external one must carry no bytes at all
     /// and must say how to install it instead.
+    #[test]
+    fn vespera_skill_requires_camel_case_api_fields_and_column_mapping() {
+        let (_, documents) = EMBEDDED.iter().find(|(name, _)| *name == "vespera").unwrap();
+        let (_, text) = documents.iter().find(|(path, _)| *path == ENTRY_DOCUMENT).unwrap();
+        assert!(text.contains("API fields and query params are camelCase; ERD columns stay snake_case; drafts carry both (name + column)"));
+        assert!(text.contains("#[serde(rename_all = \"camelCase\")]"));
+    }
+
     #[test]
     fn every_origin_is_well_formed() {
         let manifest: Manifest = serde_json::from_str(MANIFEST_JSON).unwrap();
@@ -363,6 +403,36 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn an_app_directory_sees_skills_installed_at_its_repository_root() {
+        let repo = scratch("monorepo-skills");
+        std::fs::create_dir_all(repo.join(".git")).unwrap();
+        let installed = join_root(&repo, ".opencode/skill").join("devup-ui").join("SKILL.md");
+        std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        std::fs::write(&installed, "---\nname: devup-ui\n---\n").unwrap();
+        let app = repo.join("apps").join("front");
+        std::fs::create_dir_all(&app).unwrap();
+
+        let lookup = Lookup::project_only(app.clone(), Runtime::Opencode);
+        assert_eq!(lookup.installed_paths("devup-ui"), vec![installed.clone()]);
+        assert_eq!(lookup.target_roots(), vec![join_root(&repo, ".opencode/skill")]);
+
+        let outside = scratch("no-repo-skills");
+        let nested = outside.join("apps").join("front");
+        std::fs::create_dir_all(&nested).unwrap();
+        let lone = join_root(&outside, ".opencode/skill").join("devup-ui").join("SKILL.md");
+        std::fs::create_dir_all(lone.parent().unwrap()).unwrap();
+        std::fs::write(&lone, "x").unwrap();
+        assert!(
+            Lookup::project_only(nested, Runtime::Opencode)
+                .installed_paths("devup-ui")
+                .is_empty()
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&outside);
     }
 
     /// The symmetric mistake, and the one that is silent: a file in a
@@ -786,5 +856,37 @@ mod tests {
         assert_eq!(pending[0], "changepack_log_existing.json");
 
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// A project whose package.json has `lint:fix` must hear that formatting
+    /// and prop order belong to that script, not to hand edits.
+    #[test]
+    fn a_lint_fix_script_is_reported_as_an_obligation() {
+        let project = scratch("lint-fix");
+        std::fs::write(project.join("package.json"), r#"{"scripts":{"lint":"oxlint"}}"#).unwrap();
+        assert!(report(&unknown_client(&project))["repoObligations"]["lintFix"].is_null());
+
+        std::fs::write(
+            project.join("package.json"),
+            r#"{"scripts":{"lint:fix":"oxlint --fix"}}"#,
+        )
+        .unwrap();
+        let found = report(&unknown_client(&project))["repoObligations"]["lintFix"].clone();
+        assert_eq!(found["runFirst"], "bun run lint:fix");
+        assert_eq!(found["script"], "oxlint --fix");
+        assert_eq!(found["label"], "format/sort via lint:fix");
+        assert_eq!(found["verifyAfter"], "bunx oxlint --deny-warnings");
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn lint_fix_obligation_requires_an_executable_script() {
+        let project = scratch("lint-fix-invalid");
+        for package in ["not json", r#"{"scripts":{"lint:fix":false}}"#, r#"{"scripts":{"lint:fix":"  "}}"#] {
+            std::fs::write(project.join("package.json"), package).unwrap();
+            assert!(report(&unknown_client(&project))["repoObligations"]["lintFix"].is_null());
+        }
+        std::fs::remove_dir_all(project).unwrap();
     }
 }

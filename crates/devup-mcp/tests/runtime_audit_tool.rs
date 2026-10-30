@@ -176,7 +176,7 @@ async fn consumer_template_is_allowlisted_and_missing_acquisitions_never_pass() 
     assert!(!failed, "{planned}");
     assert_eq!(planned["template"]["executed"], false);
     assert_eq!(planned["dimensionReferences"][0]["status"], "unverified");
-    assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 6);
+    assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 7);
     let runner = std::fs::read_to_string(root.join("consumer-audit/run.mjs"))?;
     assert!(runner.contains("runPlan"));
     let manifest: Value =

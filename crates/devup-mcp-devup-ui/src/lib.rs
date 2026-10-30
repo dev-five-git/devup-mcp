@@ -1,4 +1,5 @@
 pub mod codegen;
+pub mod effective_attributes;
 mod html_props;
 pub mod provenance;
 pub mod style_props;

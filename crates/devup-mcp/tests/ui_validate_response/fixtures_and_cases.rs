@@ -55,7 +55,8 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
         anyhow::Ok(())
     });
     let client = ().serve(client_transport).await?;
-    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    let mut arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    arguments.entry("detail").or_insert(json!("full"));
     let result = client
         .call_tool(CallToolRequestParams::new("devup_ui_validate").with_arguments(arguments))
         .await?;
@@ -482,7 +483,7 @@ async fn r17_reference_png_recovery_has_frame_url() -> anyhow::Result<()> {
         anyhow::Ok(())
     });
     let client = ().serve(ct).await?;
-    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
+    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3","2:4"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
     let out = result.structured_content.unwrap();
     let text = out.to_string();
     assert!(text.contains("node-id=2-3"), "{out}");

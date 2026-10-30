@@ -160,8 +160,11 @@ fn exported_asset_boundary_is_not_treated_as_a_live_css_layout_container() {
         "../../../fixtures/devup-figma-plugin/cases/codegen/upstream-codegen-181-5afa626d49.json"
     ))
     .unwrap();
-    let snapshot: Snapshot =
+    let mut snapshot: Snapshot =
         serde_json::from_value(fixture["payload"]["snapshot"].clone()).unwrap();
+    let fields = &mut snapshot.nodes.get_mut("80:40").unwrap().fields;
+    fields.insert("layoutMode".into(), json!("NONE"));
+    fields.remove("inferredAutoLayout");
     let output = generate_component(&snapshot, "80:40", &CodegenOptions::default()).unwrap();
     assert!(
         output.tsx.contains("borderTop=\"solid 1px #000\""),

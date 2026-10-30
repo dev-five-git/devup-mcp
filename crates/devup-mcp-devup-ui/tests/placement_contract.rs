@@ -100,7 +100,7 @@ fn r4_embedded_root_anchors_children_and_discloses_host_size() {
 }
 
 #[test]
-fn r4_absolute_capture_root_discloses_external_containing_block() {
+fn r4_absolute_capture_root_uses_normal_flow_without_collected_parent() {
     let mut snapshot = snapshot();
     snapshot.nodes.remove("3997:46582");
     snapshot.roots = vec!["3997:46621".into()];
@@ -112,11 +112,11 @@ fn r4_absolute_capture_root_discloses_external_containing_block() {
         .unwrap();
     assert_eq!(
         contract.details.as_ref().unwrap()["containingBlock"],
-        "external-host"
+        "normal-flow-host"
     );
     assert_eq!(
         contract.fidelity_impact(),
-        devup_mcp_figma::FidelityImpact::Approximated
+        devup_mcp_figma::FidelityImpact::None
     );
 }
 
@@ -254,7 +254,7 @@ fn r4_absolute_root_isolates_its_background_child() {
     )
     .unwrap();
     let tag = root_tag(&output.tsx);
-    assert!(tag.contains("pos=\"absolute\""), "{tag}");
+    assert!(tag.contains("pos=\"relative\""), "{tag}");
     assert!(tag.contains("zIndex=\"0\""), "{tag}");
     assert!(output.tsx.contains("zIndex=\"-1\""), "{}", output.tsx);
 }

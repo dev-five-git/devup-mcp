@@ -42,6 +42,7 @@ async fn project_operation(
                     limit,
                 },
             )?;
+            let duplicate_warnings = devup_mcp_figma::excluded_duplicate_warnings(&matches);
             let quality = OutputQuality {
                 acquisition: acquisition_quality(&completeness_report, true),
                 projection: projection_quality(false, &[]),
@@ -54,6 +55,7 @@ async fn project_operation(
                 "query": query,
                 "count": matches.len(),
                 "matches": matches,
+                "warnings": duplicate_warnings,
                 "completeness": payload.completeness,
                 "collection": collection,
                 "cache": artifact_metadata(artifact),
@@ -125,6 +127,15 @@ async fn project_operation(
             // Keep requested file destinations and capture reporting attached
             // to the resolved asset rather than the convenience node alias.
             for capture in &mut asset_captures {
+                if capture.format == devup_mcp_figma::AssetFormat::Auto {
+                    let resolved = devup_mcp_figma::resolve_asset_selections(&payload.snapshot, std::slice::from_ref(capture))?.remove(0);
+                    capture.format = resolved.format;
+                    capture.quality = resolved.quality;
+                    capture.render_mode = resolved.render_mode;
+                    if let Some(path) = asset_output_paths.get_mut(&capture.asset_id) {
+                        *path = std::path::Path::new(path).with_extension(resolved.format.extension()).to_string_lossy().into_owned();
+                    }
+                }
                 if !matches!(capture.render_mode, devup_mcp_figma::AssetRenderMode::OriginalSource | devup_mcp_figma::AssetRenderMode::Auto) {
                     continue;
                 }
@@ -260,6 +271,7 @@ async fn project_operation(
                 "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
                 "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
                 "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
+                "figmaNodeIds":theme_options.figma_node_ids,
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
@@ -537,10 +549,7 @@ async fn project_operation(
                 section_tsx_projected,
             ) = project_section_frames::project_section_frames(
                 project_section_frames::SectionFrames {
-                    annotate_node_ids: theme_options
-                        .project_root
-                        .as_deref()
-                        .is_some_and(super::screen_plan::node_ids_enabled),
+                    annotate_node_ids: theme_options.figma_node_ids,
                     failures,
                     design_fingerprints: &design_fingerprints,
                     payload,
@@ -571,6 +580,7 @@ async fn project_operation(
             let (next_result, next_diagnostics, next_text_outputs, responsive_widths) =
                 project_responsive_output::project_responsive_output(
                     project_responsive_output::ResponsiveOutput {
+                        failures: &mut failures,
                         payload,
                         outputs: &outputs,
                         include_diagnostics,
@@ -716,9 +726,15 @@ async fn project_operation(
                 result.insert("sourceMap".to_owned(), source_map);
             }
 
-            if outputs.iter().any(|output| output == "referencePng") {
-                let reference = payload.reference_png.as_ref().ok_or_else(|| unavailable_output(payload, "referencePng",
-                    "No reference PNG was collected. Re-collect a single screen URL with referencePng in outputs."))?;
+            if outputs.iter().any(|output| output == "referencePng") && payload.reference_png.is_none() {
+                let reason = "No reference PNG was collected. Retry the single node through the Bridge; if rendering remains unavailable, use an authenticated direct path.";
+                result.entry("outputResults").or_insert_with(|| json!({}))["referencePng"] = json!({
+                    "state":"unavailable", "reason":reason,
+                    "nextAction":{"tool":"devup_figma_export","arguments":{"url":payload.target.link(payload.target.node_id.as_deref()),"outputs":["referencePng"],"refresh":true}}
+                });
+                failures.push(json!({"output":"referencePng","code":"DEVUP_REFERENCE_PNG_UNAVAILABLE","message":reason}));
+            }
+            if outputs.iter().any(|output| output == "referencePng") && let Some(reference) = &payload.reference_png {
                 let bytes = STANDARD
                     .decode(reference.data_base64.as_bytes())
                     .map_err(|_| {
@@ -752,6 +768,7 @@ async fn project_operation(
                     result.insert("referencePngNote".to_owned(), note);
                 }
                 result.insert("referencePng".to_owned(), inline);
+                result.entry("outputResults").or_insert_with(|| json!({}))["referencePng"] = json!({"state":"produced"});
             }
 
             (pending_asset_manifest, warnings) = prepare_asset_manifest::prepare_asset_manifest(
@@ -813,6 +830,8 @@ async fn project_operation(
                     asset_names_per_node,
                     strict,
                     output_paths,
+                    project_root: theme_options.project_root.clone(),
+                    default_node_id: if frame_ids.len() == 1 { frame_ids[0].clone() } else { payload.target.node_id.clone().unwrap_or_else(|| "export".into()) },
                     page_scaffold,
                     asset_captures,
                     web_ready_images,

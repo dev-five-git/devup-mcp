@@ -47,7 +47,7 @@ fn a_folded_asset_does_not_anchor_children_it_no_longer_has() {
     );
 
     assert!(
-        tsx.contains("/icons/clear button.svg"),
+        tsx.contains("/icons/clear-button.svg"),
         "expected a folded asset: {tsx}"
     );
     assert!(
@@ -89,10 +89,10 @@ fn a_raster_pattern_is_referenced_from_the_image_folder() {
     );
 
     assert!(
-        tsx.contains("/images/Tile.png"),
+        tsx.contains("/images/tile.png"),
         "a raster pattern is an image: {tsx}"
     );
-    assert!(!tsx.contains("/icons/Tile"), "{tsx}");
+    assert!(!tsx.contains("/icons/tile"), "{tsx}");
 }
 
 #[test]
@@ -116,8 +116,8 @@ fn separate_image_fills_do_not_claim_the_same_file() {
         }]),
     );
 
-    assert!(tsx.contains("/images/Card.png"), "{tsx}");
-    assert!(tsx.contains("/images/Card-1.png"), "{tsx}");
+    assert!(tsx.contains("/images/card.png"), "{tsx}");
+    assert!(tsx.contains("/images/card-1.png"), "{tsx}");
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn image_filled_asset_container_preserves_text_children() {
     // The fill names the node it came from, so two different images cannot
     // claim the same file. An original-source paint is an image layer below
     // live text, rather than a flattened export of the entire container.
-    assert!(tsx.contains("src=\"/images/Book cover.png\""));
+    assert!(tsx.contains("src=\"/images/book-cover.png\""));
     assert!(tsx.contains("objectFit=\"cover\""));
     assert!(tsx.contains("Preserved title"));
     assert!(tsx.contains("<Image"));
@@ -184,8 +184,8 @@ fn transparent_single_child_container_is_the_asset_boundary() {
         ]),
     );
 
-    assert!(tsx.contains("src=\"/icons/Outer icon.svg\""));
-    assert!(!tsx.contains("src=\"/icons/Inner icon.svg\""));
+    assert!(tsx.contains("src=\"/icons/outer-icon.svg\""));
+    assert!(!tsx.contains("src=\"/icons/inner-icon.svg\""));
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn container_with_only_visible_vector_children_is_an_svg() {
         ]),
     );
 
-    assert!(tsx.contains("src=\"/icons/Vector group.svg\""));
+    assert!(tsx.contains("src=\"/icons/vector-group.svg\""));
 }
 
 #[test]
@@ -240,8 +240,8 @@ fn container_with_vector_and_text_children_is_not_an_asset() {
         ]),
     );
 
-    assert!(!tsx.contains("src=\"/icons/Mixed group.svg\""));
-    assert!(tsx.contains("src=\"/icons/Mixed icon.svg\""));
+    assert!(!tsx.contains("src=\"/icons/mixed-group.svg\""));
+    assert!(tsx.contains("src=\"/icons/mixed-icon.svg\""));
     assert!(tsx.contains("Visible label"));
 }
 
@@ -306,10 +306,10 @@ fn decorated_single_child_containers_do_not_collapse() {
         ]),
     );
 
-    assert!(!padded.contains("src=\"/icons/Padded container.svg\""));
-    assert!(padded.contains("src=\"/icons/Padded child.svg\""));
+    assert!(!padded.contains("src=\"/icons/padded-container.svg\""));
+    assert!(padded.contains("src=\"/icons/padded-child.svg\""));
     assert!(!filled.contains("maskImage="));
-    assert!(filled.contains("src=\"/icons/Filled child.svg\""));
+    assert!(filled.contains("src=\"/icons/filled-child.svg\""));
 }
 
 #[test]

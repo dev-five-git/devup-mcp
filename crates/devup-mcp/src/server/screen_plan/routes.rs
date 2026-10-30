@@ -53,12 +53,15 @@ struct Frame {
     height: Option<f64>,
     section: Option<String>,
     section_name: Option<String>,
+    page_id: Option<String>,
+    page_name: Option<String>,
 }
 
 impl Frame {
     fn json(&self) -> Value {
         json!({"nodeId": self.node_id, "name": self.name, "width": self.width, "height": self.height,
-            "section": self.section, "sectionName": self.section_name})
+            "section": self.section, "sectionName": self.section_name,
+            "pageId": self.page_id, "pageName": self.page_name})
     }
 }
 
@@ -188,10 +191,25 @@ fn describe_frames(frames: &[Frame]) -> String {
 /// - the same name at the same width in one section is not grouped; it is
 ///   flagged as a possible duplicate by [`structure_questions`].
 fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftScreen> {
+    let renamed = screens
+        .iter()
+        .map(|screen| match screen.section_name.as_deref() {
+            Some(section) if device_name(&screen.name) && !device_name(section) => {
+                let mut named = screen.clone();
+                named.name = format!("{section} - {}", screen.name);
+                named
+            }
+            _ => screen.clone(),
+        })
+        .collect::<Vec<_>>();
+    let screens = renamed.as_slice();
     let mut order = Vec::<String>::new();
     let mut groups = BTreeMap::<String, Vec<&PlanScreenInput>>::new();
     for screen in screens {
-        let key = base_words(&screen.name).join(" ");
+        let mut key = base_words(&screen.name).join(" ");
+        if device_name(&screen.name) {
+            key = format!("{key}@{}", screen.section.as_deref().unwrap_or(""));
+        }
         if !groups.contains_key(&key) {
             order.push(key.clone());
         }
@@ -207,6 +225,8 @@ fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftS
                 height: screen.height,
                 section: screen.section.clone(),
                 section_name: screen.section_name.clone(),
+                page_id: screen.page_id.clone(),
+                page_name: screen.page_name.clone().or_else(|| screen.breadcrumb.first().cloned()),
             })
             .collect::<Vec<_>>();
         frames.sort_by(|a, b| b.width.total_cmp(&a.width));
@@ -332,7 +352,14 @@ struct Oddity {
     keep: &'static str,
     keep_description: String,
     fix: String,
+    /// Offers [`STATES`]: `Some(true)` recommends it (widths differ by a
+    /// pixel or two), `Some(false)` offers it, `None` does not.
+    states: Option<bool>,
 }
+
+/// Widths this close are one screen's state variants, not responsive widths.
+const STATE_WIDTH_TOLERANCE: u32 = 8;
+pub(super) const STATES: &str = "Same screen, different states";
 
 /// Figma structure that a designer may not have meant, flagged in the same
 /// batch with a "fix it" option. Nothing here decides which frame is right.
@@ -343,29 +370,45 @@ fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
         .enumerate()
         .filter(|(_, screen)| screen.grouping == Grouping::Fixed("single-frame"))
         .collect::<Vec<_>>();
-    // The same name and width in one section.
-    let mut duplicates = BTreeMap::<(String, Option<String>, u32), Vec<usize>>::new();
+    // The same name in one section at one or a near-identical width
+    // (1440/1441/1442): state variants of one screen, or a stale copy.
+    let mut by_name = BTreeMap::<(String, Option<String>), Vec<(u32, usize)>>::new();
     for (index, screen) in &singles {
         let frame = &screen.frames[0];
-        duplicates
-            .entry((
-                screen.words.join(" "),
-                frame.section.clone(),
-                widths_of(&screen.frames)[0],
-            ))
+        by_name
+            .entry((screen.words.join(" "), frame.section.clone()))
             .or_default()
-            .push(*index);
+            .push((widths_of(&screen.frames)[0], *index));
     }
-    for indices in duplicates.values().filter(|indices| indices.len() > 1) {
+    let mut clusters = Vec::<Vec<(u32, usize)>>::new();
+    for mut entries in by_name.into_values() {
+        entries.sort_unstable();
+        let mut current = Vec::<(u32, usize)>::new();
+        for entry in entries {
+            if current
+                .last()
+                .is_some_and(|last| entry.0 - last.0 > STATE_WIDTH_TOLERANCE)
+            {
+                clusters.push(std::mem::take(&mut current));
+            }
+            current.push(entry);
+        }
+        clusters.push(current);
+    }
+    for cluster in clusters.iter().filter(|cluster| cluster.len() > 1) {
+        let differ = cluster.iter().any(|entry| entry.0 != cluster[0].0);
+        let mut indices = cluster.iter().map(|entry| entry.1).collect::<Vec<_>>();
+        indices.sort_unstable();
         let frames = indices
             .iter()
             .map(|index| drafts[*index].frames[0].clone())
             .collect::<Vec<_>>();
         found.push(Oddity {
             kind: "duplicate",
-            screens: indices.clone(),
+            screens: indices,
+            states: Some(differ),
             facts: format!(
-                "{} frames share one name and one width in one section: {}.",
+                "{} frames share one name and (nearly) one width in one section: {}.",
                 frames.len(),
                 describe_frames(&frames)
             ),
@@ -398,6 +441,7 @@ fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
         }
         found.push(Oddity {
             kind: "split",
+            states: None,
             screens: indices.clone(),
             facts: format!(
                 "These numbered frames look like parts of one screen spread across sections: {}.",
@@ -425,6 +469,7 @@ fn structure_questions(drafts: &[DraftScreen]) -> Vec<Oddity> {
             }
             found.push(Oddity {
                 kind: "loose",
+                states: None,
                 screens: vec![*index],
                 facts: format!(
                     "\"{}\" ({}, {}px) sits outside any section, while the other frames are in {}.",

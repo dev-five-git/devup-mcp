@@ -2,6 +2,7 @@
 source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
+
 "<Image
   aspectRatio="100 / 80"
   h="80px"
@@ -9,6 +10,6 @@ expression: actual
   minW="0"
   objectFit="contain"
   objectPos="center"
-  src="/images/ObjectFitContain.png"
+  src="/images/objectfitcontain.png"
   w="100px"
 />"

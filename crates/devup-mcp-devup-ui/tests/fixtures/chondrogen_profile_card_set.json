@@ -1,0 +1,2208 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "41:750"
+  ],
+  "nodes": {
+    "41:727": {
+      "id": "41:727",
+      "type": "RECTANGLE",
+      "fields": {
+        "parentId": "41:733",
+        "absoluteBoundingBox": {
+          "height": 250,
+          "width": 200,
+          "x": 10541,
+          "y": 4810
+        },
+        "absoluteRenderBounds": {
+          "height": 250,
+          "width": 200,
+          "x": 10541,
+          "y": 4810
+        },
+        "bottomLeftRadius": 12,
+        "bottomRightRadius": 12,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 12,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.8509804010391235,
+              "g": 0.8509804010391235,
+              "r": 0.8509804010391235
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 250,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Rectangle 3",
+        "opacity": 1,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "targetAspectRatio": {
+          "x": 4,
+          "y": 5
+        },
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "visible": true,
+        "width": 200,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:728": {
+      "id": "41:728",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "41:733",
+        "childrenIds": [
+          "41:729",
+          "41:732"
+        ],
+        "absoluteBoundingBox": {
+          "height": 240,
+          "width": 974,
+          "x": 10765,
+          "y": 4810
+        },
+        "absoluteRenderBounds": {
+          "height": 240,
+          "width": 974,
+          "x": 10765,
+          "y": 4810
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 240,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 16,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 16,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 484",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 974,
+        "x": 224,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:729": {
+      "id": "41:729",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "41:728",
+        "childrenIds": [
+          "41:730",
+          "41:731"
+        ],
+        "absoluteBoundingBox": {
+          "height": 63,
+          "width": 974,
+          "x": 10765,
+          "y": 4810
+        },
+        "absoluteRenderBounds": {
+          "height": 63,
+          "width": 974,
+          "x": 10765,
+          "y": 4810
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 63,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 8,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 8,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 486",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 974,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:730": {
+      "id": "41:730",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:729",
+        "absoluteBoundingBox": {
+          "height": 21,
+          "width": 974,
+          "x": 10765,
+          "y": 4810
+        },
+        "absoluteRenderBounds": {
+          "height": 12.6416015625,
+          "width": 90.509765625,
+          "x": 10765.76953125,
+          "y": 4814.576171875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:359",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "대표이사 (CEO)",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:359",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.6682692170143127,
+              "g": 0.6104382276535034,
+              "r": 0.5815227627754211
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 14,
+        "height": 21,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "대표이사 (CEO)",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:370e71e15f083213d6b6b56147987ae704a95d77,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 974,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "대표이사 (CEO)",
+            "end": 10,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:370e71e15f083213d6b6b56147987ae704a95d77,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:731": {
+      "id": "41:731",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:729",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 974,
+          "x": 10765,
+          "y": 4839
+        },
+        "absoluteRenderBounds": {
+          "height": 21.3603515625,
+          "width": 59.185546875,
+          "x": 10766.0078125,
+          "y": 4845.4638671875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "임군일",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 24,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "임군일",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 974,
+        "x": 0,
+        "y": 29,
+        "styledTextSegments": [
+          {
+            "characters": "임군일",
+            "end": 3,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:732": {
+      "id": "41:732",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:728",
+        "absoluteBoundingBox": {
+          "height": 161,
+          "width": 974,
+          "x": 10765,
+          "y": 4889
+        },
+        "absoluteRenderBounds": {
+          "height": 151.3203125,
+          "width": 301.94921875,
+          "x": 10767.7001953125,
+          "y": 4893.81982421875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:40:430",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "· 동국대학교 의과대학 정형외과 교수\n· 연골재생 및 골관절염 세포치료 연구 30년\n· 세포치료제 실용화, 치료·연구자 임상 경험\n· 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편)\n· 국내 특허 12건, 국제 특허 3건 등록\n· 세계골관절염연구학회장 역임 (아시아 최초)\n· 대한연골골관절염학회 설립",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Medium"
+        },
+        "fontSize": 15,
+        "height": 161,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "· 동국대학교 의과대학 정형외과 교수 · 연골재생 및 골관절염 세포치료 연구 30년 · 세포치료제 실용화, 치료·연구자 임상 경험 · 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편) · 국내 특허 12건, 국제 특허 3건 등록 · 세계골관절염연구학회장 역임 (아시아 최초) · 대한연골골관절염학회 설립",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:a2319c6931a342fd831baf32b252756b15de72a6,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 974,
+        "x": 0,
+        "y": 79,
+        "styledTextSegments": [
+          {
+            "characters": "· 동국대학교 의과대학 정형외과 교수\n· 연골재생 및 골관절염 세포치료 연구 30년\n· 세포치료제 실용화, 치료·연구자 임상 경험\n· 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편)\n· 국내 특허 12건, 국제 특허 3건 등록\n· 세계골관절염연구학회장 역임 (아시아 최초)\n· 대한연골골관절염학회 설립",
+            "end": 177,
+            "fillStyleId": "",
+            "fontWeight": 500,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:a2319c6931a342fd831baf32b252756b15de72a6,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:733": {
+      "id": "41:733",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "41:750",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "41:727",
+          "41:728"
+        ],
+        "absoluteBoundingBox": {
+          "height": 250,
+          "width": 1198,
+          "x": 10541,
+          "y": 4810
+        },
+        "absoluteRenderBounds": {
+          "height": 250,
+          "width": 1198,
+          "x": 10541,
+          "y": 4810
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 250,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 24,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 24,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "type=Leader, viewport=Desktop",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "type": "Leader",
+          "viewport": "Desktop"
+        },
+        "visible": true,
+        "width": 1198,
+        "x": 21,
+        "y": 21
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:750": {
+      "id": "41:750",
+      "type": "COMPONENT_SET",
+      "fields": {
+        "parentId": "19:963",
+        "parentType": "SECTION",
+        "parentName": "Components",
+        "childrenIds": [
+          "41:733",
+          "41:751",
+          "44:1252",
+          "43:1212"
+        ],
+        "absoluteBoundingBox": {
+          "height": 1093,
+          "width": 1240,
+          "x": 10520,
+          "y": 4789
+        },
+        "absoluteRenderBounds": {
+          "height": 1093,
+          "width": 1240,
+          "x": 10520,
+          "y": 4789
+        },
+        "bottomLeftRadius": 5,
+        "bottomRightRadius": 5,
+        "clipsContent": true,
+        "componentPropertyDefinitions": {
+          "type": {
+            "defaultValue": "Leader",
+            "type": "VARIANT",
+            "variantOptions": [
+              "Leader",
+              "Team"
+            ]
+          },
+          "viewport": {
+            "defaultValue": "Desktop",
+            "type": "VARIANT",
+            "variantOptions": [
+              "Desktop",
+              "Mobile"
+            ]
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 5,
+        "dashPattern": [
+          10,
+          5
+        ],
+        "defaultVariant": {
+          "$nodeId": "41:733",
+          "$nodeType": "COMPONENT"
+        },
+        "height": 1093,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 20,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 20,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 20,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 20,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "ProfileCard",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 20,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 20,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 0.27843138575553894,
+              "r": 0.5921568870544434
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "topLeftRadius": 5,
+        "topRightRadius": 5,
+        "visible": true,
+        "width": 1240,
+        "x": 1850,
+        "y": 3751
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:751": {
+      "id": "41:751",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "41:750",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "41:752",
+          "41:754"
+        ],
+        "absoluteBoundingBox": {
+          "height": 364,
+          "width": 236,
+          "x": 10541,
+          "y": 5080
+        },
+        "absoluteRenderBounds": {
+          "height": 364,
+          "width": 236,
+          "x": 10541,
+          "y": 5080
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 364,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 16,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 16,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "type=Team, viewport=Desktop",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "type": "Team",
+          "viewport": "Desktop"
+        },
+        "visible": true,
+        "width": 236,
+        "x": 21,
+        "y": 291
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:752": {
+      "id": "41:752",
+      "type": "RECTANGLE",
+      "fields": {
+        "parentId": "41:751",
+        "absoluteBoundingBox": {
+          "height": 295,
+          "width": 236,
+          "x": 10541,
+          "y": 5080
+        },
+        "absoluteRenderBounds": {
+          "height": 295,
+          "width": 236,
+          "x": 10541,
+          "y": 5080
+        },
+        "bottomLeftRadius": 12,
+        "bottomRightRadius": 12,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 12,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.8509804010391235,
+              "g": 0.8509804010391235,
+              "r": 0.8509804010391235
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 295,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Rectangle 3",
+        "opacity": 1,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "targetAspectRatio": {
+          "x": 4,
+          "y": 5
+        },
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "visible": true,
+        "width": 236,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:754": {
+      "id": "41:754",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "41:751",
+        "childrenIds": [
+          "41:756",
+          "41:755"
+        ],
+        "absoluteBoundingBox": {
+          "height": 53,
+          "width": 236,
+          "x": 10541,
+          "y": 5391
+        },
+        "absoluteRenderBounds": {
+          "height": 53,
+          "width": 236,
+          "x": 10541,
+          "y": 5391
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 53,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 4,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 4,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 486",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 236,
+        "x": 0,
+        "y": 311
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:755": {
+      "id": "41:755",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:754",
+        "absoluteBoundingBox": {
+          "height": 21,
+          "width": 236,
+          "x": 10541,
+          "y": 5423
+        },
+        "absoluteRenderBounds": {
+          "height": 12.501953125,
+          "width": 89.6240234375,
+          "x": 10613.884765625,
+          "y": 5427.64599609375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:13:153",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "대표이사 (CEO)",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:13:153",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.5160255432128906,
+              "g": 0.4530186951160431,
+              "r": 0.4333290457725525
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 21,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "대표이사 (CEO)",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:44614ba166a8fa9b3003396a689f04927b273a5d,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 236,
+        "x": 0,
+        "y": 32,
+        "styledTextSegments": [
+          {
+            "characters": "대표이사 (CEO)",
+            "end": 10,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:44614ba166a8fa9b3003396a689f04927b273a5d,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "41:756": {
+      "id": "41:756",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:754",
+        "absoluteBoundingBox": {
+          "height": 28,
+          "width": 236,
+          "x": 10541,
+          "y": 5391
+        },
+        "absoluteRenderBounds": {
+          "height": 17.7998046875,
+          "width": 49.3203125,
+          "x": 10634.01953125,
+          "y": 5395.72021484375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "임군일",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 28,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "임군일",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 236,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "임군일",
+            "end": 3,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1212": {
+      "id": "43:1212",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "41:750",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "44:1241",
+          "43:1218"
+        ],
+        "absoluteBoundingBox": {
+          "height": 277,
+          "width": 1198,
+          "x": 10541,
+          "y": 5584
+        },
+        "absoluteRenderBounds": {
+          "height": 277,
+          "width": 1198,
+          "x": 10541,
+          "y": 5584
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 277,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 16,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 16,
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "type=Leader, viewport=Mobile",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "type": "Leader",
+          "viewport": "Mobile"
+        },
+        "visible": true,
+        "width": 1198,
+        "x": 21,
+        "y": 795
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1213": {
+      "id": "43:1213",
+      "type": "RECTANGLE",
+      "fields": {
+        "parentId": "44:1241",
+        "absoluteBoundingBox": {
+          "height": 100,
+          "width": 80,
+          "x": 10541,
+          "y": 5584
+        },
+        "absoluteRenderBounds": {
+          "height": 100,
+          "width": 80,
+          "x": 10541,
+          "y": 5584
+        },
+        "bottomLeftRadius": 8,
+        "bottomRightRadius": 8,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 8,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.8509804010391235,
+              "g": 0.8509804010391235,
+              "r": 0.8509804010391235
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Rectangle 3",
+        "opacity": 1,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "targetAspectRatio": {
+          "x": 4,
+          "y": 5
+        },
+        "topLeftRadius": 8,
+        "topRightRadius": 8,
+        "visible": true,
+        "width": 80,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1215": {
+      "id": "43:1215",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "44:1241",
+        "childrenIds": [
+          "43:1216",
+          "43:1217"
+        ],
+        "absoluteBoundingBox": {
+          "height": 87,
+          "width": 1102,
+          "x": 10637,
+          "y": 5584
+        },
+        "absoluteRenderBounds": {
+          "height": 87,
+          "width": 1102,
+          "x": 10637,
+          "y": 5584
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 87,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 8,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 12,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 12,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 8,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 486",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 12,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 12,
+        "primaryAxisAlignItems": "CENTER",
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 1102,
+        "x": 96,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1216": {
+      "id": "43:1216",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "43:1215",
+        "absoluteBoundingBox": {
+          "height": 21,
+          "width": 1102,
+          "x": 10637,
+          "y": 5596
+        },
+        "absoluteRenderBounds": {
+          "height": 12.6416015625,
+          "width": 90.509765625,
+          "x": 10637.76953125,
+          "y": 5600.576171875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:359",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "대표이사 (CEO)",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:359",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.6682692170143127,
+              "g": 0.6104382276535034,
+              "r": 0.5815227627754211
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 14,
+        "height": 21,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "대표이사 (CEO)",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:370e71e15f083213d6b6b56147987ae704a95d77,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 1102,
+        "x": 0,
+        "y": 12,
+        "styledTextSegments": [
+          {
+            "characters": "대표이사 (CEO)",
+            "end": 10,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:370e71e15f083213d6b6b56147987ae704a95d77,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1217": {
+      "id": "43:1217",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "43:1215",
+        "absoluteBoundingBox": {
+          "height": 34,
+          "width": 1102,
+          "x": 10637,
+          "y": 5625
+        },
+        "absoluteRenderBounds": {
+          "height": 21.3603515625,
+          "width": 59.185546875,
+          "x": 10638.0078125,
+          "y": 5631.4638671875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:946",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "임군일",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 24,
+        "height": 34,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "임군일",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 1102,
+        "x": 0,
+        "y": 41,
+        "styledTextSegments": [
+          {
+            "characters": "임군일",
+            "end": 3,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:695d59044b4e4f7eea6a65d6dd08296043af8a66,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1218": {
+      "id": "43:1218",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "43:1212",
+        "absoluteBoundingBox": {
+          "height": 161,
+          "width": 1198,
+          "x": 10541,
+          "y": 5700
+        },
+        "absoluteRenderBounds": {
+          "height": 151.3203125,
+          "width": 301.94921875,
+          "x": 10543.7001953125,
+          "y": 5704.81982421875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:40:430",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "· 동국대학교 의과대학 정형외과 교수\n· 연골재생 및 골관절염 세포치료 연구 30년\n· 세포치료제 실용화, 치료·연구자 임상 경험\n· 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편)\n· 국내 특허 12건, 국제 특허 3건 등록\n· 세계골관절염연구학회장 역임 (아시아 최초)\n· 대한연골골관절염학회 설립",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Medium"
+        },
+        "fontSize": 15,
+        "height": 161,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "· 동국대학교 의과대학 정형외과 교수 · 연골재생 및 골관절염 세포치료 연구 30년 · 세포치료제 실용화, 치료·연구자 임상 경험 · 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편) · 국내 특허 12건, 국제 특허 3건 등록 · 세계골관절염연구학회장 역임 (아시아 최초) · 대한연골골관절염학회 설립",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:a2319c6931a342fd831baf32b252756b15de72a6,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 1198,
+        "x": 0,
+        "y": 116,
+        "styledTextSegments": [
+          {
+            "characters": "· 동국대학교 의과대학 정형외과 교수\n· 연골재생 및 골관절염 세포치료 연구 30년\n· 세포치료제 실용화, 치료·연구자 임상 경험\n· 최근 10년 SCI 논문 120편 (피인용 100회 이상 4편)\n· 국내 특허 12건, 국제 특허 3건 등록\n· 세계골관절염연구학회장 역임 (아시아 최초)\n· 대한연골골관절염학회 설립",
+            "end": 177,
+            "fillStyleId": "",
+            "fontWeight": 500,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:a2319c6931a342fd831baf32b252756b15de72a6,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1241": {
+      "id": "44:1241",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "43:1212",
+        "childrenIds": [
+          "43:1213",
+          "43:1215"
+        ],
+        "absoluteBoundingBox": {
+          "height": 100,
+          "width": 1198,
+          "x": 10541,
+          "y": 5584
+        },
+        "absoluteRenderBounds": {
+          "height": 100,
+          "width": 1198,
+          "x": 10541,
+          "y": 5584
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 100,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 16,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 16,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 499",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 1198,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1252": {
+      "id": "44:1252",
+      "type": "COMPONENT",
+      "fields": {
+        "parentId": "41:750",
+        "parentType": "COMPONENT_SET",
+        "childrenIds": [
+          "44:1253",
+          "44:1254"
+        ],
+        "absoluteBoundingBox": {
+          "height": 100,
+          "width": 236,
+          "x": 10541,
+          "y": 5464
+        },
+        "absoluteRenderBounds": {
+          "height": 100,
+          "width": 236,
+          "x": 10541,
+          "y": 5464
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignItems": "CENTER",
+        "height": 100,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 16,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 16,
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "type=Team, viewport=Mobile",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "type": "Team",
+          "viewport": "Mobile"
+        },
+        "visible": true,
+        "width": 236,
+        "x": 21,
+        "y": 675
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1253": {
+      "id": "44:1253",
+      "type": "RECTANGLE",
+      "fields": {
+        "parentId": "44:1252",
+        "absoluteBoundingBox": {
+          "height": 100,
+          "width": 80,
+          "x": 10541,
+          "y": 5464
+        },
+        "absoluteRenderBounds": {
+          "height": 100,
+          "width": 80,
+          "x": 10541,
+          "y": 5464
+        },
+        "bottomLeftRadius": 8,
+        "bottomRightRadius": 8,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 8,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.8509804010391235,
+              "g": 0.8509804010391235,
+              "r": 0.8509804010391235
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 100,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Rectangle 3",
+        "opacity": 1,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "targetAspectRatio": {
+          "x": 4,
+          "y": 5
+        },
+        "topLeftRadius": 8,
+        "topRightRadius": 8,
+        "visible": true,
+        "width": 80,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1254": {
+      "id": "44:1254",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "44:1252",
+        "childrenIds": [
+          "44:1255",
+          "44:1256"
+        ],
+        "absoluteBoundingBox": {
+          "height": 77,
+          "width": 140,
+          "x": 10637,
+          "y": 5475.5
+        },
+        "absoluteRenderBounds": {
+          "height": 77,
+          "width": 140,
+          "x": 10637,
+          "y": 5475.5
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "height": 77,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 4,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 1,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 12,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 12,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 4,
+        "layoutGrow": 1,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 486",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 12,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 12,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 140,
+        "x": 96,
+        "y": 11.5
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1255": {
+      "id": "44:1255",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "44:1254",
+        "absoluteBoundingBox": {
+          "height": 28,
+          "width": 140,
+          "x": 10637,
+          "y": 5487.5
+        },
+        "absoluteRenderBounds": {
+          "height": 17.7998046875,
+          "width": 49.3212890625,
+          "x": 10637.83984375,
+          "y": 5492.22021484375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:950",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "임군일",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 20,
+        "height": 28,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 139.9999976158142
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "임군일",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 140,
+        "x": 0,
+        "y": 12,
+        "styledTextSegments": [
+          {
+            "characters": "임군일",
+            "end": 3,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:0b5158f29530255590daed174bb87c3a635c314a,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "44:1256": {
+      "id": "44:1256",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "44:1254",
+        "absoluteBoundingBox": {
+          "height": 21,
+          "width": 140,
+          "x": 10637,
+          "y": 5519.5
+        },
+        "absoluteRenderBounds": {
+          "height": 12.501953125,
+          "width": 89.6240234375,
+          "x": 10637.8681640625,
+          "y": 5524.14599609375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:13:153",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "대표이사 (CEO)",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:13:153",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.5160255432128906,
+              "g": 0.4530186951160431,
+              "r": 0.4333290457725525
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 21,
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "대표이사 (CEO)",
+        "opacity": 1,
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:44614ba166a8fa9b3003396a689f04927b273a5d,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 140,
+        "x": 0,
+        "y": 44,
+        "styledTextSegments": [
+          {
+            "characters": "대표이사 (CEO)",
+            "end": 10,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:44614ba166a8fa9b3003396a689f04927b273a5d,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

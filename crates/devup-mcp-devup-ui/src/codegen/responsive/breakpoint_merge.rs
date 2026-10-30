@@ -8,7 +8,7 @@ use super::{
     component::{CodegenOptions, generate_component},
     variant::{
         POSITION_PROPS, Tree, instance_variant_props, project_tree_keeping_instances,
-        referenced_component_name, structure_signature,
+            referenced_component_name,
     },
 };
 use crate::provenance::attributes::{
@@ -92,23 +92,6 @@ const CLEARED_WHEN_DROPPED: [&str; 42] = [
 /// The margin props, kept apart only because the array above is already at the
 /// length rustfmt likes to fight over.
 const CLEARED_WHEN_DROPPED_MARGINS: [&str; 7] = ["m", "mt", "mr", "mb", "ml", "mx", "my"];
-
-/// A value that need not be written because it is what the prop already is,
-/// from the plugin's `DEFAULT_PROPS_MAP`. Its padding and margin entries are
-/// commented out upstream, so they are absent here too.
-fn is_default(prop: &str, value: &str) -> bool {
-    match prop {
-        "alignItems" | "justifyContent" => value == "flex-start",
-        "flexDir" => value == "row",
-        "gap" => value == "0" || value == "0px",
-        "textDecorationSkipInk"
-        | "textDecorationThickness"
-        | "textDecorationColor"
-        | "textUnderlineOffset" => value == "auto",
-        "textDecorationStyle" => value == "solid",
-        _ => false,
-    }
-}
 
 fn cleared_when_dropped(prop: &str) -> bool {
     CLEARED_WHEN_DROPPED.contains(&prop) || CLEARED_WHEN_DROPPED_MARGINS.contains(&prop)
@@ -200,13 +183,6 @@ pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
             carried = Some(value);
         }
     }
-    if slots
-        .first()
-        .and_then(Option::as_deref)
-        .is_some_and(|value| is_default(prop, value))
-    {
-        slots[0] = None;
-    }
     while slots.last().is_some_and(Option::is_none) {
         slots.pop();
     }
@@ -281,7 +257,7 @@ pub fn is_breakpoint_name(name: &str) -> bool {
 
 /// Explicit width suffixes can describe one named screen. No fuzzy matching.
 pub fn family_name(name: &str) -> String {
-    let name = name.trim().to_ascii_lowercase();
+    let name = strip_width_label(name.trim().to_ascii_lowercase());
     if is_breakpoint_name(&name) {
         return "@breakpoint-labels".into();
     }
@@ -597,52 +573,6 @@ fn first_slot<T>(by_slot: &BySlot<T>, precedence: &Precedence) -> Option<usize> 
         .min_by_key(|slot| precedence[*slot])
 }
 
-/// A node's children, grouped under the key its counterparts will be found by.
-///
-/// A child whose shape is unique among its siblings is keyed by that shape, so
-/// renaming it in one width does not lose it. Where several siblings share a
-/// shape the shape cannot tell them apart, so their name is used instead and
-/// they are paired in order: the second `quote` with the second `quote`. Each
-/// keeps a key of its own, so siblings drawn between them stay between them;
-/// one key for all of them emitted `“ ” title` for `“ title ”`. Insertion
-/// order is kept, because it is what the ordering below reads.
-fn children_to_map(tree: &Tree) -> Vec<(String, Vec<&Tree>)> {
-    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
-    for child in &tree.children {
-        *counts.entry(structure_signature(child)).or_default() += 1;
-    }
-    let mut grouped: Vec<(String, Vec<&Tree>)> = Vec::new();
-    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
-    for child in &tree.children {
-        let signature = structure_signature(child);
-        let mut key = if counts.get(&signature) == Some(&1) {
-            format!("sig:{signature}")
-        } else {
-            child.node_name.clone()
-        };
-        // `src` is an HTML attribute, not a responsive CSS property. Keep
-        // distinct sources as distinct children; the existing missing-child
-        // merge supplies their visibility slots without array-valued URLs.
-        if child.component == "Image"
-            && let Some(source) = child.props.get("src")
-        {
-            key = serde_json::to_string(&(
-                key,
-                source,
-                child.props.get("srcSet"),
-                child.props.get("sizes"),
-                child.props.get("width"),
-                child.props.get("height"),
-            ))
-            .expect("image identity is serializable");
-        }
-        let occurrence = seen.entry(key.clone()).or_insert(0usize);
-        grouped.push((format!("{key}#{occurrence}"), vec![child]));
-        *occurrence += 1;
-    }
-    grouped
-}
-
 /// One order for children that every width agrees with.
 ///
 /// Each width gives an order over the children it has, and no width need have
@@ -752,6 +682,7 @@ fn render_attribute(merged: &Merged) -> Option<String> {
 /// What a layout element does by itself besides its `display`.
 fn implied_layout(component: &str) -> &'static [(&'static str, &'static str)] {
     match component {
+        "Flex" => &[("flexDir", "row")],
         "VStack" => &[("flexDir", "column")],
         "Center" => &[("alignItems", "center"), ("justifyContent", "center")],
         _ => &[],
@@ -818,7 +749,7 @@ fn restore_implied_display(tree: &mut Tree) {
 fn merge_trees(
     by_slot: &BySlot<Tree>,
     precedence: &Precedence,
-    notes: &mut Vec<Unrepresented>,
+    context: &mut MergeContext<'_>,
 ) -> Option<Tree> {
     // The merged element is the first width's. Where another width draws it as
     // a different layout element, what each element does by itself has to be
@@ -874,7 +805,7 @@ fn merge_trees(
             }
             if let Some(widest) = seen.last().cloned() {
                 if seen.iter().any(|value| *value != widest) {
-                    notes.push(Unrepresented {
+                    context.notes.push(Unrepresented {
                         node_id: first.node_id.clone(),
                         detail: format!(
                             "{} takes {key} {} at different widths; a component prop cannot be responsive, so {widest} is used.",
@@ -895,6 +826,28 @@ fn merge_trees(
                 .map_or(Drawn::Unset, |value| Drawn::Set(value)),
         });
         let mut merged = merge_slots(&key, &widths);
+        for (slot, width) in widths.iter().enumerate() {
+            if let Drawn::Set(expected) = width
+                && cleared_when_dropped(&key)
+            {
+                let has_value = match &merged {
+                    Merged::Same(value) => value.is_some(),
+                    Merged::Array(values) => values.iter().take(slot + 1).any(Option::is_some),
+                };
+                if !has_value {
+                    context.diagnostics.push(devup_mcp_figma::Diagnostic {
+                        code: "DEVUP_CODEGEN_RESPONSIVE_DRAWN_WIDTH_EMPTY".into(),
+                        message: "A drawn width lost its source layout value during responsive merging.".into(),
+                        node_id: by_slot[slot].as_ref().map(|tree| tree.node_id.clone()),
+                        property: Some(key.clone()),
+                        details: Some(json!({"slot":slot,"width":context.slot_widths[slot],"originalValue":expected,"reason":"no effective layout value at drawn slot","nextAction":"Inspect responsive merge provenance for this node and property.","output":"responsiveTsx"})),
+                        severity: Some(devup_mcp_figma::DiagnosticSeverity::Warning),
+                        fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
+                        ..devup_mcp_figma::Diagnostic::default()
+                    });
+                }
+            }
+        }
         if key == "display"
             && let Merged::Array(slots) = &mut merged
         {
@@ -941,7 +894,7 @@ fn merge_trees(
         })
         .collect::<Vec<_>>();
 
-    let content = merge_content(by_slot, &first, notes);
+    let content = merge_content(by_slot, &first, &mut context.notes);
 
     // A component reference has nothing below it to line up: each width picks
     // its own variant, and the component answers for its own widths.
@@ -977,7 +930,7 @@ fn merge_trees(
 
     Some(Tree {
         props,
-        children: merge_children(by_slot, precedence, notes),
+        children: merge_children(by_slot, precedence, context),
         source_node_ids,
         content,
         slots,

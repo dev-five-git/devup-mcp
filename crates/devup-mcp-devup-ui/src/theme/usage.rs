@@ -149,6 +149,7 @@ pub fn generate_used_devup_json(
     selected
         .used_remote_variables
         .retain(|variable| ids.contains(&variable.id));
+    selected.used_variable_ids = ids.into_iter().collect();
     let mut output = super::generate_devup_json(&selected, ThemeScope::File)?;
     restrict_devup_json(&mut output, usage)?;
     Ok(output)

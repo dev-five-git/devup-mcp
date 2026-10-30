@@ -16,7 +16,7 @@ impl DevupServer {
         // an out-of-range limit is owed.
         if !(1..=MATCH_CEILING).contains(&input.limit) {
             return Err(to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaResponseTooLarge,
+                ErrorCode::DevupInvalidInput,
                 "The search limit must be between 1 and 100 inclusive.",
                 false,
             )));
@@ -42,11 +42,7 @@ impl DevupServer {
         } else {
             CollectionScope::File
         };
-        let projected_limit = if scope.node_id.is_some() {
-            MATCH_CEILING
-        } else {
-            input.limit
-        };
+        let projected_limit = MATCH_CEILING;
         let mut request = CollectionRequest::new(target, collection_scope);
         request.search = Some(SearchReadOptions {
             query: input.query.clone(),

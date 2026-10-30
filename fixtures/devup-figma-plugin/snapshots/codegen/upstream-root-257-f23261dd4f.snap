@@ -5,7 +5,7 @@ expression: actual
 
 [
   {
-    "code": "<Box boxSize="100%" />",
+    "code": "<Box />",
     "language": "TYPESCRIPT",
     "title": "Pure Code",
   },
@@ -19,7 +19,7 @@ expression: actual
 "import { Box } from '@devup-ui/react'
 
 export function Test() {
-  return <Box boxSize="100%" />
+  return <Box />
 }"
 ,
     "language": "TYPESCRIPT",
@@ -32,7 +32,7 @@ export function Test() {
 echo 'import { Box } from \'@devup-ui/react\'
 
 export function Test() {
-  return <Box boxSize="100%" />
+  return <Box />
 }' > src/components/Test.tsx"
 ,
     "language": "BASH",
@@ -46,7 +46,7 @@ export function Test() {
 import { Box } from '@devup-ui/react'
 
 export function Test() {
-  return <Box boxSize="100%" />
+  return <Box />
 }
 '@ | Out-File -FilePath src\components\Test.tsx -Encoding UTF8"
 ,

@@ -104,6 +104,10 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             "      \"darkMode\": {\n",
             "        \"elevationCard\": \"0 4px 12px 0 #0000001a\"\n",
             "      }\n",
+            "    },\n",
+            "    \"colorScheme\": {\n",
+            "      \"light\": \"light\",\n",
+            "      \"darkMode\": \"dark\"\n",
             "    }\n",
             "  }\n",
             "}\n"

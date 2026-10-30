@@ -7,7 +7,6 @@ expression: actual
   WebkitTextFillColor="transparent"
   bg="linear-gradient(90deg, #F00 0%, #00F 100%)"
   bgClip="text"
-  boxSize="100%"
   fontFamily="Arial"
   fontSize="16px"
   fontWeight="400"

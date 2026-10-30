@@ -1,5 +1,3 @@
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,7 +61,17 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 6);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 7);
+        let imported = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", "await import('./run.mjs')"])
+            .current_dir(dir.join("runner"))
+            .output()
+            .expect("Node is required to verify the emitted consumer runner");
+        assert!(
+            imported.status.success(),
+            "emitted runner must resolve every import: {}",
+            String::from_utf8_lossy(&imported.stderr)
+        );
         assert_eq!(planned["template"]["executed"], false);
         assert_eq!(
             std::fs::read(dir.join("runner/run.mjs")).unwrap(),
@@ -360,8 +368,10 @@ mod tests {
     #[test]
     fn drawn_widths_need_completeness_before_they_can_pass() {
         let mut screen = plan_input().screens.remove(0);
-        screen.figma = Some(serde_json::from_value(json!({"nodeId": "1:1", "drawnWidths": [1440]})).unwrap());
-        let viewport: ViewportInput = serde_json::from_value(json!({"width": 1440, "height": 900})).unwrap();
+        screen.figma =
+            Some(serde_json::from_value(json!({"nodeId": "1:1", "drawnWidths": [1440]})).unwrap());
+        let viewport: ViewportInput =
+            serde_json::from_value(json!({"width": 1440, "height": 900})).unwrap();
         let mut missing = json!({"status": "pass", "reasons": []});
         require_completeness(&mut missing, &screen, &viewport, &[]);
         assert_eq!(missing["status"], "not-run");
@@ -385,7 +395,12 @@ mod tests {
         };
         let node = |id: &str| json!({"css": format!("[data-figma-node-id=\"{id}\"]")});
         assert!(ok(json!({"kind": "page-health"})).is_ok());
-        for kind in ["sequence-order", "section-layout", "no-clipped-content", "styles-applied"] {
+        for kind in [
+            "sequence-order",
+            "section-layout",
+            "no-clipped-content",
+            "styles-applied",
+        ] {
             assert!(ok(json!({"kind": kind})).is_ok());
         }
         assert!(ok(json!({"kind": "styles-applied", "subject": node("1:2")})).is_err());
@@ -408,7 +423,10 @@ mod tests {
         ] {
             assert!(ok(json!({"kind": "rendered-completeness", "widths": [1440], "completeness": completeness})).is_err());
         }
-        assert!(ok(json!({"kind": "rendered-completeness", "completeness": {"frameHeight": 100}})).is_err());
+        assert!(
+            ok(json!({"kind": "rendered-completeness", "completeness": {"frameHeight": 100}}))
+                .is_err()
+        );
 
         assert!(ok(json!({"kind": "no-clipped-text"})).is_ok());
         assert!(ok(json!({"kind": "interaction", "state": "hover"})).is_ok());
@@ -679,6 +697,72 @@ mod tests {
         assert_eq!(comparison["blockers"], json!([]), "{comparison}");
         drop(policy);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn tall_audit_frame_compares_clipped_capture_and_short_page_fails() {
+        for height in [5953, 5900, 500] {
+            let (dir, policy) = root();
+            let input: PlanInput = serde_json::from_value(json!({
+                "baseUrl": "http://localhost:3000", "allowedOrigins": ["http://localhost:3000"],
+                "viewports": [{"width":1440,"height":900}],
+                "screens": [{"id":"home","routePath":"/", "figma": {
+                    "nodeId":"1:1","drawnWidths":[1440],"frames":[{"nodeId":"1:1","width":1440,"height":5953,"artifactId":"art-home"}]
+                },"checks":[{"kind":"rendered-completeness","widths":[1440],"completeness":{"frameHeight":5953}}]}]
+            })).unwrap();
+            let written = plan(
+                input,
+                &policy,
+                Some(&dir.join("plan.json").to_string_lossy()),
+            )
+            .unwrap();
+            let bytes = png(1440, height);
+            std::fs::write(dir.join("frame-clipped.png"), &bytes).unwrap();
+            let report = json!({"schemaVersion":1,"kind":REPORT_KIND,"planId":written["planId"],
+            "planSha256":sha256(&std::fs::read(dir.join("plan.json")).unwrap()),"status":"completed",
+            "runs":[{"viewport":{"width":1440,"height":900,"deviceScaleFactor":1},"environmentErrors":[],"screens":[{
+                "id":"home","status":"completed","checks":[{"index":0,"status":"pass","measured":{}}],
+                "screenshot":{"path":"frame-clipped.png","sha256":sha256(&bytes),"bytes":bytes.len()}
+            }]}]});
+            std::fs::write(
+                dir.join("report.json"),
+                serde_json::to_vec(&report).unwrap(),
+            )
+            .unwrap();
+            let result = ingest(
+                &policy,
+                &dir.join("plan.json").to_string_lossy(),
+                &dir.join("report.json").to_string_lossy(),
+            )
+            .unwrap();
+            let comparison = &result["visualComparisons"][0];
+            assert!(
+                comparison["call"]["arguments"]["actual"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with("frame-clipped.png")
+            );
+            if height == 5953 {
+                assert_eq!(comparison["blockers"], json!([]), "{result}");
+            } else {
+                assert_eq!(result["verdict"], "fail", "{result}");
+                let finding = result["findings"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|row| row["kind"] == "page-height")
+                    .unwrap();
+                assert!(
+                    finding["reason"]
+                        .as_str()
+                        .unwrap()
+                        .contains(&height.to_string())
+                );
+                assert!(finding["reason"].as_str().unwrap().contains("5953"));
+            }
+            drop(policy);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     /// Every failed check comes back as a finding of one class with the

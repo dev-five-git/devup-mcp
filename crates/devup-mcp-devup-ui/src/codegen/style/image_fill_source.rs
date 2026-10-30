@@ -91,56 +91,121 @@ pub fn image_fill_path(
     })
 }
 
-/// The file name an asset node gets, without folder or extension.
-///
-/// The layer name, unless another asset in the snapshot has the same name
-/// and is a different thing. Three cards each hold an `Icons` instance at a
-/// different variant - chart, clock, lightning - and all three were
-/// `/icons/Icons.svg`, one file overwriting the next, and every card drew the
-/// chart. An instance whose name is shared then carries its variant, `Icons=chart`;
-/// a node that is not an instance carries its id. Instances of one variant
-/// share a name and a file, as the same icon at three widths should.
+/// The file name an asset node gets, without folder or extension: readable
+/// kebab-case; distinct things sharing a name get -2, -3 in node-id order.
 pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
-    let view = node.typed_view();
-    let name = view.name().unwrap_or("Asset");
-    let identity = asset_identity(node);
-    let raster_instance =
-        view.node_type() == "INSTANCE" && asset_kind(snapshot, node) == Some(AssetKind::Png);
-    let shared = per_node
-        || snapshot.nodes.values().any(|other| {
-            other.id != node.id
-                && other.typed_view().name() == Some(name)
-                && (asset_identity(other) != identity
-                    || raster_instance
-                    || (fills(node).is_some_and(|fs| fs.iter().any(|p| p["type"] == "IMAGE"))
-                        && fills(other) != fills(node)))
-                && asset_kind(snapshot, other).is_some()
-        });
-    if !shared {
-        return name.to_owned();
-    }
-    match identity {
-        // Raster instances can override the image, crop, size and effects while
-        // retaining the same component variant. Only verified exported bytes
-        // establish reuse; a shared variant name cannot establish identity.
-        Some(variant) if raster_instance => {
-            format!("{name}={variant}-{}", node.id.replace([':', ';'], "-"))
+    let canonical = image_hash(node).and_then(|hash| {
+        snapshot.nodes.values().filter(|other| image_hash(other) == Some(hash)).min_by_key(|other| &other.id)
+    }).unwrap_or(node);
+    let base = readable_stem(snapshot, canonical);
+    let own = asset_group_key(snapshot, node, per_node);
+    let mut firsts = std::collections::BTreeMap::<String, &str>::new();
+    for other in snapshot.nodes.values() {
+        let is_asset = asset_kind(snapshot, other).is_some() || image_hash(other).is_some();
+        let same_image = image_hash(node).is_some_and(|hash| image_hash(other) == Some(hash));
+        if other.id != node.id && (!is_asset || (!same_image && readable_stem(snapshot, other) != base)) {
+            continue;
         }
-        Some(variant) => format!("{name}={variant}"),
-        None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
+        let first = firsts
+            .entry(asset_group_key(snapshot, other, per_node))
+            .or_insert(other.id.as_str());
+        if other.id.as_str() < *first {
+            *first = other.id.as_str();
+        }
+    }
+    let mut ids = firsts.values().copied().collect::<Vec<_>>();
+    ids.sort_unstable();
+    let own_first = firsts.get(&own).copied().unwrap_or(node.id.as_str());
+    match ids.iter().position(|id| *id == own_first) {
+        Some(index) if index > 0 => format!("{base}-{}", index + 1),
+        _ => base,
     }
 }
 
-/// What makes an instance the thing it is: its variant, as `chart` or
-/// `lg,primary`. `None` for a node that is not an instance of a variant.
-fn asset_identity(node: &RawNode) -> Option<String> {
-    let view = node.typed_view();
-    let properties = view.value("variantProperties")?.as_object()?;
-    let values = properties
-        .values()
-        .filter_map(Value::as_str)
-        .collect::<Vec<_>>();
-    (!values.is_empty()).then(|| values.join(","))
+/// Lowercase `[a-z0-9-]` only, hyphens collapsed, at most 48 characters.
+fn kebab_name(name: &str) -> String {
+    let mut slug = String::new();
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+    }
+    slug.truncate(48);
+    slug.trim_end_matches('-').to_owned()
+}
+
+fn generic_role(role: &str) -> bool {
+    let word = role.trim_end_matches(|c: char| c.is_ascii_digit() || c == '-');
+    word.is_empty()
+        || matches!(
+            word,
+            "rectangle" | "image" | "frame" | "vector" | "group" | "ellipse" | "picture" | "layer"
+        )
+}
+
+/// The layer name as a role, prefixed by the nearest meaningful ancestor when
+/// the layer name is generic, and by its variant when it is a variant instance.
+fn readable_stem(snapshot: &Snapshot, node: &RawNode) -> String {
+    let role = kebab_name(&layer_name(node));
+    if !generic_role(&role) {
+        return role;
+    }
+    let mut current = node.typed_view().string("parentId").map(str::to_owned);
+    let mut hops = 0;
+    while let Some(id) = current {
+        hops += 1;
+        let Some(parent) = snapshot.nodes.get(&id).filter(|_| hops <= 32) else {
+            break;
+        };
+        let section = kebab_name(&layer_name(parent));
+        if !generic_role(&section) {
+            let word = if role.is_empty() { "image" } else { &role };
+            return format!("{section}-{word}");
+        }
+        current = parent.typed_view().string("parentId").map(str::to_owned);
+    }
+    if role.is_empty() { "asset".to_owned() } else { role }
+}
+
+fn image_hash(node: &RawNode) -> Option<&str> {
+    fills(node)?
+        .iter()
+        .find(|p| p["type"] == "IMAGE" && p["visible"].as_bool() != Some(false))?["imageHash"]
+        .as_str()
+}
+
+/// What makes two assets the same file: identical image bytes, else the same
+/// variant; raster instances (which may override image/crop) and per-node
+/// naming stay one file per node.
+fn asset_group_key(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
+    if let Some(hash) = image_hash(node) {
+        return format!("hash:{hash}");
+    }
+    let raster_instance = node.typed_view().node_type() == "INSTANCE"
+        && asset_kind(snapshot, node) == Some(AssetKind::Png);
+    if per_node || raster_instance {
+        return format!("node:{}", node.id);
+    }
+    if let Some(properties) = node.typed_view().value("variantProperties").and_then(Value::as_object) {
+        return format!("variant:{}", serde_json::to_string(properties).unwrap_or_default());
+    }
+    "plain".to_owned()
+}
+
+/// The layer name with HTML entities decoded: Figma text may arrive as
+/// `R&amp;D`, which must not leak `amp` into a file name.
+fn layer_name(node: &RawNode) -> String {
+    node.typed_view()
+        .name()
+        .unwrap_or("Asset")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .replace(['(', ')'], "")
 }
 
 pub(super) fn paint_css(
@@ -196,9 +261,7 @@ pub(super) fn paint_css(
         "PATTERN" => {
             let source_id = paint.get("sourceNodeId").and_then(Value::as_str)?;
             let source = snapshot.nodes.get(source_id);
-            let name = source
-                .and_then(|node| node.typed_view().name())
-                .unwrap_or("pattern");
+            let name = source.map_or_else(|| "pattern".to_owned(), |node| asset_stem(snapshot, node, per_node));
             // A raster belongs with the images and a vector with the icons,
             // which is the split every other asset reference follows. This one
             // sent a png to the icon folder.

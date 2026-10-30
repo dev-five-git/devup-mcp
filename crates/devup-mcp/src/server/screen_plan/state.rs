@@ -89,7 +89,8 @@ pub struct ScreenPlanInput {
     #[serde(default)]
     pub screens: Vec<PlanScreenInput>,
     /// draft: explicit Figma node id -> route bindings. The only way to name a
-    /// route that no page or nav link already shows.
+    /// route that no page or nav link already shows. assume: remaps those frames
+    /// onto the named URL in the confirmed plan.
     #[serde(default)]
     pub navigation_targets: BTreeMap<String, String>,
     /// draft: free text recorded in the plan, never interpreted.
@@ -354,19 +355,6 @@ pub(super) struct PlanConfig {
     pub visual_thresholds: Option<super::audit_plan::VisualThresholds>,
 }
 
-/// Whether exports into this project mark their elements with
-/// data-figma-node-id: on unless the project config says false. An
-/// unreadable config leaves it on; draft reports the config error.
-pub(super) fn node_ids_enabled(project_root: &str) -> bool {
-    !matches!(
-        read_config(project_root),
-        Ok(Some(PlanConfig {
-            figma_node_ids: Some(false),
-            ..
-        }))
-    )
-}
-
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
     let path = Path::new(project_root).join(CONFIG_FILE);
     let Ok(bytes) = std::fs::read(&path) else {
@@ -444,6 +432,13 @@ pub struct PlanScreenInput {
     /// trash, archive and draft areas.
     #[serde(default)]
     pub breadcrumb: Vec<String>,
+    /// The Figma page that owns the frame (not the page the viewer has open),
+    /// by id. Taken from the node itself; the name falls back to readcrumb[0].
+    #[serde(default)]
+    pub page_id: Option<String>,
+    /// The owning Figma page's name.
+    #[serde(default)]
+    pub page_name: Option<String>,
     /// Ancestor node ids, nearest first, when known.
     #[serde(default)]
     pub ancestors: Vec<String>,
@@ -523,6 +518,7 @@ pub(super) struct ProjectEvidence {
     pub root: PathBuf,
     /// Route pages and the components they render, relative to `root`.
     pub sources: Vec<String>,
+    pub route_sources: BTreeMap<String, Vec<String>>,
     pub icon_files: Vec<String>,
     pub og_files: Vec<String>,
     /// (value, where it was found).
@@ -618,7 +614,10 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
         );
         return Ok(evidence);
     }
-    if inventory["truncation"]["truncated"] == true || inventory["unparsedFiles"] != 0 {
+    let routes_omitted = inventory["truncation"]["omitted"]["routes"]
+        .as_u64()
+        .map_or(inventory["truncation"]["truncated"] == true, |omitted| omitted > 0);
+    if routes_omitted || inventory["unparsedFiles"].as_u64().is_some_and(|n| n > 0) {
         evidence.inventory_note = Some(
             "The route inventory is truncated or has unparsed files; a route missing here may still exist.".into(),
         );
@@ -629,6 +628,8 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
     let mut owner = BTreeMap::<String, BTreeSet<String>>::new();
     for route in array(&inventory["routes"]) {
         let path = text(&route["route"]).to_owned();
+        evidence.route_sources.insert(path.clone(), std::iter::once(text(&route["page"]).to_owned())
+            .chain(array(&route["components"]).iter().map(|component| text(component).to_owned())).collect());
         evidence
             .routes
             .push((path.clone(), text(&route["page"]).to_owned()));
@@ -808,6 +809,9 @@ fn truncate(value: &str, limit: usize) -> String {
 }
 
 pub(super) fn header(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        return truncate(name, HEADER_LIMIT);
+    }
     truncate(&format!("{prefix}: {name}"), HEADER_LIMIT)
 }
 

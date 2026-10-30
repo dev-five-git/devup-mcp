@@ -298,3 +298,44 @@
         .unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
     }
+
+    #[tokio::test]
+    async fn openapi_client_layer_reads_calls_through_an_imported_create_api_binding() {
+        let temp = ScopedTempDir::new("openapi-client-binding");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            r##"{ "paths": { "/posts": { "get": { "operationId": "listPosts" } } } }"##,
+        )
+        .unwrap();
+        let front = temp.path().join("apps").join("front").join("src");
+        std::fs::create_dir_all(&front).unwrap();
+        std::fs::write(
+            front.join("api.ts"),
+            "import { createApi } from '@devup-api/fetch'\nexport const client = createApi({ baseUrl: '' })\n",
+        )
+        .unwrap();
+        std::fs::write(
+            front.join("board.tsx"),
+            r##"
+            import { client as http } from '@/api'
+            const posts = await http.get('/posts', {})
+            const missing = await http.post('/missing', {})
+            const unrelated = other.client.get('/ignored')
+            "##,
+        )
+        .unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["openapi-client".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["openapi-client"];
+        assert_eq!(layer["callsChecked"], 2, "{layer}");
+        let drifts = layer["drifts"].as_array().unwrap();
+        assert_eq!(drifts.len(), 1, "{layer}");
+        assert_eq!(drifts[0]["identifier"], "/missing");
+        assert_eq!(drifts[0]["callSite"], "http.post(");
+    }

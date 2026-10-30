@@ -199,11 +199,11 @@ fn preset_schedules_bounded_batches_and_retains_nested_hidden_and_multifill_rows
     }
     for asset in parts.assets {
         assert_eq!(asset.quality, Some(85));
-        assert_eq!(asset.lossless, Some(false));
+        assert_eq!(asset.lossless, None);
         if asset.status == AssetStatus::Exported {
             let info = asset.render_info.unwrap();
             assert_eq!(info["representation"], "original-fill-transcoded");
-            assert_eq!(info["fidelity"], "approximate");
+            assert_eq!(info["fidelity"], "lossless-pixels");
             assert_eq!(info["byteEvidence"]["sha256"], asset.sha256.unwrap());
             assert!(info["compression"]["referencePNG"].is_object());
         }
@@ -260,7 +260,7 @@ fn malformed_fragmented_native_png_fails_one_asset_and_keeps_the_entire_preset()
         Some("DEVUP_ASSET_WEBP_POSTPROCESS_FAILED")
     );
     assert_eq!(failed.quality, Some(85));
-    assert_eq!(failed.lossless, Some(false));
+    assert_eq!(failed.lossless, None);
     assert!(failed.data_base64.is_none());
     assert!(
         parts

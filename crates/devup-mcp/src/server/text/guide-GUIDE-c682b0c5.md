@@ -1,5 +1,9 @@
 # Using devup-mcp
 
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. `DEVUP_CODEGEN_INSTANCE_OVERRIDE` is a required review item; `// @devup-override` annotations retain its evidence in generated TSX. A missing captured value or master is unresolved, never evidence that an override is safe to discard.
+
+For a confirmed URL with multiple drawn widths, `responsiveTsx` is the deliverable. Use all sibling frameIds in width order from screen-plan status or `responsiveRequired.nextAction`. Never start from single-width `tsx` or `componentTsx` for that page or its sections. Only wire links, events and data; never change layout values, collapse responsive arrays, add fixed heights or layout wrappers. `generatedExport.generatedDrift` reports heuristic layout changes against recorded generated styles with source paths and confidence; missing mappings are unverified, not a pass.
+
 ## Project intake comes first
 
 `/devup` is the entry point for new projects, existing features, bug fixes,
@@ -92,6 +96,12 @@ They are published here instead so a caller that never converts a Figma design
 never carries them. Rule numbers match the original list, which skipped 9.
 
 ## 1a. Connection order: bridge -> direct
+
+For disconnected, out-of-view or mismatched relay-host states, load
+`figma-bridge-setup`. The agent performs desktop setup with computer use,
+then verifies status and a small read. Compare commit/buildId, not version.
+Ask before installing Figma, using metered direct OAuth or interrupting another
+session. Missing diagnostics or computer use remain explicit blockers.
 
 Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
 the Figma desktop app on the file, needs no login and spends none of Figma's
@@ -286,6 +296,15 @@ on the `next` CLI is asked once whether to migrate.
 
 ## 16. Visual verification of everything, full autonomy
 
+After confirm, the first implementation unit extracts used COMPONENT_SET/COMPONENT
+nodes with `outputs: ["componentTsx"]` into `components/common` or
+`components/layout`. Record `mainComponent` id -> generated file and artifact
+identity in `.devup/component-map.json`. Assemble pages from generated TSX by
+screen-plan section (a direct child of the screen frame root). Never hand-write
+TSX from Figma nodes. Audit through component/section file mappings and explicit
+rendered targets, not DOM Figma attributes. Unsupported section exports or
+instance overrides remain reported limitations; missing mapping coverage is unverified.
+
 Visually verify every screen, section and asset at every drawn width.
 `devup_screen_plan` `auditPlan` writes one runtime-audit plan per URL: page
 health, overflow and clipped text at every width; the page, each section and
@@ -298,7 +317,10 @@ recorded in `.devup/exports/`, or `converter-bug` when it does - reported
 with a repro in `.devup/converter-bugs/`, never retried or tuned silently.
 Merged pages are found per width through `data-figma-node-ids`, dynamic
 routes at concrete URLs, and production builds strip the ids unless
-`DEVUP_AUDIT=1`. `status` classifies each failure (runtime-error,
+`DEVUP_AUDIT=1`. DevupUI owns stripping; do not change app build config
+for auditing or register a strip plugin. Node attributes are off by default;
+`figmaNodeIds: true` is opt-in only where the export schema supports it.
+Missing anchors leave coverage unverified. `status` classifies each failure (runtime-error,
 overflow, layout-position, layout-size, asset-mismatch, section-visual,
 page-visual, interaction, view-transition) with its node, file and fix hint.
 Never stop to wait; reorder the work: a decision after confirm goes to
@@ -306,4 +328,4 @@ Never stop to wait; reorder the work: a decision after confirm goes to
 with evidence after `maxFixAttempts` as incomplete.
 
 Before reporting done, run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read the report, fix failures and rerun until every cell passes. Missing cells are not-run and block completion. At drawn widths require rendered completeness and page, section and asset visual comparisons. Check sequence-order and section-layout at every width.
-Ask all site, structure and URL decisions up front as ONE proposal table and ONE question (accept, or name the rows to change) before implementing. Never split them into per-section or per-topic rounds, and never ask another question during the build; record conservative assumptions after confirmation.
+Ask known site, structure and URL decisions up front in one runtime question call, not per-section rounds. New user-owned decisions after confirm still use the question tool. Show evidence first; keep table approval separate from individual decisions in the same call. Use headers up to 30 characters and two to four options, recommended first and labelled "(Recommended)". Never ask for numbers in chat. Record the chosen answer, decision id, affected model/endpoint/file and rationale with existing defer/assume actions; do not invent an ask action. Update source models and re-confirm ERD changes before dependent work. Without a question tool, report the limitation and leave the decision unresolved. Workers escalate to the supervisor; continue independent work while answers are pending.

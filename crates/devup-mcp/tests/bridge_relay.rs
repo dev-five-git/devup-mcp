@@ -122,6 +122,8 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 fn keyless_hello() -> Value {
     json!({
         "kind": "hello",
+        "scriptsHash": devup_mcp_figma::PLUGIN_SCRIPTS_HASH,
+        "protocol": devup_mcp_figma::PLUGIN_PROTOCOL,
         "fileKey": null,
         "fileName": "Landing",
         "currentPage": { "id": "0:1", "name": "Page 1" },

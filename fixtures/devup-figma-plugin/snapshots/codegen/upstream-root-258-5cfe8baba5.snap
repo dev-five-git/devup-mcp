@@ -5,12 +5,12 @@ expression: actual
 
 [
   {
-    "code": "<Box boxSize="100%" />",
+    "code": "<Box />",
     "language": "TYPESCRIPT",
     "title": "Pure Code",
   },
   {
-    "code": "<Box boxSize="100%" />",
+    "code": "<Box />",
     "language": "TYPESCRIPT",
     "title": "Main",
   },

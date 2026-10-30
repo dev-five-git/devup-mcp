@@ -208,6 +208,17 @@ mod w5_tests {
     }
 
     #[test]
+    fn r12_page_inventory_stops_at_screen_frames_instead_of_walking_their_contents() {
+        let setup = format!("{TREE}\nfigma.getNodeByIdAsync = async () => page;\nfor(let index=0;index<2000;index++) node('deep:'+index, 'GROUP', 'Decorative', frame);\n");
+        let output = run_script(include_str!("../scripts/explore.js"), &setup,
+            "__DEVUP_EXPLORE__", json!({"projectionLimit":200,"textPreviewLimit":0}));
+        let nodes = output["nodes"].as_array().unwrap();
+        assert!(nodes.iter().any(|node| node["id"] == "3:1"));
+        assert!(!nodes.iter().any(|node| node["id"].as_str().unwrap().starts_with("deep:")));
+        assert_eq!(nodes[0]["fields"]["projectionTruncated"], false);
+    }
+
+    #[test]
     fn w5_previews_are_retained_when_the_envelope_has_room() {
         let setup =
             format!("{TREE}\nnode('4:1', 'TEXT', 'Copy', frame).characters = 'Preview text';");
@@ -233,6 +244,14 @@ mod w5_tests {
             .map(|node| node["id"].as_str().unwrap())
             .collect();
         assert_eq!(ids, BTreeSet::from(["1:1", "2:1"]));
+    }
+
+    #[test]
+    fn feedback50_page_search_loads_descendants_without_changing_the_viewer_page() {
+        let setup = format!("{TREE}\nlet loaded = false;\npage.loadAsync = async () => {{ loaded = true; }};\npage.findAll = predicate => {{ if (!loaded) return []; return page.children.flatMap(child => [child, ...child.findAll(predicate)]).filter(predicate); }};\nfigma.getNodeByIdAsync = async () => page;\nfigma.setCurrentPageAsync = async () => {{ throw new Error('search changed viewer page'); }};");
+        let output = run_script(include_str!("../scripts/search.js"), &setup,
+            "__DEVUP_SEARCH__", json!({"query":"", "nodeTypes":["SECTION"], "matchKind":"normalized", "limit":5}));
+        assert!(output["nodes"].as_array().unwrap().iter().any(|node| node["id"] == "2:1"));
     }
 
     fn page_output(ids: &[String]) -> UpstreamResult {

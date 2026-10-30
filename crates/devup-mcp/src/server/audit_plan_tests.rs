@@ -1,5 +1,192 @@
 use super::*;
 
+#[test]
+fn width_mismatch_audit_uses_mobile_subtree_at_suspect_position() {
+    let mut nodes = serde_json::Map::new();
+    for (screen, width, master, y, height) in [
+        ("mobile-a", 360.0, "mobile", 700.0, 400.0),
+        ("mobile-b", 360.0, "mobile", 600.0, 400.0),
+        ("mobile-c", 360.0, "mobile", 800.0, 400.0),
+        ("home", 360.0, "desktop", 1200.0, 200.0),
+        ("wide", 1440.0, "desktop", 900.0, 200.0),
+    ] {
+        let footer = format!("{screen}-footer");
+        let child = format!("{screen}-text");
+        let (id, node) = frame(
+            screen,
+            screen,
+            [0.0, 0.0, width, 1600.0],
+            &[&footer],
+            json!({}),
+        );
+        nodes.insert(id, node);
+        let (id, mut node) = frame(
+            &footer,
+            "Footer",
+            [0.0, y, width, height],
+            &[&child],
+            json!({"mainComponentId":master,"mainComponentName":"Footer"}),
+        );
+        node["type"] = json!("INSTANCE");
+        nodes.insert(id, node);
+        let (id, node) = frame(
+            &child,
+            "Text",
+            [20.0, y + 30.0, 300.0, 50.0],
+            &[],
+            json!({}),
+        );
+        nodes.insert(id, node);
+    }
+    let sources = Sources::from_payloads(vec![(
+        "all".into(),
+        payload(
+            "home",
+            Value::Object(nodes),
+            json!([native("mobile-a-footer", "mobile-render")]),
+            true,
+        ),
+    )]);
+    let built = url_plan(
+        &Target {
+            url: "/",
+            screen: "home".into(),
+            file: None,
+            frames: vec![(360, "home".into(), Some(1600.0))],
+            next_url: None,
+            hidden: vec![],
+        },
+        "http://localhost:3000",
+        &sources,
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    let checks = &built.plan.screens[0].checks;
+    let footer = checks
+        .iter()
+        .find(|check| check.kind == "bounds" && check.node_id.as_deref() == Some("home-footer"))
+        .unwrap();
+    let expected = serde_json::to_value(&footer.expected).unwrap();
+    assert_eq!(
+        expected,
+        json!({"x":0.0,"y":1200.0,"width":360.0,"height":400.0})
+    );
+    let capture = checks
+        .iter()
+        .find(|check| check.kind == "capture" && check.node_id.as_deref() == Some("home-footer"))
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&capture.reference).unwrap()["assetId"],
+        "mobile-render"
+    );
+    assert!(
+        checks.iter().any(
+            |check| check.kind == "bounds" && check.node_id.as_deref() == Some("mobile-a-text")
+        )
+    );
+    assert!(
+        !checks
+            .iter()
+            .any(|check| check.node_id.as_deref() == Some("home-text"))
+    );
+    assert_eq!(built.substitutions[0]["correctNodeId"], "mobile-a-footer");
+}
+
+#[test]
+fn dev_server_command_uses_the_route_app_and_its_package_manager() {
+    let project = Project::new("dev-command");
+    project.write("bun.lock", "");
+    project.write(
+        "apps/front/package.json",
+        r#"{"scripts":{"dev":"vinext dev"}}"#,
+    );
+    let command = dev_server_command(
+        Path::new(project.root()),
+        "apps/front",
+        "http://localhost:3000",
+    );
+    assert_eq!(command["command"], json!(["bun", "run", "dev"]));
+    assert!(
+        command["cwd"].as_str().unwrap().ends_with("apps\\front")
+            || command["cwd"].as_str().unwrap().ends_with("apps/front")
+    );
+    assert_eq!(command["script"], "vinext dev");
+    assert!(
+        command["windowsCommand"]
+            .as_str()
+            .unwrap()
+            .contains("cmd.exe /d /s /c")
+    );
+}
+
+#[test]
+fn absent_source_anchors_leave_design_checks_not_run() {
+    let project = Project::new("missing-anchors");
+    project.write(
+        "src/app/page.tsx",
+        "export default function Page() { return <main /> }",
+    );
+    let mut built = url_plan(
+        &home(),
+        "http://localhost:3000",
+        &sources(),
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    let checks = &built.plan.screens[0].checks;
+    assert!(checks.iter().any(|check| {
+        check.kind == "bounds"
+            && check
+                .unavailable_reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("anchors absent"))
+    }));
+    assert!(
+        checks
+            .iter()
+            .filter(|check| check.unavailable_reason.is_some())
+            .all(|check| check.subject.is_none() && check.container.is_none())
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|check| check.kind == "page-health" && check.unavailable_reason.is_none())
+    );
+}
+
+#[test]
+fn partial_source_anchors_do_not_enable_unmatched_nodes() {
+    let project = Project::new("partial-anchors");
+    project.write(
+        "src/app/page.tsx",
+        "<main data-figma-node-id='10:1'><section data-figma-node-id='10:12' /></main>",
+    );
+    let mut built = url_plan(
+        &home(),
+        "http://localhost:3000",
+        &sources(),
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    assert!(
+        built.plan.screens[0]
+            .checks
+            .iter()
+            .any(|check| check.kind == "bounds"
+                && check.node_id.as_deref() == Some("10:12")
+                && check.unavailable_reason.is_none())
+    );
+    assert!(
+        built.plan.screens[0]
+            .checks
+            .iter()
+            .filter(|check| check.node_id.as_deref() == Some("10:131"))
+            .all(|check| check.unavailable_reason.is_some())
+    );
+}
+
 fn payload(target: &str, nodes: Value, assets: Value, reference: bool) -> CollectedPayload {
     let mut value = json!({
         "target": {"fileKey": "audit", "nodeId": target},
@@ -145,6 +332,37 @@ fn home() -> Target<'static> {
     }
 }
 
+#[test]
+fn tall_audit_frames_keep_drawn_height_without_oversized_viewports() {
+    let mut target = home();
+    target.frames = vec![(1440, "10:1".into(), Some(5953.0))];
+    let built = url_plan(
+        &target,
+        "http://localhost:3000",
+        &sources(),
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    let document = serde_json::to_value(&built.plan).unwrap();
+    assert_eq!(document["screens"][0]["figma"]["frames"][0]["height"], 5953);
+    assert_eq!(
+        built
+            .plan
+            .viewports
+            .iter()
+            .find(|viewport| viewport.width == 1440)
+            .unwrap()
+            .height,
+        900
+    );
+    assert!(
+        !built
+            .notes
+            .iter()
+            .any(|note| note.contains("comparison stays inconclusive"))
+    );
+}
+
 fn kinds(plan: &PlanInput) -> BTreeSet<&str> {
     plan.screens[0]
         .checks
@@ -191,9 +409,16 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
     }
     let checks = &home.plan.screens[0].checks;
     for kind in ["no-low-contrast-text", "image-loaded"] {
-        assert!(checks.iter().any(|check| check.kind == kind && check.widths.is_empty()));
+        assert!(
+            checks
+                .iter()
+                .any(|check| check.kind == kind && check.widths.is_empty())
+        );
     }
-    let completeness = checks.iter().filter(|check| check.kind == "rendered-completeness").collect::<Vec<_>>();
+    let completeness = checks
+        .iter()
+        .filter(|check| check.kind == "rendered-completeness")
+        .collect::<Vec<_>>();
     assert_eq!(completeness.len(), 2);
     for check in completeness {
         assert_eq!(check.widths.len(), 1);
@@ -598,252 +823,4 @@ impl Drop for Project {
     }
 }
 
-fn blog_route() -> Value {
-    json!({"url": "/blog/[slug]", "file": "src/app/blog/[slug]/page.tsx", "app": ".", "nodeIds": ["20:1"], "drawnWidths": [1440]})
-}
-
-#[test]
-fn a_dynamic_route_takes_its_literal_static_params() {
-    let project = Project::new("literal");
-    project.write(
-        "src/app/blog/[slug]/page.tsx",
-        "export function generateStaticParams() {\n  return [{ slug: 'hello' }, { slug: \"second-post\" }]\n}\nexport default function Page() { return null }\n",
-    );
-    let found = dynamic_urls(
-        project.root(),
-        &blog_route(),
-        &Value::Null,
-        &Sources::from_payloads(Vec::new()),
-    );
-    assert_eq!(found.source, "generateStaticParams");
-    assert_eq!(found.urls, ["/blog/hello", "/blog/second-post"]);
-}
-
-#[test]
-fn a_dynamic_route_reads_the_local_data_its_static_params_map() {
-    let project = Project::new("data");
-    project.write(
-        "src/app/blog/[slug]/page.tsx",
-        "import { posts } from '@/data/posts'\nexport async function generateStaticParams() {\n  return posts.map((post) => ({ slug: post.slug }))\n}\nexport default function Page() { return null }\n",
-    );
-    project.write(
-        "src/data/posts.ts",
-        "export const posts = [\n  { slug: 'launch', title: 'Launch' },\n  { slug: 'roadmap', title: 'Roadmap' },\n]\n",
-    );
-    let found = dynamic_urls(
-        project.root(),
-        &blog_route(),
-        &Value::Null,
-        &Sources::from_payloads(Vec::new()),
-    );
-    assert_eq!(found.urls, ["/blog/launch", "/blog/roadmap"]);
-}
-
-#[test]
-fn a_dynamic_route_without_params_takes_the_links_audited_pages_hold() {
-    let project = Project::new("links");
-    let links =
-        json!({"/": ["/blog/from-home", "/about", "/blog/other"], "/about": ["/blog/from-home"]});
-    let found = dynamic_urls(
-        project.root(),
-        &blog_route(),
-        &links,
-        &Sources::from_payloads(Vec::new()),
-    );
-    assert_eq!(found.source, "links on audited pages");
-    assert_eq!(found.urls, ["/blog/from-home", "/blog/other"]);
-    assert!(found.assumption.is_none());
-}
-
-#[test]
-fn a_dynamic_route_falls_back_to_its_detail_frame_as_an_assumption() {
-    let project = Project::new("frame");
-    let detail = [
-        frame("20:1", "Blog detail", [0.0, 0.0, 1440.0, 900.0], &["20:2"], json!({})),
-        ("20:2".to_owned(), json!({"id": "20:2", "type": "TEXT", "fields": {"characters": "Our First Release!", "parentId": "20:1"}})),
-    ]
-    .into_iter()
-    .collect::<serde_json::Map<_, _>>();
-    let sources = Sources::from_payloads(vec![(
-        "art-blog".into(),
-        payload("20:1", Value::Object(detail), json!([]), true),
-    )]);
-    let found = dynamic_urls(project.root(), &blog_route(), &Value::Null, &sources);
-    assert_eq!(found.source, "Figma detail frame");
-    assert_eq!(found.urls, ["/blog/our-first-release"]);
-    assert!(found.assumption.unwrap().contains("Our First Release!"));
-
-    let nothing = dynamic_urls(
-        project.root(),
-        &blog_route(),
-        &Value::Null,
-        &Sources::from_payloads(Vec::new()),
-    );
-    assert!(nothing.urls.is_empty());
-    assert!(nothing.why.contains("generateStaticParams"));
-}
-
-#[test]
-fn a_catch_all_route_joins_its_segments() {
-    assert_eq!(
-        values_of("{ slug: ['docs', 'intro'] }", "slug"),
-        ["docs/intro"]
-    );
-    assert_eq!(params("/docs/[...slug]"), [("slug".to_owned(), true)]);
-    assert_eq!(
-        fill(
-            "/docs/[...slug]",
-            &BTreeMap::from([("slug".to_owned(), "docs/intro".to_owned())])
-        )
-        .as_deref(),
-        Some("/docs/docs/intro")
-    );
-}
-
-const EXPORTED: &str = "export default function Page() {\n  return (\n    <Flex data-figma-node-id=\"10:13\" gap=\"40px\" p=\"40px 120px\">\n      <Box data-figma-node-id=\"10:132\" h=\"300px\" w=\"400px\" />\n    </Flex>\n  )\n}\n";
-
-fn geometry_audit() -> Value {
-    json!({"findings": [{"id": "home|bounds|10:132|1440", "class": "layout-position", "kind": "bounds",
-        "nodeId": "10:132", "routePath": "/", "width": 1440, "reason": "position: x off by 1px",
-        "evidence": {"screenshot": "report/home.png", "measured": {
-            "expected": {"x": 560, "y": 40, "width": 400, "height": 300},
-            "actual": {"x": 561, "y": 40, "width": 400, "height": 300}}}}]})
-}
-
-fn exported_project(name: &str) -> (Project, OutputPolicy) {
-    let project = Project::new(name);
-    let policy = OutputPolicy::from_roots(vec![project.0.clone()]).unwrap();
-    let response = json!({"tsx": EXPORTED, "figmaNodeIds": {"root": "10:1"},
-        "outputResults": {"tsx": {"_sourceMap": [
-            {"nodeId": "10:132", "property": "width", "generatedProperty": "w=\"400px\"", "resolution": "exact"}]}}});
-    let written =
-        super::super::export_record::write(&policy, project.root(), "FILEKEY", "10:1", &response)
-            .unwrap()
-            .unwrap();
-    assert!(written.ends_with("10-1.json"), "{written}");
-    (project, policy)
-}
-
-#[test]
-fn a_mismatch_with_the_code_still_equal_to_the_export_is_a_converter_bug_with_a_repro() {
-    let (project, policy) = exported_project("converter-bug");
-    // The agent added behaviour, not layout: still the export's element.
-    project.write(
-        "src/app/page.tsx",
-        &EXPORTED.replace(
-            "<Box data-figma-node-id=\"10:132\"",
-            "<Box data-figma-node-id=\"10:132\" onClick={open} _hover={{ bg: '$primary' }}",
-        ),
-    );
-    let mut audit = geometry_audit();
-    classify_geometry(
-        &mut audit,
-        project.root(),
-        &["src/app/page.tsx".to_owned()],
-        &policy,
-    );
-    let finding = &audit["findings"][0];
-    assert_eq!(finding["class"], "converter-bug", "{finding}");
-    let repro_path = finding["evidence"]["repro"].as_str().unwrap();
-    assert!(
-        repro_path
-            .replace('\\', "/")
-            .ends_with(".devup/converter-bugs/10-132.json"),
-        "{repro_path}"
-    );
-    let repro: Value = serde_json::from_slice(
-        &std::fs::read(project.0.join(".devup/converter-bugs/10-132.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(repro["fileKey"], "FILEKEY");
-    assert_eq!(repro["nodeId"], "10:132");
-    assert_eq!(repro["figmaBox"]["x"], 560);
-    assert_eq!(repro["domBox"]["x"], 561);
-    assert_eq!(
-        repro["generatedProps"],
-        json!(["h=\"300px\"", "w=\"400px\""])
-    );
-    assert_eq!(repro["sourceMap"][0]["generatedProperty"], "w=\"400px\"");
-
-    // It leaves the fix loop at once and stays reported.
-    let mut plan =
-        json!({"status": "confirmed", "audit": {"plans": [{"url": "/", "screen": "home"}]}});
-    record_round(&mut plan, &audit, "r1", &[], &BTreeMap::new(), 3);
-    assert!(findings_by_status(&plan, "open").is_empty());
-    assert_eq!(findings_by_status(&plan, "converter-bug").len(), 1);
-    assert_eq!(
-        plan["audit"]["converterBugs"]["10:132"]["repro"],
-        finding["evidence"]["repro"]
-    );
-    let rows = [
-        json!({"url": "/", "screen": "home", "implemented": "yes", "widths": [{"width": 1440, "result": "fail"}]}),
-    ];
-    let queue = work_queue(&plan, &rows, &[]);
-    assert_eq!(
-        queue[0]["done"], false,
-        "a filed converter bug remains reported, but a failing cell cannot be called done: {queue:?}"
-    );
-    assert_eq!(queue[0]["reported"][0]["converterBug"], "10:132");
-    let report = final_report(&plan, &rows, "");
-    assert!(
-        report.contains("Converter bugs (filed, not retried):\n- / at 1440px, 10:132"),
-        "{report}"
-    );
-}
-
-#[test]
-fn a_mismatch_after_a_hand_edit_is_code_drift() {
-    let (project, policy) = exported_project("drift");
-    project.write(
-        "src/app/page.tsx",
-        &EXPORTED.replace("w=\"400px\" />", "w=\"401px\" ml=\"2px\" />"),
-    );
-    let mut audit = geometry_audit();
-    classify_geometry(
-        &mut audit,
-        project.root(),
-        &["src/app/page.tsx".to_owned()],
-        &policy,
-    );
-    let finding = &audit["findings"][0];
-    assert_eq!(finding["class"], "code-drift", "{finding}");
-    assert_eq!(
-        finding["evidence"]["drift"]["missing"],
-        json!(["w=\"400px\""])
-    );
-    assert_eq!(finding["evidence"]["drift"]["added"], json!(["ml=\"2px\""]));
-    assert!(
-        finding["fixHint"]
-            .as_str()
-            .unwrap()
-            .contains("Restore the values the export wrote")
-    );
-    assert!(!project.0.join(".devup/converter-bugs").exists());
-}
-
-#[test]
-fn a_mismatch_without_an_export_record_keeps_its_class_and_says_why() {
-    let project = Project::new("no-record");
-    let policy = OutputPolicy::from_roots(vec![project.0.clone()]).unwrap();
-    let mut audit = geometry_audit();
-    classify_geometry(&mut audit, project.root(), &[], &policy);
-    assert_eq!(audit["findings"][0]["class"], "layout-position");
-    assert!(
-        audit["findings"][0]["evidence"]["cause"]
-            .as_str()
-            .unwrap()
-            .contains("No export record")
-    );
-}
-
-#[test]
-fn an_asset_capture_waiting_for_comparison_blocks_completion() {
-    let mut plan = json!({"audit":{}});
-    let audit = json!({"screenTable":[{"routePath":"/", "width":1440}], "visualComparisons":[
-        {"id":"home|asset|icon|1440", "routePath":"/", "viewport":{"width":1440}, "blockers":[]}
-    ]});
-    record_round(&mut plan, &audit, "run", &[], &BTreeMap::new(), 3);
-    assert_eq!(plan["audit"]["visualPending"].as_array().unwrap().len(), 1);
-    record_round(&mut plan, &audit, "run", &[VisualResultInput { id:"home|asset|icon|1440".into(), verdict:"pass".into(), changed_ratio:Some(0.0), diff_path:None, reason:None }], &BTreeMap::new(), 3);
-    assert!(plan["audit"]["visualPending"].as_array().unwrap().is_empty());
-}
+include!("audit_plan_tests_routes_and_drift.rs");

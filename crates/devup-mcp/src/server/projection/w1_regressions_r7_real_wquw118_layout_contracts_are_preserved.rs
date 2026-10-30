@@ -772,11 +772,26 @@ async fn w1_unavailable_responsive_output_is_actionable_even_with_tsx_and_strict
                 *all_screens = true;
                 *strict = strict_value;
             }
-            let error = project(section(2), op).await.unwrap_err();
-            assert_eq!(error.code, ErrorCode::DevupInvalidInput);
-            assert!(error.message.contains("responsiveTsx"));
-            assert!(error.message.contains("tsx"));
-            assert!(error.details.is_object());
+            let response = project(section(2), op).await;
+            if outputs == vec!["responsiveTsx"] {
+                let error = response.unwrap_err();
+                assert_eq!(error.details["nextAction"]["arguments"]["outputs"], json!(["tsx"]));
+                assert_eq!(error.details["frameReasons"].as_array().unwrap().len(), 2);
+                continue;
+            }
+            let result = if strict_value {
+                response.unwrap_err().details
+            } else {
+                response.unwrap()
+            };
+            let failure = result["failures"].as_array().unwrap().iter()
+                .find(|failure| failure["output"] == "responsiveTsx").unwrap();
+            assert_eq!(failure["details"]["nextAction"]["tool"], "devup_figma_export");
+            assert_eq!(failure["details"]["nextAction"]["arguments"]["outputs"], json!(["tsx"]));
+            assert_eq!(failure["details"]["frameReasons"].as_array().unwrap().len(), 2);
+            if !strict_value {
+                assert_eq!(result["outputResults"]["responsiveTsx"]["state"], "failed");
+            }
         }
     }
 }

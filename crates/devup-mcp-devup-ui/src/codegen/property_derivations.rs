@@ -85,6 +85,11 @@ pub(crate) fn property_derivations(
         &options.length_tokens,
         &mut tokens,
     );
+    text::elide_tokenized_typography(
+        &mut props,
+        &options.typography_values,
+        &options.length_tokens,
+    );
     let in_reading_grid = layout::in_reading_grid(snapshot, node);
     let in_wrapping_row = layout::in_wrapping_row(snapshot, node);
     props.into_iter().filter_map(|(name, PropValue::String(value))| {

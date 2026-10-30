@@ -1,7 +1,14 @@
 pub fn git_identity(commit: Option<&str>, dirty: bool) -> Option<String> {
+    dirty_identity(commit, dirty.then_some(""))
+}
+
+pub fn dirty_identity(commit: Option<&str>, diff: Option<&str>) -> Option<String> {
     let commit = commit.filter(|value| safe(value))?;
-    let suffix = if dirty { "-dirty" } else { "" };
-    Some(format!("{commit}{suffix}"))
+    Some(match diff {
+        None => commit.to_owned(),
+        Some(hash) if safe(hash) => format!("{commit}-dirty.{hash}"),
+        Some(_) => format!("{commit}-dirty"),
+    })
 }
 
 pub fn safe(value: &str) -> bool {

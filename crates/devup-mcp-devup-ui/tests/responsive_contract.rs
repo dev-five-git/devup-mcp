@@ -279,7 +279,7 @@ fn a_frame_laid_out_differently_by_width_keeps_each_direction() {
     });
     let compact = merged.tsx.split_whitespace().collect::<String>();
     assert!(
-        compact.contains(r#"flexDir={["column",null,null,null,"initial"]}"#),
+        compact.contains(r#"flexDir={["column",null,null,null,"row"]}"#),
         "{}",
         merged.tsx
     );

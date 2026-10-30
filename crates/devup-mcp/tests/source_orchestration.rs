@@ -274,7 +274,12 @@ async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> a
     .await?;
     let output = result.structured_content.unwrap();
     let written = std::fs::read_to_string(&path)?;
-    assert_eq!(written, output["tsx"].as_str().unwrap());
+    assert!(!written.is_empty());
+    assert!(output.get("tsx").is_none());
+    assert_eq!(
+        output["outputResults"]["tsx"]["bodyDelivery"],
+        "written-to-file"
+    );
     assert!(output["outputPaths"]["tsx"].as_str().is_some());
     std::fs::remove_file(path)?;
     std::fs::remove_dir(root)?;
@@ -286,6 +291,47 @@ fn input() -> Value {
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
         "outputs": ["tsx"]
     })
+}
+
+#[tokio::test]
+async fn confirmed_multi_width_url_refuses_single_width_page_write_before_upstream()
+-> anyhow::Result<()> {
+    let root =
+        std::env::temp_dir().join(format!("devup-responsive-gate-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(root.join(".devup"))?;
+    std::fs::write(root.join(".devup/screen-plan.json"), json!({
+        "kind": "devup-screen-plan", "schemaVersion": 1, "status": "confirmed",
+        "source": {"url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-0"},
+        "routes": [{"url": "/", "implementation": "page", "nodeIds": ["1:2", "1:3"], "drawnWidths": [1440, 360]}]
+    }).to_string())?;
+    let upstream = Arc::new(UpstreamProbe::unavailable());
+    let result = call_named_tool_with_roots(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+            logins: AtomicUsize::new(0),
+        }),
+        upstream.clone(),
+        "devup_figma_export",
+        json!({"projectRoot": root, "frameIds": ["1:2"], "outputs": ["tsx"],
+            "outputPaths": {"tsx": root.join("src/app/page.tsx")}}),
+        vec![root.clone()],
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+    assert_eq!(output["status"], "responsive_required");
+    assert_eq!(output["written"], false);
+    assert_eq!(
+        output["nextAction"]["arguments"]["frameIds"],
+        json!(["1:3", "1:2"])
+    );
+    assert_eq!(
+        output["nextAction"]["arguments"]["outputs"],
+        json!(["responsiveTsx"])
+    );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
+    assert!(!root.join("src/app/page.tsx").exists());
+    std::fs::remove_dir_all(root)?;
+    Ok(())
 }
 
 fn metadata_result() -> Value {
@@ -347,14 +393,9 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     let result = call_tool(auth.clone(), upstream.clone(), input()).await?;
     let output = result.structured_content.unwrap();
 
-    assert_eq!(output["status"], "partial");
-    assert!(
-        output["projectionIssues"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
-    );
+    assert_eq!(output["status"], "complete");
+    assert_eq!(output["quality"]["projection"], "exact");
+    assert!(output["projectionIssues"].as_array().unwrap().is_empty());
     assert_eq!(output["source"]["kind"], "direct");
     assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
@@ -430,14 +471,9 @@ async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Resul
     .await?;
     let output = result.structured_content.unwrap();
 
-    assert_eq!(output["status"], "partial");
-    assert!(
-        output["projectionIssues"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
-    );
+    assert_eq!(output["status"], "complete");
+    assert_eq!(output["quality"]["projection"], "exact");
+    assert!(output["projectionIssues"].as_array().unwrap().is_empty());
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
     assert_eq!(output["collection"]["fallbackUsed"], true);
     assert_eq!(

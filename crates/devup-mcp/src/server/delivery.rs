@@ -203,15 +203,24 @@ pub fn choose_delivery_for_result(
                 || outputs.iter().map(|o| o.bytes.len()).sum::<usize>()
                     > MAX_INLINE_TOTAL_BYTES =>
         {
-            Err(inline_size_error(
+            let mut error = inline_size_error(
                 outputs,
                 outputs.iter().map(|o| o.bytes.len()).sum(),
                 Some(wire_bytes),
-            ))
+            );
+            error.details["envelopeFields"] = envelope_field_sizes(result);
+            Err(error)
         }
         DeliveryMode::Inline => Ok(DeliveryDecision { inline: true }),
         DeliveryMode::Resource => Ok(DeliveryDecision { inline: false }),
     }
+}
+
+pub(super) fn envelope_field_sizes(result: &Value) -> Value {
+    let mut sizes = result.as_object().into_iter().flatten()
+        .map(|(field, value)| (field, value.to_string().len())).collect::<Vec<_>>();
+    sizes.sort_by_key(|(_, bytes)| std::cmp::Reverse(*bytes));
+    serde_json::json!(sizes.into_iter().take(8).map(|(field, bytes)| serde_json::json!({"field":field,"bytes":bytes})).collect::<Vec<_>>())
 }
 
 fn inline_size_error(
@@ -275,6 +284,27 @@ pub(super) fn with_inline_recovery(mut error: DevupError, arguments: Value) -> D
             split.push(serde_json::json!({"tool":"devup_figma_export","arguments":args}));
         }
     }
+    if arguments["delivery"] == "resource" && error.details.get("envelopeFields").is_some() && split.is_empty() {
+        let mut narrowed = arguments.clone();
+        if let Some(object) = narrowed.as_object_mut() {
+            object.remove("assetRequests");
+            object.insert("responseFields".into(), serde_json::json!(["status", "quality"]));
+        }
+        error.details["recoveryState"] = serde_json::json!("available");
+        error.details["recoveryReason"] = serde_json::json!(
+            "resource delivery was already requested; the response metadata itself (see envelopeFields) exceeds the inline limit, so repeating this call fails again."
+        );
+        error.details["nextAction"] =
+            serde_json::json!({"tool":"devup_figma_export","arguments":narrowed});
+        error.details["nextActionReason"] = serde_json::json!(
+            "Same artifact with responseFields (and outputPaths to write files). Details are then read from the linked compact-details resource. Alternatively export fewer frameIds per call."
+        );
+        error.details["splitRequests"] = serde_json::json!([]);
+        error.details["splitReason"] = serde_json::json!(
+            "Split by frameIds (one section frame per call) or write outputs with outputPaths and select only the fields you need with responseFields."
+        );
+        return error;
+    }
     error.details["recoveryState"] = serde_json::json!("available");
     error.details["recoveryReason"] = serde_json::json!(
         "The acquisition is retained; resource delivery avoids the inline limit without calling Figma again. Resource storage limits still apply."
@@ -297,6 +327,7 @@ pub(crate) fn server_identity() -> Value {
     serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"buildId":crate::build_id(),
         "commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s|!s.is_empty()),
         "displayVersion":format!("{}+{}", env!("CARGO_PKG_VERSION"), crate::build_id()),
+        "builtAt":env!("DEVUP_MCP_BUILD_TIME").parse::<u64>().ok(),
         "identityGuidance":include_str!("text/delivery-server_identity-f8e03915.md"),
         // Cache-only. The lookup lives in a background task, so adding this to
         // the identity every response carries costs no network on the call path
@@ -355,6 +386,46 @@ fn random_resource_id() -> String {
 mod r12_tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn feedback_28_single_output_error_identifies_metadata_and_recovery() {
+        let result = json!({"tsx":"<Box/>","projectThemeValidation":{"details":"x".repeat(800_000)}});
+        let outputs = vec![ProjectedOutput::text("tsx", "text/typescript", b"<Box/>".to_vec())];
+        let error = choose_delivery_for_result(DeliveryMode::Inline, &result, &outputs).unwrap_err();
+        assert_eq!(error.details["outputBytes"], 6);
+        assert_eq!(error.details["envelopeFields"][0]["field"], "projectThemeValidation");
+        assert!(error.details["envelopeFields"][0]["bytes"].as_u64().unwrap() >= 800_000);
+        let args = json!({"artifactId":"retained","outputs":["tsx"],"delivery":"resource"});
+        let recovered = with_inline_recovery(error, args.clone());
+        assert_ne!(recovered.details["nextAction"]["arguments"], args);
+        assert_eq!(recovered.details["splitRequests"], json!([]));
+        let reason = recovered.details["splitReason"].as_str().unwrap();
+        assert!(reason.contains("outputPaths") && reason.contains("responseFields") && reason.contains("frameIds"));
+    }
+
+    #[test]
+    fn oversized_envelope_under_resource_delivery_never_repeats_the_failing_call() {
+        let mut error = choose_delivery(
+            DeliveryMode::Inline,
+            &[ProjectedOutput::text(
+                "tsx",
+                "text/typescript",
+                vec![b'x'; MAX_INLINE_TOTAL_BYTES + 1],
+            )],
+        )
+        .unwrap_err();
+        error.details["envelopeFields"] = json!([{"field":"projectionIssues","bytes":1_200_000}]);
+        let args = json!({"artifactId":"retained","outputs":["tsx"],"delivery":"resource",
+            "assetRequests":[{"assetId":"a","format":"svg","scale":1,"outputPath":"p.svg"}]});
+        let recovered = with_inline_recovery(error, args.clone());
+        assert_ne!(recovered.details["nextAction"]["arguments"], args);
+        assert_eq!(
+            recovered.details["nextAction"]["arguments"]["responseFields"],
+            json!(["status", "quality"])
+        );
+        assert_eq!(recovered.details["splitRequests"], json!([]));
+        assert!(recovered.details["envelopeFields"].is_array());
+    }
 
     #[test]
     fn r12_asset_mapping_recovery_keeps_coupled_outputs_together() {

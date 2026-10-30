@@ -52,6 +52,8 @@ pub(super) fn summarize_projection_diagnostics(
         component_name_for_components,
         target_kind,
     } = input;
+    projection_diagnostics.extend(payload.snapshot.diagnostics.iter()
+        .filter(|issue| issue.code == "DEVUP_BRIDGE_PLUGIN_STALE").cloned());
     for failure in failures.iter().filter(|f| f.get("output").is_some()) {
         let issue = failure_issue(failure);
         projection_diagnostics.push(issue.clone());
@@ -84,7 +86,13 @@ pub(super) fn summarize_projection_diagnostics(
                 .iter()
                 .filter(
                     |d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None
-                        || d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                        || matches!(
+                            d.code.as_str(),
+                            "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                                | "DEVUP_CODEGEN_INSTANCE_OVERRIDE"
+                                | "DEVUP_CODEGEN_SUSPICIOUS_VALUE"
+                                | "DEVUP_BRIDGE_PLUGIN_STALE"
+                        )
                 )
                 .collect::<Vec<_>>()
         ),
@@ -127,12 +135,13 @@ pub(super) fn summarize_projection_diagnostics(
             outputs.iter().any(|output| output == "assetManifest"),
             &asset_captures
                 .iter()
+                .filter(|capture| !payload.assets.iter().any(|asset| asset.asset_id == capture.asset_id && asset.error_code.as_deref() == Some("DEVUP_ASSET_NODE_HIDDEN")))
                 .map(|capture| capture.asset_id.clone())
                 .collect::<Vec<_>>(),
             &payload.assets,
         ),
     };
-    if let Some(summary) = result.get("assetSummary") {
+    if asset_captures.is_empty() && let Some(summary) = result.get("assetSummary") {
         quality.assets = asset_collection_quality(summary);
     }
     if failures

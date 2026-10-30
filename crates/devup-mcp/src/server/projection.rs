@@ -13,6 +13,7 @@ include!("projection/artifact_metadata.rs");
 include!("projection/verification_scope.rs");
 include!("projection/diagnostics.rs");
 include!("projection/component_projection.rs");
+include!("projection/instance_overrides.rs");
 include!("projection/completion.rs");
 include!("projection/diagnostic_screens.rs");
 include!("projection/regression_tests.rs");

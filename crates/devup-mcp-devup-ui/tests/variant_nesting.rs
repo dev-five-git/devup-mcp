@@ -123,7 +123,7 @@ fn a_combination_never_drawn_is_not_a_hole_but_a_refused_value_is() {
         "{tsx}"
     );
     assert!(
-        tsx.contains("border={varient === 'white' && "),
+        tsx.contains("border={varient === \"white\" ? ") && tsx.contains(": undefined}"),
         "a value only one variant sets stays a condition: {tsx}"
     );
 }

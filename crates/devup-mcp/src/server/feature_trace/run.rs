@@ -151,6 +151,7 @@ pub(super) async fn run(
         chain.push(hop("component-api",json!({"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method}),Value::Null,json!({}),Some("Explicit operation anchor was not found in project OpenAPI endpoints.")));
     }
     let mut navigation_sources = vec![];
+    let known_clients = stack_diff::project_api_clients(&root);
     for file in &selected_files {
         let source = match read(&root.join(file)) {
             Ok(s) => s,
@@ -166,7 +167,7 @@ pub(super) async fn run(
             }
         };
         navigation_sources.push((file.clone(), source.clone()));
-        let (calls, configs) = stack_diff::parse::client_references(&source);
+        let (calls, configs) = stack_diff::parse::client_references_with(&source, &known_clients);
         if calls.is_empty() && configs.is_empty() {
             chain.push(hop("component-api",json!(file),Value::Null,json!({}),Some("No supported literal API reference in this file; helpers, wrappers and dynamic calls are not resolved.")));
         }

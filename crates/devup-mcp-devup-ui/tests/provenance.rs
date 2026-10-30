@@ -37,6 +37,7 @@ fn fidelity_snapshot(characters: &str) -> Snapshot {
                     "name": "Card", "childrenIds": ["1:2"], "layoutMode": "VERTICAL",
                     "inferredAutoLayout": {"layoutMode": "VERTICAL"},
                     "width": 320, "height": 200, "clipsContent": true,
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
                     "fills": [{
                         "type": "SOLID", "color": {"r": 1, "g": 0, "b": 0},
                         "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
@@ -347,7 +348,7 @@ fn asset_boundaries_exclude_internal_and_descendant_layout_fields() {
                 json!({
                     "name": "Folded icon", "parentId": "root",
                     "childrenIds": ["glyph-left", "glyph-right"],
-                    "layoutMode": "HORIZONTAL", "layoutPositioning": "ABSOLUTE",
+                    "layoutMode": "NONE", "layoutPositioning": "ABSOLUTE",
                     "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
                     "itemSpacing": 4, "paddingTop": 1, "paddingRight": 2,
                     "paddingBottom": 3, "paddingLeft": 4,

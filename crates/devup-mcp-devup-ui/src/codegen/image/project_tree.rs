@@ -27,6 +27,7 @@ pub(super) fn project_tree(
             drawn_when: Vec::new(),
             leading_comment: None,
             slots: Vec::new(),
+            scalar_sources: Vec::new(),
         };
     let visible = node.typed_view().value("fills").and_then(Value::as_array);
     if tree.component == "Image" {
@@ -145,6 +146,7 @@ pub(super) fn project_tree(
         .filter(|(_, p)| p["visible"] != false && p["opacity"] != 0)
     {
         let mut props: BTreeMap<String, String> = [
+            ("aria-hidden", "true"),
             ("pos", "absolute"),
             ("inset", "0"),
             ("zIndex", "-1"),

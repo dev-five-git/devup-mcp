@@ -150,7 +150,7 @@ expression: actual
           <Box
             bg="$gray300"
             boxSize="24px"
-            maskImage="url(/icons/ic:round-arrow-left.svg)"
+            maskImage="url(/icons/ic-round-arrow-left.svg)"
             maskPos="center"
             maskRepeat="no-repeat"
             maskSize="contain"
@@ -179,7 +179,7 @@ expression: actual
           <Box
             bg="$gray300"
             boxSize="24px"
-            maskImage="url(/icons/ic:round-arrow-left.svg)"
+            maskImage="url(/icons/ic-round-arrow-left.svg)"
             maskPos="center"
             maskRepeat="no-repeat"
             maskSize="contain"
@@ -208,7 +208,7 @@ expression: actual
           <Box
             bg="$gray300"
             boxSize="24px"
-            maskImage="url(/icons/ic:round-arrow-left.svg)"
+            maskImage="url(/icons/ic-round-arrow-left.svg)"
             maskPos="center"
             maskRepeat="no-repeat"
             maskSize="contain"

@@ -55,7 +55,8 @@ impl FigmaUpstream for PrimaryFillUpstream {
                     "id": "3879:35481", "type": "FRAME",
                     "fields": {
                         "name": "Proofread", "childrenIds": [], "layoutMode": "VERTICAL",
-                        "width": 320, "height": 240,
+                         "width": 320, "height": 240,
+                         "layoutSizingHorizontal":"FIXED", "layoutSizingVertical":"FIXED",
                         "fills": [{
                             "type": "SOLID", "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
                             "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
@@ -148,6 +149,73 @@ fn project_naming_it_brand() -> anyhow::Result<PathBuf> {
 const URL: &str = "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Fixture?node-id=3879-35481";
 
 #[tokio::test]
+async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-context-size-{}", std::process::id()));
+    fs::create_dir_all(root.join("src/app"))?;
+    fs::create_dir_all(root.join("src/components"))?;
+    fs::create_dir_all(root.join("public/images"))?;
+    fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
+    fs::write(
+        root.join("src/app/page.tsx"),
+        "export default function Home(){return <main/>}",
+    )?;
+    for index in 0..180 {
+        fs::write(
+            root.join(format!("src/components/Component{index}.tsx")),
+            format!("export function Component{index}(){{return <div/>}}"),
+        )?;
+        fs::write(
+            root.join(format!("public/images/unreferenced-image-{index}.png")),
+            "image",
+        )?;
+    }
+    let result = export(json!({"url":URL,"projectRoot":root})).await?;
+    let bytes = serde_json::to_vec(&result)?.len();
+    eprintln!("projectRoot export structured reply: {bytes} bytes");
+    assert!(bytes < 15 * 1024, "reply is {bytes} bytes");
+    assert_eq!(result["projectContext"]["counts"]["publicFiles"], 180);
+    assert_eq!(result["projectContext"]["ui"]["components"], json!([]));
+    assert_eq!(
+        result["projectContext"]["ui"]["nonPageDestinations"],
+        json!([])
+    );
+    assert_eq!(
+        result["projectContext"]["nextAction"]["tool"],
+        "devup_project_context"
+    );
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn response_fields_do_not_leak_late_project_metadata() -> anyhow::Result<()> {
+    let root = project_naming_it_brand()?;
+    let result = export(json!({"url":URL,"projectRoot":root,"responseFields":["quality"]})).await?;
+    for field in [
+        "projectContext",
+        "routeSuggestions",
+        "projectThemeValidation",
+        "planProgress",
+        "skillGap",
+        "formatting",
+    ] {
+        assert!(
+            result.get(field).is_none(),
+            "late metadata {field} leaked: {result}"
+        );
+    }
+    let selected =
+        export(json!({"url":URL,"projectRoot":root,"responseFields":["projectThemeValidation"]}))
+            .await?;
+    assert_eq!(
+        selected["selected"]["selections"][0]["values"][0]["state"],
+        "checked"
+    );
+    assert!(selected.get("projectThemeValidation").is_none());
+    Ok(())
+}
+
+#[tokio::test]
 async fn an_export_without_a_project_root_reads_nothing_from_disk() -> anyhow::Result<()> {
     let result = export(json!({"url": URL, "outputs": ["tsx"]})).await?;
     assert!(
@@ -224,9 +292,7 @@ async fn an_export_confirms_a_project_that_already_has_the_token() -> anyhow::Re
     Ok(())
 }
 
-/// An export into a project marks the elements the runtime audit finds by
-/// Figma node; the project config turns it off, and an export with no
-/// project never writes it, so plugin-parity output stays byte-equal.
+/// Node identities are explicitly opted into, independently of project config.
 #[tokio::test]
 async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> anyhow::Result<()> {
     let root = std::env::temp_dir().join(format!("devup-node-ids-{}", std::process::id()));
@@ -234,10 +300,10 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
     fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
     let marked = r#"data-figma-node-id="3879:35481""#;
     let result =
-        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy()}))
+        export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy(), "figmaNodeIds": true}))
             .await?;
     assert!(
-        result["tsx"].as_str().unwrap_or_default().contains(marked),
+        fs::read_to_string(result["outputPaths"]["tsx"].as_str().unwrap())?.contains(marked),
         "{}",
         result["tsx"]
     );

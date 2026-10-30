@@ -227,6 +227,7 @@ impl WidthCheck<'_> {
         }
         for (name, (value, _)) in &theirs {
             if !names.contains(name)
+                && !(self.root_fluid && element == 0 && *name == "w")
                 && settled(name, Some(value.as_str()), their_tag) != settled(name, None, tag)
             {
                 gaps.push(

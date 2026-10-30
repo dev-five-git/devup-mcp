@@ -13,6 +13,10 @@ description: |
 
 ## Project intake comes first
 
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Never discard `// @devup-override` annotations or the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item silently.
+
+For a confirmed multi-width URL, `responsiveTsx` is the deliverable. Export all sibling frameIds in width order using screen-plan status's next export action. Never start from single-width `tsx`/`componentTsx` for its page or sections. Only wire links/events/data; never change generated layout values, collapse arrays, or add hard-coded sizes/layout wrappers. Review `generatedExport.generatedDrift` in status; its confidence-labelled findings are heuristic and missing mappings remain unverified.
+
 `/devup` is the entry point for new projects, existing features, bug fixes,
 Figma page implementation and refactors. Figma screen planning is a branch
 of the confirmed project plan; complete this section before the screen workflow below.
@@ -109,7 +113,9 @@ in this order and do not skip a step. The devup-implementation-plan skill has
 the full rules; these are the steps.
 
 1. **Connection.** `devup_figma_auth` with `action: "status"`. With a Bridge
-   plugin attached nothing needs a login; do not ask for one.
+   plugin attached nothing needs a login; do not ask for one. For disconnected,
+   out-of-view or mismatched-host states, load `figma-bridge-setup` and perform
+   its computer-use steps yourself, then verify status and a small read.
 2. **Skills.** `devup_skills` with `action: "status"` and this `projectRoot`;
    if anything is missing or outdated, `action: "install"`, then load the
    installed skills (devup-ui, devfive-frontend, devup-implementation-plan).
@@ -130,7 +136,7 @@ the full rules; these are the steps.
 5. **Show the proposal table, ask once.** Show draft's `proposalMarkdown`
    (every open decision with its recommended answer) in the language the user
    first wrote in, and ask ONE question with your question tool: accept, or
-   name the rows to change. Never one decision at a time, never later.
+   name the rows to change. Collect known decisions in one question call.
 6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId`,
    `acceptRecommended: true` and only the changed rows in `answers`. If
    confirm reports two screens on one URL, retry with its
@@ -150,7 +156,16 @@ the full rules; these are the steps.
     Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
     { bumped, pins }`); status shows it as the dependencies line. Skip only
     when `.devup/screen-plan.config.json` says `updateDependencies: false`.
-8. **Implement URL by URL without asking anything.** `devup_figma_export` with
+8. **Extract components before pages.** The first implementation unit after
+   confirm exports used `COMPONENT_SET`/`COMPONENT` nodes with
+   `outputs: ["componentTsx"]` to `components/common` or `components/layout`.
+   Record each `mainComponent` id -> generated file and artifact identity in
+   `.devup/component-map.json`. Assemble pages by screen-plan section (a direct
+   child of the screen frame root), starting from generated TSX and mapped imports.
+   Never hand-write TSX from Figma nodes. Audit through the component/section
+   file mapping and explicit rendered targets, not DOM Figma attributes.
+   Unsupported section exports or instance overrides remain reported limitations.
+   **Implement URL by URL.** `devup_figma_export` with
    `projectRoot` and each screen's `frameIds`; `pageScaffold` takes its route
    from the plan. Add the plan's `defaults` as you go: each interactive
    element's role recipe (hover, pressed, focus ring, current page, expanded,
@@ -158,9 +173,8 @@ the full rules; these are the steps.
    150-250ms, existing tokens only), one shared transition, `_motionReduce`,
    view transitions by the plan's mechanism, root and per-page `metadata` with
    openGraph, `lang`, alt text, image dimensions, a not-found page. Run
-   `devup_ui_validate` with `projectRoot` on what you wrote. Anything new:
-   take the recommended or most conservative option and record it with
-   `action: "assume"`.
+    `devup_ui_validate` with `projectRoot` on what you wrote. Ordinary choices
+    use `action: "assume"`; new user-owned decisions use the question tool.
 9. **Audit plan.** `devup_screen_plan` with `action: "auditPlan"`,
    `baseUrl` and `artifacts` (every export artifactId of the plan's frames).
    One plan per URL: health, overflow and clipped text at every width; the
@@ -179,7 +193,7 @@ the full rules; these are the steps.
    reported, never retried). After `maxFixAttempts` (default 3) a finding
    is unresolved with its evidence. Runner cannot install:
    `toolingUnavailable`, and carry on.
-11. **Never stop to wait.** A decision mid-run: `action: "defer"` with the
+11. **Continue independent work.** An ordinary choice mid-run: `action: "defer"` with the
     recommended option, keep working, take it with `assume` at the end; a
     destructive one stays unbuilt.
 12. **Done = zero fails.** A real Chromium render is mandatory before claiming
@@ -194,9 +208,19 @@ the full rules; these are the steps.
     Every check and comparison passes at the drawn
     widths and health and overflow pass at every required width. Report filed
     converter bugs and unresolved findings with evidence as incomplete. Also: every
-    URL implemented, the production build free of `data-figma-node-id` (the
-    strip plugin in vite.config; `grep -rl data-figma-node-id dist` finds
-    nothing), `bun run build`, `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit`
+    URL implemented, the production build free of `data-figma-node-id`.
+DevupUI strips audit attributes by default; `DEVUP_AUDIT=1` keeps them.
+Figma node attributes are off by default; opt in with `figmaNodeIds: true`
+only where the export schema supports it. Do not change app build config for auditing
+or register a strip plugin. Inspect the ordinary production output.
+Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+Never fix JSX prop order, import sorting or formatting errors by hand.
+Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+**Formatter ownership:** this template has no standalone prettier config.
+Formatting is owned by eslint-plugin-devup's `devup(prettier)` rule inside oxlint.
+Do not run `bunx prettier --write` or biome: their defaults produce a different
+style (semicolons and double quotes), undoing the project's lint formatting.
+Then run `bun run build`, `bun run lint`, `bun tsc --noEmit`
     per changed app, `bun test` (on Windows `bun test` and `cargo test`),
     `devup_ui_validate` without errors, site completeness filled.
 13. **Final report.** End with status's `finalReport` and `summary`: URL x
@@ -209,4 +233,37 @@ width; never stop to wait, reorder the work; done = every required cell passes;
 report unresolved cells with evidence as incomplete; layout is exact, a mismatch is drift or a
 converter bug.
 
-Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask all site, structure and URL decisions up front as ONE proposal table and ONE question before implementation; never split them into per-section rounds and never ask during the build.
+Run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read its report, fix and rerun until every cell passes. Missing cells are not-run and block done; require rendered completeness and page/section/asset comparisons at drawn widths. Ask known site, structure and URL decisions up front in one question call, not per-section rounds. New user-owned decisions during the build still use the question tool.
+
+## Staged execution and shared work first
+
+`devup_project_plan split` is staged, not one flat chain per feature:
+
+1. Stage 0, supervisor alone: shared parts that repeat across routes (Header, Footer, a hero or sub-navigation that appears on many frames, navigation data), the `devup.json` tokens, one export of every shared asset, and the backend foundation (vespertide models, entities, migrations, `openapi.json`, client). Nothing else starts before it is merged.
+2. Stage 1, parallel: one worker per top-level menu or Figma group. A feature that uses tables gets one `model-<table>` unit per table (shared by every feature that uses it), then api, client and front units. A feature with no tables gets only a front unit. Never run two units that edit the same table at once.
+3. Stage 2, supervisor: front-to-API wiring check, `devup_stack_diff` with zero drift, runtime audit, visual compare.
+
+Run only as many workers at once as there are independent groups, not as many as there are routes. Each brief must be usable on its own: the frames to export with their URLs, the exports already done, the shared components to import (path and props), what the worker must not change, and the checks to rerun. A worker that needs a shared component changed does not edit it; it reports a shared-change request (what, why, diff) to the supervisor, who applies it once and tells every unit that depends on it.
+
+## ERD and endpoint contract before the front
+
+Confirm the ERD together with the screens, before any page is written. From the Figma frames derive the data each screen needs: repeating cards or table rows (list endpoint with page, sort, category and query parameters), detail layouts (detail endpoint), forms (create endpoint and field rules), search boxes, filters, sorts and page numbers. Show the user one table of entities and columns, the endpoint contract per screen, and the Mermaid ERD, and confirm it once.
+
+A screen is not finished while its data is a hard-coded array, a `TODO` or "replace when API exists" comment, a control with no handler, or a form that changes local state without a network call. If the user answers "wire to the API now", record the `operationId` and check that it exists in `openapi.json` before you call the screen done; if it does not, say the screen is unfinished instead of faking it. Anything left on a fixture must be recorded with `defer` and listed as unfinished in the final report. A public asset a page references that is missing from `public/` is a failure to fix by exporting it, not something to skip.
+
+## Decisions go through the question tool
+
+This rule takes precedence over "never ask during the build" and "never wait"
+when a decision genuinely requires the user's authority, including after confirm.
+Use OpenCode `question` or Claude Code `AskUserQuestion`, not a numbered chat
+list ending with "tell me which numbers to change". Continue independent work
+while the decision is pending; workers escalate to their supervisor, not the user.
+Do not invent a project-plan `ask` action: use the runtime question tool and the
+existing plan actions. Record the chosen answer, not an unaccepted recommendation,
+with its decision id, affected model/endpoint/file and rationale. If it changes
+the ERD, update the source models and re-confirm before dependent implementation.
+If the runtime has no question tool, report that limitation and leave the
+user-owned decision unresolved; a prose question or silent assumption is not a
+substitute. Ordinary implementation choices still use defer/assume without asking.
+
+Any decision that needs the user, before or after confirm, is asked with the runtime question tool, never as numbered prose such as "tell me which numbers to change". Show the evidence table first, then ask. Put the recommended option first, labelled "(Recommended)", with two or three concrete alternatives (for example "category as a kind column / as an enum column / as a free text column"). A header is at most 30 characters and a question has two to four options. Keep the confirmation of a table separate from the decisions inside it: the table is one approve-or-change question, each real decision gets its own entry in the same question call. Record each answer with `devup_project_plan defer` or `assume` (id, reason, recommended) so it survives in the plan; a decision that changes a model is applied to `models/*.json` and the next action says so.

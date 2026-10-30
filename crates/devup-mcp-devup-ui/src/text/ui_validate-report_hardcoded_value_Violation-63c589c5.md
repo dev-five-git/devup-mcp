@@ -1,1 +1,1 @@
-{prop_name} uses hardcoded {kind} {text}, which this project's devup.json already defines as {named}. Check the matching modes before replacement; a partial-mode match may change this value in another mode.
+{prop_name} uses hardcoded {kind} {text}, which this project's devup.json already defines as {named}.

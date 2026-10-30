@@ -1,13 +1,12 @@
-
-use std::collections::BTreeMap;
-use std::path::Path;
+use super::artifacts::ArtifactStore;
+use super::output::{OutputPolicy, OutputTransaction};
 use devup_mcp_figma::{DevupError, ErrorCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use super::artifacts::ArtifactStore;
-use super::output::{OutputPolicy, OutputTransaction};
+use std::collections::BTreeMap;
+use std::path::Path;
 pub(crate) const PLAN_KIND: &str = "devup-runtime-audit-plan";
 pub(crate) const REPORT_KIND: &str = "devup-runtime-audit-report";
 const SCHEMA_VERSION: u64 = 1;
@@ -25,7 +24,6 @@ const MAX_REPORT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SCREENSHOT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_SCREENSHOTS: usize = 400;
 const MAX_LISTED: usize = 50;
-// Keep complete per-width rows in the response without unbounded duplication.
 const MAX_DIMENSION_ROWS: usize = 100;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -181,6 +179,9 @@ pub struct ExpectInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct CheckInput {
+    /// Planning prerequisite missing: do not execute this check or count it as passed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<String>,
     /// no-horizontal-overflow: the page is no wider than the viewport.
     /// contained: subject's box lies inside container's.
     /// aligned: subject keeps offsetPx from container's edge (left/right) or
@@ -272,10 +273,8 @@ pub struct CheckInput {
     /// was drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub widths: Vec<u32>,
-    /// The Figma node this check is about, so a failure names it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
-    /// capture: what the element screenshot is compared with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<CaptureReferenceInput>,
     /// rendered-completeness: what the frame drawn at this width says must be
@@ -356,6 +355,9 @@ pub struct FigmaAnchorInput {
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct FrameReferenceInput {
     pub width: u32,
+    /// Drawn frame height in logical px, independent of the browser viewport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
     pub node_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_id: Option<String>,
@@ -593,6 +595,15 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
             if figma.drawn_widths.is_empty() {
                 return Err(invalid("figma.drawnWidths must name at least one width."));
             }
+            if figma.frames.iter().any(|frame| {
+                frame
+                    .height
+                    .is_some_and(|height| height == 0 || height > 100_000)
+            }) {
+                return Err(invalid(
+                    "figma.frames[].height must be between 1 and 100000 px.",
+                ));
+            }
         }
     }
     for font in &plan.fonts {
@@ -608,6 +619,9 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
 }
 
 fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
+    if let Some(reason) = &check.unavailable_reason {
+        return bounded_text("unavailableReason", reason);
+    }
     let needs = |subject: bool, container: bool| -> Result<(), DevupError> {
         if subject != check.subject.is_some() || container != check.container.is_some() {
             return Err(invalid(format!(
@@ -620,12 +634,17 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         Ok(())
     };
     match check.kind.as_str() {
-        "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => needs(false, false)?,
+        "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => {
+            needs(false, false)?
+        }
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
         "stale-resources" | "styles-applied" => needs(false, false)?,
         "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
             if check.container.is_some() {
-                return Err(invalid(format!("A {} check takes no container.", check.kind)));
+                return Err(invalid(format!(
+                    "A {} check takes no container.",
+                    check.kind
+                )));
             }
         }
         "bounds" => {
@@ -692,13 +711,22 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         }
         "text-align" => {
             needs(true, false)?;
-            if !matches!(check.edge.as_deref(), Some("left" | "right" | "center" | "justify")) {
-                return Err(invalid("A text-align check needs edge left, right, center or justify."));
+            if !matches!(
+                check.edge.as_deref(),
+                Some("left" | "right" | "center" | "justify")
+            ) {
+                return Err(invalid(
+                    "A text-align check needs edge left, right, center or justify.",
+                ));
             }
         }
         "sequence-order" => needs(false, false)?,
         "section-layout" => {
-            if check.subject.is_some() { needs(true, true)?; } else { needs(false, false)?; }
+            if check.subject.is_some() {
+                needs(true, true)?;
+            } else {
+                needs(false, false)?;
+            }
         }
         "rendered-completeness" => {
             needs(false, false)?;
@@ -878,119 +906,3 @@ pub(crate) async fn create_plan(
     write_plan(input, policy, output_path, template_path, references)
 }
 
-/// One screen at one width by what was checked: health (renders, no
-/// overflow, no clipped text), geometry (size and position), interaction
-/// (states and view transitions), and the three visual levels, which stay
-/// "to compare" until devup_visual_compare results come back through
-/// devup_screen_plan status.
-fn columns(
-    screen: &ScreenInput,
-    viewport: &ViewportInput,
-    judged: &[(&str, &CheckInput)],
-    row: &Value,
-) -> Value {
-    let fold = |kinds: &[&str]| {
-        let statuses = judged
-            .iter()
-            .filter(|(_, check)| kinds.contains(&check.kind.as_str()))
-            .map(|(status, _)| *status)
-            .collect::<Vec<_>>();
-        if statuses.is_empty() {
-            "-"
-        } else if statuses.contains(&"fail") {
-            "fail"
-        } else if statuses.iter().all(|status| *status == "pass") {
-            "pass"
-        } else if statuses.contains(&"inconclusive") {
-            "inconclusive"
-        } else {
-            "not-run"
-        }
-    };
-    let unreached = row["reasons"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .any(|reason| reason.starts_with("page error") || reason.starts_with("screen not reached"));
-    let health = if unreached {
-        "fail"
-    } else {
-        fold(&["links-resolve", "page-health", "no-horizontal-overflow", "no-clipped-content", "styles-applied", "no-clipped-text", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"])
-    };
-    let captures = |scope: &str| {
-        let count = judged
-            .iter()
-            .filter(|(status, check)| {
-                *status == "pass"
-                    && check
-                        .reference
-                        .as_ref()
-                        .is_some_and(|reference| reference.scope == scope)
-            })
-            .count();
-        let missing = judged
-            .iter()
-            .filter(|(status, check)| {
-                *status != "pass"
-                    && check
-                        .reference
-                        .as_ref()
-                        .is_some_and(|reference| reference.scope == scope)
-            })
-            .count();
-        match (count, missing) {
-            (0, 0) => json!("-"),
-            (_, 0) => json!(format!("{count} to compare")),
-            _ => json!(format!("{count} to compare, {missing} not captured")),
-        }
-    };
-    let drawn = screen
-        .figma
-        .as_ref()
-        .is_some_and(|figma| figma.drawn_widths.contains(&viewport.width));
-    let completeness = match fold(&["rendered-completeness"]) {
-        "-" if drawn => "not-run",
-        "-" => "not drawn",
-        other => other,
-    };
-    json!({
-        "health": health,
-        "completeness": completeness,
-        "geometry": fold(&["text-align", "sequence-order", "section-layout", "bounds", "dimensions", "contained", "aligned", "spans", "visible"]),
-        "interaction": fold(&["interaction", "view-transition"]),
-        "page": if drawn { json!(if row["screenshot"].is_string() { "1 to compare" } else { "not captured" }) } else { json!("not drawn") },
-        "section": captures("section"),
-        "asset": captures("asset"),
-    })
-}
-
-/// A check limited to some widths does not exist at the others.
-fn applies(check: &CheckInput, width: u32) -> bool {
-    check.widths.is_empty() || check.widths.contains(&width)
-}
-
-fn planned_items(plan: &PlanInput) -> usize {
-    plan.viewports
-        .iter()
-        .map(|viewport| {
-            plan.screens
-                .iter()
-                .flat_map(|screen| &screen.checks)
-                .filter(|check| applies(check, viewport.width))
-                .count()
-        })
-        .sum()
-}
-
-/// A view-transition check clicks away from its screen, so every one moves
-/// behind the screen's other checks, keeping their order otherwise. The
-/// executor also returns to the screen's URL after it; together a plan
-/// cannot measure the wrong page whatever order it was written in.
-pub(crate) fn order_checks(input: &mut PlanInput) {
-    for screen in &mut input.screens {
-        screen
-            .checks
-            .sort_by_key(|check| check.kind == "view-transition");
-    }
-}

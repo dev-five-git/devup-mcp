@@ -255,6 +255,14 @@ async function clippedText(page, subject) {
 export function observeClippedContent(page) {
   return page.evaluate(() => {
     const clipped = [];
+    // Headless Chromium hides every scrollbar (--hide-scrollbars), so a missing
+    // scrollbar gutter there says nothing about what a user sees. In that case
+    // only a scrollbar the page itself hid (scrollbar-width: none) counts.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
+    (document.body ?? document.documentElement).append(probe);
+    const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
+    probe.remove();
     for (const element of document.querySelectorAll('body *')) {
       if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const style = getComputedStyle(element);
@@ -264,7 +272,20 @@ export function observeClippedContent(page) {
       const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
       if (!horizontal && !vertical) continue;
       if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
-      const scrollbar = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const gutter = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
+      const scrollbar = gutter || (browserHidesScrollbars && style.scrollbarWidth !== 'none');
+      // A scroller is reachable content only when the user can see it scrolls.
+      if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
+      if (element.closest('[aria-hidden="true"]')) continue;
+      const media = [...element.querySelectorAll('img, svg, video, canvas')];
+      const decorative = style.pointerEvents === 'none' && !element.textContent.trim()
+        && media.every((node) => node.tagName === 'IMG' ? node.getAttribute('alt') === '' : node.tagName.toLowerCase() === 'svg');
+      if (decorative) continue;
+      const animated = [element, ...element.querySelectorAll('*')].some((node) => {
+        const s = getComputedStyle(node);
+        return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
+      });
+      if (animated) continue;
       const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
       if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
       clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
@@ -301,7 +322,7 @@ export function observeCompleteness(page, completeness, width, subject) {
     };
     const canvasProbe = document.createElement('span');
     canvasProbe.style.backgroundColor = 'Canvas';
-    document.body.appendChild(canvasProbe);
+    (document.body ?? document.documentElement).appendChild(canvasProbe);
     const canvasColor = getComputedStyle(canvasProbe).backgroundColor;
     canvasProbe.remove();
     const texts = [];
@@ -309,7 +330,17 @@ export function observeCompleteness(page, completeness, width, subject) {
     for (let index = 0; index < walker.length; index += 1) {
       const element = walker[index];
       const own = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join(' ').trim();
-      if (!own || !shown(element)) continue;
+      if (!own || !shown(element) || element.closest('[aria-hidden="true"], [role="presentation"], [role="none"]')) continue;
+      let marquee = false;
+      for (let track = element; track && track !== document.body; track = track.parentElement) {
+        const animations = track.getAnimations?.() ?? [];
+        const translates = animations.some((animation) => animation.effect?.getKeyframes().some((frame) => frame.transform || frame.translate));
+        if (!translates) continue;
+        for (let clip = track.parentElement; clip; clip = clip.parentElement) {
+          if (['hidden', 'clip'].includes(getComputedStyle(clip).overflowX) && track.scrollWidth > clip.clientWidth + 1) marquee = true;
+        }
+      }
+      if (marquee) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
       const style = getComputedStyle(element);
@@ -318,8 +349,42 @@ export function observeCompleteness(page, completeness, width, subject) {
       let imageBehind = false;
       let backgroundExposed = true;
       let opacity = 1;
-      for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const covers = (candidate) => {
+        const box = candidate.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && centerX >= box.left && centerX <= box.right && centerY >= box.top && centerY <= box.bottom;
+      };
+      const opaque = (color) => /^rgb\(/.test(color) || /,\s*1\)$/.test(color);
+      const stackingContext = (nodeStyle) => nodeStyle.isolation === 'isolate'
+        || (nodeStyle.position !== 'static' && nodeStyle.zIndex !== 'auto')
+        || Number(nodeStyle.opacity) < 1 || nodeStyle.transform !== 'none' || nodeStyle.filter !== 'none';
+      let child = null;
+      for (let node = element; node && node.nodeType === 1; child = node, node = node.parentElement) {
         const nodeStyle = getComputedStyle(node);
+        // A positioned child with a negative z-index (a background layer the
+        // generator draws as a sibling of the content) paints between this
+        // node's own background and the text. It is visible when this node is
+        // its stacking context or paints no background of its own.
+        if (backgroundExposed && child && (stackingContext(nodeStyle) || !opaque(nodeStyle.backgroundColor))) {
+          const underlays = [...node.children].filter((layer) => {
+            if (layer === child || !shown(layer)) return false;
+            const layerStyle = getComputedStyle(layer);
+            return layerStyle.position !== 'static' && layerStyle.zIndex !== 'auto' && Number(layerStyle.zIndex) < 0 && covers(layer);
+          });
+          // Later siblings paint above earlier ones; nearest first means last first.
+          for (const layer of underlays.reverse()) {
+            const painted = [layer, ...layer.querySelectorAll('*')].filter((part) => shown(part) && covers(part)).reverse();
+            for (const part of painted) {
+              const partStyle = getComputedStyle(part);
+              if (/^(IMG|PICTURE|VIDEO|CANVAS|SVG|svg)$/.test(part.tagName) || (partStyle.backgroundImage && partStyle.backgroundImage !== 'none')) imageBehind = true;
+              if (partStyle.backgroundColor && partStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                backgrounds.push(partStyle.backgroundColor);
+                layers.push({ color: partStyle.backgroundColor, opacity: Number(partStyle.opacity) });
+              }
+            }
+          }
+        }
         opacity *= Number(nodeStyle.opacity);
         layers.push({ color: nodeStyle.backgroundColor, opacity: Number(nodeStyle.opacity) });
         if (backgroundExposed) {
@@ -387,6 +452,7 @@ export function observeSequence(page) {
     for (const element of document.querySelectorAll('body *')) {
       if (element.children.length || !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const label = element.textContent.trim();
+      if (element.closest('nav[aria-label*="pag" i], [role="navigation"][aria-label*="pag" i]')) continue;
       const match = /^(?:(STEP)\s*(\d{1,3})|(0\d|[1-9]\d?))[.?:]?$/i.exec(label);
       if (!match) continue;
       const box = element.getBoundingClientRect();
@@ -492,11 +558,19 @@ async function stateStyles(locator) {
   }, STATE_PROPERTIES);
 }
 
+async function childStateStyles(locator) {
+  return locator.evaluate((element, properties) => [...element.querySelectorAll('*')].map((child) => {
+    const style = getComputedStyle(child);
+    return { tag: child.tagName.toLowerCase(), styles: properties.map((property) => style[property]) };
+  }), STATE_PROPERTIES);
+}
+
 // Hover moves the mouse over the subject; focus sets keyboard modality first
 // so :focus-visible applies, as it does for a keyboard user. Both wait out
 // the shared transition before reading the styles.
 async function enterState(page, target, state, timeout) {
   const before = await stateStyles(target);
+  const childrenBefore = await childStateStyles(target);
   if (state === 'focus') {
     await page.keyboard.press('Shift');
     await target.focus({ timeout });
@@ -505,13 +579,16 @@ async function enterState(page, target, state, timeout) {
   }
   await page.waitForTimeout(450);
   const after = await stateStyles(target);
+  const childrenAfter = await childStateStyles(target);
+  const childChanges = childrenAfter.filter((child, index) => childrenBefore[index]
+    && child.styles.some((value, property) => value !== childrenBefore[index].styles[property])).map((child) => child.tag);
   if (state === 'focus') await target.evaluate((element) => element.blur());
   await page.mouse.move(0, 0);
   await page.waitForTimeout(state === 'focus' ? 0 : 300);
-  return { before, after };
+  return { before, after, childChanges };
 }
 
-async function observeInteraction(page, check, timeout) {
+export async function observeInteraction(page, check, timeout) {
   if (!check.subject) {
     const all = page.locator('a[href], button, [role="button"]');
     const items = [];
@@ -553,7 +630,8 @@ async function pageMetrics(page) {
       let inScroller = false;
       while (scroller && scroller !== document.body) {
         const overflowX = getComputedStyle(scroller).overflowX;
-        if (overflowX === 'auto' || overflowX === 'scroll') {
+        const scrollerRight = scroller.getBoundingClientRect().right + window.scrollX;
+        if (overflowX === 'auto' || overflowX === 'scroll' || ((overflowX === 'hidden' || overflowX === 'clip') && scrollerRight <= viewportWidth + 1)) {
           inScroller = true;
           break;
         }
@@ -619,12 +697,97 @@ export function layoutFingerprint(page) {
   });
 }
 
+// Scroll-triggered reveals keep below-the-fold blocks at opacity 0 until they
+// enter the viewport. A user scrolls; the audit must too. Walk the page one
+// viewport at a time so IntersectionObservers fire, return to the top, then
+// wait until every running animation and transition has finished, so checks
+// measure the settled page rather than a block caught mid-fade.
+export async function settleScrollReveals(page, { stepMs = 120, maxMs = 15000 } = {}) {
+  return page.evaluate(async ({ stepMs, maxMs }) => {
+    const started = performance.now();
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    const step = Math.max(200, Math.floor(window.innerHeight * 0.8));
+    let y = 0;
+    let steps = 0;
+    while (performance.now() - started < maxMs) {
+      const bottom = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0) - window.innerHeight;
+      if (y >= bottom) break;
+      y = Math.min(y + step, bottom);
+      window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+      steps += 1;
+      await frame();
+      await sleep(stepMs);
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    await frame();
+    await frame();
+    const running = () => document.getAnimations().filter((animation) => {
+      if (animation.playState !== 'running') return false;
+      const timing = animation.effect?.getComputedTiming?.();
+      // An infinite loop (marquee, spinner) never settles; it is not a reveal.
+      return !(timing && timing.iterations === Infinity);
+    });
+    let pending = running();
+    while (pending.length && performance.now() - started < maxMs) {
+      await Promise.race([Promise.all(pending.map((animation) => animation.finished.catch(() => undefined))), sleep(500)]);
+      pending = running();
+    }
+    await frame();
+    return { steps, settled: pending.length === 0, waitedMs: Math.round(performance.now() - started) };
+  }, { stepMs, maxMs });
+}
+
+export async function freezeAnimations(page) {
+  return page.evaluate(() => {
+    if (window.__devupFrozenMotion) return window.__devupFrozenMotion.report;
+    const animations = document.getAnimations().filter((animation) => animation.playState === 'running' || animation.pending);
+    const saved = animations.map((animation) => ({ animation, currentTime: animation.currentTime, playState: animation.playState }));
+    const selector = (element) => {
+      if (!(element instanceof Element)) return '(unknown target)';
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const parts = [];
+      while (element && element !== document.documentElement) {
+        const siblings = [...element.parentElement.children];
+        parts.unshift(`${element.localName}:nth-child(${siblings.indexOf(element) + 1})`);
+        element = element.parentElement;
+      }
+      return `html > ${parts.join(' > ')}`;
+    };
+    const selectors = [...new Set(animations.map((animation) => selector(animation.effect?.target)))];
+    for (const animation of animations) {
+      animation.pause();
+      animation.currentTime = 0;
+    }
+    const style = document.createElement('style');
+    style.textContent = '*,*::before,*::after{transition-property:none!important;transition-duration:0s!important;transition-delay:0s!important}';
+    document.documentElement.append(style);
+    const report = { count: selectors.length, selectors, animationCount: animations.length };
+    window.__devupFrozenMotion = { saved, style, report };
+    return report;
+  });
+}
+
+export async function restoreAnimations(page) {
+  await page.evaluate(() => {
+    const frozen = window.__devupFrozenMotion;
+    if (!frozen) return;
+    frozen.style.remove();
+    for (const { animation, currentTime, playState } of frozen.saved) {
+      animation.currentTime = currentTime;
+      if (playState === 'running') animation.play();
+    }
+    delete window.__devupFrozenMotion;
+  });
+}
+
 async function waitReady(page, plan, timeout) {
   await waitStylesStable(page).catch(() => null);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => undefined)));
   });
+  await settleScrollReveals(page).catch(() => null);
   if (plan.readiness?.selector) {
     await page.locator(plan.readiness.selector).first().waitFor({ state: 'visible', timeout: plan.readiness.timeoutMs ?? timeout });
   }
@@ -753,6 +916,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         }
         reached = true;
         record.url = page.url();
+        record.frozenAnimations = await freezeAnimations(page);
         const layoutBefore = await layoutFingerprint(page);
         const metrics = await pageMetrics(page);
         if (metrics.viewportWidth !== viewport.width) {
@@ -767,7 +931,12 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           if (check.kind === 'view-transition') continue;
           if (Array.isArray(check.widths) && check.widths.length && !check.widths.includes(viewport.width)) continue;
           const item = { index, kind: check.kind, label: check.label };
+          if (check.unavailableReason) {
+            record.checks.push({ ...item, status: check.unavailableReason.startsWith('not-run:') ? 'not-run' : 'inconclusive', reason: check.unavailableReason, measured: {} });
+            continue;
+          }
           if (check.kind === 'links-resolve') continue;
+          try {
           if (check.kind === 'page-health') {
             const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
             const errors = environmentErrors
@@ -853,7 +1022,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
               second = await freshLoad({
                 browser, contextOptions, url: page.url(), timeout: stepTimeout,
                 install: (fresh) => guardOrigins(fresh, allowed, blocked),
-                ready: (fresh) => waitReady(fresh, plan, stepTimeout),
+                 ready: async (fresh) => { await waitReady(fresh, plan, stepTimeout); await freezeAnimations(fresh); },
               });
             } catch (error) {
               reloadError = String(error?.message ?? error).split('\n')[0];
@@ -862,20 +1031,21 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             continue;
           }
           if (check.kind === 'rendered-completeness') {
-            record.checks.push({ ...item, ...evaluateRenderedCompleteness(check.completeness, await observeCompleteness(page, check.completeness, viewport.width)) });
+            const observed = await observeCompleteness(page, check.completeness, viewport.width);
+            const frame = screen.figma?.frames?.find((frame) => frame.width === viewport.width);
+            const result = evaluateRenderedCompleteness(check.completeness, observed);
+            if (frame?.height && observed.pageHeight < frame.height) {
+              result.status = 'fail';
+              result.reason = `the page is ${observed.pageHeight}px tall, shorter than the ${frame.height}px drawn frame`;
+            }
+            record.checks.push({ ...item, ...result });
             continue;
           }
           if (check.kind === 'no-clipped-text') {
             record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
             continue;
           }
-          if (check.kind === 'interaction') {
-            const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
-            record.checks.push({ ...item, ...(observed.error
-              ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
-              : evaluateInteraction(check, observed)) });
-            continue;
-          }
+          if (check.kind === 'interaction') continue;
           if (check.kind === 'capture') {
             const target = locate(page, check.subject);
             const count = await target.count();
@@ -884,7 +1054,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
               continue;
             }
             const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-c${index}.png`;
-            const bytes = await target.screenshot({ animations: 'disabled', caret: 'hide' });
+            const bytes = await target.screenshot({ animations: 'allow', caret: 'hide' });
             await writeFile(join(out, shot), bytes);
             record.checks.push({ ...item, status: 'pass', reason: 'captured for the server to compare with its Figma render', measured: {}, screenshot: { path: shot, sha256: sha256(bytes), bytes: bytes.length } });
             continue;
@@ -902,12 +1072,19 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
                 containerCount: container.count,
               }, references.find((r) => r.screen === screen.id && r.check === index && r.viewportWidth === viewport.width));
           record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+          } catch (error) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: `measurement unavailable at ${screen.id}/${viewport.width}/check ${index}: ${String(error?.message ?? error).split('\n')[0]}`, measured: {} });
+          }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
+        const frame = screen.figma?.drawnWidths?.includes(viewport.width)
+          ? screen.figma.frames?.find((frame) => frame.width === viewport.width)
+          : undefined;
+        const captureHeight = frame?.height ? Math.min(metrics.fullHeight, frame.height) : metrics.fullHeight;
         const bytes = await page.screenshot({
           fullPage: true,
-          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: metrics.fullHeight },
-          animations: 'disabled',
+          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: captureHeight },
+          animations: 'allow',
           caret: 'hide',
         });
         await writeFile(join(out, name), bytes);
@@ -917,6 +1094,14 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         const layoutAfter = await layoutFingerprint(page).catch(() => null);
         if (layoutAfter !== layoutBefore) {
           environmentErrors.push({ kind: 'layout-unstable', message: `${screen.id}: layout changed between measurement and screenshot` });
+        }
+        await restoreAnimations(page);
+        for (const [index, check] of screen.checks.entries()) {
+          if (check.kind !== 'interaction' || check.unavailableReason || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
+          const observed = await observeInteraction(page, check, stepTimeout).catch((error) => ({ subjectCount: 1, error: String(error?.message ?? error) }));
+          record.checks.push({ index, kind: check.kind, label: check.label, ...(observed.error
+            ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
+            : evaluateInteraction(check, observed)) });
         }
         // Links on this page, so a dynamic route ([slug]) can be audited at the
         // URLs the site itself links to.
@@ -959,6 +1144,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         if (!invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) throw error;
         notMeasured('inconclusive', record.reason);
       } finally {
+        await restoreAnimations(page).catch(() => {});
         environmentErrors.push(...await readServerLog());
         if (invalidateReloadedScreen(record, environmentErrors.slice(errorsAtStart))) reached = false;
       }
