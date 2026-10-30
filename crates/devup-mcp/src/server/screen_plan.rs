@@ -32,6 +32,7 @@ include!("screen_plan/routes.rs");
 include!("screen_plan/app_select.rs");
 include!("screen_plan/draft.rs");
 include!("screen_plan/actions.rs");
+include!("screen_plan/status_action.rs");
 include!("screen_plan/audit_base_url.rs");
 include!("screen_plan/remap.rs");
 include!("screen_plan/status.rs");
