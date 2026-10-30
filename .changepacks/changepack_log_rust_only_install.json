@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor"
+  },
+  "note": "Add `devup-mcp --install`: copy the binary to a fixed per-user path and register it in opencode, Claude Code and Codex without a launcher script. Default write root is now the enclosing git checkout instead of the start directory.",
+  "date": "2026-10-20T00:00:00+09:00"
+}
