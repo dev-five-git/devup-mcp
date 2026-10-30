@@ -73,7 +73,14 @@ impl DevupServer {
             mismatch["comparison"] = json!({"method":"drawn-width-majority","pixelComparison":"unverified","decision":"use expected master as one responsive component"});
             if let [suspect, correct] = render_bytes.as_slice() {
                 match devup_mcp_visual::compare_png_bytes(correct, suspect, &devup_mcp_visual::CompareOptions::default(), false) {
-                    Ok((report, _)) => mismatch["comparison"]["pixelComparison"] = serde_json::to_value(report).map_err(|error|DevupError::new(ErrorCode::DevupInvalidInput,error.to_string(),false))?,
+                    Ok((report, _)) => {
+                        let comparable = report.status != devup_mcp_visual::VisualStatus::InvalidDimensions;
+                        mismatch["comparison"]["pixelComparison"] = serde_json::to_value(report).map_err(|error|DevupError::new(ErrorCode::DevupInvalidInput,error.to_string(),false))?;
+                        mismatch["comparison"]["pixelVerdict"] = json!(if comparable { "compared" } else { "inconclusive" });
+                        if !comparable {
+                            mismatch["comparison"]["pixelReason"] = json!("the two renders have different dimensions, so no pixels were compared");
+                        }
+                    }
                     Err(error) => mismatch["comparison"]["renderError"] = json!(error.to_string()),
                 }
             }

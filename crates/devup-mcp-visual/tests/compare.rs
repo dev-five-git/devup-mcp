@@ -59,7 +59,7 @@ fn exact_and_changed_pngs_report_deterministic_metrics_and_diff() -> anyhow::Res
     assert_eq!(report.status, VisualStatus::Mismatch);
     assert_eq!(report.changed_pixels, 2);
     assert_eq!(report.total_pixels, 8);
-    assert_eq!(report.changed_ratio, 0.25);
+    assert_eq!(report.changed_ratio, Some(0.25));
     assert!(diff.exists());
     std::fs::remove_dir_all(root)?;
     Ok(())
@@ -86,6 +86,10 @@ fn tolerance_and_dimension_mismatch_are_explicit() -> anyhow::Result<()> {
     let mismatch = compare_png(&reference, &actual, &CompareOptions::default())?;
     assert_eq!(mismatch.status, VisualStatus::InvalidDimensions);
     assert!(!mismatch.passed());
+    assert_eq!(mismatch.total_pixels, 0);
+    assert_eq!(mismatch.changed_ratio, None);
+    let json = serde_json::to_value(&mismatch)?;
+    assert!(json["changedRatio"].is_null(), "{json}");
     std::fs::remove_dir_all(root)?;
     Ok(())
 }
@@ -110,7 +114,7 @@ fn memory_comparison_returns_red_diff_without_writing_a_path() -> anyhow::Result
         },
         true,
     )?;
-    assert_eq!(report.changed_ratio, 0.5);
+    assert_eq!(report.changed_ratio, Some(0.5));
     assert!(report.passed());
     assert!(report.diff_path.is_none());
     let decoded =

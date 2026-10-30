@@ -15,6 +15,18 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             json!({"planId": plan_id, "currentPlanId": plan["planId"]}),
         ));
     }
+    if plan["status"] == "confirmed" && input.answers.is_empty() {
+        return Ok(json!({
+            "status": "confirmed",
+            "alreadyConfirmed": true,
+            "planId": plan["planId"],
+            "confirmedAt": plan["confirmedAt"],
+            "routes": plan["routes"],
+            "markdownTable": route_markdown(array(&plan["routes"])),
+            "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "status", "projectRoot": root, "planId": plan_id},
+                "how": "Nothing changed. The plan was confirmed before; continue implementation from its status."},
+        }));
+    }
     let mut questions = array(&plan["questions"]).to_vec();
     let ordered = questions.clone();
     questions.sort_by_key(|question| depth(question, &ordered));

@@ -517,9 +517,20 @@ pub(super) async fn draft_with(
     }
     plan["maxQuestionsPerRound"] = json!(per_round);
     plan["createdAt"] = json!(now());
-    let replaced = read_plan(root)
-        .ok()
-        .flatten()
+    let previous_plan = read_plan(root).ok().flatten();
+    // Earlier ids stay resolvable, so a call that still carries one is told
+    // which draft superseded it instead of only that it does not match.
+    if let Some(previous) = &previous_plan {
+        let mut ids = array(&previous["previousPlanIds"]).to_vec();
+        if previous["planId"].is_string() && previous["planId"] != plan["planId"] {
+            ids.push(previous["planId"].clone());
+        }
+        ids.retain(|id| *id != plan["planId"]);
+        ids.dedup();
+        let keep = ids.len().saturating_sub(20);
+        plan["previousPlanIds"] = json!(ids[keep..]);
+    }
+    let replaced = previous_plan
         .filter(|previous| previous["status"] == "confirmed")
         .map(|previous| previous["planId"].clone());
     let written = write_plan(policy, root, &plan)?;
