@@ -426,9 +426,13 @@ fn plan_route_group(context: RouteGroupPlanning<'_, '_>, index: usize, screen: &
                 json!({}),
             ));
         }
+        // A state lives on a page no more specific than itself, and the
+        // (word count, index) order is strict, so two screens can never be
+        // offered as each other's host.
         let state_host = page_screens
             .iter()
             .filter(|other| **other != index)
+            .filter(|other| (drafts[**other].words.len(), **other) < (screen.words.len(), index))
             .map(|other| &drafts[*other])
             .map(|host| {
                 let shared = host
