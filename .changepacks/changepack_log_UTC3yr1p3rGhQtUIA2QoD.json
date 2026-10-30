@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "screen plan: a stale planId names the current plan, its status and the next call; repeated confirm is a no-op; State-on hosts are never more specific or mutual; invalid-dimensions comparisons report changedRatio null and are inconclusive",
-  "date": "2026-10-30T05:25:31.948013300Z"
-}

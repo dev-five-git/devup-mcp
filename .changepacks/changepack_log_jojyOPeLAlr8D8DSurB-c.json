@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "screen plan follows the final design page: state-variant frames fold into their route, remap moves routes to a newer frame; runtime audit treats overflow:auto scrollers as reachable when headless Chromium hides scrollbars",
-  "date": "2026-10-22T08:15:22.677086Z"
-}

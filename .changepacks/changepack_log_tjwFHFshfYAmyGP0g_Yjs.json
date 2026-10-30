@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Minor"
-  },
-  "note": "Devup Bridge sends its current scripts to an open plugin with older scripts (scripts-update); the plugin swaps them in and reports the new hash without being closed and re-run",
-  "date": "2026-10-27T16:24:15.116555200Z"
-}
