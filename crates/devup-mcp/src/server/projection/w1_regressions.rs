@@ -1,6 +1,8 @@
 
 include!("design_drift_tests.rs");
 include!("feedback_theme_tests.rs");
+include!("feedback_codegen_tests.rs");
+include!("feedback_delivery_tests.rs");
 use super::super::artifacts::ArtifactRequestKey;
 use super::*;
 use devup_mcp_figma::{CollectionRequest, CollectionScope};
@@ -447,10 +449,9 @@ async fn r13_frame_output_paths_report_unsupported_and_write_supported_keys() {
             .unwrap()
             .contains(&json!("frame:1:1:tsx"))
     );
-    assert_eq!(
-        std::fs::read_to_string(&target).unwrap(),
-        result["frames"][0]["tsx"].as_str().unwrap()
-    );
+    assert!(!std::fs::read_to_string(&target).unwrap().is_empty());
+    assert!(result["frames"][0].get("tsx").is_none());
+    assert_eq!(result["frames"][0]["outputResults"]["tsx"]["bodyDelivery"], "written-to-file");
     assert_eq!(
         result["outputPaths"]["frame:1:1:tsx"],
         expected.to_string_lossy().as_ref()
@@ -766,7 +767,7 @@ async fn r2_production_six_frames_return_valid_story_tsx() {
         "story pre-guard excluded path {path}; referenced={}",
         generated.tsx.contains(&path)
     );
-    let mut op = operation(&["tsx", "assetManifest"]);
+    let mut op = operation(&["tsx"]);
     if let PendingOperation::Export {
         frame_ids,
         include_diagnostics,

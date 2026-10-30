@@ -48,7 +48,7 @@ checkbox/radio toggling and application wiring; report those counts by their sco
    If no route or action is established, ask for the destination or authorization
    to create the required route before wiring it.
 4. Wrap devup-ui layout with Link: `<Link href={confirmedRoute}><Flex>…</Flex></Link>`.
-   Do not assume `as={Link}` accepts `href`; that pattern can fail with TS2322.
+   States (`_hover`, `_focusVisible`, `_active`) must sit on the element that renders as the link, never on a child of `<Link>`: a child never receives focus. Prefer `<Text as={Link} props={{ href, 'aria-current': active ? 'page' : undefined }} _hover={...} _focusVisible={...}>`; with a custom `as` component its own props (href, aria-*, onClick) go inside `props={{ }}`, at top level they fail with TS2769 (or TS2322). Do not move states into `css()` classNames. `devup_ui_validate` reports `focus-on-non-focusable` (error) and `hover-on-child` (warning).
    A card link that must grow can use `style={{ flex: 1 }}` on Link. Calculate active
    navigation from `usePathname` in a small client component while preserving
    surrounding Server Components. Selected/disabled form state must use real state.
@@ -397,9 +397,19 @@ export function Card() {
 
 ### Required Verification
 
+Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
+Never fix JSX prop order, import sorting or formatting errors by hand.
+Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
+
+**Formatter ownership:** this template has no standalone prettier config.
+Formatting is owned by eslint-plugin-devup's `devup(prettier)` rule inside oxlint.
+Do not run `bunx prettier --write` or biome: their defaults produce a different
+style (semicolons and double quotes), undoing the project's lint formatting.
+
 ```bash
-bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
+bun run lint:fix              # FIRST: fixes JSX prop order, formatting, imports; never hand-edit those
 bunx oxlint --deny-warnings   # warnings count: keep them at 0
+bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
 bun tsc --noEmit              # inside the app you changed (TS 7)
 bun test
 bun run build                 # vinext build for every app

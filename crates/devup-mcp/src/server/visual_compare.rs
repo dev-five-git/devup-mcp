@@ -548,6 +548,7 @@ mod tests {
         let mismatch = run(i.clone(), &f.policy(), &store).await.unwrap();
         assert_eq!(mismatch["verdict"], "fail");
         assert_eq!(mismatch["visual"]["changedRatio"], 1.0);
+        assert_eq!(mismatch["visual"]["totalPixels"], 1);
         f.png("actual.png", WIDE);
         assert!(
             run(i.clone(), &f.policy(), &store)

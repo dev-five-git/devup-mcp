@@ -2,6 +2,91 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied } from '../checks.mjs';
 import { observeSequence, observeSectionLayout, observeClippedContent, observeStylesApplied, runPlan } from '../run.mjs';
+import { observeInteraction } from '../run.mjs';
+import { evaluateInteraction } from '../checks.mjs';
+import { observeCompleteness } from '../run.mjs';
+
+test('geometry freezes marquee at its start and restores animation and transitions', async () => {
+  const { freezeAnimations, restoreAnimations } = await import('../run.mjs');
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>@keyframes slide{to{transform:translateX(-200px)}}#track{animation:slide 10s linear infinite;transition:color .2s}</style><div id="track">Marquee</div>');
+    await page.evaluate(() => { const animation = document.getAnimations()[0]; animation.currentTime = 5000; });
+    assert.ok((await page.locator('#track').boundingBox()).x < 0);
+    const frozen = await freezeAnimations(page);
+    assert.equal(frozen.count, 1);
+    assert.deepEqual(frozen.selectors, ['#track']);
+    assert.equal((await page.locator('#track').boundingBox()).x, 8);
+    assert.equal(await page.locator('#track').evaluate((e) => getComputedStyle(e).transitionDuration), '0s');
+    await restoreAnimations(page);
+    assert.equal(await page.evaluate(() => document.getAnimations()[0].playState), 'running');
+    assert.equal(await page.locator('#track').evaluate((e) => getComputedStyle(e).transitionDuration), '0.2s');
+  } finally { await browser.close(); }
+});
+
+test('runner measures an infinite marquee at rest and declares frozen targets', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const server = createServer((request, response) => {
+    response.setHeader('content-type', 'text/html');
+    response.end('<style>body{margin:0}@keyframes slide{to{transform:translateX(-200px)}}#track{width:200px;height:40px;animation:slide 10s linear infinite}</style><main><div id="track">Marquee</div></main><script>document.getAnimations()[0].currentTime=5000</script>');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = await mkdtemp(join(tmpdir(), 'devup-marquee-'));
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const path = join(dir, 'plan.json');
+    await writeFile(path, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'marquee', plan: { baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 390, height: 900 }], screens: [{ id: 'home', routePath: '/', checks: [{ kind: 'bounds', subject: { css: '#track' }, container: { css: 'main' }, expected: { x: 0, y: 0, width: 200, height: 40 } }] }] } }));
+    const report = await runPlan({ plan: path, out: join(dir, 'out'), maxMinutes: 1 });
+    const screen = report.runs[0].screens[0];
+    assert.equal(screen.checks[0].status, 'pass', JSON.stringify(screen));
+    assert.deepEqual(screen.frozenAnimations.selectors, ['#track']);
+    assert.equal(screen.frozenAnimations.count, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('decorative and marquee contrast is excluded without hiding ordinary animated text', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    await page.setContent('<style>@keyframes slide{to{transform:translateX(-50%)}}@keyframes fade{to{opacity:.8}}.track{width:2000px;animation:slide 10s linear infinite}</style><div aria-hidden="true">hidden</div><div role="presentation"><span>decoration</span></div><div style="overflow:hidden;width:300px"><div class="track"><span>marquee</span></div></div><p style="animation:fade 1s infinite">ordinary</p>');
+    const observed = await observeCompleteness(page, {}, 390);
+    assert.deepEqual(observed.texts.map((item) => item.text), ['ordinary']);
+    assert.deepEqual((await observeClippedContent(page)).clipped, []);
+  } finally { await browser.close(); }
+});
+
+test('browser sequence separates descending notices and pagination from numbered cards', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<main><section><div>6</div><div>5</div><div>4</div></section><nav aria-label="Pagination"><a href="?page=12">12</a><a href="?page=1">1</a><a href="?page=2">2</a></nav></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+    await page.setContent('<main><section style="display:flex"><span style="position:relative;top:1px">06</span><span>05</span><span style="position:relative;top:2px">04</span></section></main>');
+    assert.equal(evaluateSequenceOrder(await observeSequence(page)).status, 'pass');
+  } finally { await browser.close(); }
+});
+
+test('browser interaction reports hover styles on a child of the focusable link', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>a{color:black}span:hover{color:red}</style><a href="/company"><span>Company</span></a>');
+    const observed = await observeInteraction(page, { state: 'hover' }, 1000);
+    assert.deepEqual(observed.items[0].childChanges, ['span']);
+    assert.match(evaluateInteraction({ state: 'hover' }, observed).reason, /state styles are on a child/);
+  } finally { await browser.close(); }
+});
 
 test('numbered cards and STEP labels in one <main> are judged as two sequences', async () => {
   const { chromium } = await import('playwright');
@@ -21,8 +106,11 @@ test('numbered cards and STEP labels in one <main> are judged as two sequences',
   } finally { await browser.close(); }
 });
 
-test('numbered labels that form no sequence are inconclusive, not a pass', () => {
-  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'inconclusive');
+test('numbered labels that form no sequence are not applicable', () => {
+  assert.equal(evaluateSequenceOrder({ labels: 3, ungrouped: 3, groups: [] }).status, 'pass');
+  const at = (number, y) => ({ number, name: String(number), x: 0, y });
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(30, 0), at(4, 10), at(3, 20)]] }).status, 'pass');
+  assert.equal(evaluateSequenceOrder({ labels: 3, groups: [[at(6, 0), at(5, 10), at(4, 20)]] }).status, 'pass');
   assert.equal(evaluateSequenceOrder({ labels: 0, ungrouped: 0, groups: [] }).status, 'pass');
 });
 
@@ -88,6 +176,25 @@ test('internal nav and thumbnail clipping fails even without page overflow', asy
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 858);
     await page.setContent('<div><button aria-label="Next">Next</button><div data-audit-carousel="true" style="width:200px;overflow:auto"><div style="width:600px">Thumbnails</div></div></div>');
     assert.equal((await observeClippedContent(page)).clipped.length, 0);
+    // Headless Chromium draws no scrollbar gutter, yet a user's browser shows
+    // one on a plain overflow:auto tab strip, so it stays reachable content.
+    await page.setContent('<nav id="tabs" style="width:300px;overflow-x:auto"><div style="width:700px;white-space:nowrap">Tabs</div></nav>');
+    assert.equal((await observeClippedContent(page)).clipped.length, 0);
+  } finally { await browser.close(); }
+});
+
+test('a decorative fill layer cropping its image is not clipped content', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 858, height: 900 } });
+  const svg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>";
+  try {
+    const layer = (alt) => `<section style="position:relative;height:200px"><div id="layer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:-1"><img alt="${alt}" src="${svg}" style="display:block;width:100%;height:110%"></div></section>`;
+    await page.setContent(layer(''));
+    assert.equal((await observeClippedContent(page)).clipped.length, 0);
+    // A meaningful image cut off by its box is still reported.
+    await page.setContent(layer('Product photo'));
+    assert.deepEqual((await observeClippedContent(page)).clipped.map((item) => item.name), ['layer']);
   } finally { await browser.close(); }
 });
 
@@ -138,4 +245,37 @@ test('390px header navigation clipping fails until the narrow menu replaces it',
     await page.setContent('<header><button aria-expanded="false" aria-controls="drawer">Menu</button><nav id="drawer" hidden><a href="/">Home</a><a href="/company">Company</a></nav></header>');
     assert.equal((await observeClippedContent(page)).clipped.length,0);
   } finally {await browser.close();}
+});
+
+test('scroll reveals are walked and settled before section visibility is judged', async () => {
+  const { settleScrollReveals } = await import('../run.mjs');
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.setContent(`<body style="margin:0"><main>
+      <section style="height:900px">Hero</section>
+      <section id="late" style="height:600px;opacity:0;transform:translateY(24px);transition:opacity .4s ease,transform .4s ease">About</section>
+      <div style="animation:spin 1s linear infinite">loop</div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      <script>
+        const late = document.getElementById('late');
+        new IntersectionObserver(([entry], io) => {
+          if (!entry.isIntersecting) return;
+          late.style.opacity = '1';
+          late.style.transform = 'none';
+          io.disconnect();
+        }).observe(late);
+      </script>
+    </main></body>`);
+    const before = await observeSectionLayout(page, { css: '#late' }, { css: 'main' });
+    assert.equal(before.sections[0].visible, false);
+    const settled = await settleScrollReveals(page);
+    assert.ok(settled.steps > 0, JSON.stringify(settled));
+    assert.equal(settled.settled, true, 'an infinite loop must not keep the wait open');
+    assert.equal(await page.evaluate(() => scrollY), 0);
+    const after = await observeSectionLayout(page, { css: '#late' }, { css: 'main' });
+    assert.equal(after.sections[0].visible, true);
+    assert.equal(evaluateSectionLayout(after).status, 'pass');
+  } finally { await browser.close(); }
 });

@@ -19,12 +19,17 @@ impl Drop for TestDir {
     }
 }
 use super::*;
+mod feedback;
+mod contracts;
+mod inference;
+mod recovery;
 fn input(root: &Path, action: &str) -> ProjectPlanInput {
     serde_json::from_value(json!({"action":action,"projectRoot":root})).unwrap()
 }
 async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Value) {
     let policy = OutputPolicy::from_roots(vec![root.to_path_buf()]).unwrap();
     let mut i = input(root, "intake");
+    i.detail = Some("full".into());
     i.evidence = vec![serde_json::from_str(include_str!("../../../tests/fixtures/project-plan/figma.json")).unwrap()];
     let r = run(&i, &policy).await.unwrap();
     i.plan_id = r["planId"].as_str().map(str::to_owned);
@@ -47,6 +52,7 @@ async fn drafted(root: &Path, api: bool) -> (ProjectPlanInput, OutputPolicy, Val
         scope: "Post authoring".into(),
         screens: vec!["Post list".into()],
         acceptance: vec!["Authenticated authors publish posts".into()],
+        entities: vec![],
     }];
     i.evidence.push(serde_json::from_value(json!({"source":"repo defaults","facts":{
         "goal":"Source defaults cannot replace the selected goal",
@@ -191,7 +197,7 @@ async fn split_three_issues_preserves_dag_and_briefs() {
     i.action = "split".into();
     i.answers.clear();
     let r = run(&i, &policy).await.unwrap();
-    assert_eq!(array(&r["plan"]["units"]).len(), 3);
+    assert_eq!(array(&r["plan"]["units"]).len(), 4);
     assert_eq!(r["plan"]["units"][2]["dependencies"], json!(["DEV-2"]));
     let brief = std::fs::read_to_string(dir.path().join(".devup/units/DEV-3.md")).unwrap();
     for required in [
@@ -216,16 +222,17 @@ async fn feature_split_and_decisions_and_state_gates() {
     i.action = "split".into();
     i.answers.clear();
     let r = run(&i, &policy).await.unwrap();
-    assert_eq!(array(&r["plan"]["units"]).len(), 5);
+    assert_eq!(array(&r["plan"]["units"]).len(), 4);
     assert_eq!(
-        r["plan"]["units"][4]["dependencies"],
-        json!(["posts-client"])
+        r["plan"]["units"][2]["dependencies"],
+        json!(["model-post"])
     );
     i.action = "status".into();
     i.unit_updates.push(UnitUpdate {
-        id: "posts-api".into(),
+        id: "posts-domain".into(),
         state: "running".into(),
         verification: vec![],
+        ..Default::default()
     });
     assert!(run(&i, &policy).await.is_err());
     i.unit_updates.clear();
@@ -235,6 +242,8 @@ async fn feature_split_and_decisions_and_state_gates() {
         reason: "Destructive cleanup".into(),
         recommended: "Keep data".into(),
         destructive: true,
+        state: None,
+        kind: None,
     });
     run(&i, &policy).await.unwrap();
     i.action = "assume".into();
@@ -246,4 +255,132 @@ async fn feature_split_and_decisions_and_state_gates() {
     i.action = "status".into();
     i.plan_id = Some("stale".into());
     assert!(run(&i, &policy).await.is_err());
+}
+fn kept(decisions: &Value, id: &str) -> bool {
+    array(decisions)
+        .iter()
+        .any(|d| d["id"] == id && d["state"] == "pending")
+}
+fn decision(id: &str) -> Decision {
+    Decision {
+        id: id.into(),
+        reason: "Needs the user".into(),
+        recommended: "Keep".into(),
+        destructive: false,
+        state: None,
+        kind: None,
+    }
+}
+#[tokio::test]
+async fn draft_keeps_decisions() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    i.action = "draft".into();
+    i.answers.clear();
+    i.decisions = vec![decision("d-draft")];
+    let r = run(&i, &policy).await.unwrap();
+    assert!(kept(&r["plan"]["decisions"], "d-draft"));
+}
+#[tokio::test]
+async fn confirm_keeps_decisions() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    i.decisions = vec![decision("d-confirm")];
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["state"], "confirmed");
+    assert!(kept(&r["plan"]["decisions"], "d-confirm"));
+}
+#[tokio::test]
+async fn status_works_without_plan_id_and_next_action_follows_confirm() {
+    let dir = TestDir::new();
+    let (i, policy, _) = drafted(dir.path(), false).await;
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(r["nextAction"]["arguments"]["action"], "split");
+    let mut status = i.clone();
+    status.action = "status".into();
+    status.plan_id = None;
+    status.answers.clear();
+    let r = run(&status, &policy).await.unwrap();
+    assert_eq!(r["plan"]["state"], "confirmed");
+}
+#[test]
+fn no_erd_questions_when_entities_are_empty() {
+    let plan = json!({"facts":{"parts":"front + admin + API"},"entities":[],"issues":[],
+        "features":[{"id":"news","scope":"News list","screens":["List"],"acceptance":[]}]});
+    let questions = rounds::detail(&plan, &[]).unwrap();
+    assert!(questions.iter().all(|q| q["id"] != "erd" && q["id"] != "tenancy"));
+}
+#[test]
+fn question_headers_have_no_leading_colon() {
+    for q in rounds::intake(&json!({})) {
+        assert!(!text(&q["header"]).starts_with(':'), "{}", q["header"]);
+    }
+}
+
+#[tokio::test]
+async fn status_lists_open_screen_plan_questions_in_the_proposal() {
+    let dir = TestDir::new();
+    let (i, policy, _) = drafted(dir.path(), false).await;
+    let mut status = i.clone();
+    status.action = "status".into();
+    status.answers.clear();
+    std::fs::create_dir_all(dir.path().join(".devup")).unwrap();
+    std::fs::write(
+        dir.path().join(".devup/screen-plan.json"),
+        json!({"kind":"devup-screen-plan","schemaVersion":1,"state":"draft","questions":[
+            {"id":"route:9:1","header":"Route","question":"Which URL?","options":[
+                {"label":"/a (Recommended)","description":"a"},{"label":"/b","description":"b"}]}
+        ]})
+        .to_string(),
+    )
+    .unwrap();
+    let r = run(&status, &policy).await.unwrap();
+    assert_eq!(r["screenPlanQuestionIds"], json!(["route:9:1"]));
+    assert!(text(&r["proposalMarkdown"]).contains("Which URL?"));
+}
+
+#[tokio::test]
+async fn api_wiring_is_checked_against_openapi() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    run(&i, &policy).await.unwrap();
+    i.action = "status".into();
+    i.answers.clear();
+    i.api_wiring = vec![ApiWiring { feature: "posts".into(), operation_id: Some("list_posts".into()), defer: false, reason: None }];
+    let r = run(&i, &policy).await.unwrap();
+    assert!(text(&r["blockers"][0]).contains("openapi.json not found"));
+    std::fs::write(dir.path().join("openapi.json"), json!({"paths":{"/posts":{"get":{"operationId":"list_posts"}}}}).to_string()).unwrap();
+    i.api_wiring.clear();
+    let r = run(&i, &policy).await.unwrap();
+    assert!(array(&r["blockers"]).is_empty());
+    assert_eq!(r["apiWiring"]["wired"][0]["operationId"], "list_posts");
+    i.api_wiring = vec![ApiWiring { feature: "posts".into(), operation_id: None, defer: true, reason: Some("fixture for now".into()) }];
+    let r = run(&i, &policy).await.unwrap();
+    assert!(text(&r["blockers"][0]).starts_with("unfinished"));
+}
+#[tokio::test]
+async fn shared_change_request_roundtrip() {
+    let dir = TestDir::new();
+    let (mut i, policy, _) = drafted(dir.path(), false).await;
+    run(&i, &policy).await.unwrap();
+    i.action = "split".into();
+    i.answers.clear();
+    run(&i, &policy).await.unwrap();
+    i.action = "status".into();
+    i.unit_updates = vec![UnitUpdate { id: "posts-front".into(), kind: Some("shared-change-request".into()), file: Some("layout.tsx".into()), reason: Some("needs nav".into()), ..Default::default() }];
+    let r = run(&i, &policy).await.unwrap();
+    assert_eq!(array(&r["sharedChangeRequests"]).len(), 1);
+    assert_eq!(r["nextAction"]["arguments"]["action"], "status");
+    i.unit_updates = vec![UnitUpdate { id: "posts-front".into(), kind: Some("shared-change-request".into()), file: Some("layout.tsx".into()), state: "resolved".into(), ..Default::default() }];
+    let r = run(&i, &policy).await.unwrap();
+    assert!(array(&r["sharedChangeRequests"]).is_empty());
+}
+#[tokio::test]
+async fn erd_required_until_confirmed() {
+    let dir = TestDir::new();
+    let (i, policy, _) = drafted(dir.path(), true).await;
+    let root = dir.path().to_string_lossy().into_owned();
+    assert!(erd_required(&root).is_some());
+    run(&i, &policy).await.unwrap();
+    assert!(erd_required(&root).is_none());
 }

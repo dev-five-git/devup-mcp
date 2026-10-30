@@ -12,6 +12,8 @@ mod explore;
 mod large_values;
 mod oauth;
 mod payload;
+mod plugin_scripts;
+pub use plugin_scripts::{PLUGIN_PROTOCOL, PLUGIN_SCRIPTS_BUNDLE, PLUGIN_SCRIPTS_HASH};
 mod resources;
 mod search;
 mod section;
@@ -63,7 +65,9 @@ pub use payload::{
 pub use resources::{
     ResourceKind, ResourceOccurrence, ResourceScope, UsedResourceRefs, collect_used_resource_refs,
 };
-pub use search::{SearchOptions, SearchResult, search_snapshot};
+pub use search::{
+    SearchOptions, SearchResult, excluded_duplicate_warnings, node_excluded_reason, search_snapshot,
+};
 pub use section::{
     BatchLimits, SectionBatch, SectionCandidate, SectionIndex, SectionSummary, build_section_index,
     plan_batches, screen_owners,

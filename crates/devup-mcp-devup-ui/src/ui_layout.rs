@@ -172,6 +172,25 @@ fn pixels(value: Option<&String>) -> Option<f64> {
         .ok()
 }
 
+fn narrow_value(value: &str) -> &str {
+    value
+        .trim()
+        .strip_prefix('[')
+        .unwrap_or(value)
+        .split(',')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .trim_matches(['\'', '"'])
+}
+
+fn hidden_narrow(element: &Element) -> bool {
+    element
+        .attrs
+        .get("display")
+        .is_some_and(|value| narrow_value(value) == "none")
+}
+
 fn fluid_width(attrs: &BTreeMap<String, String>) -> bool {
     !attrs.contains_key("boxSize") && attrs.get("w").is_none_or(|w| w == "100%")
 }
@@ -240,7 +259,7 @@ impl Collector<'_> {
             .count()
             >= 2
         {
-            self.risks.push(json!({"rule":"column-reading-order", "confidence":"medium", "elementIndex":parent.ordinal,
+            self.risks.push(json!({"rule":"column-reading-order", "confidence":"medium", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "message":"Column wrappers can collapse cards in column order (01,03,02,04). Use one Grid or flex-wrap in design reading order, or explicit breakpoint order; run sequence-order at every width."}));
         }
         let row = parent.tag == "Flex"
@@ -274,37 +293,38 @@ impl Collector<'_> {
                     + pixels(parent.attrs.get("gap")).unwrap_or(0.0)
                         * children.len().saturating_sub(1) as f64
             });
-        let mobile_alternative = parent
-            .attrs
-            .get("display")
-            .is_some_and(|value| value.contains("none"))
+        let mobile_alternative = hidden_narrow(parent)
             || parent
                 .attrs
                 .get("flexWrap")
                 .is_some_and(|value| value.contains("wrap"))
-            || direction(parent).is_some_and(|value| value.starts_with("[\"column\""));
+            || direction(parent).is_some_and(|value| narrow_value(value).starts_with("column"));
         if navigation && measured_navigation > 390.0 && !mobile_alternative {
-            self.risks.push(json!({"rule":"navigation-fit", "confidence":"high", "elementIndex":parent.ordinal,
+            self.risks.push(json!({"rule":"navigation-fit", "confidence":"high", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "contentWidth":measured_navigation, "narrowViewport":390,
                 "message":"Header navigation cannot fit a narrow container. With no mobile menu frame, propose a drawer behind a menu button below the content-fit breakpoint; verify no-clipped-content at every width."}));
         }
-        let wraps = parent
-            .attrs
-            .get("flexWrap")
-            .is_some_and(|value| value.contains("wrap"));
         let fixed_children = children
             .iter()
-            .filter(|child| pixels(child.attrs.get("w")).is_some())
+            .filter(|child| !hidden_narrow(child) && pixels(child.attrs.get("w")).is_some())
             .count();
         let wide_only = std::iter::once(parent).chain(children).any(|element| {
-            element.attrs.values().any(|value| {
-                (value.trim_start().starts_with("[null")
-                    || value.trim_start().starts_with("[undefined"))
-                    && value.contains("px")
-            })
+            !hidden_narrow(element)
+                && element.attrs.iter().any(|(name, value)| {
+                    if matches!(name.as_str(), "w" | "width" | "boxSize")
+                        && value.trim_start().starts_with('[')
+                        && !matches!(narrow_value(value), "null" | "undefined" | "")
+                        && !narrow_value(value).ends_with("px")
+                    {
+                        return false;
+                    }
+                    (value.trim_start().starts_with("[null")
+                        || value.trim_start().starts_with("[undefined"))
+                        && value.contains("px")
+                })
         });
-        if row && !wraps && (fixed_children >= 2 || wide_only) {
-            self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal,
+        if row && !mobile_alternative && (fixed_children >= 2 || wide_only) {
+            self.risks.push(json!({"rule":"narrow-fixed-columns", "confidence":"medium", "elementIndex":parent.ordinal, "byteStart":parent.start,
                 "message":"A multi-column row keeps fixed child widths without a narrow column or wrap rule. Supply narrow responsive layout props and verify section-layout, overflow and clipped text at 390/858px."}));
         }
         let width = pixels(parent.attrs.get("w"))

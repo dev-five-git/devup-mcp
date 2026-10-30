@@ -70,6 +70,9 @@ pub(crate) fn validate(
 }
 
 fn key(result: &Map<String, Value>) -> Result<String, DevupError> {
+    if result.get("responsiveTsx").is_some() {
+        return Ok("pageScaffold".into());
+    }
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         if frames.len() != 1 {
             return Err(invalid(
@@ -161,7 +164,7 @@ pub(crate) fn attach(
             .as_object_mut()
             .unwrap()
     };
-    let code = carrier.get("tsx").and_then(Value::as_str).ok_or_else(|| {
+    let code = carrier.get("responsiveTsx").or_else(|| carrier.get("tsx")).and_then(Value::as_str).ok_or_else(|| {
         invalid("pageScaffold has no generated screen; inspect projection failures.")
     })?;
     // The existing generator emits one named function. Do not split its JSX or infer hooks.
@@ -252,7 +255,7 @@ pub(crate) fn attach(
         .get_mut("outputResults")
         .and_then(Value::as_object_mut)
     {
-        if let Some(tsx) = output.get("tsx").cloned() {
+        if let Some(tsx) = output.get("responsiveTsx").or_else(|| output.get("tsx")).cloned() {
             output.insert("pageScaffold".into(), tsx);
         }
         if !keep_tsx {

@@ -15,6 +15,7 @@ pub const DEVUP_PRIMITIVE_ELEMENTS: &[&str] = &["Box", "Flex", "Text", "Center",
 /// `is_known_non_style_prop`.
 const DEVUP_NON_STYLE_PROPS: &[&str] = &[
     "as",
+    "props",
     "selectors",
     "children",
     "className",

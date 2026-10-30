@@ -117,8 +117,10 @@ pub(super) async fn apply_delivery(
                 "basis":include_str!("../text/projection-apply_delivery-e5a0fbb2.md")}});
     }
     resource_diagnostic_details(result, &mut outputs, &artifact.artifact_id)?;
+    spill_oversized_fields(result, &mut outputs, &artifact.artifact_id)?;
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
+    let output_bytes = outputs.iter().map(|output| output.bytes.len()).sum::<usize>();
     let reservation = artifact_store
         .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
@@ -237,13 +239,128 @@ pub(super) async fn apply_delivery(
         ),
     );
     // Resource promotion must also bound the final metadata envelope.
-    if let Err(error) =
+    if let Err(mut error) =
         choose_delivery_for_result(DeliveryMode::Inline, &Value::Object(result.clone()), &[])
     {
         reservation.rollback();
+        if !error.details.is_object() {
+            error.details = json!({});
+        }
+        error.details["outputBytes"] = json!(output_bytes);
         return Err(error);
     }
     Ok(Some(DeliveryAttachment { reservation }))
+}
+
+const BODY_FIELDS: [&str; 12] = [
+    "tsx",
+    "componentTsx",
+    "responsiveTsx",
+    "devupJson",
+    "rawSnapshot",
+    "rawPayload",
+    "sourceMap",
+    "designFingerprints",
+    "designChanges",
+    "assetManifest",
+    "pageScaffold",
+    "referencePng",
+];
+
+const KEPT_INLINE: [&str; 10] = [
+    "status",
+    "nextAction",
+    "resources",
+    "deliverable",
+    "artifactId",
+    "outputPaths",
+    "quality",
+    "server",
+    "metadataDelivery",
+    "envelopeOverflow",
+];
+
+const ESSENTIAL_INLINE: [&str; 6] = [
+    "status",
+    "nextAction",
+    "resources",
+    "artifactId",
+    "outputPaths",
+    "server",
+];
+
+const HANDLED_LATER: [&str; 4] = ["imageFillAudit", "imageAudit", "assetCssMap", "webReadyImages"];
+
+fn envelope_bytes(result: &Value) -> usize {
+    let mut probe = result.clone();
+    if let Some(object) = probe.as_object_mut() {
+        for field in BODY_FIELDS {
+            object.remove(field);
+        }
+    }
+    if let Some(frames) = probe.get_mut("frames").and_then(Value::as_array_mut) {
+        for frame in frames.iter_mut().filter_map(Value::as_object_mut) {
+            for field in ["tsx", "componentTsx", "sourceMap", "pageScaffold"] {
+                frame.remove(field);
+            }
+        }
+    }
+    serde_json::to_vec(&probe).map_or(0, |bytes| bytes.len())
+}
+
+fn spill_oversized_fields(
+    result: &mut Value,
+    outputs: &mut Vec<ProjectedOutput>,
+    artifact_id: &str,
+) -> Result<(), DevupError> {
+    let budget = super::delivery::MAX_INLINE_TOTAL_BYTES / 2;
+    if envelope_bytes(result) <= budget {
+        return Ok(());
+    }
+    let mut spilled = serde_json::Map::new();
+    // Second pass: when only fields kept inline remain, the final inline check
+    // would fail the whole call, so they spill too (all but a small core).
+    let mut strict = false;
+    while envelope_bytes(result) > budget {
+        let largest = result
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(key, _)| {
+                (if strict {
+                    !ESSENTIAL_INLINE.contains(&key.as_str())
+                } else {
+                    !KEPT_INLINE.contains(&key.as_str())
+                }) && !BODY_FIELDS.contains(&key.as_str())
+                    && !HANDLED_LATER.contains(&key.as_str())
+            })
+            .map(|(key, value)| (key.clone(), value.to_string().len()))
+            .max_by_key(|(_, bytes)| *bytes);
+        let Some((key, bytes)) = largest.filter(|(_, bytes)| *bytes > 1024) else {
+            if strict {
+                break;
+            }
+            strict = true;
+            continue;
+        };
+        let original = result[&key].take();
+        result[&key] = json!({"state":"resource-details","originalBytes":bytes,
+            "jsonPointer":format!("/{key}"),"uriPath":"/envelopeOverflow/uri"});
+        spilled.insert(key, original);
+    }
+    if spilled.is_empty() {
+        return Ok(());
+    }
+    let fields = spilled.keys().cloned().collect::<Vec<_>>();
+    let output = ProjectedOutput::text(
+        "envelope-overflow.json",
+        "application/json",
+        encode_projected_json(&Value::Object(spilled))?,
+    );
+    result["envelopeOverflow"] = json!({"uri":output.manifest_uri(artifact_id),"fields":fields,
+        "reason":"The response metadata exceeded the inline limit; these fields are complete in the linked resource."});
+    outputs.push(output);
+    Ok(())
 }
 
 pub(super) async fn rollback_delivery(
@@ -259,5 +376,21 @@ pub(super) async fn rollback_delivery(
 pub(super) fn commit_delivery(attachment: Option<DeliveryAttachment>) {
     if let Some(attachment) = attachment {
         attachment.reservation.commit();
+    }
+}
+
+#[cfg(test)]
+mod spill_tests {
+    use super::*;
+
+    #[test]
+    fn kept_inline_fields_spill_when_nothing_else_can_shrink_the_envelope() {
+        let mut result = json!({"status":"complete","quality":{"blob":"q".repeat(700_000)}});
+        let mut outputs = Vec::new();
+        spill_oversized_fields(&mut result, &mut outputs, "artifact").unwrap();
+        assert_eq!(result["quality"]["state"], "resource-details");
+        assert_eq!(result["status"], "complete");
+        assert_eq!(outputs.len(), 1);
+        assert!(envelope_bytes(&result) <= super::super::delivery::MAX_INLINE_TOTAL_BYTES / 2);
     }
 }

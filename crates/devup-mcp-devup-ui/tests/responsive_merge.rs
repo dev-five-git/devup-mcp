@@ -354,24 +354,22 @@ fn a_prop_outside_the_cleared_set_is_left_to_inherit() {
     );
 }
 
-/// A first value that is simply what the prop already is need not be written.
-/// `flexDir="row"` and `alignItems="flex-start"` are the two this hits in
-/// practice.
+/// A drawn value must override any layout implied by the merged primitive.
 #[test]
-fn a_leading_default_is_dropped() {
+fn a_leading_drawn_default_is_preserved() {
     assert_eq!(
         slots(
             "flexDir",
             [Set("row"), Absent, Absent, Absent, Set("column")]
         ),
-        array(&[None, None, None, None, Some("column")])
+        array(&[Some("row"), None, None, None, Some("column")])
     );
     assert_eq!(
         slots(
             "alignItems",
             [Set("flex-start"), Absent, Absent, Absent, Set("center")]
         ),
-        array(&[None, None, None, None, Some("center")])
+        array(&[Some("flex-start"), None, None, None, Some("center")])
     );
     // The same value on a prop with no registered default stays put.
     assert_eq!(

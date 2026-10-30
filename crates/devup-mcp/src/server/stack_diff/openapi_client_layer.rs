@@ -86,14 +86,19 @@ fn openapi_client_layer(root: &Path) -> Value {
         }
     }
 
+    let sources = ts_files
+        .iter()
+        .filter_map(|file| std::fs::read_to_string(file).ok().map(|source| (file, source)))
+        .collect::<Vec<_>>();
+    let known_clients = sources
+        .iter()
+        .flat_map(|(_, source)| parse::api_client_bindings(source))
+        .collect::<BTreeSet<_>>();
     let mut drifts = Vec::new();
     let mut calls_checked = 0usize;
     let mut spelling_only_matches = 0usize;
-    for file in &ts_files {
-        let Ok(source) = std::fs::read_to_string(file) else {
-            continue;
-        };
-        let (mut calls, configs) = parse::client_references(&source);
+    for (file, source) in &sources {
+        let (mut calls, configs) = parse::client_references_with(source, &known_clients);
         for (call_site, name) in configs {
             if let Some(operations) = crud_operations.get(&name) {
                 calls.extend(
@@ -185,6 +190,14 @@ fn relative_or_absolute(root: &Path, file: &Path) -> String {
     file.strip_prefix(root)
         .map(|relative| relative.to_string_lossy().replace('\\', "/"))
         .unwrap_or_else(|_| display_path(file))
+}
+
+pub(super) fn project_api_clients(root: &Path) -> BTreeSet<String> {
+    find_frontend_sources(root, 6)
+        .iter()
+        .filter_map(|file| std::fs::read_to_string(file).ok())
+        .flat_map(|source| parse::api_client_bindings(&source))
+        .collect()
 }
 
 fn find_frontend_sources(root: &Path, max_depth: usize) -> Vec<PathBuf> {

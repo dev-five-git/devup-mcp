@@ -342,12 +342,16 @@ async fn w1_responsive_slot_collision_is_actionable() {
 
 #[tokio::test]
 async fn w1_missing_collected_outputs_explain_how_to_recollect() {
-    for output in ["devupJson", "referencePng"] {
+    for output in ["devupJson"] {
         let error = project(payload(), operation(&[output])).await.unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
         assert!(error.message.contains(output));
         assert!(error.details["snapshotRootIds"].is_array());
     }
+    let result = project(payload(), operation(&["referencePng"])).await.unwrap();
+    assert_eq!(result["outputResults"]["referencePng"]["state"], "unavailable");
+    assert_ne!(result["status"], "complete");
+    assert!(result["artifactId"].is_string());
 }
 #[tokio::test]
 async fn w1_optional_responsive_collision_keeps_requested_tsx() {

@@ -2,9 +2,11 @@
 //! local evidence is collected before generating any unresolved questions.
 mod erd;
 mod rounds;
+mod recovery;
 #[cfg(test)]
 mod tests;
 mod units;
+mod wiring;
 
 use super::{
     output::{OutputPolicy, OutputTransaction},
@@ -28,6 +30,10 @@ pub struct ProjectPlanInput {
     pub action: String,
     pub project_root: String,
     pub plan_id: Option<String>,
+    #[serde(default)]
+    pub restart: bool,
+    #[serde(default)]
+    pub scope_exclusions: Vec<ScopeExclusion>,
     /// Facts read from Jira issues/epic children, Figma exploration, spec documents,
     /// and devup_project_context all scopes. Every fact includes its source.
     #[serde(default)]
@@ -57,6 +63,14 @@ pub struct ProjectPlanInput {
     pub decisions: Vec<Decision>,
     #[serde(default)]
     pub unit_updates: Vec<UnitUpdate>,
+    /// Records the operationId each feature's pages wire to ("Wire to the API
+    /// now"); status checks every id against openapi.json.
+    #[serde(default)]
+    pub api_wiring: Vec<ApiWiring>,
+    /// summary (default) answers with state, open questions, next action, ERD and
+    /// unit DAG; full also returns the whole plan.
+    #[schemars(extend("enum" = ["summary", "full"]))]
+    pub detail: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -76,6 +90,9 @@ pub struct Feature {
     pub screens: Vec<String>,
     #[serde(default)]
     pub acceptance: Vec<String>,
+    /// Tables this feature reads or writes; shared tables group domain workers.
+    #[serde(default)]
+    pub entities: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -113,15 +130,36 @@ pub struct Decision {
     pub recommended: String,
     #[serde(default)]
     pub destructive: bool,
+    pub state: Option<String>,
+    pub kind: Option<String>,
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct UnitUpdate {
     pub id: String,
+    #[serde(default)]
     pub state: String,
     #[serde(default)]
     pub verification: Vec<String>,
+    /// "shared-change-request": a worker asks the supervisor to change a stage 0
+    /// file. Needs file and reason; state "resolved" closes requests for that file.
+    pub kind: Option<String>,
+    pub file: Option<String>,
+    pub reason: Option<String>,
+    pub diff: Option<String>,
+}
+/// Binds a feature to the API operation its pages call. `defer` records the
+/// explicit decision to use no API yet; it is reported as unfinished.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ApiWiring {
+    pub feature: String,
+    pub operation_id: Option<String>,
+    #[serde(default)]
+    pub defer: bool,
+    pub reason: Option<String>,
 }
 
 fn read(root: &str) -> Result<Value, DevupError> {
@@ -172,19 +210,276 @@ fn confirmed(plan: &Value) -> Result<(), DevupError> {
     }
     Ok(())
 }
-fn response(plan: Value) -> Value {
+/// Saves decisions without dropping earlier ones; a decision with the same id
+/// is replaced. Used by draft and confirm as well as defer/assume.
+fn record_decisions(
+    plan: &mut Value,
+    decisions: &[Decision],
+    state: &str,
+) -> Result<(), DevupError> {
+    for d in decisions {
+        if d.id.trim().is_empty() || d.reason.trim().is_empty() || d.recommended.trim().is_empty()
+        {
+            return Err(invalid("Decisions need id, reason and recommended option"));
+        }
+        let list = plan["decisions"].as_array_mut().unwrap();
+        list.retain(|v| v["id"] != d.id);
+        let mut value = json!(d);
+        if d.state.as_deref().is_some_and(|state| !["pending", "confirmed"].contains(&state)) {
+            return Err(invalid("Decision state must be pending or confirmed"));
+        }
+        value["state"] = json!(d.state.as_deref().unwrap_or(state));
+        list.push(value);
+    }
+    Ok(())
+}
+fn figma_url(plan: &Value) -> String {
+    let figma = &plan["facts"]["figma"];
+    figma
+        .as_str()
+        .or_else(|| array(figma).first().and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_owned()
+}
+fn screen_blockers(plan: &Value, root: &str) -> Vec<String> {
+    if figma_url(plan).is_empty() {
+        return vec![];
+    }
+    match screen_plan::read_plan(root) {
+        Ok(Some(s)) if s["state"] == "confirmed" || s["status"] == "confirmed" => vec![],
+        _ => vec!["screenPlan: not confirmed".to_owned()],
+    }
+}
+fn screen_plan_hint(plan: &Value, root: &str) -> String {
+    format!(
+        "Run {} first.",
+        json!({"tool":"devup_screen_plan","arguments":{"action":"draft","url":figma_url(plan),"projectRoot":root}})
+    )
+}
+fn next_action(plan: &Value, root: &str) -> Value {
+    let args = |action: &str| json!({"action":action, "planId":plan["planId"], "projectRoot":root});
+    if matches!(plan["state"].as_str(), Some("intake" | "draft"))
+        && !screen_blockers(plan, root).is_empty()
+    {
+        return json!({
+            "tool":"devup_screen_plan",
+            "arguments":{"action":"draft","url":figma_url(plan),"projectRoot":root},
+            "how":"Figma sources need a confirmed screen plan before project confirm; run it first and ask its questions together with this plan's."});
+    }
+    match plan["state"].as_str() {
+        Some("confirmed") if !units::open_requests(plan).is_empty() => json!({
+            "tool":"devup_project_plan","arguments":args("status"),
+            "how":"Apply the open sharedChangeRequests to the stage 0 files, then send a unitUpdates entry of kind shared-change-request, state resolved and the file; merged units that depend on stage 0 go back to verifying."}),
+        Some("confirmed") if array(&plan["units"]).is_empty() => json!({
+            "tool":"devup_project_plan","arguments":args("split"),
+            "how":"Models are written and unitDag is empty until split; run backendCommands in modelsWorkingDirectory first."}),
+        Some("draft") => json!({
+            "tool":"devup_project_plan","arguments":args("confirm"),
+            "how":"Ask unanswered questions with the question tool, then confirm (acceptRecommended fills the rest)."}),
+        _ => Value::Null,
+    }
+}
+fn unit_rows(plan: &Value) -> Vec<Value> {
+    array(&plan["units"])
+        .iter()
+        .map(|u| {
+            json!({"id":u["id"],"layer":u["layer"],"state":u["state"],
+                "dependencies":u["dependencies"],
+                "brief":format!(".devup/units/{}.md", text(&u["id"]))})
+        })
+        .collect()
+}
+/// Questions of an unconfirmed screen plan, so one round covers both plans.
+fn open_screen_plan(root: &str) -> Option<Value> {
+    match screen_plan::read_plan(root) {
+        Ok(Some(s)) if s["state"] != "confirmed" && s["status"] != "confirmed" => Some(s),
+        _ => None,
+    }
+}
+fn open_screen_questions(root: &str) -> Vec<Value> {
+    open_screen_plan(root)
+        .map(|s| array(&s["questions"]).to_vec())
+        .unwrap_or_default()
+}
+/// Answers addressed to screen-plan questions are not project-plan answers:
+/// they are split off and returned as the devup_screen_plan confirm call that
+/// carries them, so the user answers one merged round.
+fn forward_screen_answers(
+    root: &str,
+    answers: &BTreeMap<String, Value>,
+    accept_recommended: bool,
+) -> (BTreeMap<String, Value>, Value) {
+    let Some(screen) = open_screen_plan(root) else {
+        return (answers.clone(), Value::Null);
+    };
+    let ids = array(&screen["questions"])
+        .iter()
+        .map(|q| text(&q["id"]).to_owned())
+        .collect::<std::collections::BTreeSet<_>>();
+    let (screen_answers, own): (BTreeMap<_, _>, BTreeMap<_, _>) = answers
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .partition(|(k, _)| ids.contains(k));
+    if screen_answers.is_empty() && !(accept_recommended && !ids.is_empty()) {
+        return (own, Value::Null);
+    }
+    let forward = json!({"tool":"devup_screen_plan","arguments":{
+        "action":"confirm","planId":screen["planId"],"projectRoot":root,
+        "answers":screen_answers,"acceptRecommended":accept_recommended},
+        "how":"These answers belong to the screen plan: send them with this call. The user was asked once, in the merged proposal."});
+    (own, forward)
+}
+fn without_screens(plan: &Value) -> Vec<Value> {
+    array(&plan["features"])
+        .iter()
+        .filter(|f| array(&f["screens"]).is_empty())
+        .map(|f| f["id"].clone())
+        .collect()
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ScopeExclusion {
+    pub r#ref: String,
+    pub reason: String,
+}
+fn change_summary(before: &Value, after: &Value) -> Value {
+    let mut summary = json!({});
+    for (field, key) in [("decisions", "id"), ("features", "id"), ("entities", "name"), ("answers", "")] {
+        let records = |plan: &Value| -> BTreeMap<String, Value> {
+            if key.is_empty() {
+                plan[field].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect()
+            } else {
+                array(&plan[field]).iter().map(|v| (text(&v[key]).to_owned(), v.clone())).collect()
+            }
+        };
+        let old = records(before);
+        let new = records(after);
+        let mut changes = json!({"added":[],"changed":[],"kept":[],"removed":[]});
+        for (id, value) in &new {
+            let kind = match old.get(id) {
+                None => "added",
+                Some(previous) if previous == value => "kept",
+                Some(_) => "changed",
+            };
+            changes[kind].as_array_mut().unwrap().push(json!(id));
+        }
+        changes["removed"] = json!(old.keys().filter(|id| !new.contains_key(*id)).collect::<Vec<_>>());
+        summary[field] = changes;
+    }
+    summary
+}
+const DATA_UI: [&str; 9] = [
+    "list", "detail", "form", "search", "inquiry", "filter", "pagination", "board", "table",
+];
+/// Set when the project plan has screens that read or write data but its ERD is
+/// not confirmed yet; page writes are refused until then.
+pub(crate) fn erd_required(root: &str) -> Option<Value> {
+    let plan = read(root).ok()?;
+    if plan["state"] == "confirmed" || !erd::api(&plan) {
+        return None;
+    }
+    let data_ui = !array(&plan["entities"]).is_empty()
+        || array(&plan["features"]).iter().any(|f| {
+            let haystack = format!("{} {} {}", text(&f["scope"]), f["acceptance"], f["screens"])
+                .to_lowercase();
+            !array(&f["entities"]).is_empty() || DATA_UI.iter().any(|k| haystack.contains(k))
+        });
+    data_ui.then(|| json!({"planId":plan["planId"],"state":plan["state"]}))
+}
+fn blockers(plan: &Value, root: &str) -> Vec<String> {
+    [screen_blockers(plan, root), wiring::blockers(plan, root)].concat()
+}
+fn extras(plan: &Value, root: &str) -> Value {
+    let no_screens = without_screens(plan);
+    let mut extra = json!({
+        "writtenTo": plan["writtenTo"],
+        "decisionCount": array(&plan["decisions"]).len(),
+        "unitState": if array(&plan["units"]).is_empty() {"not-split"} else {"split"},
+        "sharedChangeRequests": units::open_requests(plan),
+        "apiWiring": wiring::report(plan, root),
+        "backendChecks": wiring::backend_checks(plan, root),
+        "dataMappings": plan["dataMappings"],
+        "endpointContracts": plan["endpointContracts"],
+    });
+    if erd::api(plan) && array(&plan["entities"]).is_empty() {
+        extra["erdDraftRequired"] = json!({
+            "reason":"API scope has no entities; draft the ERD before approving it.",
+            "nextAction":{"tool":"devup_project_plan","arguments":{
+                "action":"draft","projectRoot":root,"planId":plan["planId"]},
+                "how":"Supply entities and relations from the recorded requirements."}
+        });
+    }
+    if !no_screens.is_empty() {
+        extra["featuresWithoutScreens"] = json!({"features":no_screens,
+            "how":"These features list no screens. Pass features[].screens (page or route names) in draft; no screens question is asked."});
+    }
+    extra
+}
+fn response(plan: Value, root: &str, full: bool) -> Value {
+    let extra = extras(&plan, root);
+    let models = erd::api(&plan).then(|| erd::disk_report(&plan, root));
+    let sourced_defaults = array(&plan["questions"]).iter().filter(|question| !question["sourcedDefaults"].is_null())
+        .map(|question| json!({"questionId":question["id"],"evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
+    let conflicts = array(&plan["questions"]).iter().filter(|question| {
+        text(&question["id"]).ends_with(".notifications")
+            && text(&question["sourcedDefaults"]["recommended"]) != "No notifications or integrations"
+            && plan["answers"][text(&question["id"])] == "No notifications or integrations"
+    }).map(|question| json!({"questionId":question["id"],"warning":"recommendationConflictsWithEvidence","evidence":question["sourcedDefaults"]})).collect::<Vec<_>>();
+    let mut out = base_response(plan, root, full);
+    out["sourcedDefaults"] = json!(sourced_defaults);
+    out["recommendationConflictsWithEvidence"] = json!(conflicts);
+    if let Some(models) = models {
+        out["modelDiagnostics"] = models;
+    }
+    if let (Some(o), Some(e)) = (out.as_object_mut(), extra.as_object()) {
+        o.extend(e.clone());
+    }
+    out
+}
+fn base_response(plan: Value, root: &str, full: bool) -> Value {
     let questions = array(&plan["questions"])
         .iter()
         .filter(|q| plan["answers"][text(&q["id"])].is_null())
         .cloned()
         .collect::<Vec<_>>();
+    let screen_open = open_screen_questions(root);
+    let screen_ids = screen_open.iter().map(|q| q["id"].clone()).collect::<Vec<_>>();
+    let questions = [questions, screen_open].concat();
     let proposal = screen_plan::proposal(&questions);
+    let instruction = if plan["state"] == "confirmed" {
+        include_str!("../text/mod-response-22d8f704.md")
+    } else {
+        screen_plan::ASK_INSTRUCTION
+    };
+    if !full {
+        return json!({"planId":plan["planId"], "state":plan["state"], "detail":"summary",
+            "openQuestionCount":questions.len(),
+            "openQuestionIds":questions.iter().map(|q| q["id"].clone()).collect::<Vec<_>>(),
+            "screenPlanQuestionIds":screen_ids,
+            "blockers":blockers(&plan, root),
+            "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
+            "questionRounds":screen_plan::question_rounds(&questions, 4),
+            "instruction":instruction,
+            "nextAction":next_action(&plan, root),
+            "erdMermaid":erd::mermaid(array(&plan["entities"])),
+            "unitDag":units::dag(array(&plan["units"])),
+            "units":unit_rows(&plan),
+            "decisions":plan["decisions"],
+            "backendCommands":plan["backendCommands"],
+            "backendNotes":plan["backendNotes"],
+            "modelsWorkingDirectory":plan["modelsWorkingDirectory"],
+            "how":"Summary only. Pass detail \"full\" to read the whole plan."});
+    }
     json!({"planId":plan["planId"], "state":plan["state"],
+        "blockers":blockers(&plan, root),
         "proposalMarkdown":screen_plan::proposal_markdown(&proposal),
         "proposal":proposal,
+        "screenPlanQuestionIds":screen_ids,
         "questions":screen_plan::ask_shape(&questions),
         "questionRounds":screen_plan::question_rounds(&questions, 4),
-        "instruction": if plan["state"] == "confirmed" { include_str!("../text/mod-response-22d8f704.md") } else { screen_plan::ASK_INSTRUCTION },
+        "instruction":instruction,
+        "nextAction":next_action(&plan, root),
         "erdMermaid":erd::mermaid(array(&plan["entities"])),
         "unitDag":units::dag(array(&plan["units"])),
         "finalReport":{"units":plan["units"], "decisions":plan["decisions"], "completion":"unverified until supervisor reruns all verification and stack diff reports no drift"},
@@ -198,14 +493,32 @@ pub(super) async fn run(
     if input.project_root.trim().is_empty() {
         return Err(invalid("projectRoot is required"));
     }
+    if input
+        .detail
+        .as_deref()
+        .is_some_and(|d| !["summary", "full"].contains(&d))
+    {
+        return Err(invalid("detail must be summary or full"));
+    }
+    let full = input.detail.as_deref() == Some("full");
     // Apply the same root boundary to reads and writes, even for status.
     policy.resolve(&Path::new(&input.project_root).join(FILE).to_string_lossy())?;
     let mut tx = OutputTransaction::new();
     if input.action == "intake" {
-        if Path::new(&input.project_root).join(FILE).exists() {
-            return Err(invalid(
+        let existing = Path::new(&input.project_root).join(FILE).exists()
+            .then(|| read(&input.project_root)).transpose()?;
+        if let Some(existing) = existing.as_ref().filter(|_| !input.restart) {
+            let mut error = invalid(
                 "Project plan exists; use draft/status instead of replacing decisions",
-            ));
+            );
+            error.details = json!({"existingPlan":{"planId":existing["planId"],"state":existing["state"],
+                "confirmedAt":existing["confirmedAt"],"writtenBy":existing["writtenBy"],"files":[FILE]},
+                "nextAction":{"tool":"devup_project_plan","arguments":{"action":"status",
+                    "projectRoot":input.project_root,"planId":existing["planId"]}},
+                "choices":["Continue existing plan","Archive existing plan before restarting"],
+                "restartAction":{"tool":"devup_project_plan","arguments":{"action":"intake","projectRoot":input.project_root,"restart":true}},
+                "warnings": if existing["writtenBy"]["buildId"].as_str().is_some_and(|id| id != env!("DEVUP_MCP_BUILD_ID")) {vec!["Existing plan was written by a different build"]} else {vec![]}});
+            return Err(error);
         }
         let facts = rounds::facts(input)?;
         let id = sha256(format!("{}{}", input.project_root, now()).as_bytes());
@@ -213,25 +526,84 @@ pub(super) async fn run(
             "facts":facts,"evidence":input.evidence,"answers":{},"decisions":[],"units":[],
             "questions":rounds::intake(&facts),"entities":[],"relations":[],"features":[],"issues":[],
             "unitQuestions":"supervisor"});
+        plan["writtenBy"] = json!({"commit":option_env!("DEVUP_MCP_GIT_COMMIT"),"buildId":env!("DEVUP_MCP_BUILD_ID")});
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
         rounds::answers(&mut plan, &input.answers)?;
-        write(&mut tx, policy, &input.project_root, &plan)?;
-        tx.commit()?;
-        return Ok(response(plan));
+        let archive = if input.restart && existing.is_some() {
+            Some(recovery::archive(&input.project_root, policy)?)
+        } else { None };
+        if let Some(existing) = existing
+            && input.scope_exclusions.is_empty() {
+            plan["scopeExclusions"] = existing["scopeExclusions"].clone();
+        }
+        let persisted = write(&mut tx, policy, &input.project_root, &plan).and_then(|()| tx.commit().map(|_| ()));
+        if let Err(error) = persisted {
+            if let Some(archive) = archive.as_ref() {
+                recovery::restore(&input.project_root, archive)?;
+            }
+            return Err(error);
+        }
+        if let Some(archive) = archive { plan["archivedTo"] = json!(archive); }
+        return Ok(response(plan, &input.project_root, full));
     }
     let mut plan = read(&input.project_root)?;
-    if input.plan_id.as_deref() != plan["planId"].as_str() {
-        return Err(invalid("planId is missing or stale"));
+    let previous = plan.clone();
+    // status is a read: it may omit planId and reads it from the plan file.
+    let provided = input.plan_id.is_some() || input.action != "status";
+    if provided && input.plan_id.as_deref() != plan["planId"].as_str() {
+        let mut error = invalid(format!(
+            "planId is missing or stale; current planId {} state {}",
+            text(&plan["planId"]),
+            text(&plan["state"])
+        ));
+        error.details = json!({"planId":plan["planId"],"state":plan["state"],
+            "nextAction":{"tool":"devup_project_plan","arguments":{
+                "action":"status","projectRoot":input.project_root,"planId":plan["planId"]}}});
+        return Err(error);
     }
+    if !input.scope_exclusions.is_empty() {
+        for exclusion in &input.scope_exclusions {
+            if exclusion.r#ref.trim().is_empty() || exclusion.reason.trim().is_empty() {
+                return Err(invalid("Scope exclusions require ref and reason"));
+            }
+        }
+        plan["scopeExclusions"] = json!(input.scope_exclusions);
+    }
+    let (answers, forward) = if matches!(input.action.as_str(), "draft" | "confirm") {
+        let mut shared = BTreeMap::new();
+        let fresh = rounds::facts(input)?;
+        for key in ["siteName", "siteUrl", "favicon", "ogImage", "motion"] {
+            let value = input.answers.get(key)
+                .or_else(|| plan["answers"].get(key))
+                .or_else(|| fresh.get(key))
+                .or_else(|| plan["facts"].get(key));
+            if let Some(value) = value.filter(|v| v.as_str().is_some_and(|s| !s.trim().is_empty()))
+                && open_screen_questions(&input.project_root).iter().any(|q| q["id"] == key)
+            {
+                shared.insert(key.to_owned(), value.clone());
+            }
+        }
+        shared.extend(input.answers.clone());
+        forward_screen_answers(&input.project_root, &shared, input.accept_recommended)
+    } else {
+        (input.answers.clone(), Value::Null)
+    };
     match input.action.as_str() {
         "draft" => {
             if plan["state"] == "confirmed" {
                 return Err(invalid("Confirmed plans cannot be redrafted"));
             }
-            rounds::answers(&mut plan, &input.answers)?;
+            let previous_answers = answers.iter()
+                .filter(|(id, _)| array(&plan["questions"]).iter().any(|question| question["id"] == **id))
+                .map(|(id, answer)| (id.clone(), answer.clone()))
+                .collect();
+            rounds::answers(&mut plan, &previous_answers)?;
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
-            rounds::require_answers(&plan)?;
+            // Open questions no longer block draft: new evidence, features and
+            // decisions are saved first and only confirm requires every answer.
+            record_decisions(&mut plan, &input.decisions, "pending")?;
             for ev in &input.evidence {
                 if ev.source.trim().is_empty() {
                     return Err(invalid("Evidence needs a source"));
@@ -261,18 +633,37 @@ pub(super) async fn run(
                 plan["unitQuestions"] = json!(mode);
             }
             erd::draft(input, &mut plan)?;
+            wiring::draft(&mut plan);
             plan["questions"] = json!(rounds::detail(&plan, &input.extra_questions)?);
+            let new_answers = answers.into_iter()
+                .filter(|(id, _)| !previous_answers.contains_key(id))
+                .collect();
+            rounds::answers(&mut plan, &new_answers)?;
+            if input.accept_recommended {
+                rounds::accept_recommended(&mut plan)?;
+            }
             plan["state"] = json!("draft");
         }
         "confirm" => {
             if plan["state"] != "draft" {
                 return Err(invalid("Draft the complete plan before confirm"));
             }
-            rounds::answers(&mut plan, &input.answers)?;
+            rounds::answers(&mut plan, &answers)?;
             if input.accept_recommended {
                 rounds::accept_recommended(&mut plan)?;
             }
-            rounds::require_answers(&plan)?;
+            rounds::require_answers(&plan).map_err(|mut error| {
+                error.details = json!({
+                    "missingQuestionIds": array(&plan["questions"]).iter()
+                        .filter(|q| plan["answers"][text(&q["id"])].is_null())
+                        .map(|q| q["id"].clone()).collect::<Vec<_>>(),
+                    "nextAction":{"tool":"devup_project_plan","arguments":{
+                        "action":"confirm","projectRoot":input.project_root,
+                        "planId":plan["planId"],"answers":{},"acceptRecommended":true}}
+                });
+                error
+            })?;
+            record_decisions(&mut plan, &input.decisions, "pending")?;
             if plan["answers"]
                 .as_object()
                 .unwrap()
@@ -287,15 +678,25 @@ pub(super) async fn run(
             // Figma remains its own confirmation gate and is retained in every brief.
             if let Some(screen) = screen_plan::read_plan(&input.project_root)? {
                 if screen["state"] != "confirmed" && screen["status"] != "confirmed" {
-                    return Err(invalid("Confirm the Figma screen plan first"));
+                    return Err(invalid(format!(
+                        "Confirm the Figma screen plan first. {}",
+                        screen_plan_hint(&plan, &input.project_root)
+                    )));
                 }
                 plan["screenPlan"] = screen;
-            } else if !array(&plan["facts"]["figma"]).is_empty() {
-                return Err(invalid(
-                    "Figma sources require a confirmed devup_screen_plan",
-                ));
+            } else if !figma_url(&plan).is_empty() {
+                return Err(invalid(format!(
+                    "Figma sources require a confirmed devup_screen_plan. {}",
+                    screen_plan_hint(&plan, &input.project_root)
+                )));
             }
+            wiring::draft(&mut plan);
             erd::write_models(&mut tx, policy, &input.project_root, &plan)?;
+            plan["writtenTo"] = json!(if erd::api(&plan) {
+                array(&plan["entities"]).iter()
+                    .map(|entity| format!("{}/{}.json", text(&plan["modelsDir"]), text(&entity["name"])))
+                    .collect::<Vec<_>>()
+            } else { vec![] });
             plan["state"] = json!("confirmed");
             plan["confirmedAt"] = json!(now());
         }
@@ -345,7 +746,22 @@ pub(super) async fn run(
             ));
         }
     }
+    wiring::record(&mut plan, &input.api_wiring)?;
     write(&mut tx, policy, &input.project_root, &plan)?;
     tx.commit()?;
-    Ok(response(plan))
+    let changes = (input.action == "draft").then(|| change_summary(&previous, &plan));
+    let mut out = response(plan, &input.project_root, full);
+    if let Some(changes) = changes {
+        out["changeSummary"] = changes;
+    }
+    if input.action == "status" && !full
+        && let Some(summary) = out.as_object_mut()
+    {
+        summary.remove("questionRounds");
+        summary.remove("proposalMarkdown");
+    }
+    if !forward.is_null() {
+        out["screenPlanForward"] = forward;
+    }
+    Ok(out)
 }

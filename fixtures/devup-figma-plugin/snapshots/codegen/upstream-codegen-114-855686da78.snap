@@ -2,9 +2,11 @@
 source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
+
 "<Box h="50px" isolation="isolate" pos="relative" w="100px">
   <Box
-    bg="url(/images/TileImageFrame.png) repeat"
+    aria-hidden="true"
+    bg="url(/images/tileimageframe.png) repeat"
     borderRadius="inherit"
     inset="0"
     overflow="hidden"

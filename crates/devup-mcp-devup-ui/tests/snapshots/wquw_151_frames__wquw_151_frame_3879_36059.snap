@@ -25,7 +25,7 @@ export function Wquw151Frame387936059() {
           aspectRatio="1"
           bg="$caption"
           h="100%"
-          maskImage="url('/icons/Frame 26086041.svg')"
+          maskImage="url(/icons/header-frame-26086041.svg)"
           maskPos="center"
           maskRepeat="no-repeat"
           maskSize="contain"
@@ -37,7 +37,7 @@ export function Wquw151Frame387936059() {
               aspectRatio="1"
               bg="$captionLight"
               boxSize="20px"
-              maskImage="url('/icons/arrow_7134700 1.svg')"
+              maskImage="url(/icons/arrow-7134700-1.svg)"
               maskPos="center"
               maskRepeat="no-repeat"
               maskSize="contain"
@@ -46,6 +46,7 @@ export function Wquw151Frame387936059() {
               color="$textLight"
               fontSize="15px"
               fontWeight="600"
+              letterSpacing="-0.01em"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
@@ -66,6 +67,7 @@ export function Wquw151Frame387936059() {
           color="$text"
           fontSize="24px"
           fontWeight="700"
+          letterSpacing="-0.02em"
           lineHeight="34px"
           overflow="hidden"
           textOverflow="ellipsis"
@@ -87,7 +89,7 @@ export function Wquw151Frame387936059() {
             aspectRatio="1"
             bg="$secondary"
             boxSize="16px"
-            maskImage="url('/icons/information-button_1176 1.svg')"
+            maskImage="url(/icons/information-button-1176-1.svg)"
             maskPos="center"
             maskRepeat="no-repeat"
             maskSize="contain"
@@ -96,6 +98,7 @@ export function Wquw151Frame387936059() {
             color="$secondary"
             fontSize="16px"
             fontWeight="600"
+            letterSpacing="-0.01em"
             lineHeight="26px"
             typography="bodyXsSemibold"
             wordBreak="keep-all"
@@ -108,6 +111,7 @@ export function Wquw151Frame387936059() {
           flex="1"
           fontSize="18px"
           fontWeight="500"
+          letterSpacing="-0.02em"
           lineHeight="31px"
           overflow="hidden"
           textOverflow="ellipsis"
@@ -123,45 +127,49 @@ export function Wquw151Frame387936059() {
               color="$textLight"
               fontSize="15px"
               fontWeight="600"
+              letterSpacing="-0.01em"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
             >
               직접 입력
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
               color="$textLight"
               fontSize="15px"
               fontWeight="600"
+              letterSpacing="-0.01em"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
             >
               녹음하기
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
               color="$textLight"
               fontSize="15px"
               fontWeight="600"
+              letterSpacing="-0.01em"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
             >
               작성 완료
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
           </Center>
         </Flex>
         <Text
           color="$caption"
           fontSize="16px"
           fontWeight="600"
+          letterSpacing="-0.01em"
           lineHeight="26px"
           typography="bodyXsSemibold"
           wordBreak="keep-all"
@@ -195,6 +203,7 @@ export function Wquw151Frame387936059() {
               color="$text"
               fontSize="20px"
               fontWeight="700"
+              letterSpacing="-0.02em"
               lineHeight="28px"
               typography="h6"
               wordBreak="keep-all"
@@ -206,6 +215,7 @@ export function Wquw151Frame387936059() {
                 color="$text"
                 fontSize="17px"
                 fontWeight="400"
+                letterSpacing="-0.01em"
                 lineHeight="29px"
                 overflow="hidden"
                 textAlign="center"
@@ -228,6 +238,7 @@ export function Wquw151Frame387936059() {
                   color="$textLight"
                   fontSize="15px"
                   fontWeight="400"
+                  letterSpacing="-0.01em"
                   lineHeight="24px"
                   overflow="hidden"
                   textOverflow="ellipsis"
@@ -250,6 +261,7 @@ export function Wquw151Frame387936059() {
                       color="$text"
                       fontSize="16px"
                       fontWeight="400"
+                      letterSpacing="-0.01em"
                       lineHeight="26px"
                       typography="bodyXs"
                       wordBreak="keep-all"
@@ -270,6 +282,7 @@ export function Wquw151Frame387936059() {
                       color="$text"
                       fontSize="16px"
                       fontWeight="400"
+                      letterSpacing="-0.01em"
                       lineHeight="26px"
                       typography="bodyXs"
                       wordBreak="keep-all"
@@ -287,6 +300,7 @@ export function Wquw151Frame387936059() {
                 color="$textLight"
                 fontSize="17px"
                 fontWeight="600"
+                letterSpacing="-0.01em"
                 lineHeight="29px"
                 typography="bodySmSemibold"
                 wordBreak="keep-all"
@@ -305,6 +319,7 @@ export function Wquw151Frame387936059() {
                 color="$primary"
                 fontSize="17px"
                 fontWeight="600"
+                letterSpacing="-0.01em"
                 lineHeight="29px"
                 typography="bodySmSemibold"
                 wordBreak="keep-all"

@@ -104,13 +104,13 @@ pub(super) fn push_layout_props(
     let is_page_root = parent
         .map(|parent| parent.typed_view().node_type())
         .or_else(|| view.string("parentType"))
-        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE"));
     let fixed_w = view.string("layoutSizingHorizontal") == Some("FIXED");
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
     let fill_h = view.string("layoutSizingVertical") == Some("FILL");
-    let absolute = view.string("layoutPositioning") == Some("ABSOLUTE")
-        || placed_by_a_free_layout(snapshot, node, parent, is_page_root);
+    let absolute = parent.is_some() && (view.string("layoutPositioning") == Some("ABSOLUTE")
+        || placed_by_a_free_layout(snapshot, node, parent, is_page_root));
     let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
     let containing_block = holds_positioned_children(snapshot, node);
     let mut width = None;
@@ -227,8 +227,7 @@ pub(super) fn push_layout_props(
                 (own_height, parent_height),
                 (Some(height), Some(parent_height)) if parent_height > height
             );
-            let in_a_group =
-                parent.is_some_and(|parent| parent.typed_view().node_type() == "GROUP");
+            let in_a_group = parent.is_some_and(|parent| parent.node_type == "GROUP");
             let leaf_shape = !has_children && !holds_children && !is_asset && in_a_group;
             if leaf_shape && parent_wider {
                 width = own_width.map(px);
@@ -344,24 +343,10 @@ pub(super) fn push_layout_props(
             height = Some("100%".to_owned());
         }
     } else if is_root {
-        let no_dimensions = view.number("width").is_none() && view.number("height").is_none();
-        let has_children = view.child_ids().next().is_some();
-        let implicit_text_fill = view.node_type() == "TEXT"
-            && view.value("layoutSizingHorizontal").is_none()
-            && view.value("layoutSizingVertical").is_none();
-        let standalone_component = view.node_type() == "COMPONENT"
-            && !snapshot
-                .nodes
-                .values()
-                .any(|node| node.typed_view().node_type() == "COMPONENT_SET");
-        if (no_dimensions && (view.node_type() != "COMPONENT" || standalone_component))
-            || has_children
-            || fill_w
-            || fill_h
-            || view.node_type() == "GROUP"
-            || implicit_text_fill
-        {
+        if fill_w || view.string("layoutAlign") == Some("STRETCH") {
             width = Some("100%".to_owned());
+        }
+        if fill_h {
             height = Some("100%".to_owned());
         }
     } else {

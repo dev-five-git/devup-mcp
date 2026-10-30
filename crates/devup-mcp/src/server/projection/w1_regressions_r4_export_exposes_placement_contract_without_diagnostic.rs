@@ -409,8 +409,11 @@ async fn r1_approximation_is_explained_without_diagnostics() {
     }
     let result = project(data, op).await.unwrap();
     let frame = &result["frames"][0];
-    assert_eq!(frame["quality"]["projection"], "approximated");
-    let issue = &frame["projectionIssues"][0];
+    assert_eq!(frame["quality"]["projection"], "lossy");
+    assert!(!frame["tsx"].as_str().unwrap().contains("pos=\"absolute\""));
+    let issue = frame["projectionIssues"].as_array().unwrap().iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK").unwrap();
+    assert_eq!(issue["fidelityImpact"], "approximated");
     assert_eq!(issue["nodeId"], "1:1");
     assert_eq!(issue["property"], "layoutPositioning");
     assert_eq!(

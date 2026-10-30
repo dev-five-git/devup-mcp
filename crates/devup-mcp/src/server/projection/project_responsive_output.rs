@@ -9,6 +9,7 @@ pub(super) struct ResponsiveOutput<'a> {
     pub(super) theme_options: &'a theme_export::ThemeExportOptions,
     pub(super) output_paths: &'a BTreeMap<String, String>,
     pub(super) result: Map<String, Value>,
+    pub(super) failures: &'a mut Vec<Value>,
     pub(super) asset_policies:
         &'a BTreeMap<String, devup_mcp_devup_ui::codegen::AssetRepresentationPolicy>,
     pub(super) selected_projection_roots: Option<Vec<String>>,
@@ -37,6 +38,7 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
         theme_options,
         output_paths,
         mut result,
+        failures,
         asset_policies,
         selected_projection_roots,
         mut projection_diagnostics,
@@ -48,6 +50,13 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
         responsive_snapshot.to_mut().roots = roots;
     }
     let mut responsive_widths = Vec::new();
+    let merge = if responsive_groups::confirmed(
+        theme_options.project_root.as_deref(), &responsive_snapshot.roots,
+    )? {
+        devup_mcp_devup_ui::codegen::responsive::merge_confirmed_breakpoints
+    } else {
+        merge_breakpoints
+    };
     // A screen captured with its other widths is convertible as one
     // tree. It is offered whenever those widths are present rather than
     // only on request, because a caller asking for a screen that has
@@ -56,7 +65,7 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
     if outputs
         .iter()
         .any(|output| output == "tsx" || output == "responsiveTsx")
-        && let Some(mut merged) = merge_breakpoints(
+        && let Some(mut merged) = merge(
             &responsive_snapshot,
             &CodegenOptions {
                 asset_policies: asset_policies.clone(),
@@ -106,9 +115,7 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
                 "Two frames occupy the same breakpoint slot. Request tsx separately, or select one frame per breakpoint slot.",
             ));
         }
-        if let Some(root) = theme_options.project_root.as_deref()
-            && super::super::screen_plan::node_ids_enabled(root)
-        {
+        if theme_options.figma_node_ids {
             let written = devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut merged);
             let ids = result.entry("figmaNodeIds").or_insert_with(
                 || json!({"attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE}),
@@ -170,6 +177,12 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
             "responsiveReviewChecklist".into(),
             responsive_groups::review(&responsive_snapshot),
         );
+        for diagnostic in &merged.diagnostics {
+            projection_diagnostics.push(diagnostic.clone());
+            if let Some(review) = result.get_mut("responsiveReviewChecklist").and_then(|review| review.get_mut("items")).and_then(Value::as_array_mut) {
+                review.push(json!({"code":diagnostic.code,"nodeId":diagnostic.node_id,"details":diagnostic.details}));
+            }
+        }
         responsive_widths = responsive_snapshot
             .roots
             .iter()
@@ -242,11 +255,40 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
     if outputs.iter().any(|output| output == "responsiveTsx")
         && !result.contains_key("responsiveTsx")
     {
-        return Err(unavailable_output(
+        let mut error = unavailable_output(
             payload,
             "responsiveTsx",
             "The snapshot has no mergeable breakpoint frames. Request tsx for individual screens, or re-collect a screen with its breakpoint siblings.",
-        ));
+        );
+        let widths: Vec<_> = responsive_snapshot
+            .roots
+            .iter()
+            .filter_map(|id| {
+                let node = responsive_snapshot.nodes.get(id)?;
+                let width = node.typed_view().number("width");
+                let reason = if responsive_snapshot.roots.len() < 2 {
+                    "At least two selected frames are required."
+                } else if width.is_none_or(|width| !width.is_finite() || width <= 0.0) {
+                    "The frame has no finite positive width."
+                } else {
+                    "Names do not identify one breakpoint family, or frames occupy the same width band."
+                };
+                Some(json!({"nodeId": id, "width": width, "reason":reason}))
+            })
+            .collect();
+        error.details["collectedFrames"] = json!(widths);
+        error.details["frameReasons"] = json!(widths);
+        error.details["mergeRefusal"] = json!("Frames need distinct valid width bands and either a discovered family or an exact confirmed route grouping.");
+        error.details["nextAction"] = json!({"tool": "devup_figma_export",
+            "arguments": {"artifactId":result["cache"]["artifactId"], "frameIds": responsive_snapshot.roots, "outputs": ["tsx"]},
+            "how": "Project the selected frames separately from this artifact without another Figma read."});
+        if !result.contains_key("frames") && !outputs.iter().any(|output| output == "tsx") {
+            return Err(error);
+        }
+        failures.push(json!({
+            "output":"responsiveTsx", "errorCode":error.code, "message":error.message, "details":error.details
+        }));
+        result.entry("outputResults").or_insert_with(|| json!({}))["responsiveTsx"] = json!({"state":"failed", "projection":"failed"});
     }
     Ok((
         result,

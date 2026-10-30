@@ -102,9 +102,7 @@ pub(super) fn project_node_and_theme_outputs(
             }
             .with_payload_tokens(payload),
         )?;
-        if let Some(root) = theme_options.project_root.as_deref()
-            && super::super::screen_plan::node_ids_enabled(root)
-        {
+        if theme_options.figma_node_ids {
             let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
             result.insert("figmaNodeIds".to_owned(), annotated);
         }
@@ -113,10 +111,7 @@ pub(super) fn project_node_and_theme_outputs(
             node_id,
             &mut output,
             true,
-            theme_options
-                .project_root
-                .as_deref()
-                .is_some_and(super::super::screen_plan::node_ids_enabled),
+            theme_options.figma_node_ids,
         );
         scope_output(&mut output, "tsx");
         result.entry("outputResults").or_insert_with(|| json!({}))["tsx"] = output_result(&output);
@@ -172,15 +167,20 @@ pub(super) fn project_node_and_theme_outputs(
         );
         match output {
             Ok(mut output) => {
+                if theme_options.figma_node_ids {
+                    let annotated = annotate_node_ids(&mut output, &payload.snapshot, node_id);
+                    result.insert("figmaNodeIds".to_owned(), annotated);
+                }
+                let definitions = component_definition_actions(payload, &output.tsx, &result);
+                if !definitions.is_empty() {
+                    result.insert("componentDefinitions".to_owned(), json!(definitions));
+                }
                 let coverage = super::super::asset_guard::export_coverage(
                     &payload.snapshot,
                     node_id,
                     &mut output,
                     false,
-                    theme_options
-                        .project_root
-                        .as_deref()
-                        .is_some_and(super::super::screen_plan::node_ids_enabled),
+                    theme_options.figma_node_ids,
                 );
                 scope_output(&mut output, "componentTsx");
                 result.entry("outputResults").or_insert_with(|| json!({}))["componentTsx"] =
@@ -196,6 +196,9 @@ pub(super) fn project_node_and_theme_outputs(
                     pending_text_outputs.insert("componentTsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("componentTsx".to_owned(), json!(output.tsx));
+                if let Some(summary) = component_set_variants(&payload.snapshot, node_id) {
+                    result.insert("componentSetVariants".to_owned(), summary);
+                }
             }
             Err(error) => {
                 failures.push(projection_failure(payload, node_id, "componentTsx", &error))
@@ -276,4 +279,53 @@ pub(super) fn project_node_and_theme_outputs(
         theme_unresolved_count,
         warnings,
     ))
+}
+
+fn component_set_variants(snapshot: &devup_mcp_figma::Snapshot, node_id: &str) -> Option<Value> {
+    let set = snapshot.nodes.get(node_id)?;
+    let view = set.typed_view();
+    if view.node_type() != "COMPONENT_SET" {
+        return None;
+    }
+    let variants: Vec<Value> = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .map(|node| {
+            json!({
+                "nodeId": node.id,
+                "name": node.typed_view().name(),
+                "variantProperties": node.typed_view().value("variantProperties"),
+            })
+        })
+        .collect();
+    Some(json!({
+        "nodeId": node_id,
+        "variantCount": variants.len(),
+        "defaultVariant": view.value("defaultVariant").and_then(|v| v.get("name")),
+        "variants": variants,
+        "note": "This node is a component set. Export a single variant by nodeId to get that variant's own tsx.",
+    }))
+}
+
+#[cfg(test)]
+mod r32_tests {
+    use super::*;
+
+    #[test]
+    fn component_set_export_lists_its_variants() {
+        let snapshot: devup_mcp_figma::Snapshot = serde_json::from_value(json!({
+            "fileKey": "k", "version": null, "roots": ["1:0"], "diagnostics": [],
+            "nodes": {
+                "1:0": {"id":"1:0","type":"COMPONENT_SET","fields":{"name":"Button","childrenIds":["1:1","1:2"],"defaultVariant":{"name":"State=Default"}}},
+                "1:1": {"id":"1:1","type":"COMPONENT","fields":{"name":"State=Default","variantProperties":{"State":"Default"}}},
+                "1:2": {"id":"1:2","type":"COMPONENT","fields":{"name":"State=Hover","variantProperties":{"State":"Hover"}}}
+            }
+        }))
+        .unwrap();
+        let summary = component_set_variants(&snapshot, "1:0").unwrap();
+        assert_eq!(summary["variantCount"], 2);
+        assert_eq!(summary["defaultVariant"], "State=Default");
+        assert_eq!(summary["variants"][1]["nodeId"], "1:2");
+        assert!(component_set_variants(&snapshot, "1:1").is_none());
+    }
 }

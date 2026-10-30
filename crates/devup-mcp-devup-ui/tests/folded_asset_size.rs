@@ -53,7 +53,10 @@ fn fixed_non_square_frame_folded_into_mask_keeps_its_size() {
         .expect("codegen")
         .tsx;
 
-    assert!(tsx.contains("maskImage=\"url('/icons/BI Logo.svg')\""));
+    assert!(
+        tsx.contains("maskImage=\"url(/icons/bi-logo.svg)\""),
+        "{tsx}"
+    );
     assert!(
         tsx.contains("h=\"9px\"") && tsx.contains("w=\"24px\""),
         "folded mask lost its fixed dimensions:\n{tsx}"

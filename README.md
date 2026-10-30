@@ -471,7 +471,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 **1. Figma 데스크톱 앱에서 불러옵니다**
 
-Figma의 플러그인 등록은 데스크톱 앱의 메뉴 동작이라 스크립트로 대신할 수 없습니다. 이 세 단계만 직접 하시면 됩니다.
+에이전트는 `devup_skills install`로 배포되는 `figma-bridge-setup` 스킬을 읽고 computer use로 아래 메뉴를 직접 조작합니다. 먼저 status에서 host/server commit·buildId를 비교하고, `inView:false`이면 Figma 창을 앞으로 가져와 해당 파일 탭을 누릅니다. Figma가 없으면 question 도구로 데스크톱 설치와 metered direct OAuth 중에서 묻습니다. 오래된 host는 PID·경로·소유 클라이언트를 확인한 뒤 그 연결만 재시작하며, 다른 세션을 중단하기 전에는 승인을 받습니다. 마지막에 status와 작은 노드 읽기로 연결을 확인합니다.
 
 1. **Figma 데스크톱 앱**을 엽니다 (브라우저판은 로컬 플러그인을 못 불러옵니다)
 2. 메뉴에서 **Plugins → Development → Import plugin from manifest...**
@@ -1078,7 +1078,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 규칙은 셋입니다: **모든 화면·섹션·에셋을 그려진 모든 폭에서 시각으로 검증한다**, **기다리느라 멈추지 않고 작업 순서를 바꾼다**, **완료 = 실패 0, 아니면 증거와 함께 unresolved로 남긴다**.
 
 - `devup_screen_plan` `action: "auditPlan"`(확정 뒤)은 확정된 URL마다 runtime audit 계획을 `.devup/runtime-audit/<slug>/plan.json`에 쓰고 실행기를 `.devup/runtime-audit/runner/`에 한 번 씁니다. `artifacts`에 그 계획 프레임들의 `devup_figma_export` artifactId를 모두 넘깁니다. 폭은 그려진 폭(뷰포트 높이 = 프레임 높이) + 1440/1100/858/390입니다. 모든 폭에서 page health(페이지 오류·콘솔 오류·"This page couldn't load"/"Application error" 텍스트 없음), 가로 넘침, 잘린 텍스트, 내비 잘림을 보고, 그려진 폭에서는 페이지 전체를 referencePng와, 프레임의 최상위 자식(섹션)과 에셋을 각자의 native-node 렌더와 비교하고, 섹션·카드·에셋의 크기와 **위치**(`bounds` 검사; 카드 순서가 틀리면 실패)를 봅니다. 링크·버튼 전체의 hover/focus와 다음 URL로의 view-transition 검사도 들어가며, view-transition은 코드가 맨 뒤로 보내고 실행기가 끝나면 원래 URL로 돌아옵니다. 빠진 referencePng·렌더·프레임은 `missingReferences`에 만드는 export 호출과 함께 나옵니다 — 조용히 건너뛰지 않습니다.
-- 섹션·카드·에셋은 `data-figma-node-id`로 찾습니다. `projectRoot`가 있는 export는 페이지 루트, 섹션, 그 자식, 에셋에 이 속성을 씁니다(projectRoot 없는 export는 플러그인과 같은 출력 그대로). 끄려면 설정 `figmaNodeIds: false`, 프로덕션에서 빼려면 Next의 `compiler.reactRemoveProperties: { properties: ["^data-figma-node-id$"] }`.
+- Figma 노드 속성은 기본으로 끕니다. export 스키마가 지원할 때만 `figmaNodeIds: true`로 켜고, 속성이 없는 검사를 통과로 간주하지 않습니다.
 - `status`에 `auditPlanPath`·`auditReportPath`를 주면 모든 실패를 분류합니다: `runtime-error`, `overflow`, `layout-position`, `layout-size`, `asset-mismatch`(멀티컬러 SVG에 mask, 잘못된 파일, crop/objectFit 순으로 원인 제시), `section-visual`, `page-visual`, `interaction`, `view-transition` — 각각 Figma 노드, 코드 파일, 구체적인 수정 힌트를 담습니다. 반환된 `visualComparisons` 호출(`threshold`·`diffPath` 포함)을 돌리고 결과를 `visualResults`로 넘깁니다. 안티앨리어싱은 실패가 아닙니다: 바뀐 픽셀 비율 허용치가 페이지·섹션 3%, 에셋 5%이고, 설정 `visualThresholds`(`page`, `section`, `asset`, 노드별 `nodes`)로 조정합니다.
 - 같은 finding은 새 실행마다 한 번만 시도로 셉니다. `maxFixAttempts`(설정, 기본 3)번 고치고도 실패하면 스크린샷·diff 경로와 함께 `unresolved`로 기록하고 작업 큐에서 뺍니다. `workQueue`는 URL마다 build → audit → fix → compare 순이고 막힌 일은 뒤로 갑니다.
 - 확정 뒤 생긴 결정은 `action: "defer"`(`decision: {id, about, question, options, recommended, destructive}`)로 남기고 계속 일합니다. 마지막에 `assume`(`about`: 결정 id)으로 추천안을 택하고, 파괴적인 결정은 만들지 않은 채 보고서에 남습니다. 실행기를 설치할 수 없으면 `toolingUnavailable`로 그 URL의 audit를 inconclusive로 두고 계속합니다.
@@ -1097,7 +1097,7 @@ Figma 프레임은 정적으로 변환되므로, 그려진 폭에서 크기·위
 
 동적 라우트(`[slug]`, `[id]`, catch-all)는 `notAudited`로 넘기지 않고 실제 URL로 검사합니다: 라우트의 `generateStaticParams`(리터럴, 또는 읽는 로컬 데이터 파일) → 이미 검사한 페이지의 `a[href]`(실행기가 페이지마다 모으고 다음 `auditPlan`이 사용) → 매핑된 Figma 상세 프레임의 제목으로 만든 샘플(가정으로 기록) 순서이며, 10개 이하면 전부 검사합니다. 셋 다 없을 때만 이유와 함께 `notAudited`입니다.
 
-`data-figma-node-id(s)`는 프로덕션에 남지 않습니다. vinext와 devup-ui Vite 플러그인에는 속성을 지우는 옵션이 없어서, `auditPlan`이 각 앱의 vite.config 옆에 작은 Vite 플러그인(`vite-plugin-strip-figma-node-ids.mjs`)을 둡니다. `enforce: 'pre'`, `apply`가 `vite build`일 때만이며 `DEVUP_AUDIT=1`이면 남깁니다. Rolldown은 transform 훅 뒤에 TSX/JSX를 변환하므로 이 단계에서는 속성이 그대로 JSX 텍스트입니다. `plugins: [stripFigmaNodeIds(), vinext()]`로 연결하고, audit는 dev 서버나 `DEVUP_AUDIT=1 bun run build`로 돌리며, 제출 체크리스트는 빌드 출력에서 `grep -rl data-figma-node-id dist`가 아무것도 찾지 않아야 통과합니다. `next` CLI에서는 `compiler.reactRemoveProperties`를 씁니다.
+DevupUI가 audit 속성을 기본으로 제거하며 `DEVUP_AUDIT=1`이면 유지합니다. audit를 위해 앱의 빌드 설정을 바꾸거나 별도 strip 플러그인을 등록하지 않습니다. 일반 프로덕션 빌드 산출물에 `data-figma-node-id(s)`가 없는지 확인합니다. 이전 서버가 별도 플러그인 파일을 반환해도 앱 설정에 연결하지 않습니다.
 
 최신 스택이 기본입니다: Next App Router를 vinext(Vite)로 실행하고, bun workspaces(`apps/*`), devup-ui, oxlint(eslint-plugin-devup), 최신 버전. `vinext` 의존성·`vinext` 스크립트·vinext를 import하는 `vite.config`가 있으면 `next` 의존성이 없어도 App Router 앱으로 보고, `devup_project_context`의 ui/routes가 앱별 `frameworks`를 알려 줍니다. 구현 전에는 묻지 않고 저장소 루트에서 `bunx @dependency-check-updates/cli -d -u --rm`(-d: 루트 아래 모든 manifest, -u: 복구 가능한 일괄 적용, --rm: 각 manifest 옆의 lockfile·설치 디렉터리 삭제 — Cargo.lock·target/ 포함) → `bun install` → build·lint·typecheck를 하고, 라이브러리 API는 기억이 아니라 현재 문서를 봅니다. 결과는 `assume`의 `dependencyUpdate`로 남기고 `status`에 dependencies 줄로 나옵니다. 앱이 없으면 `dev-five-git/service-template`에서 시작하고(이름·구성만 질문), `next` CLI 프로젝트에는 "Migrate to vinext (Recommended) / Keep next"를 한 번 묻습니다. 설정 파일의 `framework`·`updateDependencies: false`로 미리 답할 수 있습니다.
 
@@ -1180,6 +1180,14 @@ artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인
 
 오류의 `details.recovery`는 `mode`(`recollect` | `reproject` | `reread-manifest` | `fix-uri`), `cause`, `reprojectable`, `requiresOriginalUrl`을 줍니다. resource 읽기 실패는 계속 `resource not found`이지만 data에 같은 `recovery`가 실립니다 — artifact가 살아 있는데 output이 없으면 `reproject`, 청크 번호가 범위 밖이면 `chunkCount`·`manifestUri`와 함께 `reread-manifest`입니다. artifact의 capability가 요청한 output을 덮지 못해 거절할 때는 `recovery.missing`이 빠진 것(`referencePng`, `asset-captures` 등)을, `nextAction`이 `artifactId` 대신 원래 url로 다시 부르는 인자를 담습니다. 성공 응답의 `cache.reuse`는 이 artifactId로 Figma 호출 없이 더 투영할 수 있는 output(`withArtifactId`)과 원래 url이 필요한 것(`needsUrl`)을 미리 나열합니다.
 
+
+### 큰 응답·큰 노드를 다루는 법 (클라이언트 가이드)
+
+- **`responseLimit`/`responseOffset`은 이미 수집된 결과를 자르는 반환 한도**입니다(`compact.rs`가 수집된 노드 목록에 `skip/take`). Figma를 얼마나 읽는지는 바꾸지 않으므로 수집 비용의 상한이 아닙니다. 매우 큰 노드(`outputs:["outline"]`이 오래 걸리는 경우)는 값을 조절하지 말고 `devup_figma_explore`로 내부 프레임을 찾아 그 프레임만 export하거나, 치수만 필요하면 `devup_figma_measure`를 쓰세요. 오래 걸리는 작업은 `jobAction:"cancel"`로 취소할 수 있습니다.
+- **짧은 상태 조회:** 폴링에 `responseFields`를 붙이면 필요한 부분만 받습니다. 예: `{"jobId":"<id>","responseFields":["exportJob.state","exportJob.elapsedMs","exportJob.completedCalls","exportJob.nextAction"]}`. 필드 이름은 실제 응답의 키를 따르므로 먼저 한 번 전체 응답으로 확인하세요. `devup_figma_auth`의 `status`는 최상위 `summary` 한 줄이 지금 쓰는 경로(브리지/metered direct)와 비용을 먼저 말합니다.
+- **resource 소비:** `delivery:"resource"`(또는 자동 전환)의 결과는 `devup://artifact/{artifactId}/outputs/{outputId}/manifest`를 먼저 읽고, manifest의 `chunkUris`를 순서대로 읽어 이어 붙입니다. 청크 번호가 범위 밖이면 오류의 `recovery`가 manifest를 다시 읽으라고 안내합니다.
+- **문자열/객체 반환 차이:** 도구 결과는 `content`의 JSON 텍스트와 `structuredContent`로 같은 내용이 함께 올 수 있고, `read_mcp_resource`의 반환형은 호스트 어댑터마다 `contents[0].text`(문자열)이거나 이미 파싱된 객체일 수 있습니다. `typeof raw === "string" ? JSON.parse(raw) : raw`처럼 정규화해서 읽으세요. 이 차이는 서버가 아니라 호스트 어댑터 몫일 수 있으며, 서버 버그로 확정된 사례는 없습니다.
+- **연결 상태 읽기:** `activePath:"direct"`이면서 `paths.bridge.available:false`는 서버 접속 실패가 아니라 "플러그인이 연결되지 않아 metered direct로 읽는 중"이라는 뜻입니다. `summary`와 `paths.bridge.reason`을 보세요.
 
 ### R9 sourceMap 필드와 resolution
 

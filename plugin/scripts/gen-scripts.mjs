@@ -10,10 +10,11 @@
 // 샌드박스에서 동적 코드 실행은 막혀 있고, 번들러가 정적으로 볼 수 있어야 한다.
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = resolve(here, '..')
@@ -122,6 +123,27 @@ ${files.map((f) => `  ${camel(f)},`).join('\n')}
 }
 `
 
+// The same functions as one expression the plugin can evaluate at run time.
+// The bridge host sends it to a plugin whose scripts are older than the host
+// (`scripts-update`), so a rebuilt server reaches an open plugin without the
+// plugin being closed and run again. Indirect eval runs in the global scope,
+// where `figma` lives; "use strict" keeps the module's semantics.
+const bundle = `(function () {
+"use strict";
+${files
+  .map(
+    (file) => `/** source: ${file} */
+async function ${camel(file)}(p) {
+${transform(file)}
+}`,
+  )
+  .join('\n\n')}
+
+return {
+${files.map((f) => `  ${camel(f)},`).join('\n')}
+};
+})`
+
 const dts = `${banner}
 
 /** 스크립트가 읽는 값. Rust 의 \`ScriptInputs\` 와 자리를 맞춘다. */
@@ -175,4 +197,41 @@ async function publish(path, content) {
 }
 await publish(`${outFile}.js`, js)
 await publish(`${outFile}.d.ts`, dts)
+const scriptsHash = createHash('sha256').update(js).digest('hex')
+await publish(join(dirname(outFile), 'scripts-hash.json'), `${JSON.stringify({ scriptsHash, protocol: 1 }, null, 2)}\n`)
+const sources = [...readdirSync(scriptDir).filter((file) => file.endsWith('.js')).sort().map((file) => `scripts/${file}`), 'plugin_api_manifest.json', 'text_segment_manifest.json']
+const bundleText = `${bundle}\n`
+const fingerprints = [
+  ...sources.map((file) => [file, createHash('sha256').update(readFileSync(join(figmaCrate, file))).digest('hex')]),
+  ['plugin_scripts_bundle.js', createHash('sha256').update(bundleText).digest('hex')],
+]
+const rustIdentity = `pub const PLUGIN_SCRIPTS_HASH: &str = "${scriptsHash}";
+pub const PLUGIN_PROTOCOL: u32 = 1;
+
+/// The scripts of [\`PLUGIN_SCRIPTS_HASH\`] as one evaluable expression. The bridge
+/// host sends it to an open plugin whose scripts are older (\`scripts-update\`).
+pub const PLUGIN_SCRIPTS_BUNDLE: &str = include_str!("plugin_scripts_bundle.js");
+
+#[cfg(test)]
+mod tests {
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn generated_plugin_identity_matches_shipped_sources() {
+        for (source, expected) in [
+${fingerprints.map(([file, hash]) => `            (include_bytes!("${file}").as_slice(), "${hash}"),`).join('\n')}
+        ] {
+            let actual = Sha256::digest(source).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            assert_eq!(actual, expected, "Rebuild plugin after changing script sources");
+        }
+    }
+}
+`
+const formatted = spawnSync('rustfmt', ['--edition', '2024'], { input: rustIdentity, encoding: 'utf8' })
+if (formatted.status !== 0) throw new Error(`rustfmt failed: ${formatted.stderr || formatted.error}`)
+// Published before the Rust file that include_str!s it. Its fingerprint is in
+// the test above, so a hand-edited or stale bundle fails `cargo test`.
+await publish(join(figmaCrate, 'plugin_scripts_bundle.js'), bundleText)
+await publish(join(figmaCrate, 'plugin_scripts.rs'), formatted.stdout)
+console.log(`scriptsHash ${scriptsHash} (protocol 1)`)
 console.log(`generated ${files.length} scripts -> ${outFile}.{js,d.ts}`)

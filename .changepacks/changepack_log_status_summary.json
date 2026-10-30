@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "devup_figma_auth status: add a one-line summary naming the active path and its metered cost; document responseLimit semantics and large-response client guidance",
+  "date": "2026-10-20T00:00:00+09:00"
+}

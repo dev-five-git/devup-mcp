@@ -8,6 +8,19 @@ use serde_json::{Value, json};
 
 use super::UiValidateInput;
 
+pub(super) fn attach_export_formatting(result: &mut Value, generated: &[(String, String)]) {
+    let fixable = generated.iter().map(|(_, tsx)| {
+        validate_devup_ui_tsx(tsx, None, false)
+            .next_action.and_then(|action| action["fixable"].as_u64()).unwrap_or(0) as usize
+    }).sum();
+    if let Some(action) = devup_mcp_devup_ui::ui_validate::lint_fix_action(fixable) {
+        result["formatting"] = json!({"nextAction": action});
+        if result.get("nextAction").is_none_or(Value::is_null) {
+            result["nextAction"] = action;
+        }
+    }
+}
+
 pub(super) fn guidance(
     input: &UiValidateInput,
     report: &UiValidation,
@@ -81,6 +94,21 @@ fn corrected_tsx(
             "hardcoded-length" => theme.length_tokens_matching_px(value),
             _ => return None,
         };
+        let suggested = finding
+            .context
+            .get("tokenMatches")
+            .and_then(Value::as_array)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|e| e["token"].as_str()?.strip_prefix('$').map(str::to_owned))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let matches = matches
+            .into_iter()
+            .filter(|name| suggested.contains(name))
+            .collect::<Vec<_>>();
         let [token] = matches.as_slice() else {
             return None;
         };

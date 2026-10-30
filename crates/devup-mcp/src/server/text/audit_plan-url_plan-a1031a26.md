@@ -1,1 +1,1 @@
-The {width}px frame {node_id} is {height}px tall, over the {MAX_VIEWPORT_SIDE}px a viewport can be; its page comparison stays inconclusive and its sections carry the visual check.
+The {width}px frame {node_id} is {height}px tall, outside the 1..={MAX_VIEWPORT_SIDE}px viewport range. Use the default viewport height and capture the page at its recorded drawn frame height for visual comparison.

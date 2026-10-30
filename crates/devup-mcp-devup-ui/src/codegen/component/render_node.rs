@@ -69,7 +69,18 @@ fn render_node(
             .and_then(|references| references.get("visible"))
             .and_then(serde_json::Value::as_str)
             .map(component_property_name);
-        let component = snapshot
+        let master = view.string("mainComponentId")
+            .or_else(|| view.string("componentId"))
+            .and_then(|id| snapshot.nodes.get(id));
+        let set = view.string("mainComponentSetId")
+            .or_else(|| master.and_then(|node| node.typed_view().string("parentId")))
+            .and_then(|id| snapshot.nodes.get(id))
+            .filter(|node| node.node_type == "COMPONENT_SET");
+        let component = set
+            .and_then(|node| node.typed_view().name())
+            .map(normalize_component_name)
+            .or_else(|| master.and_then(|node| node.typed_view().name()).map(normalize_component_name))
+            .unwrap_or_else(|| snapshot
             .nodes
             .values()
             .filter(|candidate| candidate.typed_view().node_type() == "COMPONENT")
@@ -80,8 +91,19 @@ fn render_node(
             })
             .max_by_key(|name| name.len())
             .map(legacy_component_name)
-            .unwrap_or_else(|| legacy_component_name(view.name().unwrap_or("Component")));
-        let content = main_property.unwrap_or_else(|| format!("<{component} />"));
+            .unwrap_or_else(|| legacy_component_name(view.name().unwrap_or("Component"))));
+        let mut properties = super::variant::instance_variant_props(&view);
+        for (name, value) in view.value("variantProperties").and_then(serde_json::Value::as_object).into_iter().flatten() {
+            if !["effect", "viewport"].iter().any(|reserved| name.eq_ignore_ascii_case(reserved))
+                && let Some(value) = value.as_str()
+            {
+                properties.entry(super::variant::instance_property_name(name)).or_insert_with(|| value.to_owned());
+            }
+        }
+        let attributes = properties.iter().map(|(name, value)| {
+            format!(" {name}={{{}}}", serde_json::to_string(value).unwrap())
+        }).collect::<String>();
+        let content = main_property.unwrap_or_else(|| format!("<{component}{attributes} />"));
         let expression = if let Some(visible) = visible_property {
             format!("{{{visible} && {content}}}")
         } else if references.is_some_and(|references| references.contains_key("mainComponent")) {
@@ -191,7 +213,7 @@ fn render_node(
     } else if layout::centres_its_only_child(snapshot, node) {
         "Center"
     } else {
-        match inferred_mode {
+        match inferred_mode.or_else(|| view.string("layoutMode")) {
             Some("GRID") => "Grid",
             Some("HORIZONTAL" | "VERTICAL")
                 if inferred_align("primaryAxisAlignItems") == Some("CENTER")
@@ -217,6 +239,7 @@ fn render_node(
         context.width_policy.as_ref(),
         super::image::original_image(node, &context.asset_policies),
     );
+    context.diagnostics.extend(layout::suspicious_values(snapshot, node, &props));
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
     // padding instead, which puts them where they belong on its own — so the
@@ -285,6 +308,7 @@ fn render_node(
         &context.length_tokens,
         &mut context.used_tokens,
     );
+    text::elide_tokenized_typography(&mut props, &context.typography_values, &context.length_tokens);
     // Last, as the plugin merges `getReactionProps` last: what a timed Smart
     // Animate changes becomes keyframes on the child it changes, or on the
     // frame itself.

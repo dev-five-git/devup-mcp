@@ -206,6 +206,7 @@ if (descendantScope && "children" in scopeAnchor) {
     }
     if ("children" in node) {
       for (const child of node.children) {
+        if (requestedPage && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) continue;
         nestedQueue.push({ node: child, ancestors: [...ancestors, node] });
       }
     }
@@ -230,7 +231,7 @@ const compact = [...included.values()]
       childCount: "children" in node ? node.children.length : 0,
       // Select the structural projection before spending space on previews.
       textPreview: "",
-      ...navigationSummary(node),
+      ...(requestedPage ? {} : navigationSummary(node)),
       pageChildIndex: pageChildIndex >= 0 ? pageChildIndex : null,
       // A page or the document itself has no `visible`, and Figma throws on
       // reading a property a node does not have rather than returning

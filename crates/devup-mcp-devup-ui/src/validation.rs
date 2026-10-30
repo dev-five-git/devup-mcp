@@ -18,7 +18,7 @@ pub fn validate_tsx(source: &str) -> Result<TsxValidation, DevupError> {
     // `ParserReturn::diagnostics` (oxc_parser 0.148, was `errors` on 0.96) derefs to
     // `Vec<OxcDiagnostic>`, so this keeps the original "any diagnostic fails validation"
     // behavior regardless of severity.
-    if parsed.diagnostics.is_empty() {
+    if !parsed.panicked && parsed.diagnostics.is_empty() {
         return Ok(TsxValidation {
             byte_len: source.len(),
             statement_count: parsed.program.body.len(),
@@ -53,7 +53,7 @@ pub fn validate_tsx(source: &str) -> Result<TsxValidation, DevupError> {
         false,
         json!({
             "errorCount": errors.len(),
-            "panicked": parsed.panicked,
+            "parserAborted": parsed.panicked,
             "errors": errors
         }),
     ))

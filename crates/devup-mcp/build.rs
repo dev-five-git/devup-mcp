@@ -2,7 +2,7 @@ use std::{env, path::PathBuf, process::Command};
 
 mod build_identity;
 
-use build_identity::{git_identity, safe};
+use build_identity::{dirty_identity, git_identity, safe};
 
 fn main() {
     let commit = Command::new("git")
@@ -18,6 +18,21 @@ fn main() {
     println!("cargo:rerun-if-changed=build_identity.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=src");
+    // The binary embeds these too; an edit there must refresh the diff hash.
+    for path in [
+        "../devup-mcp-devup-ui/src",
+        "../devup-mcp-figma/src",
+        "../devup-mcp-visual/src",
+        "../../harness/runtime-audit/run.mjs",
+        "../../harness/runtime-audit/checks.mjs",
+        "../../harness/runtime-audit/resource-checks.mjs",
+    ] {
+        println!("cargo:rerun-if-changed={path}");
+    }
+    let built_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs());
+    println!("cargo:rustc-env=DEVUP_MCP_BUILD_TIME={built_at}");
     for path in [git_path("HEAD"), git_path("index")].into_iter().flatten() {
         println!("cargo:rerun-if-changed={}", path.display());
     }
@@ -85,7 +100,28 @@ fn git_build_id() -> Option<String> {
     if !status.status.success() {
         return None;
     }
-    git_identity(Some(value.trim()), !status.stdout.is_empty())
+    if status.stdout.is_empty() {
+        return git_identity(Some(value.trim()), false);
+    }
+    dirty_identity(Some(value.trim()), Some(&diff_hash(&status.stdout)))
+}
+
+/// FNV-1a over the tracked diff and the status listing: deterministic across
+/// toolchains, unlike `DefaultHasher`, and needs no build dependency.
+fn diff_hash(status: &[u8]) -> String {
+    let diff = Command::new("git")
+        .args(["diff", "HEAD", "--binary"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| o.stdout)
+        .unwrap_or_default();
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in diff.iter().chain(status) {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{:08x}", hash >> 32)
 }
 
 fn git_path(name: &str) -> Option<PathBuf> {

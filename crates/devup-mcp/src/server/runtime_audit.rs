@@ -15,4 +15,6 @@
 include!("runtime_audit/inputs_and_capture.rs");
 include!("runtime_audit/write_plan.rs");
 include!("runtime_audit/capture_comparison.rs");
+include!("runtime_audit/plan_columns.rs");
+include!("runtime_audit/screenshot_integrity.rs");
 include!("runtime_audit/tests.rs");

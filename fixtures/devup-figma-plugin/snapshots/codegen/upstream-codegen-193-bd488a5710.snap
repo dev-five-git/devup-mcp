@@ -5,14 +5,25 @@ expression: actual
 
 "export function Svg() {
   return (
-    <Box
-      bg="$caption"
-      h="34.03px"
-      maskImage="url(/icons/recommend.svg)"
-      maskPos="center"
-      maskRepeat="no-repeat"
-      maskSize="contain"
-      w="19.61px"
-    />
+    <VStack justifyContent="center" overflow="hidden" px="3px" py="2px">
+      <Box
+        bg="$caption"
+        h="15.02px"
+        maskImage="url(/icons/recommend-vector.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+        w="13.61px"
+      />
+      <Box
+        bg="$caption"
+        h="15.02px"
+        maskImage="url(/icons/recommend-vector.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+        w="13.61px"
+      />
+    </VStack>
   )
 }"

@@ -108,6 +108,8 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 fn keyless_hello(file_name: &str) -> Value {
     json!({
         "kind": "hello",
+        "scriptsHash": devup_mcp_figma::PLUGIN_SCRIPTS_HASH,
+        "protocol": devup_mcp_figma::PLUGIN_PROTOCOL,
         "fileKey": null,
         "fileName": file_name,
         "currentPage": { "id": "0:1", "name": "Page 1" },
@@ -370,6 +372,9 @@ async fn an_older_plugin_cannot_promote_last_delivered_selection_to_current() ->
     Ok(())
 }
 
+#[path = "bridge_first/reference_png.rs"]
+mod reference_png;
+
 /// Calls one tool and returns its structured answer, error or not, polling an
 /// export job to completion the way a client does.
 async fn call(
@@ -526,7 +531,7 @@ async fn an_export_without_url_reads_the_selection_through_the_bridge() -> anyho
         "nothing was requested by key: {source}"
     );
     assert_eq!(source["fileName"], "Landing");
-    assert_eq!(source["pageName"], "Page 1");
+    assert_eq!(source["viewerPageName"], "Page 1");
     assert_eq!(source["nodeId"], "1:2");
     assert!(source["bridgeReads"].as_u64().unwrap_or_default() > 0);
     assert!(!shows_a_routing_key(&output), "{output}");
@@ -562,7 +567,7 @@ async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
         Auth::new(AuthStatus::Disconnected),
         setup.upstream.clone(),
         "devup_figma_export",
-        json!({ "outputs": ["tsx", "referencePng"] }),
+        json!({ "frameIds": ["1:2"], "outputs": ["tsx", "referencePng"] }),
     )
     .await?;
     assert!(!failed, "{output}");
@@ -570,6 +575,8 @@ async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
     assert_eq!(output["referencePngNote"], REFERENCE_NOTE);
     assert!(output["referencePng"].get("note").is_none(), "{output}");
     assert_eq!(output["cache"]["capabilities"]["referencePng"], true);
+    assert_eq!(output["artifactId"], output["cache"]["artifactId"]);
+    assert_eq!(output["outputResults"]["referencePng"]["state"], "produced");
     assert_eq!(
         output["source"]["bridgeReads"],
         output["collection"]["figmaToolCalls"]

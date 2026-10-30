@@ -1,23 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
-
 use devup_mcp_figma::{RawNode, Snapshot, TypedNode};
 use serde_json::Value;
-
 use super::{
     component::{LengthToken, Prop, PropValue},
     layout::{format_number, px, string_prop},
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AssetKind {
-    Svg,
-    SvgMask,
-    Png,
-}
-
-pub(crate) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
-    asset_kind_nested(snapshot, node, false)
-}
 
 fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
     let view = node.typed_view();
@@ -87,9 +74,21 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
     let mut visible_children = Vec::new();
     for child_id in child_ids {
         let child = snapshot.nodes.get(child_id)?;
-        if child.typed_view().bool("visible") != Some(false) {
+        if child.typed_view().bool("visible") != Some(false)
+            || child.typed_view().value("componentPropertyReferences")
+                .and_then(|references| references.get("visible"))
+                .and_then(Value::as_str)
+                .is_some()
+        {
             visible_children.push(child);
         }
+    }
+
+    if visible_children.len() >= 2
+        && matches!(view.node_type(), "FRAME" | "INSTANCE" | "COMPONENT")
+        && matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL" | "GRID"))
+    {
+        return None;
     }
 
     visible_children

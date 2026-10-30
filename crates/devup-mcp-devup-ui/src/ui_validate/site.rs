@@ -24,6 +24,7 @@
 //!   neither `metadata` nor `generateMetadata`.
 
 use super::{Severity, Violation};
+use crate::effective_attributes::AttributeContext;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{Visit, walk};
@@ -98,6 +99,8 @@ struct Element {
     motion_reduce: bool,
     aria_label: bool,
     aria_current: bool,
+    child_focus: bool,
+    child_hover: bool,
     /// The opening tag as written, for the motion checks.
     text: String,
 }
@@ -118,6 +121,7 @@ struct Collector<'s> {
     source: &'s str,
     nav_depth: usize,
     elements: Vec<Element>,
+    attributes: AttributeContext,
 }
 
 fn attribute_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
@@ -128,28 +132,6 @@ fn attribute_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
         },
         JSXAttributeItem::SpreadAttribute(_) => None,
     }
-}
-
-/// The literal or identifier `as` names, if any: `as="a"`, `as={Link}`.
-fn as_value(node: &JSXOpeningElement<'_>) -> Option<String> {
-    node.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        if !matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "as") {
-            return None;
-        }
-        match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => Some(value.value.to_string()),
-            Some(JSXAttributeValue::ExpressionContainer(container)) => {
-                match &container.expression {
-                    JSXExpression::Identifier(id) => Some(id.name.to_string()),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    })
 }
 
 fn element_name(node: &JSXOpeningElement<'_>) -> String {
@@ -170,6 +152,23 @@ fn has_image(children: &[JSXChild<'_>]) -> bool {
             ) || has_image(&element.children)
         }
         JSXChild::Fragment(fragment) => has_image(&fragment.children),
+        _ => false,
+    })
+}
+
+/// Whether any descendant element carries one of the named attributes.
+fn descendant_has(children: &[JSXChild<'_>], wanted: &[&str]) -> bool {
+    children.iter().any(|child| match child {
+        JSXChild::Element(element) => {
+            element
+                .opening_element
+                .attributes
+                .iter()
+                .filter_map(attribute_name)
+                .any(|name| wanted.contains(&name))
+                || descendant_has(&element.children, wanted)
+        }
+        JSXChild::Fragment(fragment) => descendant_has(&fragment.children, wanted),
         _ => false,
     })
 }
@@ -197,26 +196,14 @@ impl<'a> Visit<'a> for Collector<'_> {
     fn visit_jsx_element(&mut self, node: &JSXElement<'a>) {
         let opening = &node.opening_element;
         let tag = element_name(opening);
-        let as_tag = as_value(opening);
-        let names = opening
-            .attributes
-            .iter()
-            .filter_map(attribute_name)
-            .collect::<Vec<_>>();
-        let has = |name: &str| names.contains(&name);
+        let attributes = self.attributes.read(opening);
+        let as_tag = attributes.rendered_as();
+        let has = |name: &str| attributes.contains(name);
         let effective = as_tag.clone().unwrap_or_else(|| tag.clone());
-        let nav = effective == "nav"
-            || opening.attributes.iter().any(|item| {
-                matches!(item, JSXAttributeItem::Attribute(attribute)
-                    if matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "role")
-                    && matches!(&attribute.value, Some(JSXAttributeValue::StringLiteral(value)) if value.value == "navigation"))
-            });
+        let nav = effective == "nav" || attributes.literal("role").as_deref() == Some("navigation");
         // A spread may carry the states; nothing here can see into it.
-        let spread = opening
-            .attributes
-            .iter()
-            .any(|item| matches!(item, JSXAttributeItem::SpreadAttribute(_)));
-        let link = matches!(effective.as_str(), "a" | "Link");
+        let spread = attributes.unresolved_spread;
+        let link = matches!(effective.as_str(), "a" | "Link") || self.attributes.link_names.contains(&effective);
         let button = effective == "button";
         let input = matches!(effective.as_str(), "input" | "select" | "textarea");
         let role = if input {
@@ -251,10 +238,13 @@ impl<'a> Visit<'a> for Collector<'_> {
                 hover: has("_hover"),
                 focus: has("_focusVisible") || has("_focus") || has("_focusWithin"),
                 active: has("_active"),
-                transition: names.iter().any(|name| name.starts_with("transition")),
+                transition: attributes.transition,
                 motion_reduce: has("_motionReduce"),
                 aria_label: has("aria-label") || has("aria-labelledby"),
                 aria_current: has("aria-current"),
+                child_focus: link
+                    && descendant_has(&node.children, &["_focusVisible", "_focus"]),
+                child_hover: link && descendant_has(&node.children, &["_hover"]),
                 text: self
                     .source
                     .get(span.start as usize..span.end as usize)
@@ -286,6 +276,7 @@ fn collect(path: &str, source: &str) -> Option<Vec<Element>> {
         source,
         nav_depth: 0,
         elements: Vec::new(),
+        attributes: AttributeContext::from_program(&parsed.program),
     };
     collector.visit_program(&parsed.program);
     Some(collector.elements)
@@ -391,7 +382,7 @@ fn scales(text: &str) -> Vec<f64> {
         .collect()
 }
 
-fn violation(
+pub(super) fn violation(
     source: &str,
     span: Span,
     rule: &'static str,
@@ -453,7 +444,26 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                     suggestion,
                 ));
             };
-        if !element.hover && !element.focus {
+        if element.child_focus && !element.focus {
+            push(
+                "focus-on-non-focusable",
+                Severity::Error,
+                format!(
+                    "<{name}> is the focusable link, but _focusVisible is set on a child element; the child never receives focus, so a keyboard user sees no focus ring."
+                ),
+                "Render the stateful element itself as the link: <Text as={Link} props={{ href }} _hover={{ ... }} _focusVisible={{ ... }}>. Do not wrap it in <Link> and put the states on the child, and do not move them into css().",
+            );
+        } else if element.child_hover && !element.hover {
+            push(
+                "hover-on-child",
+                Severity::Warning,
+                format!(
+                    "<{name}> is the link, but _hover is set only on a child element; the link's own computed style does not change."
+                ),
+                "Put _hover on the element rendered as the link: <Text as={Link} props={{ href }} _hover={{ ... }}>.",
+            );
+        }
+        if !element.hover && !element.focus && !element.child_focus && !element.child_hover {
             push(
                 "interactive-states",
                 Severity::Warning,
@@ -463,7 +473,7 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                 ),
                 include_str!("../text/site-interaction_findings-3f71ed85.md"),
             );
-        } else if !element.focus {
+        } else if !element.focus && !element.child_focus {
             push(
                 "focus-style",
                 Severity::Warning,
@@ -701,6 +711,23 @@ export function Cards() { return <Box as={Link} href="/work/1"><Image src="/a.pn
             .map(|row| (row.role.as_str(), row.total, row.complete))
             .collect::<Vec<_>>();
         assert_eq!(coverage, [("nav items", 2, 1), ("cards", 1, 0)]);
+    }
+
+    #[test]
+    fn states_on_a_child_of_a_link_are_reported_instead_of_passing() {
+        let source = r#"export function Nav() { return <>
+  <Link href="/a"><Text _hover={{ color: "$primary" }} _focusVisible={{ outline: "2px solid $primary" }}>A</Text></Link>
+  <Link href="/b"><Text _hover={{ color: "$primary" }}>B</Text></Link>
+  <Text as={Link} props={{ href: "/c" }} _hover={{ color: "$primary" }} _focusVisible={{ outline: "2px solid $primary" }} transition="color 0.2s ease">C</Text>
+</>; }"#;
+        let found = interaction_findings("Nav.tsx", source);
+        let rules = found.iter().map(|v| v.rule).collect::<Vec<_>>();
+        assert_eq!(
+            rules,
+            ["focus-on-non-focusable", "hover-on-child", "focus-style"]
+        );
+        assert_eq!(found[0].severity, Severity::Error);
+        assert_eq!(found[1].severity, Severity::Warning);
     }
 
     #[test]

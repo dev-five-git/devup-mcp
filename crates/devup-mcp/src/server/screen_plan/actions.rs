@@ -1,10 +1,8 @@
 /// `confirm`: every question that applies answered, in one call, or nothing
 /// changes.
 pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     let plan_id = input
         .plan_id
         .as_deref()
@@ -16,6 +14,18 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             false,
             json!({"planId": plan_id, "currentPlanId": plan["planId"]}),
         ));
+    }
+    if plan["status"] == "confirmed" && input.answers.is_empty() {
+        return Ok(json!({
+            "status": "confirmed",
+            "alreadyConfirmed": true,
+            "planId": plan["planId"],
+            "confirmedAt": plan["confirmedAt"],
+            "routes": plan["routes"],
+            "markdownTable": route_markdown(array(&plan["routes"])),
+            "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "status", "projectRoot": root, "planId": plan_id},
+                "how": "Nothing changed. The plan was confirmed before; continue implementation from its status."},
+        }));
     }
     let mut questions = array(&plan["questions"]).to_vec();
     let ordered = questions.clone();
@@ -31,6 +41,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         .cloned()
         .collect::<Vec<_>>();
     let mut actions = BTreeMap::new();
+    let answers = proposal_answers(&questions, &input.answers);
     let mut custom = Vec::new();
     let mut missing = Vec::new();
     for question in &questions {
@@ -38,7 +49,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         if !required(question, &actions) {
             continue;
         }
-        let Some(answer) = input.answers.get(&id) else {
+        let Some(answer) = answers.get(&id) else {
             if input.accept_recommended
                 && let Some(recommended) = array(&question["resolve"]).first()
             {
@@ -108,18 +119,24 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         .unwrap_or(text(&plan["appDir"]))
         .to_owned();
     plan["appDir"] = json!(app_dir);
+    let folds = state_folds(&questions, &actions);
+    let folded = folded_ids(&folds);
     let mut routes = Vec::new();
     let mut screen_routes = BTreeMap::new();
     let screens = array(&plan["screens"]).to_vec();
     for screen in &screens {
         let id = text(&screen["id"]).to_owned();
         let frames = array(&screen["frames"]).to_vec();
+        if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str())
+            && !frames.iter().any(|frame| frame["pageId"] == page) {
+            continue;
+        }
         let mut deciding = array(&screen["structureQuestions"])
             .iter()
             .map(text)
             .collect::<Vec<_>>();
         deciding.extend(screen["groupingQuestion"].as_str());
-        if nothing_here || fixed(&deciding) {
+        if nothing_here || fixed(&deciding) || folded.contains(&id) {
             continue;
         }
         let chosen_app = actions
@@ -214,6 +231,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "screen": if separate { first.clone() } else { id.clone() },
                 "name": group_frames[0]["name"],
                 "nodeIds": group_frames.iter().map(|frame| frame["nodeId"].clone()).collect::<Vec<_>>(),
+                "pages": distinct_pages(&group_frames),
                 "drawnWidths": group_frames.iter().filter_map(|frame| frame["width"].as_f64()).map(|width| width.round() as i64).collect::<Vec<_>>(),
                 "implementation": implementation,
                 "hostScreen": host,
@@ -226,6 +244,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             }));
         }
     }
+    record_states(&mut routes, &folds);
     let mut excluded = Vec::new();
     for row in array(&plan["excluded"]) {
         let node = text(&row["nodeId"]).to_owned();
@@ -261,6 +280,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     }
     // One URL per app: the public site and the console may both have `/`.
     let mut seen = BTreeMap::<(String, String), String>::new();
+    let mut collisions = Vec::new();
     for row in &routes {
         if let Some(url) = row["url"].as_str()
             && let Some(other) = seen.insert(
@@ -269,8 +289,11 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             )
             && other != text(&row["screen"])
         {
-            return Err(duplicate_route(&plan, url, &other, &row["screen"], &row["name"]));
+            collisions.push((url.to_owned(), other, row["screen"].clone(), row["name"].clone()));
         }
+    }
+    if !collisions.is_empty() {
+        return Err(duplicate_routes(&plan, &collisions));
     }
     for row in routes
         .iter_mut()
@@ -357,6 +380,12 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     plan["routes"] = json!(routes);
     plan["excluded"] = json!(excluded);
     plan["designFixes"] = json!(design_fixes);
+    plan["confirmedPage"] = confirmed_page(&plan);
+    if let Some(page) = actions.get("base-page").and_then(|action| action["pageId"].as_str()) {
+        let name = screens.iter().flat_map(|screen| array(&screen["frames"]))
+            .find(|frame| frame["pageId"] == page).map(|frame| frame["pageName"].clone());
+        plan["confirmedPage"] = json!({"id":page,"name":name,"basis":"base-page answer"});
+    }
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
     refresh_inventory_checks(&mut plan);
@@ -364,9 +393,32 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         plan["assumptions"] = json!([]);
     }
     let written = write_plan(policy, root, &plan)?;
+    let mut work_queue = theme_sync_queue(&plan, root);
+    work_queue.extend(routes
+        .iter()
+        .filter(|route| route["url"].is_string())
+        .map(|route| {
+            json!({
+                "do": "build",
+                "url": route["url"],
+                "implementation": route["implementation"],
+                "file": route["file"],
+                "nodeIds": route["nodeIds"],
+                "drawnWidths": route["drawnWidths"],
+                "states": state_exports(route),
+                "nextExport": if multi_width(route) { responsive_export_action(&plan, route, root) } else { Value::Null },
+            })
+        })
+        .collect::<Vec<_>>());
+    let urls = work_queue
+        .iter()
+        .filter_map(|item| item["url"].as_str().map(str::to_owned))
+        .collect::<Vec<_>>();
     Ok(json!({
         "status": "confirmed",
         "planId": plan["planId"],
+        "workQueue": work_queue,
+        "confirmedPage": plan["confirmedPage"],
         "routes": routes,
         "markdownTable": route_markdown(&routes),
         "frameInventory": plan["frameInventory"],
@@ -380,25 +432,27 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "customAnswers": custom,
         "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
-        "nextAction": {"how": IMPLEMENT_INSTRUCTION},
+        "nextAction": {
+            "how": IMPLEMENT_INSTRUCTION,
+            "buildAll": urls,
+            "until": "every URL in workQueue is built; do not stop after the first route. Check progress with action status.",
+        },
     }))
 }
 
 /// `assume`: what implementation decided without asking, appended to the
 /// confirmed plan so status and the final report carry it.
 pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "Assumptions belong to implementation, after confirm. Before confirm, put the decision to the user in the question rounds instead.",
         ));
     }
-    if input.assumptions.is_empty() && input.dependency_update.is_none() {
+    if input.assumptions.is_empty() && input.dependency_update.is_none() && input.navigation_targets.is_empty() {
         return Err(invalid(
-            "action assume needs assumptions or dependencyUpdate.",
+            "action assume needs assumptions, dependencyUpdate or navigationTargets.",
         ));
     }
     let recorded_at = now();
@@ -446,6 +500,18 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
             "reason": assumption.reason, "recordedAt": recorded_at}),
         );
     }
+    let mut remapped = Vec::new();
+    for (node, url) in &input.navigation_targets {
+        let route = normalize_route(url).filter(|route| valid_route(route)).ok_or_else(|| invalid(format!("navigationTargets[{node}] = {url:?} is not an app route.")))?;
+        remap_frame(&mut plan, node, &route, &mut remapped)?;
+        list.push(json!({"about": node, "decision": format!("remapped to {route}"), "reason": "navigationTargets in assume", "recordedAt": recorded_at}));
+    }
+    if !remapped.is_empty() {
+        refresh_inventory_checks(&mut plan);
+        let mut all = array(&plan["remaps"]).to_vec();
+        all.extend(remapped.iter().cloned());
+        plan["remaps"] = json!(all);
+    }
     plan["assumptions"] = json!(list);
     // An assumption never builds what the plan excluded or sent back for a
     // design fix; the export gate refuses those frames whatever is recorded.
@@ -474,6 +540,7 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         "stillNotBuilt": blocked.iter().map(|id| json!({"frame": id,
             "why": "Excluded or sent back for a design fix; an assumption cannot build it, and the export gate refuses it."})).collect::<Vec<_>>(),
         "assumptions": plan["assumptions"],
+        "remapped": remapped,
         "dependencies": plan["dependencies"],
         "writtenTo": written,
         "how": "Keep implementing. Every assumption appears in status and must be in your final report.",
@@ -482,10 +549,8 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
 
 /// Records a decision the work needs without stopping it.
 pub(super) fn defer(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "A decision before confirm is a question: put it in extraQuestions on draft.",
@@ -532,10 +597,8 @@ pub(super) async fn audit_plan(
     policy: &OutputPolicy,
     artifacts: &ArtifactStore,
 ) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let mut plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
+    let (plan_root, mut plan) = audit_plan_location(input)?;
+    let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     if plan["status"] != "confirmed" {
         return Err(invalid(
             "auditPlan needs the confirmed plan: answer the questions and confirm first.",
@@ -543,11 +606,12 @@ pub(super) async fn audit_plan(
     }
     let config = read_config(root)?.unwrap_or_default();
     let thresholds = config.visual_thresholds.clone().unwrap_or_default();
+    let base_url = audit_base_url(input, &plan);
     let mut result = super::audit_plan::write(
         &plan,
         &super::audit_plan::AuditRequest {
             root,
-            base_url: input.base_url.as_deref().unwrap_or("http://localhost:3000"),
+            base_url: &base_url,
             base_urls: &input.base_urls,
             only: &input.urls,
             artifact_ids: &input.artifacts,
@@ -558,9 +622,12 @@ pub(super) async fn audit_plan(
     )
     .await?;
     let mut entries = array(&plan["audit"]["plans"]).to_vec();
+    let replaced = array(&result["plans"]).iter().map(|entry| entry["url"].clone()).collect::<Vec<_>>();
+    entries.retain(|entry| !replaced.contains(&entry["url"]));
     for written in array(&result["plans"]) {
-        entries.retain(|entry| entry["url"] != written["url"]);
         entries.push(json!({"url": written["url"], "screen": written["screen"],
+            "app": written["app"], "baseUrl": written["baseUrl"],
+            "state": written["state"],
             "missingReferences": written["missingReferences"], "planPath": written["planPath"], "reportPath": format!("{}/report.json", text(&written["reportDirectory"]).replace('\\', "/"))}));
     }
     // A dynamic route sampled from its Figma frame is an assumption, and is
@@ -578,9 +645,15 @@ pub(super) async fn audit_plan(
     }
     plan["assumptions"] = json!(assumptions);
     let max_fix_attempts = config.max_fix_attempts.unwrap_or(3);
+    if let Some(mismatch) = base_url_mismatch(&entries) {
+        result["baseUrlMismatch"] = mismatch;
+    }
+    plan["audit"]["baseUrl"] = json!(base_url);
     plan["audit"]["plans"] = json!(entries);
     plan["audit"]["maxFixAttempts"] = json!(max_fix_attempts);
     plan["audit"]["generatedAt"] = json!(now());
+    result["framePages"] = json!(frame_page_table(&plan));
+    plan["audit"]["framePages"] = result["framePages"].clone();
     result["writtenTo"] = write_plan(policy, root, &plan)?;
     result["maxFixAttempts"] = json!(max_fix_attempts);
     result["doneWhen"] = json!(DONE_RULE);
@@ -623,40 +696,54 @@ fn suggested_route(name: &str, screen: &str, taken: &str) -> String {
     }
 }
 
-/// Two screens on one URL: the error names both screens, the questions that
-/// place each, and a distinct URL for the second, so the caller can retry
-/// confirm with one changed answer instead of guessing.
-fn duplicate_route(plan: &Value, url: &str, first: &str, second: &Value, name: &Value) -> DevupError {
-    let second = text(second);
-    let first_name = array(&plan["screens"])
-        .iter()
-        .find(|screen| screen["id"] == first)
-        .map(|screen| screen["name"].clone())
-        .unwrap_or(Value::Null);
-    let suggestion = suggested_route(text(name), second, url);
-    let questions = placing_questions(plan, second);
-    let retry = questions
-        .iter()
-        .find(|id| !id.starts_with("collision:"))
-        .map(|id| json!({id.as_str(): suggestion}))
-        .unwrap_or(json!({}));
+/// Screens on one URL: the error names every colliding pair, the questions
+/// that place each, and a distinct URL for the later screen, so the caller can
+/// retry confirm with all changed answers at once instead of one per call.
+fn duplicate_routes(plan: &Value, collisions: &[(String, String, Value, Value)]) -> DevupError {
+    let mut conflicts = Vec::new();
+    let mut retry = serde_json::Map::new();
+    let mut taken = collisions.iter().map(|c| c.0.clone()).collect::<BTreeSet<_>>();
+    for (url, first, second, name) in collisions {
+        let second = text(second);
+        let first_name = array(&plan["screens"])
+            .iter()
+            .find(|screen| screen["id"] == first.as_str())
+            .map(|screen| screen["name"].clone())
+            .unwrap_or(Value::Null);
+        let mut suggestion = suggested_route(text(name), second, url);
+        while !taken.insert(suggestion.clone()) {
+            suggestion = format!("{suggestion}-{}", second.replace([':', ';'], "-"));
+        }
+        let questions = placing_questions(plan, second);
+        if let Some(id) = questions.iter().find(|id| !id.starts_with("collision:")) {
+            retry.insert(id.clone(), json!(suggestion));
+        }
+        conflicts.push(json!({
+            "url": url,
+            "screens": [
+                {"screen": first, "name": first_name, "questions": placing_questions(plan, first)},
+                {"screen": second, "name": name, "questions": questions, "suggestedUrl": suggestion},
+            ],
+        }));
+    }
+    let (url, first, second, _) = &collisions[0];
+    let retry = Value::Object(retry);
     DevupError::with_details(
         ErrorCode::DevupInvalidInput,
         format!(
-            "Two screens resolve to {url} ({first} and {second}). Nothing was written. Retry confirm with the same answers plus {retry}, or show the user both screens and ask which one owns {url}."
+            "Two screens resolve to {url} ({first} and {}); {} URL conflict(s) in total. Nothing was written. Retry confirm with the same answers plus {retry}, or show the user the conflicting screens and ask which one owns each URL.",
+            text(second),
+            collisions.len()
         ),
         false,
         json!({
             "url": url,
-            "conflict": [
-                {"screen": first, "name": first_name, "questions": placing_questions(plan, first)},
-                {"screen": second, "name": name, "questions": questions, "suggestedUrl": suggestion},
-            ],
+            "conflict": conflicts[0]["screens"],
+            "conflicts": conflicts,
             "retryAnswers": retry,
         }),
     )
 }
-
 fn screen_table(plan: &Value) -> Vec<Value> {
     array(&plan["screens"])
         .iter()
@@ -689,7 +776,7 @@ fn cell(value: &Value) -> String {
 
 fn route_markdown(routes: &[Value]) -> String {
     let mut out = String::from(
-        "| URL | Figma screen | nodeIds | widths | file | implementation | app |\n|---|---|---|---|---|---|---|\n",
+        "| URL | Figma screen | Figma page | nodeIds | widths | file | implementation | app |\n|---|---|---|---|---|---|---|---|\n",
     );
     for row in routes {
         let url = if row["implementation"] == "state" {
@@ -698,8 +785,9 @@ fn route_markdown(routes: &[Value]) -> String {
             cell(&row["url"])
         };
         out.push_str(&format!(
-            "| {url} | {} | {} | {} | {} | {} | {} |\n",
+            "| {url} | {} | {} | {} | {} | {} | {} | {} |\n",
             cell(&row["name"]),
+            cell(&row["pages"]),
             cell(&row["nodeIds"]),
             cell(&row["drawnWidths"]),
             cell(&row["file"]),
@@ -798,125 +886,4 @@ fn markdown(plan: &Value) -> String {
         out.push_str(&lists);
     }
     out
-}
-
-fn worst(a: &str, b: &str) -> &'static str {
-    let rank = |status: &str| match status {
-        "fail" => 3,
-        "inconclusive" => 2,
-        "not-run" => 1,
-        _ => 0,
-    };
-    match rank(a).max(rank(b)) {
-        3 => "fail",
-        2 => "inconclusive",
-        1 => "not-run",
-        _ => "pass",
-    }
-}
-
-/// `status`: the confirmed plan read against the routes on disk and, when
-/// given, a runtime audit. A width without an audit item is `not-run`.
-pub(super) async fn status(
-    input: &ScreenPlanInput,
-    policy: &OutputPolicy,
-    artifacts: &ArtifactStore,
-) -> Result<Value, DevupError> {
-    let root = require_root(input)?;
-    let plan = read_plan(root)?.ok_or_else(|| {
-        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
-    })?;
-    if plan["status"] != "confirmed" {
-        return Ok(json!({
-            "status": "not-confirmed",
-            "planId": plan["planId"],
-            "questionRounds": question_rounds(array(&plan["questions"]), per_round(&plan)),
-            "questions": ask_shape(array(&plan["questions"])),
-            "askInstruction": ASK_INSTRUCTION,
-            "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"]}, "how": ASK_INSTRUCTION},
-        }));
-    }
-    let mut plan = plan;
-    let audit = match (
-        &input.audit_plan_path,
-        &input.audit_report_path,
-        &input.tooling_unavailable,
-    ) {
-        (Some(plan_path), Some(report_path), None) => Some((
-            super::runtime_audit::ingest_with_artifacts(policy, plan_path, report_path, artifacts)
-                .await?,
-            sha256(&policy.resolve(report_path)?.read_bounded(8 * 1024 * 1024)?),
-        )),
-        (Some(plan_path), None, Some(reason)) => {
-            let bytes = policy.resolve(plan_path)?.read_bounded(MAX_PLAN_BYTES)?;
-            let audit_plan: Value = serde_json::from_slice(&bytes)
-                .map_err(|_| invalid("auditPlanPath is not a runtime audit plan."))?;
-            for screen in array(&audit_plan["plan"]["screens"]) {
-                if let Some(route) = screen["routePath"].as_str() {
-                    plan["audit"]["inconclusive"][route] = json!(reason);
-                }
-            }
-            write_plan(policy, root, &plan)?;
-            None
-        }
-        (None, None, None) => None,
-        _ => {
-            return Err(invalid(
-                "status takes auditPlanPath with auditReportPath, or auditPlanPath with toolingUnavailable, or neither.",
-            ));
-        }
-    };
-    let evidence = project_evidence(root).await?;
-    let mut audit = audit;
-    if let Some((audit, _)) = &mut audit {
-        super::audit_plan::classify_geometry(audit, root, &evidence.sources, policy);
-    }
-    let round = match &audit {
-        Some((audit, report_sha)) if audit["verdict"] != "rejected" => {
-            let routes = array(&audit["screenTable"])
-                .iter()
-                .filter_map(|row| row["routePath"].as_str())
-                .map(str::to_owned)
-                .collect::<Vec<_>>();
-            if let Some(inconclusive) = plan["audit"]["inconclusive"].as_object_mut() {
-                inconclusive.retain(|route, _| !routes.contains(route));
-            }
-            // The links each page holds, for auditPlan's next pass over the
-            // dynamic routes.
-            for (route, hrefs) in audit["links"].as_object().into_iter().flatten() {
-                plan["audit"]["links"][route] = hrefs.clone();
-            }
-            let mut link_table = array(&plan["audit"]["linkTable"]).iter()
-                .filter(|row| !row["from"].as_str().and_then(|from| url::Url::parse(from).ok()).and_then(|url| normalize_route(url.path())).is_some_and(|route| routes.contains(&route)))
-                .cloned().collect::<Vec<_>>();
-            link_table.extend(array(&audit["linkTable"]).iter().cloned());
-            plan["audit"]["linkTable"] = json!(link_table);
-            let max = plan["audit"]["maxFixAttempts"]
-                .as_u64()
-                .and_then(|max| u32::try_from(max).ok())
-                .or(evidence.config.max_fix_attempts)
-                .unwrap_or(3);
-            let round = super::audit_plan::record_round(
-                &mut plan,
-                audit,
-                report_sha,
-                &input.visual_results,
-                &evidence.figma_nodes,
-                max,
-            );
-            write_plan(policy, root, &plan)?;
-            Some(round)
-        }
-        _ => None,
-    };
-    let mut report = status_report(&plan, &evidence, audit.as_ref().map(|(audit, _)| audit));
-    if let Some((audit, _)) = &audit {
-        report["visualComparisons"] = audit["visualComparisons"].clone();
-        report["missingNodes"] = audit["missingNodes"].clone();
-    }
-    if let Some(round) = round {
-        report["pendingComparisons"] = round["pendingComparisons"].clone();
-        report["inconclusiveComparisons"] = round["inconclusiveComparisons"].clone();
-    }
-    Ok(report)
 }

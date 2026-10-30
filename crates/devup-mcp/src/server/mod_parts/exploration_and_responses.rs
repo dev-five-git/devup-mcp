@@ -214,6 +214,7 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         };
         let matches = entries
             .iter()
+            .copied()
             .filter(|entry| entry.element_index == usize::try_from(element).ok())
             .filter(|entry| {
                 entry
@@ -224,15 +225,25 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
                     })
             })
             .take(3)
-            .map(|entry| {
-                json!({"nodeId": entry.node_id, "property": entry.property,
-                    "generatedProperty": entry.generated_property, "resolution": entry.resolution})
-            })
             .collect::<Vec<_>>();
-        if !matches.is_empty() {
-            linked += 1;
-            violation["source"] = json!(matches);
+        if matches.is_empty() {
+            continue;
         }
+        linked += 1;
+        if violation["rule"]
+            .as_str()
+            .is_some_and(|rule| rule.starts_with("hardcoded-"))
+        {
+            violation["designBinding"] = design_binding(&matches);
+        }
+        violation["source"] = json!(
+            matches
+                .iter()
+                .map(|entry| json!({"nodeId": entry.node_id, "property": entry.property,
+                    "generatedProperty": entry.generated_property, "resolution": entry.resolution,
+                    "variableId": entry.variable_id}))
+                .collect::<Vec<_>>()
+        );
     }
     let unlinked = result["violations"].as_array().map_or(0, Vec::len) - linked;
     result["sourceMapLink"] = json!({"state": "linked", "linkedViolations": linked,
@@ -241,6 +252,73 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         result["sourceMapLink"]["unlinkedReason"] = json!(include_str!(
             "../text/mod-attach_layout_and_source_links-a7298619.md"
         ));
+    }
+}
+
+/// A hardcoded value whose Figma node binds no variable is what the design
+/// says, so a token that only shares the value is a coincidence: the finding
+/// drops to info and offers no replacement. Runs before severities are
+/// counted, so `ok`, `okReason`, `strict` and `correctedTsx` all see it.
+fn relax_unbound_token_matches(
+    violations: &mut [devup_mcp_devup_ui::ui_validate::Violation],
+    input: &UiValidateInput,
+) {
+    use devup_mcp_devup_ui::ui_validate::Severity;
+    let Some(source_map) = &input.source_map else {
+        return;
+    };
+    if input.files.is_some() {
+        return;
+    }
+    let entries = source_map
+        .entries
+        .iter()
+        .chain(&source_map.tsx)
+        .collect::<Vec<_>>();
+    for violation in violations.iter_mut().filter(|v| {
+        v.severity == Severity::Warning && matches!(v.rule, "hardcoded-color" | "hardcoded-length")
+    }) {
+        let (Some(element), Some(attribute)) = (
+            violation.context.get("elementIndex").and_then(Value::as_u64),
+            violation.context.get("attribute").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let generated = entries
+            .iter()
+            .copied()
+            .filter(|entry| entry.element_index == usize::try_from(element).ok())
+            .filter(|entry| {
+                entry.generated_property.as_deref().is_some_and(|generated| {
+                    generated == attribute || generated.starts_with(&format!("{attribute}="))
+                })
+            })
+            .collect::<Vec<_>>();
+        if generated.is_empty() || generated.iter().any(|entry| entry.variable_id.is_some()) {
+            continue;
+        }
+        violation.severity = Severity::Info;
+        violation.suggestion = Some(
+            "The Figma design hardcodes this value too (no variable bound), so keeping it matches the design. Bind a variable in Figma and export again if it should follow the theme.".into(),
+        );
+    }
+}
+
+/// Whether the Figma node behind a hardcoded value bound a variable. A value
+/// match against the theme is a coincidence of numbers; the binding is what
+/// the designer chose, so it outranks `tokenMatches`. Unbound means the
+/// design itself hardcodes the value, and no token replacement is implied.
+fn design_binding(entries: &[&crate::server::tools::SourceMapEntryInput]) -> Value {
+    let variables = entries
+        .iter()
+        .filter_map(|entry| entry.variable_id.as_deref())
+        .collect::<std::collections::BTreeSet<_>>();
+    if variables.is_empty() {
+        json!({"state": "unbound",
+            "note": "The Figma node has no variable bound to this property: the design also hardcodes it. tokenMatches are value coincidences, not the designer's choice."})
+    } else {
+        json!({"state": "bound", "variableIds": variables,
+            "note": "Use the token generated for this Figma variable (devupJson/variable mapping), not a token that merely shares the value."})
     }
 }
 
@@ -418,11 +496,6 @@ fn with_project_checks(
                 .map(|tsx| (key.to_owned(), tsx.to_owned()))
         })
         .collect();
-    // A Section export answers under `frames`, one entry per selected frame,
-    // and nothing at the top level. Reading only the top level checked the
-    // single-node `url` case and silently skipped every `frameIds` call —
-    // which is every Section workflow, and so every screen of the Braillify
-    // Studio handover this exists for.
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for frame in frames {
             let node = frame
@@ -437,16 +510,21 @@ fn with_project_checks(
             }
         }
     }
-    // Before the theme half, and before its `project_root` gate: a response
-    // that handed back code has to name the conventions that code is written
-    // in whether or not the caller told us where the project is.
+    generated.extend(projection::default_code_paths::written_sources(&result));
+    // Code delivery must name its conventions, independently of project_root.
     let produced_code = !generated.is_empty() || result.get("deliverable").is_some();
     if produced_code {
         result = with_skill_gap(result, lookup);
     }
+    validation_guidance::attach_export_formatting(&mut result, &generated);
     let Some(project_root) = project_root else {
         return result;
     };
+    match screen_plan::export_progress(project_root) {
+        Ok(progress) if !progress.is_null() => result["planProgress"] = progress,
+        Err(error) => result["planProgress"] = json!({"state": "unavailable", "reason": error.message}),
+        _ => {}
+    }
     if generated.is_empty() {
         // Resource delivery hands the code back as a link, so there is no
         // source here to check. Saying so is the point: an absent verdict
@@ -516,7 +594,30 @@ fn with_project_checks(
             "Every token the generated TSX references exists in this project's devup.json."
         },
     });
+    if any_unknown {
+        let action = theme_sync_action(&result, project_root);
+        result["projectThemeValidation"]["nextAction"] = action.clone();
+        if result.get("nextAction").is_none_or(Value::is_null) {
+            result["nextAction"] = action;
+        }
+    }
     result
+}
+fn theme_sync_action(result: &Value, project_root: &str) -> Value {
+    let mut arguments = json!({
+        "outputs": ["devupJson"],
+        "devupJsonMode": "missing-only",
+        "projectRoot": project_root,
+        "scope": "file",
+    });
+    if let Some(url) = result.get("url").filter(|url| url.is_string()) {
+        arguments["url"] = url.clone();
+    }
+    json!({
+        "tool": "devup_figma_export",
+        "arguments": arguments,
+        "how": "The generated code references tokens missing from this project's devup.json. Sync devup.json with this call (additions only; existing tokens are kept) before using the tsx.",
+    })
 }
 
 fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidate {
@@ -875,102 +976,5 @@ fn resource_read_error(error: DevupError) -> ErrorData {
 mod export_skill_gap_tests;
 
 #[cfg(test)]
-mod p3_error_tests {
-    use super::*;
-
-    #[test]
-    fn p3_expired_artifact_is_state_failure_with_original_message() {
-        let error = to_mcp_error(DevupError::new(
-            ErrorCode::DevupFigmaHandoffExpired,
-            "The Figma artifact is missing or expired.",
-            true,
-        ));
-        assert_eq!(error.code, McpErrorCode::INTERNAL_ERROR);
-        assert_eq!(error.message, "The Figma artifact is missing or expired.");
-    }
-
-    #[test]
-    fn p3_output_root_violation_is_invalid_params() {
-        let policy = OutputPolicy::from_roots(vec![std::env::current_dir().unwrap()]).unwrap();
-        let error = policy.resolve("../outside.svg").err().unwrap();
-        assert_eq!(to_mcp_error(error).code, McpErrorCode::INVALID_PARAMS);
-    }
-}
-
-#[cfg(test)]
-mod r7_error_tests {
-    use super::*;
-    #[test]
-    fn r7_errors_have_the_same_build_identity_as_success() {
-        let success = serde_json::to_value(tool_result(json!({"status":"complete"}))).unwrap();
-        let success: Value =
-            serde_json::from_str(success["content"][0]["text"].as_str().unwrap()).unwrap();
-        for code in [
-            ErrorCode::DevupInvalidInput,
-            ErrorCode::DevupSnapshotUnsupported,
-            ErrorCode::DevupFigmaHandoffExpired,
-        ] {
-            let error = to_mcp_error(DevupError::new(code, "failure", false));
-            assert_eq!(error.data.as_ref().unwrap()["server"], success["server"]);
-        }
-    }
-    #[test]
-    fn r7_plugin_expiry_has_recovery_and_keeps_its_stage() {
-        let raw = json!({"isError":true,"content":[{"type":"text","text":"DEVUP_FIGMA_HANDOFF_EXPIRED"}]});
-        let error = to_mcp_error(operation::upstream_error(&raw).unwrap());
-        let data = error.data.unwrap();
-        assert_eq!(data["code"], "DEVUP_FIGMA_HANDOFF_EXPIRED");
-        assert_eq!(data["details"]["stage"], "plugin-execution");
-        assert_eq!(data["details"]["nextAction"]["arguments"]["refresh"], true);
-    }
-
-    #[test]
-    fn r7_expired_artifact_explains_refresh_arguments() {
-        let error = to_mcp_error(DevupError::new(
-            ErrorCode::DevupFigmaHandoffExpired,
-            "expired",
-            true,
-        ));
-        let d = &error.data.as_ref().unwrap()["details"];
-        assert_eq!(d["stage"], "artifact-lookup");
-        assert_eq!(d["nextAction"]["tool"], "devup_figma_export");
-        assert_eq!(d["nextAction"]["arguments"]["refresh"], true);
-        assert!(
-            d["nextAction"]["omitArguments"]
-                .as_array()
-                .unwrap()
-                .contains(&json!("artifactId"))
-        );
-    }
-}
-
-#[cfg(test)]
-mod r8_recovery_tests {
-    use super::*;
-    #[test]
-    fn r8_expired_artifact_returns_known_url_or_explicit_unrecoverable_state() {
-        for known in [true, false] {
-            let details = if known {
-                json!({"artifactState":"expired","recoveryArguments":{"url":"https://www.figma.com/design/test?node-id=1-2","frameIds":["2:1"],"refresh":true}})
-            } else {
-                json!({})
-            };
-            let e = to_mcp_error(DevupError::with_details(
-                ErrorCode::DevupFigmaHandoffExpired,
-                "expired",
-                true,
-                details,
-            ));
-            let d = &e.data.unwrap()["details"];
-            if known {
-                assert_eq!(
-                    d["nextAction"]["arguments"]["url"],
-                    "https://www.figma.com/design/test?node-id=1-2"
-                );
-            } else {
-                assert_eq!(d["artifactState"], "unknown");
-                assert_eq!(d["recoveryState"], "unrecoverable");
-            }
-        }
-    }
-}
+#[path = "../error_recovery_tests.rs"]
+mod error_recovery_tests;

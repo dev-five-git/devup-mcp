@@ -640,9 +640,9 @@ fn push_absolute(
     placed_by: Option<Box4>,
     policy: Option<&WidthPolicy>,
 ) -> Option<Anchor> {
+    let parent_node = parent?;
     string_prop(props, "pos", "absolute");
     let view = node.typed_view();
-    let parent_node = parent?;
     // The box to place: the node's own, or the one handed in - an asset's
     // export. A group's children carry their `x` and `y` in the group's
     // parent's space, not the group's: the join-us panel's outermost circle,

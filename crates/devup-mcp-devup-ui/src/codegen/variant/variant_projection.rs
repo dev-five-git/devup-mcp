@@ -4,13 +4,11 @@ use devup_mcp_figma::{
     DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, FidelityImpact, RawNode, Snapshot,
 };
 use serde_json::Value;
-
 use super::{
     component::{CodegenOptions, CodegenOutput, PropValue, legacy_component_name},
     layout, style, text,
 };
 use crate::provenance::mark_node;
-
 #[derive(Clone, Debug)]
 pub(super) struct Tree {
     pub node_id: String,
@@ -37,15 +35,14 @@ pub(super) struct Tree {
     /// In a responsive merge, the node each slot's width drew this element
     /// from and that node's text; empty everywhere else.
     pub slots: Vec<Option<(String, Option<String>)>>,
+    pub scalar_sources: Vec<(String, String)>,
 }
-
 #[derive(Clone, Debug)]
 struct Record {
     values: BTreeMap<String, String>,
     tree: Tree,
     node_id: String,
 }
-
 #[derive(Clone, Debug)]
 struct Definition {
     /// The name as it is written in code.
@@ -59,9 +56,9 @@ struct Definition {
     /// which may carry a `#id` suffix that `name` has dropped.
     source: String,
 }
-
 #[derive(Clone, Debug)]
 enum Expression {
+    Undefined,
     Literal(String),
     /// A devup-ui responsive array, written out slot by slot, narrowest first.
     /// `None` is the literal `null`, which is not "no value" but "whatever the
@@ -71,11 +68,11 @@ enum Expression {
     Variant(String, Vec<(String, Expression)>),
     Conditional(String, String, String),
 }
-
 pub(super) fn generate_variant_component_set(
     snapshot: &Snapshot,
     set_id: &str,
     options: &CodegenOptions,
+    merge_all: bool,
 ) -> Result<Option<CodegenOutput>, DevupError> {
     let set = snapshot.nodes.get(set_id).ok_or_else(|| {
         DevupError::new(
@@ -84,37 +81,72 @@ pub(super) fn generate_variant_component_set(
             false,
         )
     })?;
-    let definitions = definitions(set);
-    if !definitions.iter().any(|definition| {
-        matches!(
-            definition.name.to_ascii_lowercase().as_str(),
-            "effect" | "viewport"
-        )
-    }) {
+    let mut definitions = definitions(set);
+    let state_axis = merge_all.then(|| definitions.iter().find(|definition| {
+        definition.name.eq_ignore_ascii_case("state") && definition.options.iter().all(|value| {
+            matches!(value.to_ascii_lowercase().as_str(), "default" | "hover" | "active" | "disabled" | "focus")
+        })
+    }).map(|definition| definition.source.clone())).flatten();
+    if let Some(state_axis) = &state_axis {
+        for definition in &mut definitions {
+            if &definition.source == state_axis {
+                definition.name = "effect".into();
+                definition.source = "effect".into();
+                definition.default.make_ascii_lowercase();
+                definition.options.iter_mut().for_each(|value| value.make_ascii_lowercase());
+            }
+        }
+    }
+    if !merge_all && !definitions.iter().any(|definition| matches!(definition.name.to_ascii_lowercase().as_str(), "effect" | "viewport")) {
         return Ok(None);
     }
-    let records = set
+    let mut records = set
         .typed_view()
         .child_ids()
         .filter_map(|id| snapshot.nodes.get(id))
         .filter_map(|node| {
-            let values = node
+            let mut values = node
                 .typed_view()
                 .value("variantProperties")?
                 .as_object()?
                 .iter()
                 .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
                 .collect::<BTreeMap<_, _>>();
+            if let Some(state_axis) = &state_axis
+                && let Some(value) = values.remove(state_axis)
+            {
+                values.insert("effect".into(), value.to_ascii_lowercase());
+            }
             Some((node, values))
         })
         .map(|(node, values)| {
+            let mut tree = project_tree(snapshot, node, options, true)?;
+            tree.props.retain(|name, _| !POSITION_PROPS.contains(&name.as_str()));
+            if layout::holds_positioned_children(snapshot, node) {
+                tree.props.insert("pos".into(), "relative".into());
+            }
             Ok(Record {
                 values,
-                tree: project_tree(snapshot, node, options, true)?,
+                tree,
                 node_id: node.id.clone(),
             })
         })
         .collect::<Result<Vec<_>, DevupError>>()?;
+    if records.is_empty() {
+        return Ok(None);
+    }
+    if records.iter().any(|record| record.tree.component == "Image")
+        && records.iter().all(|record| is_asset_leaf(&record.tree))
+    {
+        for record in &mut records {
+            if let Some(mask) = record.tree.props.remove("maskImage") {
+                let source = mask.trim_start_matches("url(").trim_end_matches(')').to_owned();
+                record.tree.component = "Image".into();
+                record.tree.props.retain(|name, _| !matches!(name.as_str(), "bg" | "maskPos" | "maskRepeat" | "maskSize"));
+                record.tree.props.insert("src".into(), source);
+            }
+        }
+    }
     // A boolean property is not part of a variant's identity — it never appears
     // in `variantProperties` — so filtering records by it matches nothing.
     let default_filters = definitions
@@ -131,7 +163,7 @@ pub(super) fn generate_variant_component_set(
                 false,
             )
         })?;
-    let dimensions = definitions
+    let mut dimensions = definitions
         .iter()
         .filter(|definition| {
             !matches!(
@@ -143,7 +175,12 @@ pub(super) fn generate_variant_component_set(
         .collect::<Vec<_>>();
     let effect = definitions
         .iter()
-        .find(|definition| definition.name.eq_ignore_ascii_case("effect"));
+        .find(|definition| definition.name.eq_ignore_ascii_case("effect") && !records.iter().any(|record| record.tree.props.contains_key("src")) && definition.options.iter().all(|value| value.eq_ignore_ascii_case(&definition.default) || effect_selector(value).is_some()));
+    if effect.is_none()
+        && let Some(definition) = definitions.iter().find(|definition| definition.name.eq_ignore_ascii_case("effect"))
+    {
+        dimensions.push(definition.clone());
+    }
     let viewport = definitions
         .iter()
         .find(|definition| definition.name.eq_ignore_ascii_case("viewport"));
@@ -155,7 +192,7 @@ pub(super) fn generate_variant_component_set(
         &records,
         &[],
         &mut unrepresented_variant_nodes,
-        effect.map(|definition| definition.name.as_str()),
+        effect.map(|definition| definition.source.as_str()),
         &default.values,
     );
     root.props = merged_props(
@@ -167,6 +204,9 @@ pub(super) fn generate_variant_component_set(
         None,
         &default.tree.props,
     );
+    if root.component == "Image" {
+        root.scalar_sources = scalar_sources(&records, &definitions, &dimensions, viewport, effect.map_or("default", |definition| definition.default.as_str()), &[]);
+    }
     merge_child_props(
         &mut root,
         &records,
@@ -176,6 +216,7 @@ pub(super) fn generate_variant_component_set(
         effect.map_or("default", |definition| definition.default.as_str()),
         &[],
     );
+    bind_referenced_properties(&mut root, &mut dimensions);
 
     let mut selectors = BTreeMap::new();
     let mut transition_props = BTreeSet::new();
@@ -194,11 +235,14 @@ pub(super) fn generate_variant_component_set(
             );
             if !changed.is_empty() {
                 transition_props.extend(changed.keys().cloned());
-                selectors.insert(format!("_{effect_value}"), changed);
+                if let Some(selector) = effect_selector(effect_value) {
+                    selectors.insert(selector.to_owned(), changed);
+                }
             }
         }
     }
     let transition = transition(snapshot, &default.node_id, &transition_props);
+    let text_properties = bind_text_properties(snapshot, set, &mut root, &dimensions);
     let component_name = legacy_component_name(set.typed_view().name().unwrap_or("Component"));
     let code = mark_node(
         &set.id,
@@ -208,6 +252,7 @@ pub(super) fn generate_variant_component_set(
             &root,
             &selectors,
             transition.as_ref(),
+            &text_properties,
         ),
     );
     let mut imports = BTreeSet::new();
@@ -324,6 +369,42 @@ fn is_asset_leaf(tree: &Tree) -> bool {
             || (tree.component == "Box" && tree.props.contains_key("maskImage")))
 }
 
+/// Whether a sibling variant in the set is more than a shape. A header whose
+/// mobile variant is vectors only is still a component: flattening it to an
+/// `<Image>` loses the `<Header />` reference the other widths keep.
+fn set_has_non_asset_variant(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    let master = view
+        .string("mainComponentId")
+        .or_else(|| view.string("componentId"))
+        .and_then(|id| snapshot.nodes.get(id));
+    let set_id = view
+        .string("mainComponentSetId")
+        .or_else(|| master.and_then(|master| master.typed_view().string("parentId")));
+    let Some(set) = set_id
+        .and_then(|id| snapshot.nodes.get(id))
+        .filter(|set| set.typed_view().node_type() == "COMPONENT_SET")
+    else {
+        // A screen export carries the frames, not the page the set lives on.
+        // Another width's instance of the same set is the evidence left.
+        return set_id.is_some_and(|set_id| {
+            snapshot.nodes.values().any(|other| {
+                let other_view = other.typed_view();
+                other.id != node.id
+                    && other_view.node_type() == "INSTANCE"
+                    && other_view.string("mainComponentSetId") == Some(set_id)
+                    && other_view.string("mainComponentId") != view.string("mainComponentId")
+                    && style::asset_kind(snapshot, other).is_none()
+            })
+        });
+    };
+    set.typed_view()
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|variant| master.is_none_or(|master| master.id != variant.id))
+        .any(|variant| style::asset_kind(snapshot, variant).is_none())
+}
+
 /// Variant properties a component set uses to describe itself rather than to
 /// be told something, so an instance must not pass them.
 ///
@@ -359,7 +440,7 @@ pub(super) const POSITION_PROPS: [&str; 7] = [
 /// is `Property1` and not `property1`; folding it turned `leftIcon` into
 /// `lefticon`. And only a trailing `#<digits>:<digits>` is stripped, since
 /// that is Figma's own suffix rather than a character a name may not contain.
-fn instance_property_name(raw: &str) -> String {
+pub(super) fn instance_property_name(raw: &str) -> String {
     let stripped = raw
         .rsplit_once('#')
         .filter(|(_, suffix)| {
@@ -441,7 +522,9 @@ fn project_tree_inner(
         // the spot with a `{/* <Logo /> */}` comment.
         let mut props = instance_variant_props(&view);
         let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
-        if is_asset_leaf(&expanded) || style::non_rendering_asset_reason(snapshot, node).is_some() {
+        if (is_asset_leaf(&expanded) && !set_has_non_asset_variant(snapshot, node))
+            || style::non_rendering_asset_reason(snapshot, node).is_some()
+        {
             // Spelling the shape out loses which component it came from, and
             // that is the one thing a reader needs to change it in the right
             // place. The reference leaves the call it declined to write.
@@ -477,6 +560,7 @@ fn project_tree_inner(
             drawn_when: Vec::new(),
             leading_comment: None,
             slots: Vec::new(),
+            scalar_sources: Vec::new(),
         });
     }
     let asset = super::image::asset_kind(snapshot, node, &options.asset_policies);
@@ -562,6 +646,10 @@ fn project_tree_inner(
         &options.length_tokens,
         &mut used_tokens,
     );
+    text::elide_tokenized_typography(&mut props, &options.typography_values, &options.length_tokens);
+    if visible_when(&view).is_some() && view.bool("visible") == Some(false) {
+        props.retain(|(name, _)| name != "display");
+    }
     if asset.is_some() {
         props.retain(|(name, _)| {
             !matches!(
@@ -620,6 +708,7 @@ fn project_tree_inner(
         drawn_when: Vec::new(),
         leading_comment: None,
         slots: Vec::new(),
+        scalar_sources: Vec::new(),
     };
     Ok(super::image::project_tree(tree, snapshot, node, options))
 }
@@ -780,6 +869,7 @@ fn merged_props(
         }
     }
     keys.into_iter()
+        .filter(|prop| prop != "src" || defaults.contains_key("src"))
         .filter_map(|prop| {
             let expression = expression_for_prop(
                 records,
@@ -793,6 +883,9 @@ fn merged_props(
                 path.unwrap_or_default(),
                 &prop,
             )?;
+            if prop == "typography" {
+                return Some(typography_attribute(&expression));
+            }
             Some((prop.clone(), render_expression_attr(&prop, &expression)))
         })
         .collect()
@@ -897,50 +990,4 @@ pub(super) fn structure_signature(tree: &Tree) -> String {
         "notext"
     };
     format!("{}::{kind}::{text}::{props}::{children}", tree.component)
-}
-
-/// How each child is found again in another variant's tree.
-///
-/// Addressing a child by its position breaks the moment a variant leaves one
-/// out: a `tag` button has no icon, so its text sits where the icon sat and
-/// every lookup after that reads the wrong node. A child is identified by its
-/// shape where that is unique among its siblings, and by its name where it is
-/// not, with the occurrence to tell repeats apart. This is the plugin's
-/// `treeChildrenToMap`.
-fn child_keys(tree: &Tree) -> Vec<(String, usize)> {
-    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
-    for child in &tree.children {
-        *counts.entry(structure_signature(child)).or_default() += 1;
-    }
-    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
-    tree.children
-        .iter()
-        .map(|child| {
-            let signature = structure_signature(child);
-            let key = if counts.get(&signature) == Some(&1) {
-                format!("sig:{signature}")
-            } else {
-                child.node_name.clone()
-            };
-            let occurrence = seen.entry(key.clone()).or_default();
-            let at = *occurrence;
-            *occurrence += 1;
-            (key, at)
-        })
-        .collect()
-}
-
-/// Where a node sits, said in a way another variant can follow.
-type NodePath = [(String, usize)];
-
-/// The name under which a text node's own words are folded like any other
-/// value. No CSS property can be called this, so it cannot collide with one.
-const CONTENT_FIELD: &str = "\u{1}content";
-
-/// What a node says for a field, whether that is a prop or its own words.
-fn tree_field(tree: &Tree, field: &str) -> Option<String> {
-    if field == CONTENT_FIELD {
-        return tree.content.clone();
-    }
-    tree.props.get(field).cloned()
 }

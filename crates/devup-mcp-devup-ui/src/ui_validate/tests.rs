@@ -5,6 +5,59 @@ mod tests {
     use super::*;
     use crate::theme::parse_project_theme;
 
+    #[test]
+    fn effective_navigation_attributes_and_transitions_are_recognized() {
+        for attrs in [
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} transition="color .2s""#,
+            r#"{...{ props: { href: '/x', ['aria-current']: active ? 'page' : undefined }, _hover: { transition: 'color .2s' } }}"#,
+            r#"props={active ? { href: '/x', 'aria-current': 'page' } : { href: '/x', 'aria-current': undefined }} selectors={{ '&:hover': { transitionDuration: '200ms' } }}"#,
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} className={css({ transition: 'color .2s' })}"#,
+            r#"props={{ href: '/x', 'aria-current': active ? 'page' : undefined }} className={linkStyle}"#,
+        ] {
+            let source = format!(r#"import RouteLink from 'next/link'; const linkStyle = css({{ transition: 'color .2s' }}); const Header = () => <nav><Text as={{RouteLink}} {attrs} _hover={{{{color: '$primary'}}}} _focusVisible={{{{outline: 'solid'}}}}>Company</Text></nav>"#);
+            let findings = site::interaction_findings("Header.tsx", &source);
+            assert!(!findings.iter().any(|v| matches!(v.rule, "nav-current" | "hover-transition")), "{source}: {findings:?}");
+            assert_eq!(site::interaction_coverage("Header.tsx", &source).interactive, 1);
+        }
+    }
+
+    #[test]
+    fn narrow_safe_rows_do_not_report_fixed_columns() {
+        for source in [
+            r#"<Flex display={['none',null,null,null,'flex']}><Box w="400px"/><Box w="400px"/></Flex>"#,
+            r#"<Flex><Box display={['none', 'block']} w="400px"/><Box display={['none','block']} w="400px"/></Flex>"#,
+            r#"<Flex flexDir={['column', 'row']}><Box w="400px"/><Box w="400px"/></Flex>"#,
+            r#"<Flex w={['100%',null,'1200px']}><Box w={['100%',null,'400px']}/><Box w={['auto',null,'400px']}/></Flex>"#,
+        ] {
+            let report = validate_devup_ui_tsx(source, None, false);
+            assert!(!report.violations.iter().any(|v| v.rule == "narrow-fixed-columns"), "{source}: {:?}", report.violations);
+        }
+    }
+
+    #[test]
+    fn prop_sort_findings_are_one_lint_fix_action() {
+        let report = serde_json::to_value(validate_devup_ui_tsx(
+            r#"<><Box p={0} boxSize="8px" /><Box props={{}} pr="16px" /></>"#,
+            None,
+            false,
+        )).unwrap();
+        assert_eq!(report["nextAction"]["command"], "bun run lint:fix");
+        assert_eq!(report["nextAction"]["fixable"], 2);
+        assert_eq!(report["nextAction"]["label"], "bun run lint:fix (fixable 2)");
+    }
+
+    #[test]
+    fn prop_sort_respects_reserved_props_and_spread_boundaries() {
+        for tsx in [
+            r#"<Box key="a" ref={ref} appearance="none" aria-expanded={false} />"#,
+            r#"<Box zIndex={1} {...props} appearance="none" />"#,
+            r#"<Box appearance="none" boxSize="8px" p={0} />"#,
+        ] {
+            let report = serde_json::to_value(validate_devup_ui_tsx(tsx, None, false)).unwrap();
+            assert!(report["nextAction"].is_null(), "{tsx}: {report}");
+        }
+    }
+
     fn fixture_theme() -> ProjectTheme {
         parse_project_theme(
             r##"{ "theme": {
@@ -501,10 +554,86 @@ mod tests {
         assert!(lenient.ok);
         assert!(!strict.ok);
     }
+
+    fn purpose_named_length_theme() -> ProjectTheme {
+        parse_project_theme(
+            r##"{ "theme": { "length": { "default": {
+                "space0": "0px", "spacing24": "24px", "sizeStrokeBorder": "1px",
+                "radius12": "12px", "space12": "12px"
+            } } } }"##,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn zero_lengths_are_never_reported() {
+        let tsx = r##"export const X = () => <Box left="0px" top="-0px" m="0.0px" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&purpose_named_length_theme()), true);
+        assert!(report.ok);
+        assert!(
+            report.violations.iter().all(|v| v.rule != "hardcoded-length"),
+            "{:?}",
+            report.violations
+        );
+    }
+
+    #[test]
+    fn a_token_named_for_another_purpose_is_info_without_advice() {
+        let tsx = r##"export const X = () => <Box borderRadius="24px" h="1px" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&purpose_named_length_theme()), true);
+        assert!(report.ok, "{:?}", report.violations);
+        let lengths = report
+            .violations
+            .iter()
+            .filter(|v| v.rule == "hardcoded-length")
+            .collect::<Vec<_>>();
+        assert_eq!(lengths.len(), 2);
+        for finding in lengths {
+            assert_eq!(finding.severity, Severity::Info);
+            assert!(finding.suggestion.is_none());
+            assert!(finding.context.contains_key("otherPurposeTokens"));
+            assert!(finding.message.contains("different purpose"));
+        }
+    }
+
+    #[test]
+    fn a_token_named_for_the_same_purpose_is_preferred() {
+        let theme = purpose_named_length_theme();
+        let radius = validate_devup_ui_tsx(
+            r##"export const X = () => <Box borderRadius="12px" />;"##,
+            Some(&theme),
+            false,
+        );
+        let gap = validate_devup_ui_tsx(
+            r##"export const X = () => <Box gap="12px" />;"##,
+            Some(&theme),
+            false,
+        );
+        let radius = &radius.violations[0];
+        let gap = &gap.violations[0];
+        assert_eq!(radius.severity, Severity::Warning);
+        assert_eq!(gap.severity, Severity::Warning);
+        assert!(radius.message.contains("$radius12") && !radius.message.contains("$space12"));
+        assert!(gap.message.contains("$space12") && !gap.message.contains("$radius12"));
+    }
+
+    #[test]
+    fn mode_advice_is_stated_once() {
+        let report = validate_devup_ui_tsx(
+            r##"export const X = () => <Box borderRadius="16px" />;"##,
+            Some(&fixture_theme()),
+            false,
+        );
+        let finding = &report.violations[0];
+        assert!(!finding.message.contains("mode"));
+        assert!(finding.suggestion.as_deref().unwrap().contains("allModesMatch"));
+        assert_eq!(finding.context["value"], "16px");
+        assert_eq!(finding.context["prop"], "borderRadius");
+    }
 }
 
 #[path = "../ui_structure.rs"]
 mod structure;
 pub use structure::{
-    MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle,
+    MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle, validate_sources,
 };

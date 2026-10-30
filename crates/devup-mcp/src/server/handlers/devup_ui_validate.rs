@@ -1,4 +1,7 @@
 use super::*;
+use crate::server::tools::UiValidateDetail;
+#[path = "ui_validate_sources.rs"]
+mod sources;
 
 #[tool_router(router = devup_ui_validate_router, vis = "pub(super)")]
 impl DevupServer {
@@ -8,10 +11,18 @@ impl DevupServer {
     #[doc = include_str!("../text/devup-ui-validate.md")]
     pub(super) async fn devup_ui_validate(
         &self,
-        Parameters(input): Parameters<UiValidateInput>,
+        Parameters(mut input): Parameters<UiValidateInput>,
     ) -> Result<CallToolResult, ErrorData> {
         use devup_mcp_devup_ui::ui_validate::{bundle_theme, check_bundle, validate_bundle};
         let invalid = |message: String| ErrorData::invalid_params(message, None);
+        let paths_mode = !input.paths.is_empty();
+        if paths_mode {
+            if !input.tsx.is_empty() || input.files.is_some() {
+                return Err(invalid("Supply paths or tsx/files, not both".into()));
+            }
+            let root = input.project_root.as_deref().ok_or_else(|| invalid("paths requires projectRoot".into()))?;
+            input.files = Some(sources::read_paths(root, &input.paths).map_err(invalid)?);
+        }
         // Neither source supplied. This used to validate the empty string and
         // answer `ok: true, okReason: "clean"` — which reads as "this code
         // passed" about code that was never sent. There is no verdict to give
@@ -23,7 +34,9 @@ impl DevupServer {
                     .into(),
             ));
         }
-        let theme_lookup = if let Some(files) = &input.files {
+        let theme_lookup = if paths_mode {
+            project_context::theme_for_validation(input.project_root.as_deref()).map_err(to_mcp_error)?
+        } else if let Some(files) = &input.files {
             check_bundle(files).map_err(invalid)?;
             if !input.tsx.is_empty() {
                 return Err(invalid("Supply either tsx or files, not both".into()));
@@ -37,7 +50,9 @@ impl DevupServer {
             project_context::theme_for_validation(input.project_root.as_deref())
                 .map_err(to_mcp_error)?
         };
-        let mut report = if let Some(files) = &input.files {
+        let mut report = if paths_mode {
+            devup_mcp_devup_ui::ui_validate::validate_sources(input.files.as_deref().unwrap_or_default(), theme_lookup.theme.as_ref(), input.strict)
+        } else if let Some(files) = &input.files {
             validate_bundle(files, theme_lookup.theme.as_ref(), input.strict).map_err(invalid)?
         } else {
             devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
@@ -46,6 +61,19 @@ impl DevupServer {
                 input.strict,
             )
         };
+        if paths_mode
+            && let Some(root) = input.project_root.as_deref()
+            && std::path::Path::new(root).join("src").is_dir()
+        {
+            let project_sources = sources::read_paths(root, &["src".into()]).map_err(invalid)?;
+            if project_sources.iter().any(|file| devup_mcp_devup_ui::ui_validate::visual_behavior::has_global_link_decoration(&file.content)) {
+                report.violations.retain(|finding| finding.rule != "link-underline");
+                report.ok = report.violations.iter().all(|finding| {
+                    finding.severity != devup_mcp_devup_ui::ui_validate::Severity::Error
+                        && !(input.strict && finding.severity == devup_mcp_devup_ui::ui_validate::Severity::Warning)
+                });
+            }
+        }
         // Site completeness, for code checked against a project: feedback on
         // every interactive element (bundle mode checks it per file), and an
         // icon for the app.
@@ -143,6 +171,12 @@ impl DevupServer {
         // And with no theme the token check is skipped rather than passed,
         // which a bare `checkedTokens` cannot distinguish.
         use devup_mcp_devup_ui::ui_validate::Severity;
+        relax_unbound_token_matches(&mut report.violations, &input);
+        if input.strict {
+            report.ok = report.violations.iter().all(|finding| {
+                !matches!(finding.severity, Severity::Error | Severity::Warning)
+            });
+        }
         let count_severity = |severity| {
             report
                 .violations
@@ -200,6 +234,9 @@ impl DevupServer {
                     .clone(),
             );
         }
+        if let Some(action) = &report.next_action {
+            result["nextAction"] = action.clone();
+        }
         // A violation is a located, proven gap in devup-ui knowledge, which
         // makes this the one moment where naming the skill is a measurement
         // rather than a nudge. Raised only when the skill is actually absent:
@@ -220,6 +257,8 @@ impl DevupServer {
                 "install": skill.install_action(&lookup),
             });
         }
+        if paths_mode { result["pathsRead"] = json!(sources.len()); }
+        if matches!(input.detail, UiValidateDetail::Summary) { sources::summarize(&mut result, &sources); }
         Ok(tool_result(result))
     }
 }

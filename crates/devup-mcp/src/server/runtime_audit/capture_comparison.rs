@@ -1,5 +1,3 @@
-
-
 /// The `devup_visual_compare` call for one element capture against the
 /// Figma node's own native render.
 fn capture_comparison(
@@ -113,12 +111,6 @@ fn visual_comparison(
             viewport.device_scale_factor
         ));
     }
-    if shot.height != viewport.height {
-        blockers.push(format!(
-            include_str!("../text/runtime_audit-visual_comparison-8010a061.md"),
-            shot.height, viewport.height, shot.width, shot.height
-        ));
-    }
     if !environment_valid {
         blockers.push(
             "This run reported environment errors or an unverified screenshot; the comparison stays inconclusive."
@@ -130,6 +122,14 @@ fn visual_comparison(
         .iter()
         .flat_map(|figma| &figma.frames)
         .find(|frame| frame.width == viewport.width);
+    if let Some(height) = frame.and_then(|frame| frame.height)
+        && (shot.width != viewport.width || shot.height != height)
+    {
+        blockers.push(format!(
+            include_str!("../text/runtime_audit-visual_comparison-8010a061.md"),
+            shot.width, shot.height, viewport.width, height
+        ));
+    }
     let node_id = frame.map_or(node_id, |frame| frame.node_id.as_str());
     let artifact = frame.and_then(|frame| frame.artifact_id.clone());
     if artifact.is_some() {

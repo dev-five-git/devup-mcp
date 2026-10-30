@@ -827,6 +827,7 @@ pub(super) fn render_paint_layers(
     {
         let mut layer = Vec::new();
         for (name, value) in [
+            ("aria-hidden", "true"),
             ("pos", "absolute"),
             ("inset", "0"),
             ("zIndex", "-1"),

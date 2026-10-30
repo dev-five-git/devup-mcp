@@ -4,5 +4,18 @@ expression: actual
 ---
 
 "export function SvgDetail() {
-  return <Image src="/icons/DevupUI.svg" />
+  return (
+    <Flex alignItems="center" gap="8px">
+      <Image aspectRatio="1" boxSize="28px" src="/icons/icon.svg" />
+      <Box
+        bg="$text"
+        h="28px"
+        maskImage="url(/icons/logo.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+        w="92px"
+      />
+    </Flex>
+  )
 }"

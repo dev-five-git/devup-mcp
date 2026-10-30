@@ -4,5 +4,26 @@ expression: actual
 ---
 
 "export function Svg() {
-  return <Image src="/icons/recommend.svg" />
+  return (
+    <VStack gap="3px" overflow="hidden">
+      <Box
+        bg="$caption"
+        h="15.02px"
+        maskImage="url(/icons/recommend-frame-1597884470.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+        w="13.61px"
+      />
+      <Box
+        bg="#C42222"
+        h="15.02px"
+        maskImage="url(/icons/recommend-vector.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+        w="13.61px"
+      />
+    </VStack>
+  )
 }"

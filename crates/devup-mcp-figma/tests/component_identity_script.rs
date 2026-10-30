@@ -18,8 +18,8 @@ let calls=0;
 const root={id:'1:1',type:'FRAME',name:'screen',children:[]};
 const main={id:'10:1',type:'COMPONENT',name:'Header / desktop',parent:{id:'10:0',type:'COMPONENT_SET'}};
 root.children=[
- {id:'1:2',type:'INSTANCE',children:[],parent:root,getMainComponentAsync:async()=>{calls++;return main}},
- {id:'1:3',type:'INSTANCE',children:[],parent:root,getMainComponentAsync:async()=>{calls++;throw new Error('actual main-component lookup failure')}},
+ {id:'1:2',type:'INSTANCE',children:[],parent:root,get overrides(){return [{id:'1:2',overriddenFields:['fills']}]},get mainComponent(){throw new Error('sync main getter forbidden')},getMainComponentAsync:async()=>{calls++;return main}},
+ {id:'1:3',type:'INSTANCE',children:[],parent:root,get overrides(){throw new Error('override lookup failure')},getMainComponentAsync:async()=>{calls++;throw new Error('actual main-component lookup failure')}},
  {id:'1:4',type:'INSTANCE',children:[],parent:root,getMainComponentAsync:async()=>{calls++;return null}},
 ];
 const figma={fileKey:'fixture',getNodeByIdAsync:async()=>root,variables:{}};
@@ -55,7 +55,16 @@ new AsyncFunction('figma',code)(figma).then(data=>process.stdout.write(JSON.stri
         assert_eq!(instance["fields"]["mainComponentId"], "10:1");
         assert_eq!(instance["fields"]["mainComponentName"], "Header / desktop");
         assert_eq!(instance["fields"]["mainComponentSetId"], "10:0");
+        assert_eq!(
+            instance["fields"]["overrides"],
+            json!([{ "id": "1:2", "overriddenFields": ["fills"] }])
+        );
+        assert!(instance["fieldErrors"].get("mainComponent").is_none());
         let failed = nodes.iter().find(|n| n["id"] == "1:3").unwrap();
+        assert_eq!(
+            failed["fieldErrors"]["overrides"],
+            "override lookup failure"
+        );
         assert_eq!(
             failed["fieldErrors"]["mainComponentId"],
             "actual main-component lookup failure"
