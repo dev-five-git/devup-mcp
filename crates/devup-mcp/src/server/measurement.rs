@@ -34,7 +34,23 @@ fn validated_node(node: &Value, id: &str) -> Result<Value, DevupError> {
         ));
     }
     if node["status"] == "unavailable" {
-        return Ok(json!({"nodeId":id,"status":"unavailable","reason":"node-read-unavailable"}));
+        // Only the script's fixed labels pass; anything else stays generic.
+        let reason = node["reason"]
+            .as_str()
+            .filter(|reason| {
+                matches!(
+                    *reason,
+                    "not-found" | "not-scene-node" | "read-failed" | "figma-unreachable"
+                )
+            })
+            .unwrap_or("node-read-unavailable");
+        let mut entry = json!({"nodeId":id,"status":"unavailable","reason":reason});
+        if reason == "figma-unreachable" {
+            entry["hint"] = json!(devup_mcp_figma::figma_unreachable_hint(
+                "Unable to establish connection to Figma"
+            ));
+        }
+        return Ok(entry);
     }
     let numeric = |key: &str, v: &Value| -> Result<Value, DevupError> {
         if v.is_null() {
@@ -76,6 +92,34 @@ fn validated_node(node: &Value, id: &str) -> Result<Value, DevupError> {
         "align":{"primary":label(&node["align"]["primary"] )?,"counter":label(&node["align"]["counter"] )?}}),
     )
 }
+async fn timed_out(server: &DevupServer, file_key: &str, ids: &[String]) -> DevupError {
+    let plugin = server
+        .services
+        .upstream
+        .bridge_path_snapshot()
+        .await
+        .and_then(|bridge| {
+            let only = bridge.attached_files.len() == 1;
+            bridge
+                .attached_files
+                .into_iter()
+                .find(|file| only || file.file_key.as_deref() == Some(file_key))
+        });
+    let details = json!({
+        "nodeIds": ids,
+        "limitSeconds": devup_mcp_figma::READ_TIME_LIMIT.as_secs(),
+        "inView": plugin.as_ref().and_then(|file| file.context.in_view),
+        "pluginBuild": plugin.as_ref().map(|file| file.context.plugin_build()),
+        "nextAction": "Bring the Figma window to the front and click this file's tab, then retry; split instance-descendant IDs into their own call if one keeps timing out.",
+    });
+    DevupError::with_details(
+        ErrorCode::DevupFigmaDirectUnavailable,
+        "Measurement timed out; no cached dimensions were substituted.",
+        true,
+        details,
+    )
+}
+
 pub(super) fn calibrate(result: &Value, input: &super::tools::MeasureCalibration) -> Value {
     let Some(node) = result["nodes"]
         .as_array()
@@ -161,18 +205,19 @@ pub(super) async fn run(
             server.services.pacer.acquire().await;
         }
         // Live measurement deliberately bypasses the acquisition call bank.
-        let read = tokio::time::timeout(
-            std::time::Duration::from_secs(15),
+        // The limit is the bridge's own read limit: a plugin answering an
+        // out-of-sight file takes 10 s per unloaded node before the bridge
+        // re-reads it on the direct path, and a shorter limit here cut that
+        // re-read off and reported only "timed out".
+        let read = match tokio::time::timeout(
+            devup_mcp_figma::READ_TIME_LIMIT,
             server.services.upstream.call_read_tool(call),
         )
         .await
-        .map_err(|_| {
-            DevupError::new(
-                ErrorCode::DevupFigmaDirectUnavailable,
-                "Measurement timed out; no cached dimensions were substituted.",
-                true,
-            )
-        })??;
+        {
+            Ok(read) => read?,
+            Err(_) => return Err(timed_out(server, &target.file_key, ids).await),
+        };
         if let Some(error) = super::operation::upstream_error(&read.raw) {
             return Err(error);
         }
@@ -317,5 +362,23 @@ mod tests {
         assert!(valid.get("code").is_none());
         assert!(valid.get("image").is_none());
         assert!(validated_node(&json!({"nodeId":"2:2","status":"unavailable"}), "1:1").is_err());
+    }
+    #[test]
+    fn unavailable_reasons_keep_only_fixed_labels() {
+        let unreachable = validated_node(
+            &json!({"nodeId":"I1:2;3:4","status":"unavailable","reason":"figma-unreachable","error":"Unable to establish connection to Figma"}),
+            "I1:2;3:4",
+        )
+        .unwrap();
+        assert_eq!(unreachable["reason"], "figma-unreachable");
+        assert!(unreachable["hint"].is_string());
+        assert!(unreachable.get("error").is_none());
+        let forged = validated_node(
+            &json!({"nodeId":"1:1","status":"unavailable","reason":"<script>"}),
+            "1:1",
+        )
+        .unwrap();
+        assert_eq!(forged["reason"], "node-read-unavailable");
+        assert!(forged.get("hint").is_none());
     }
 }

@@ -2511,13 +2511,17 @@ const label = (node, key) => {
   try { const value = node[key]; return typeof value === 'string' && value.length <= 32 && /^[A-Z_]+$/.test(value) ? value : null; }
   catch { return null; }
 };
-const nodes = [];
-for (const nodeId of ids) {
+// Figma answers a read of data it has not loaded (an instance sublayer whose
+// main component lives elsewhere, in a file out of sight) only after 10 s.
+// Reading the IDs one after another made two such IDs outlast the caller's
+// time limit, so they are read together and each failure keeps its cause:
+// the unreachable sentence sits in `error`, where the bridge recognises it
+// and re-reads through the direct path, which does not depend on the view.
+const read = async nodeId => {
   try {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node || node.type === 'DOCUMENT' || node.type === 'PAGE') {
-      nodes.push({nodeId, status: 'unavailable', reason: node ? 'not-scene-node' : 'not-found'});
-      continue;
+      return {nodeId, status: 'unavailable', reason: node ? 'not-scene-node' : 'not-found'};
     }
     const layout = {
       width: number(node, 'width'), height: number(node, 'height'),
@@ -2526,11 +2530,15 @@ for (const nodeId of ids) {
       align: {primary: label(node, 'primaryAxisAlignItems'), counter: label(node, 'counterAxisAlignItems')}
     };
     const known = layout.width !== null && layout.height !== null;
-    nodes.push({nodeId, status: known ? 'measured' : 'partial', ...layout});
-  } catch {
-    nodes.push({nodeId, status: 'unavailable', reason: 'read-failed'});
+    return {nodeId, status: known ? 'measured' : 'partial', ...layout};
+  } catch (failure) {
+    const message = String((failure && failure.message) || failure).slice(0, 240);
+    return message.includes('Unable to establish connection to Figma')
+      ? {nodeId, status: 'unavailable', reason: 'figma-unreachable', error: message}
+      : {nodeId, status: 'unavailable', reason: 'read-failed'};
   }
-}
+};
+const nodes = await Promise.all(ids.map(read));
 return {kind: 'devup-measure', schemaVersion: 1, coordinateSpace: 'figma-logical', nodes,
   partial: nodes.some(node => node.status !== 'measured'),
   evidenceLimit: 'Null means unavailable or not applicable; no screenshot dimensions, descendants, theme, assets or code were read.'};

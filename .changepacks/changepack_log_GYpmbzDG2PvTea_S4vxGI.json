@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "devup_figma_measure reads explicit nodes concurrently and lets the bridge fall back to the direct path when Figma cannot load an out-of-view node, instead of timing out",
+  "date": "2026-11-01T14:30:41.006295100Z"
+}
