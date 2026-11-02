@@ -276,12 +276,14 @@ jobs:
             echo "superseded=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@1.98.0
-        if: steps.freshness.outputs.superseded == 'false' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.freshness.outputs.superseded == 'false' && github.ref == 'refs/heads/main'
       # The upstream action stages and commits immediately after its update,
       # with --no-verify and no post-update extension point. Scope a Git adapter
       # to this action only, running cargo update --workspace BEFORE the real
       # version commit. A post-action commit could race PR auto-merge; a
       # prepare-commit-msg hook runs after Git has already cached its tree.
+      # The action updates versions on main for schedule/workflow_dispatch too;
+      # lock synchronization must follow the branch, not just the push event.
       # The adapter survives the action's reset/clean in RUNNER_TEMP, forwards
       # every other command unchanged, and refuses a stale version-branch push.
       - name: Prepare same-commit release lockfile synchronization
@@ -289,7 +291,7 @@ jobs:
         if: steps.freshness.outputs.superseded == 'false'
         shell: bash
         env:
-          ENABLE_SYNC: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          ENABLE_SYNC: ${{ github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
           echo "real_git=$(command -v git)" >> "$GITHUB_OUTPUT"
@@ -308,7 +310,7 @@ jobs:
         env:
           PATH: ${{ steps.release_git.outputs.path }}
           DEVUP_RELEASE_REAL_GIT: ${{ steps.release_git.outputs.real_git }}
-          DEVUP_RELEASE_LOCK_SYNC: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          DEVUP_RELEASE_LOCK_SYNC: ${{ github.ref == 'refs/heads/main' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           create_release: true
