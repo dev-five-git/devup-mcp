@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Normalize line endings of files committed with CRLF back to LF",
-  "date": "2026-10-30T10:52:46.367309500Z"
-}

@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Runtime audit scrolls through scroll reveals and waits for them to settle; a vector-only variant of a component set with text variants stays a component reference",
-  "date": "2026-10-24T08:31:15.877717600Z"
-}

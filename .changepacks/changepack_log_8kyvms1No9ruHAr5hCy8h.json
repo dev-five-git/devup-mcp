@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Minor"
-  },
-  "note": "Report instance overrides that shared component properties cannot preserve, with generated prop evidence and required export review.",
-  "date": "2026-10-27T12:59:41.181270100Z"
-}

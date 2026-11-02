@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Minor"
-  },
-  "note": "devup_ui_validate answers a compact summary by default and reads paths from disk; devup_figma_export writes code outputs under .devup/exports by default when projectRoot is given",
-  "date": "2026-10-24T11:43:31.269250300Z"
-}
