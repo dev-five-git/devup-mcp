@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {spawnSync} from 'node:child_process';
+import {preparedBinaries,renderFixture} from '../prepared-binaries.mjs';
+await preparedBinaries();
 import {mkdir, mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -16,7 +17,7 @@ async function rendered(snapshot, verify, { responsive = false, assets = [], res
   let server, browser;
   try {
     if (typeof snapshot !== 'string') {await writeFile(join(dir,'snapshot.json'),JSON.stringify(snapshot));snapshot=join(dir,'snapshot.json');}
-    const generated = spawnSync('cargo',['run','--quiet','-p','devup-mcp-devup-ui','--example','render_fixture','--',snapshot,join(dir,'Generated.tsx'),...(responsive?['--responsive']:[])],{cwd:repo,encoding:'utf8',windowsHide:true,timeout:300000});
+    const generated = await renderFixture(snapshot,join(dir,'Generated.tsx'),{responsive});
     assert.equal(generated.status,0,generated.stderr);
     for (const asset of assets) { const target=join(dir,'public',asset.path);await mkdir(dirname(target),{recursive:true});await writeFile(target,await readFile(asset.source)); }
     await writeFile(join(dir,'devup.json'),JSON.stringify({theme:{}}));

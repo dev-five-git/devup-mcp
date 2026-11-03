@@ -272,10 +272,12 @@ pub(super) fn write(
         "sourceIdentity": response["sourceIdentity"],
         "instanceOverrides": response["instanceOverrides"],
         "interactionHints": response["interactionHints"],
+        "behaviorPlan": response["behaviorPlan"],
+        "developmentContract": response["developmentContract"],
         "overlayAnchors": response["overlayAnchors"],
         "sourceEvidence": source_evidence(response),
         "frames": response["frames"].as_array().into_iter().flatten().map(|frame| json!({
-            "nodeId":frame["nodeId"],"sourceEvidence":source_evidence(frame),
+            "nodeId":frame["nodeId"],"sourceEvidence":source_evidence(frame),"behaviorPlan":frame["behaviorPlan"],
             "generatedSource":frame["tsx"],"componentSource":frame["componentTsx"],
             "instanceOverrides":frame["instanceOverrides"],"interactionHints":frame["interactionHints"],
             "overlayAnchors":frame["overlayAnchors"],"sourceIdentity":frame["sourceIdentity"]
@@ -475,6 +477,7 @@ pub(super) fn write_repro(
 }
 
 include!("export_record/generated_drift.rs");
+include!("export_record/semantic_drift.rs");
 
 #[cfg(test)]
 mod pure_record_tests {

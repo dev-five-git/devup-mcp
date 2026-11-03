@@ -112,6 +112,20 @@ pub(super) async fn finalize_export_delivery(
             output_policy,
             &result,
         )?;
+        if resolved.registry["namingComplete"] == false {
+            let mut quarantined=asset_quarantine::retain(asset_quarantine::Request {
+                manifest,registry:&resolved.registry,artifact_id:&artifact.artifact_id,
+                policy:output_policy,public_root:asset_public_root.as_deref(),
+                project_root:project_root.as_deref(),recovery_arguments:&recovery_arguments,
+                write:!page_scaffold.as_ref().is_some_and(|options|!options.write),
+            })?;
+            if let Some(summary)=result.get("assetSummary") {
+                quarantined["assetSummary"]=summary.clone();
+                quarantined["assetSummary"]["manifestIncluded"]=json!(false);
+                quarantined["assetSummary"]["deliveryState"]=json!("quarantined");
+            }
+            return Ok(quarantined);
+        }
         result.insert("assetRegistry".into(), resolved.registry);
         registry_write = resolved.registry_write;
         presentation_filters = resolved.filters;
@@ -192,6 +206,7 @@ pub(super) async fn finalize_export_delivery(
     audit_delivered_properties(&mut value);
     super::super::interactions::attach(&mut value, &payload.snapshot);
     attach_instance_overrides(&mut value, payload, &payload.snapshot.roots);
+    value["artifactId"] = json!(artifact.artifact_id);
     super::super::behavior_contracts::attach(&mut value, &payload.snapshot);
     super::super::development_contract::attach(&mut value);
     if let Some(root) = project_root.as_deref() {
@@ -235,11 +250,11 @@ pub(super) async fn finalize_export_delivery(
             *contents = serde_json::to_string_pretty(&result[name]).unwrap_or_default();
         }
     }
-    for field in ["behaviorPlan", "developmentContract"] {
+    for field in ["behaviorPlan", "developmentContract", "motionControllerTsx", "motionRuntime", "motionBindings"] {
         if output_paths.contains_key(field)
             && let Some(value) = result.get(field)
         {
-            pending_text_outputs.insert(field.into(), serde_json::to_string_pretty(value).unwrap());
+            pending_text_outputs.insert(field.into(), value.as_str().map(str::to_owned).unwrap_or_else(|| serde_json::to_string_pretty(value).unwrap()));
         }
     }
     let mut planned_outputs = Vec::new();
@@ -271,6 +286,9 @@ pub(super) async fn finalize_export_delivery(
         "assetCssMap",
         "outline",
         "behaviorPlan",
+        "motionControllerTsx",
+        "motionRuntime",
+        "motionBindings",
         "developmentContract",
     ] {
         if result.contains_key(field) {
@@ -390,6 +408,7 @@ pub(super) async fn finalize_export_delivery(
     // Canonical reconciliation already names differing pictures separately.
     // A remaining collision between different outputs must fail atomically.
     let mut staged_content: BTreeMap<String, String> = BTreeMap::new();
+    planned_outputs.sort_by_key(|(name,_,_)|if name.starts_with("asset:"){0}else if name=="assetRegistry"{2}else{1});
     for (name, target, bytes) in planned_outputs {
         let path = target.display_path().to_string_lossy().into_owned();
         let fingerprint = sha256_hex(&bytes);

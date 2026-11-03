@@ -6,6 +6,11 @@ corrections. Existing `resolved` statuses in that file describe the application
 work; they do **not** establish that the reusable MCP behavior was implemented.
 This report audits the combined MCP changes and does not change those records.
 
+The [14 follow-up improvements](chondrogen-followup-14-coverage.md) add executable
+shared controllers, measured motion/data checks, source-bound completion and
+guarded source/asset migrations to the initial handoffs described below. They
+also record the production App Router consumer and full browser CI gate.
+
 `Implemented` below means an actual generator, delivery, validator or audit
 capability. `Handoff` means shipped, executable-tool-delivered implementation
 obligations that an agent must apply when building an application. A behavior

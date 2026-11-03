@@ -128,3 +128,11 @@ states and data changes. Collect missing asset URLs, registry drift, opaque
 filenames, exact duplicates and short-page footer gaps. Static validation, a
 generated export, an API call in source or coincidentally matching initial data
 does not establish runtime completion. Report verified and unverified scopes.
+
+## Executable follow-up tools
+
+- Apply exported motion controller/runtime files with semantic bindings while preserving generated server TSX. Follow behavior pagination until complete; preserve the final authenticated inventory.
+- Use devup_source_sync plan/apply for a new generated design against an edited module. Review the plan hash and file preconditions; ambiguous topology or API-backed copy conflicts remain explicit and preserve current code. Node/DOM identities are never inferred from element positions after extraction.
+- Use devup_assets inventory/plan/apply/rollback for public assets and exact source/seed references. Anonymous exports remain private and withhold public/code writes until semantically named. Persisted URL SQL is an artifact requiring separate execution evidence.
+- Run devup_runtime_audit completion after real build/lint/typecheck/tests and bound browser/data audits. Generated source, wired implementation, browser verification and actual DB verification are distinct stages. Source changes invalidate stale receipts. Read the completion section in devup://guide/usage for the exact input and runner commands.
+- The repository CI runs the complete browser/production App Router consumer gate on Linux through its existing checks.test.mjs entry. Rust fixture/visual binaries are prepared once before browser timers start; source fingerprints prevent stale binary reuse.

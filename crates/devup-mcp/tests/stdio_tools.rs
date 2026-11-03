@@ -167,6 +167,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert_eq!(
         names,
         [
+            "devup_assets",
             "devup_feature_trace",
             "devup_figma_auth",
             "devup_figma_explore",
@@ -178,6 +179,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_runtime_audit",
             "devup_screen_plan",
             "devup_skills",
+            "devup_source_sync",
             "devup_stack_diff",
             "devup_ui_validate",
             "devup_visual_compare",

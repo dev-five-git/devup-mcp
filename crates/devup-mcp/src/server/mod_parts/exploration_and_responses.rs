@@ -66,6 +66,8 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
 mod coerce_args;
 #[path = "../handlers/devup_feature_trace.rs"]
 mod devup_feature_trace_handler;
+#[path = "../handlers/devup_source_sync.rs"]
+mod devup_source_sync_handler;
 #[path = "../handlers/devup_figma_auth.rs"]
 mod devup_figma_auth_handler;
 #[path = "../handlers/devup_figma_explore.rs"]
@@ -88,6 +90,8 @@ mod devup_screen_plan_handler;
 mod devup_skills_handler;
 #[path = "../handlers/devup_stack_diff.rs"]
 mod devup_stack_diff_handler;
+#[path = "../handlers/devup_assets.rs"]
+mod devup_assets_handler;
 #[path = "../handlers/devup_ui_validate.rs"]
 mod devup_ui_validate_handler;
 #[path = "../handlers/devup_visual_compare.rs"]
@@ -104,8 +108,10 @@ impl DevupServer {
             + Self::devup_project_context_router()
             + Self::devup_ui_validate_router()
             + Self::devup_stack_diff_router()
+            + Self::devup_assets_router()
             + Self::devup_visual_compare_router()
             + Self::devup_feature_trace_router()
+            + Self::devup_source_sync_router()
             + Self::devup_runtime_audit_router()
             + Self::devup_project_plan_router()
             + Self::devup_screen_plan_router()

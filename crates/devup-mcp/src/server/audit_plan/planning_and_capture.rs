@@ -583,6 +583,8 @@ pub(super) fn url_plan(
     let mut allowed = vec![origin];
     allowed.extend(FONT_ORIGINS.iter().map(|origin| (*origin).to_owned()));
     let mut plan = PlanInput {
+        source_digest: None,
+        project_root: None,
         base_url: base_url.to_owned(),
         allowed_origins: allowed,
         viewports,
@@ -849,6 +851,8 @@ pub(super) async fn write(
         };
         let base = base_urls.get(app).map_or(base_url, String::as_str);
         let mut built = url_plan(&target, base, &sources, thresholds)?;
+        built.plan.source_digest=Some(super::completion::source_digest(Path::new(root),policy)?.0);
+        built.plan.project_root=Some(root.to_owned());
         gate_source_anchors(&mut built, &Path::new(root).join(app));
         if let Some(node) = route["state"]["nodeId"].as_str() {
             built.notes.push(format!("State {} ({node}) on {url}: configure the runtime screen's steps to reach this state before running; no interaction is inferred from the frame name.", route["state"]["name"].as_str().unwrap_or_default()));

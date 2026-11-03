@@ -246,3 +246,7 @@ test('contrast composites opacity of text and background together through ancest
 test('transparent backgrounds use the browser canvas colour', () => {
   assert.ok(textContrast({ color: 'rgb(255, 255, 255)', canvasColor: 'rgb(0, 0, 0)', backgrounds: ['rgba(0, 0, 0, 0)'] }) > 20);
 });
+
+// CI also runs the complete Chromium and App Router consumer suite.
+import {runBrowserCI,shouldRunBrowserCI} from '../ci-browser.mjs';
+test('CI executes the complete real-browser consumer gate',{skip:!shouldRunBrowserCI(),timeout:30*60_000},()=>runBrowserCI());

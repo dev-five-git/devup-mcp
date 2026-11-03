@@ -55,6 +55,8 @@ pub struct OutputTransaction {
 }
 
 struct StagedOutput {
+    staged_fingerprint: FileFingerprint,
+    remove_only: bool,
     immutable: bool,
     registry_hash: Option<Option<String>>,
     name: String,
@@ -211,6 +213,18 @@ impl OutputTransaction {
         Ok(())
     }
 
+    /// Guarded deletion participates in the same backup/rollback transaction as writes.
+    pub fn stage_remove(
+        &mut self,
+        name: impl Into<String>,
+        target: OutputTarget,
+        expected_hash: String,
+    ) -> Result<(), DevupError> {
+        self.stage_registry(name, target, b"", Some(expected_hash))?;
+        self.staged.last_mut().expect("staged removal").remove_only = true;
+        Ok(())
+    }
+
     pub fn stage(
         &mut self,
         name: impl Into<String>,
@@ -249,6 +263,11 @@ impl OutputTransaction {
         }
         drop(file);
         self.staged.push(StagedOutput {
+            staged_fingerprint: FileFingerprint {
+                bytes: contents.len() as u64,
+                sha256: Sha256::digest(contents).into(),
+            },
+            remove_only: false,
             immutable: false,
             registry_hash: None,
             name: name.into(),
@@ -416,6 +435,18 @@ impl OutputTransaction {
             {
                 let backup_path = unique_sibling(&output.target.relative_path, "bak");
                 let fingerprint = fingerprint(&output.target.root, &output.target.relative_path)?;
+                if let Some(Some(expected)) = &output.registry_hash {
+                    let actual = fingerprint
+                        .sha256
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    if &actual != expected {
+                        return Err(std::io::Error::other(
+                            "Guarded output changed during transaction commit",
+                        ));
+                    }
+                }
                 output.target.root.dir.rename(
                     &output.target.relative_path,
                     &output.target.root.dir,
@@ -423,13 +454,25 @@ impl OutputTransaction {
                 )?;
                 output.backup_path = Some(backup_path);
                 output.backup_fingerprint = Some(fingerprint);
+                verify_fingerprint(
+                    &output.target.root,
+                    output.backup_path.as_ref().unwrap(),
+                    output.backup_fingerprint.as_ref().unwrap(),
+                )?;
             }
-            output.target.root.dir.rename(
+            if output.remove_only {
+                output.target.root.dir.remove_file(&output.temp_path)?;
+                replaced += 1;
+                hook.after_replacement(replaced)?;
+                continue;
+            }
+            output.target.root.dir.hard_link(
                 &output.temp_path,
                 &output.target.root.dir,
                 &output.target.relative_path,
             )?;
             output.replaced = true;
+            output.target.root.dir.remove_file(&output.temp_path)?;
             replaced += 1;
             hook.after_replacement(replaced)?;
         }
@@ -442,11 +485,19 @@ impl OutputTransaction {
             let target_path = output.target.display_path.to_string_lossy().into_owned();
             let mut replacement_removed = true;
             if output.replaced {
-                if let Err(error) = output
-                    .target
-                    .root
-                    .dir
-                    .remove_file(&output.target.relative_path)
+                let remove = verify_fingerprint(
+                    &output.target.root,
+                    &output.target.relative_path,
+                    &output.staged_fingerprint,
+                )
+                .and_then(|()| {
+                    output
+                        .target
+                        .root
+                        .dir
+                        .remove_file(&output.target.relative_path)
+                });
+                if let Err(error) = remove
                     && error.kind() != std::io::ErrorKind::NotFound
                 {
                     replacement_removed = false;

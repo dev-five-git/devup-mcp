@@ -537,6 +537,8 @@ async fn r1_captured_asset_overrides_hidden_discovery_prediction() {
     let mut data = payload();
     let node = data.snapshot.nodes.get_mut("1:1").unwrap();
     node.node_type = "VECTOR".into();
+    // This test exercises captured visibility evidence; naming is already reviewed.
+    node.fields.insert("name".into(),json!("Research icon"));
     node.fields.insert(
         "absoluteBoundingBox".into(),
         json!({"x":0,"y":0,"width":24,"height":24}),

@@ -18,6 +18,9 @@ import { pathToFileURL } from 'node:url';
 import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './dev-environment.mjs';
 import { collectMarkup, evaluateMarkup } from './markup-checks.mjs';
 import { assertSelection } from './selection-checks.mjs';
+import { installMotionProbe, runMotionCheck } from './motion-checks.mjs';
+import { runDataBindingCheck } from './data-checks.mjs';
+import { sourceDigest } from './source-digest.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
@@ -253,48 +256,8 @@ async function clippedText(page, subject) {
   });
 }
 
-// Internal overflow can hide cards and navigation even when the page fits.
-export function observeClippedContent(page) {
-  return page.evaluate(() => {
-    const clipped = [];
-    // Headless Chromium hides every scrollbar (--hide-scrollbars), so a missing
-    // scrollbar gutter there says nothing about what a user sees. In that case
-    // only a scrollbar the page itself hid (scrollbar-width: none) counts.
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
-    (document.body ?? document.documentElement).append(probe);
-    const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
-    probe.remove();
-    for (const element of document.querySelectorAll('body *')) {
-      if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-      const style = getComputedStyle(element);
-      const box = element.getBoundingClientRect();
-      if (!box.width || !box.height) continue;
-      const horizontal = style.overflowX !== 'visible' && element.scrollWidth > element.clientWidth + 1;
-      const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
-      if (!horizontal && !vertical) continue;
-      if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
-      const gutter = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
-      const scrollbar = gutter || (browserHidesScrollbars && style.scrollbarWidth !== 'none');
-      // A scroller is reachable content only when the user can see it scrolls.
-      if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
-      if (element.closest('[aria-hidden="true"]')) continue;
-      const media = [...element.querySelectorAll('img, svg, video, canvas')];
-      const decorative = style.pointerEvents === 'none' && !element.textContent.trim()
-        && media.every((node) => node.tagName === 'IMG' ? node.getAttribute('alt') === '' : node.tagName.toLowerCase() === 'svg');
-      if (decorative) continue;
-      const animated = [element, ...element.querySelectorAll('*')].some((node) => {
-        const s = getComputedStyle(node);
-        return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
-      });
-      if (animated) continue;
-      const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
-      if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
-      clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
-    }
-    return { clipped };
-  });
-}
+export {observeClippedContent} from './clipping-checks.mjs';
+import {observeClippedContent} from './clipping-checks.mjs';
 
 // What the rendered page holds of its frame. A node is found by the id it
 // carries itself, or, on a page merged from one frame per width, under this
@@ -820,7 +783,7 @@ async function checkExpectations(page, expect, timeout) {
   return null;
 }
 
-async function runViewport(browser, plan, viewport, out, deadline, references, readServerLog, linkCache = new Map()) {
+async function runViewport(browser, plan, viewport, out, deadline, references, readServerLog, linkCache = new Map(), auditBinding = {}) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
   const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
@@ -836,6 +799,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
   const blocked = [];
   await guardOrigins(context, allowed, blocked);
   await context.addInitScript(VIEW_TRANSITION_PROBE);
+  await context.addInitScript(installMotionProbe, plan.screens.flatMap(screen => screen.checks.filter(check => check.kind === 'motion' && check.motion?.kind === 'count-up').map(check => check.motion)));
   const page = await context.newPage();
   observeDevServer(page, environmentErrors);
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
@@ -957,6 +921,16 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'links-resolve') continue;
           try {
+          if (check.kind === 'data-binding') {
+            record.checks.push({ ...item, ...await runDataBindingCheck(check, page, { out, viewport, ...auditBinding }) });
+            continue;
+          }
+          if (check.kind === 'motion') {
+            await restoreAnimations(page);
+            try { record.checks.push({ ...item, ...await runMotionCheck(page, check.motion) }); }
+            finally { await freezeAnimations(page); }
+            continue;
+          }
           if (check.kind === 'markup') {
             record.checks.push({ ...item, ...evaluateMarkup(await page.evaluate(collectMarkup)) });
             continue;
@@ -977,8 +951,8 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             continue;
           }
           if (check.kind === 'no-clipped-content') {
-            const observed = await observeClippedContent(page);
-            record.checks.push({ ...item, status: observed.clipped.length ? 'fail' : 'pass', reason: observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
+            const observed = await observeClippedContent(page, check.allowedMarquees ?? []);
+            record.checks.push({ ...item, status: observed.clipped.length || observed.invalidExemptions?.length ? 'fail' : 'pass', reason: observed.invalidExemptions?.length ? 'invalid intentional marquee exemption' : observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
             continue;
           }
           if (check.kind === 'sequence-order') {
@@ -1200,6 +1174,8 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     kind: REPORT_KIND,
     planId: document.planId,
     planSha256: sha256(planBytes),
+    sourceDigest: null,
+    sourceVerification: { requested: Boolean(plan.sourceDigest), unchanged: false, planMatched: false },
     status: 'running',
     startedAt: new Date().toISOString(),
     executor: { name: 'devup-runtime-audit', node: process.version, playwright: playwrightVersion },
@@ -1220,12 +1196,20 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     aborted = true;
   };
   process.once('SIGINT', onSignal);
-  const browser = await chromium.launch();
-  report.executor.browser = { name: 'chromium', version: browser.version() };
+  let browser;
   try {
+    if(plan.sourceDigest) {
+      if(typeof plan.projectRoot!=='string'||!plan.projectRoot) throw new Error('Source-bound browser plans require projectRoot');
+      const before=await sourceDigest(plan.projectRoot);
+      report.sourceDigest=before.sourceDigest;
+      Object.assign(report.sourceVerification,{projectRoot:plan.projectRoot,beforeDigest:before.sourceDigest,planMatched:before.sourceDigest===plan.sourceDigest});
+      if(!report.sourceVerification.planMatched)throw new Error('Project sources differ from the bound plan before browser execution');
+    }
+    browser=await chromium.launch();
+    report.executor.browser = { name: 'chromium', version: browser.version() };
     for (const viewport of plan.viewports) {
       if (aborted || Date.now() > deadline) break;
-      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], readServerLog, linkCache));
+      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], readServerLog, linkCache, { planId: document.planId, planSha256: sha256(planBytes), sourceDigest: plan.sourceDigest }));
     }
     const ranEverything = report.runs.length === plan.viewports.length
       && report.runs.every((run) => run.screens.every((screen) => screen.status === 'completed'));
@@ -1235,7 +1219,14 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     report.error = String(error?.message ?? error);
   } finally {
     process.off('SIGINT', onSignal);
-    await browser.close();
+    if(browser)await browser.close();
+    if(plan.sourceDigest&&report.sourceVerification.beforeDigest) {
+      try {
+        const after=await sourceDigest(plan.projectRoot);
+        Object.assign(report.sourceVerification,{afterDigest:after.sourceDigest,unchanged:after.sourceDigest===report.sourceVerification.beforeDigest});
+        if(!report.sourceVerification.unchanged){report.status='aborted';report.error='Project sources changed during browser execution';}
+      } catch(error) {report.status='aborted';report.error=`Cannot recheck project sources: ${error.message}`;}
+    }
     await writeReport();
   }
   return report;

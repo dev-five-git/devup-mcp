@@ -9,17 +9,36 @@ pub(super) fn statistic(
         return None;
     }
     let text = string(node, "characters").trim();
-    let split = text
-        .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | ',')))
-        .unwrap_or(text.len());
-    let (number, unit) = text.split_at(split);
+    let prefix = text
+        .chars()
+        .next()
+        .filter(|c| matches!(c, '$' | '₩' | '€' | '£' | '¥'))
+        .map_or("", |c| &text[..c.len_utf8()]);
+    let numeric = &text[prefix.len()..];
+    let split = numeric
+        .char_indices()
+        .find(|(index, c)| {
+            !(c.is_ascii_digit() || matches!(c, '.' | ',') || *index == 0 && *c == '-')
+        })
+        .map(|(index, _)| index)
+        .unwrap_or(numeric.len());
+    let (number, unit) = numeric.split_at(split);
     if number.is_empty()
         || number.ends_with('.')
-        || number.starts_with('0') && number.len() > 1 && !number.starts_with("0.")
+        || number
+            .split_once('.')
+            .is_some_and(|(_, fraction)| fraction.contains(','))
+        || number.trim_start_matches('-').starts_with('0')
+            && number.trim_start_matches('-').len() > 1
+            && !number.trim_start_matches('-').starts_with("0.")
     {
         return None;
     }
-    let integer = number.split('.').next().unwrap_or_default();
+    let integer = number
+        .trim_start_matches('-')
+        .split('.')
+        .next()
+        .unwrap_or_default();
     if integer.contains(',') {
         let groups = integer.split(',').collect::<Vec<_>>();
         if !(1..=3).contains(&groups[0].len())
@@ -30,8 +49,10 @@ pub(super) fn statistic(
     }
     let target = number.replace(',', "").parse::<f64>().ok()?;
     if !target.is_finite()
-        || target < 0.0
-        || (1900.0..=2100.0).contains(&target) && !unit.contains('%')
+        || unit.chars().any(|c| c.is_ascii_digit())
+        || unit.chars().any(|c| {
+            !(c.is_alphanumeric() || c.is_whitespace() || matches!(c, '%' | '/' | '°' | '$' | '₩'))
+        })
     {
         return None;
     }
@@ -48,6 +69,12 @@ pub(super) fn statistic(
         })
         .unwrap_or(parent);
     let label = nearby_text(context, snapshot, 2);
+    if (1900.0..=2100.0).contains(&target)
+        && unit.trim().starts_with('년')
+        && !has(&label, &["experience", "career", "경력"])
+    {
+        return None;
+    }
     let identity = format!(
         "{} {} {}",
         node_label(node),
@@ -118,7 +145,7 @@ pub(super) fn statistic(
     Some(candidate(
         "count-up",
         node,
-        json!({"text":text,"context":label,"target":target,"precision":precision,"unit":unit,"numericLabelRequiresReview":has(string(node,"name"), &["label","caption","라벨"])}),
+        json!({"text":text,"context":label,"target":target,"precision":precision,"unit":unit,"prefix":prefix,"numericLabelRequiresReview":has(string(node,"name"), &["label","caption","라벨"])}),
         json!({
             "pattern":"shared-count-up","start":"first-viewport-entry","repeat":"once","valueSource":"validated API/DB value when business-owned","preserve":["decimal precision","unit","final value's responsive width","accessible final value"],
             "serverMarkup":"Render the final value on the server; use a client span/ref controller only for its animation.",
@@ -321,7 +348,7 @@ pub(super) fn page_contracts(
     scope: &[String],
     snapshot: &Snapshot,
     nodes: &[&RawNode],
-    candidates: &mut Vec<Value>,
+    _candidates: &mut Vec<Value>,
 ) -> Vec<Value> {
     let mut contracts = Vec::new();
     for root in scope
@@ -329,48 +356,82 @@ pub(super) fn page_contracts(
         .filter_map(|id| snapshot.nodes.get(id))
         .filter(|node| matches!(node.node_type.as_str(), "FRAME" | "SECTION"))
     {
-        let (local, _) = scoped_nodes(snapshot, std::slice::from_ref(&root.id));
-        let footer = local
-            .iter()
-            .find(|node| has(string(node, "name"), &["footer", "푸터", "하단 정보"]));
+        let all = snapshot.nodes.values().collect::<Vec<_>>();
+        let ancestry = parents(&all);
+        let footer = nodes.iter().find(|node| {
+            if !has(string(node, "name"), &["footer", "푸터", "하단 정보"]) {
+                return false;
+            }
+            let mut current = Some(**node);
+            let mut visited = BTreeSet::new();
+            while let Some(node) = current {
+                if node.id == root.id {
+                    return true;
+                }
+                if !visited.insert(node.id.as_str()) {
+                    break;
+                }
+                current = ancestry.get(node.id.as_str()).copied();
+            }
+            false
+        });
         if let Some(footer) = footer {
             contracts.push(json!({"kind":"viewport-page-shell","rootNodeId":root.id,"footerNodeId":footer.id,"implemented":false,"verified":false,"implementation":{"minHeight":"100dvh","layout":"column flex with growing content / footer margin-top:auto","footer":"normal document flow; never fixed or based on today's measured header/footer height"},"verification":["short and empty content","long content without overlap","mobile/desktop including tall viewport","actual CSS viewport and zoom"]}));
         }
-        let sections = root
-            .typed_view()
-            .child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .filter(|node| {
-                matches!(node.node_type.as_str(), "FRAME" | "SECTION" | "INSTANCE")
-                    && !has(
-                        string(node, "name"),
-                        &[
-                            "header",
-                            "footer",
-                            "gnb",
-                            "navigation",
-                            "breadcrumb",
-                            "form",
-                            "헤더",
-                            "푸터",
-                            "메뉴",
-                            "폼",
-                        ],
-                    )
-            })
-            .collect::<Vec<_>>();
-        for section in sections.iter().skip(1).filter(|node| {
-            node.typed_view()
-                .number("height")
-                .is_some_and(|height| height >= 180.0)
-        }) {
-            if !nodes.iter().any(|node| node.id == section.id) {
-                continue;
-            }
-            candidates.push(candidate("section-entrance",section,json!({"sectionHeight":section.typed_view().number("height"),"belowFirstContentSection":true}),json!({
-                "pattern":"shared-scroll-reveal-controller","scope":"selected major below-fold sections, not every text or control","serverMarkup":"render readable content immediately; never prehide SSR content","observer":"one shared observer plus new content from client navigation; disconnect/cleanup correctly","motion":"short upward translation and fade once per element, avoiding focused controls","reducedMotion":"leave content in place","timing":"implementation choice, not captured Figma motion","verify":["intermediate frame","once on entry","client navigation","observer cleanup","focus","reduced motion","JavaScript disabled"]
-            })));
-        }
     }
     contracts
+}
+
+pub(super) fn section_entrance(
+    node: &RawNode,
+    snapshot: &Snapshot,
+    scope: &[String],
+    parents: &BTreeMap<&str, &RawNode>,
+) -> Option<Value> {
+    let eligible = |node: &RawNode| {
+        matches!(node.node_type.as_str(), "FRAME" | "SECTION" | "INSTANCE")
+            && !has(
+                string(node, "name"),
+                &[
+                    "header",
+                    "footer",
+                    "gnb",
+                    "navigation",
+                    "breadcrumb",
+                    "form",
+                    "헤더",
+                    "푸터",
+                    "메뉴",
+                    "폼",
+                ],
+            )
+    };
+    if !eligible(node)
+        || node
+            .typed_view()
+            .number("height")
+            .is_none_or(|height| height < 180.0)
+    {
+        return None;
+    }
+    let parent = parents.get(node.id.as_str())?;
+    if !scope.contains(&parent.id) {
+        return None;
+    }
+    let first = parent
+        .typed_view()
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .find(|node| eligible(node))?;
+    if first.id == node.id {
+        return None;
+    }
+    Some(candidate(
+        "section-entrance",
+        node,
+        json!({"sectionHeight":node.typed_view().number("height"),"belowFirstContentSection":true}),
+        json!({
+            "pattern":"shared-scroll-reveal-controller","scope":"selected major below-fold sections, not every text or control","serverMarkup":"render readable content immediately; never prehide SSR content","observer":"one shared observer plus new content from client navigation; disconnect/cleanup correctly","motion":"short upward translation and fade once per element, avoiding focused controls","reducedMotion":"leave content in place","timing":"implementation choice, not captured Figma motion","verify":["intermediate frame","once on entry","client navigation","observer cleanup","focus","reduced motion","JavaScript disabled"]
+        }),
+    ))
 }

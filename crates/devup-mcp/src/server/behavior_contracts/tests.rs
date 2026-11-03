@@ -1,6 +1,6 @@
 use super::*;
 
-fn snapshot(nodes: Value, roots: &[&str]) -> Snapshot {
+pub(super) fn snapshot(nodes: Value, roots: &[&str]) -> Snapshot {
     let nodes = nodes
         .as_array()
         .unwrap()

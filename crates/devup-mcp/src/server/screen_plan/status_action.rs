@@ -116,5 +116,18 @@ pub(super) async fn status(
         report["pendingComparisons"] = round["pendingComparisons"].clone();
         report["inconclusiveComparisons"] = round["inconclusiveComparisons"].clone();
     }
+    let completion=super::completion::refresh(root,policy,artifacts).await?;
+    if completion["reportAllowed"] != true {
+        report["done"]=json!(false);
+        report["completion"]["done"]=json!(false);
+        report["completion"]["reportAllowed"]=json!(false);
+        report["completion"]["evidenceStages"]=completion.clone();
+        if let Some(queue)=report["workQueue"].as_array_mut() {
+            for item in queue { item["done"]=json!(false); }
+        }
+        let summary=report["summary"].as_str().unwrap_or_default();
+        report["summary"]=json!(format!("{summary}; application completion evidence is {}",completion["stage"].as_str().unwrap_or("unverified")));
+    }
+    report["applicationCompletion"]=completion;
     Ok(report)
 }

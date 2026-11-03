@@ -4,6 +4,118 @@ use super::{CommitHook, OutputPolicy, OutputTransaction};
 
 struct FailAfterFirstReplacement;
 
+struct EditSecond {
+    path: PathBuf,
+}
+impl CommitHook for EditSecond {
+    fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
+        if replaced == 1 {
+            fs::write(&self.path, b"concurrent second edit")?;
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn guarded_outputs_are_rechecked_during_commit_and_preserve_concurrent_changes()
+-> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    let root = unique_root()?;
+    fs::write(root.join("first"), b"old first")?;
+    fs::write(root.join("second"), b"old second")?;
+    let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+    let digest = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    let mut transaction = OutputTransaction::new();
+    transaction.stage_registry(
+        "first",
+        policy.resolve("first")?,
+        b"new first",
+        Some(digest(b"old first")),
+    )?;
+    transaction.stage_registry(
+        "second",
+        policy.resolve("second")?,
+        b"new second",
+        Some(digest(b"old second")),
+    )?;
+    assert!(
+        transaction
+            .commit_with_hook(&mut EditSecond {
+                path: root.join("second")
+            })
+            .is_err()
+    );
+    assert_eq!(fs::read(root.join("first"))?, b"old first");
+    assert_eq!(fs::read(root.join("second"))?, b"concurrent second edit");
+    drop(transaction);
+    drop(policy);
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+struct EditThenFail {
+    path: PathBuf,
+}
+impl CommitHook for EditThenFail {
+    fn after_replacement(&mut self, _: usize) -> io::Result<()> {
+        fs::write(&self.path, b"concurrent user edit")?;
+        Err(io::Error::other("injected commit failure after edit"))
+    }
+}
+
+#[test]
+fn guarded_removal_is_restored_when_a_transaction_fails() -> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    let root = unique_root()?;
+    fs::write(root.join("legacy.png"), b"original")?;
+    let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+    let digest = Sha256::digest(b"original")
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let mut transaction = OutputTransaction::new();
+    transaction.stage_remove("retire", policy.resolve("legacy.png")?, digest)?;
+    assert!(
+        transaction
+            .commit_with_hook(&mut FailAfterFirstReplacement)
+            .is_err()
+    );
+    assert_eq!(fs::read(root.join("legacy.png"))?, b"original");
+    drop(transaction);
+    drop(policy);
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
+fn rollback_preserves_a_concurrent_edit_instead_of_deleting_it() -> anyhow::Result<()> {
+    let root = unique_root()?;
+    fs::write(root.join("source.tsx"), b"original source")?;
+    let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+    let mut transaction = OutputTransaction::new();
+    transaction.stage("source", policy.resolve("source.tsx")?, b"new source")?;
+    let error = transaction
+        .commit_with_hook(&mut EditThenFail {
+            path: root.join("source.tsx"),
+        })
+        .unwrap_err();
+    assert_eq!(fs::read(root.join("source.tsx"))?, b"concurrent user edit");
+    let recovery = error.details["rollback"]["recoveryPaths"][0]
+        .as_str()
+        .unwrap();
+    assert_eq!(fs::read(recovery)?, b"original source");
+    fs::remove_file(recovery)?;
+    drop(transaction);
+    drop(policy);
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
 impl CommitHook for FailAfterFirstReplacement {
     fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
         if replaced == 1 {

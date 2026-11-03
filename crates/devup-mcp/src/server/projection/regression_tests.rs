@@ -33,6 +33,7 @@ mod tests {
 
 #[cfg(test)]
 mod w1_regressions {
+    include!("asset_quarantine_integration.rs");
     include!("w1_regressions.rs");
     include!("w1_regressions_r4_export_exposes_placement_contract_without_diagnostic.rs");
     include!("w1_regressions_original_source_variant_and_css_map_resources_recover_w.rs");

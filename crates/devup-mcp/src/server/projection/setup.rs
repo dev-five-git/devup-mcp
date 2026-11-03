@@ -2,6 +2,8 @@
 mod asset_policy;
 #[path = "canonical_assets.rs"]
 mod canonical_assets;
+#[path = "asset_quarantine.rs"]
+mod asset_quarantine;
 #[path = "svg_identity.rs"]
 mod svg_identity;
 #[path = "exclude_hidden_asset_outputs.rs"]

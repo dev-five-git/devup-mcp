@@ -11,7 +11,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 5개, 프로젝트 쪽 7개, 스킬 1개, 모두 13개입니다.
+총 16개 도구를 제공합니다. 아래 도구와 `devup_project_plan`으로 설계 수집, 프로젝트 계획, 구현과 검증을 이어갑니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -24,6 +24,8 @@ Figma 쪽 5개, 프로젝트 쪽 7개, 스킬 1개, 모두 13개입니다.
 - `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
 - `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
 - `devup_runtime_audit`: 생성한 화면을 여러 viewport 폭에서 재 볼 **브라우저 실행 계획**을 검증해 쓰고(`plan`), 소비자 프로젝트의 실행기(`harness/runtime-audit`)가 쓴 보고서를 그 계획에 묶어 검증합니다(`ingest`). **서버는 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 계획은 선언형 데이터뿐이고, 계획 id와 파일 해시에 묶이지 않은 보고서는 거절하며 모든 개수를 항목에서 다시 셉니다
+- `devup_assets`: public 자산과 소스·seed·저장 URL 참조를 조사하고, 의미 있는 이름으로 옮기는 계획·적용·롤백을 제공합니다. DB 변경은 검토할 SQL로 생성하며 직접 실행하지 않습니다.
+- `devup_source_sync`: 재생성한 TSX와 이전 생성본·현재 구현을 AST로 비교합니다. 검증 가능한 스타일·미수정 텍스트만 병합하며 API, 이벤트, 접근성 코드를 보존하고 충돌은 쓰기 전에 반환합니다.
 - `devup_screen_plan`: 페이지를 쓰기 **전에** Figma 화면마다 어느 URL이 될지 계획하고(`draft`), 열린 결정을 구현 전에 질문 라운드로 연달아 모두 물은 뒤 확정하고(`confirm`), 확정된 계획을 실제 라우트와 runtime audit 보고서에 대조해 URL × 폭 표로 보고(`status`). 라우트는 근거(그 프레임으로 만든 기존 페이지, 기존 href에 묶인 nav 라벨, `navigationTargets`, 프로젝트 설정)로만 제안하고, 레이어 이름으로 추정한 것은 `name-match`로 드러내 묻고, 나머지는 `UNVERIFIED` 질문이 됩니다. 확정 뒤에는 묻지 않고 가정(`assume`)으로 기록하며, `auditPlan`으로 URL마다 페이지·섹션·에셋·위치·상태를 모두 검증하는 audit 계획을 쓰고 `defer`로 결정을 미뤄 두고 멈추지 않습니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
@@ -778,6 +780,8 @@ asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플�
 
 `assetNamesPerNode`는 각 asset을 **그 노드**의 이름으로 지어(`Logo-422-6921.svg`, `Frame 269-422-3392.png`) 둘을 함께 없앱니다. **기본값은 `true`입니다** — 렌더링해 보면 이쪽이 Figma가 그리는 그림에 가깝고(공지 화면 992폭 6.48% → 4.19%, about 992폭 10.79% → 6.94%), 플러그인 golden 268개는 그대로 통과합니다. golden은 `CodegenOptions`를 직접 쓰고 그 **라이브러리 기본값은 여전히 플러그인과 동일**하기 때문입니다. 플러그인과 byte 단위로 같은 이름이 필요하면 `assetNamesPerNode: false`로 끄십시오.
 
+위 이름은 수집 단계의 내부 식별입니다. 현재 MCP의 public 출력은 canonical registry를 거쳐 의미 있는 파일명으로 바뀝니다. 이름이 모호하면 TSX·public 출력 전체를 보류하고 `assetQuarantine`으로 반환합니다. 명시적인 의미 있는 `assetRequests.outputPath`로 같은 artifact를 다시 투영하면 함께 게시됩니다. 기존 파일 정리는 `devup_assets`의 참조 조사와 이전 URL 호환 계획을 거쳐 적용합니다.
+
 끈 상태에서 서로 다른 그림이 한 파일을 계속 주장하면 첫 번째만 기록하고 나머지는 `DEVUP_ASSET_NAME_SHARED` diagnostic으로 보고합니다 — 조용히 덮어쓰지 않습니다.
 
 레이어 이름이 파일시스템이 받지 못하는 이름일 때(`ic:round-arrow-left`처럼 콜론이 든 이름은 Windows가 만들지 못합니다) 전달 시점에 생성 코드와 manifest를 **함께** 개명해 둘이 어긋나지 않게 합니다. 생성기 자체는 플러그인의 이름을 그대로 쓰므로 golden parity는 유지됩니다.
@@ -1152,6 +1156,14 @@ does not prove working animation or live DB integration. Source validation and
 browser audit support selected computed paint, keyboard/history navigation and
 short-page footer checks. See the [22-item feedback coverage report](reports/chondrogen-feedback-coverage.md)
 for implementation evidence and conservative limits.
+
+The [14-item follow-up coverage report](reports/chondrogen-followup-14-coverage.md)
+records executable motion controllers, measured motion and isolated data tests,
+source-bound completion, safe regeneration, asset migration, behavior paging and
+production App Router integration. The existing Linux CI verification entry now
+installs Chromium and runs the full browser suite through `ci-browser.mjs`.
+Rust binaries are built once before browser assertion timers start; the emitted
+consumer runner carries only its runtime dependencies.
 
 ## Snapshot 의미와 현재 한계
 

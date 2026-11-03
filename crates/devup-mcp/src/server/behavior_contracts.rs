@@ -10,6 +10,13 @@ use serde_json::{Value, json};
 #[path = "behavior_contracts/detect.rs"]
 mod detect;
 #[cfg(test)]
+#[path = "behavior_contracts/followup_tests.rs"]
+mod followup_tests;
+#[path = "behavior_contracts/motion_templates.rs"]
+mod motion_templates;
+#[path = "behavior_contracts/paging.rs"]
+mod paging;
+#[cfg(test)]
 #[path = "behavior_contracts/tests.rs"]
 mod tests;
 
@@ -31,26 +38,23 @@ fn node_label(node: &RawNode) -> String {
 }
 
 fn scoped_nodes<'a>(snapshot: &'a Snapshot, roots: &[String]) -> (Vec<&'a RawNode>, bool) {
-    let mut pending = roots.iter().map(String::as_str).collect::<Vec<_>>();
+    let mut pending = roots.to_vec();
     let mut visited = BTreeSet::new();
     let mut nodes = Vec::new();
     while let Some(id) = pending.pop() {
-        if !visited.insert(id) {
+        if !visited.insert(id.clone()) {
             continue;
         }
         if nodes.len() == MAX_NODES {
             return (nodes, true);
         }
-        let Some(node) = snapshot.nodes.get(id) else {
-            continue;
-        };
-        if node.typed_view().bool("visible") == Some(false)
-            || node.typed_view().number("opacity") == Some(0.0)
-        {
-            continue;
+        if let Some(node) = snapshot.nodes.get(&id) {
+            if node.typed_view().bool("visible") == Some(false) {
+                continue;
+            }
+            pending.extend(node.typed_view().child_ids().map(str::to_owned));
+            nodes.push(node);
         }
-        pending.extend(node.typed_view().child_ids());
-        nodes.push(node);
     }
     (nodes, false)
 }
@@ -145,62 +149,26 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
     {
         return;
     }
-    let scope = roots(result, snapshot);
-    let (nodes, node_limit) = scoped_nodes(snapshot, &scope);
-    let parents = parents(&nodes);
-    let mut candidates = Vec::new();
-    let mut bindings = Vec::new();
-    for node in &nodes {
-        if let Some(count) = detect::statistic(node, snapshot, &parents) {
-            bindings.push(data_binding(
-                node,
-                "presentation-statistic",
-                count["evidence"].clone(),
-            ));
-            candidates.push(count);
-        }
-        if let Some(marquee) = detect::marquee(node, snapshot, &parents, result) {
-            candidates.push(marquee);
-        }
-        if let Some(progress) = detect::progress(node, snapshot) {
-            candidates.push(progress);
-        }
-        if let Some(tabs) = detect::tabs(node, snapshot, result) {
-            candidates.push(tabs);
-        }
-        if let Some(view) = detect::view_switch(node, snapshot) {
-            candidates.push(view);
-        }
-        if detect::editable_content(node) {
-            bindings.push(data_binding(
-                node,
-                "editable-business-content",
-                json!({"name":string(node,"name")}),
-            ));
-        }
-    }
-    detect::palette(result, snapshot, &mut candidates);
-    let page_contracts = detect::page_contracts(&scope, snapshot, &nodes, &mut candidates);
-    candidates.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
-    candidates.dedup_by(|a, b| a["id"] == b["id"]);
-    let candidate_limit = candidates.len() > MAX_CANDIDATES;
-    let binding_limit = bindings.len() > MAX_CANDIDATES;
-    candidates.truncate(MAX_CANDIDATES);
-    bindings.truncate(MAX_CANDIDATES);
-    result["behaviorPlan"] = json!({
-        "version":1,"scopeNodeIds":scope,"candidateCount":candidates.len(),
-        "candidates":candidates,"dataBindings":bindings,"pageContracts":page_contracts,
-        "implemented":false,"runtimeVerified":false,"requiresReview":true,
-        "evidenceLimits":{"nodesScanned":nodes.len(),"maxNodes":MAX_NODES,"maxCandidates":MAX_CANDIDATES,"truncated":node_limit||candidate_limit||binding_limit},
-        "intentPolicy":"Visual shape and repeated structure suggest behavior; they do not establish Figma motion or business semantics. Follow explicit user requirements and captured interactions; label all chosen timing and inferred behavior as implementation decisions.",
-        "clientBoundary":"Preserve generated responsive TSX and Server Component layouts/data pages. Add only small shared client controllers for actual browser state or animation.",
-        "sourcePurity":"Keep this plan, node identities and override evidence in JSON sidecars. Do not add metadata comments or source-node attributes to application TSX.",
-        "verificationRequirements":["Match content, selected background, text, icon and ARIA to one normalized state","Test both directions, pointer and keyboard, direct URL, reload, history and resize","Test mobile/desktop and actual CSS viewport/zoom; compare geometry after accounting for viewport differences","Keep SSR and no-JS content readable; honor reduced motion and focus","Report candidates, wired behavior and browser-verified behavior separately"],
-        "guide":GUIDE
-    });
+    result["behaviorPlan"] = paging::page(result, snapshot, None).expect("initial behavior page");
+    motion_templates::attach(result);
+    let artifact = result["artifactId"].clone();
     if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
         for frame in frames {
+            if artifact.is_string() {
+                frame["artifactId"] = artifact.clone();
+            }
             attach(frame, snapshot);
         }
     }
+}
+
+pub(super) fn resume(artifact: &str, snapshot: &Snapshot, cursor: &str) -> Result<Value, String> {
+    let mut result = json!({"artifactId":artifact});
+    result["behaviorPlan"] = paging::page(&result, snapshot, Some(cursor))?;
+    motion_templates::attach(&mut result);
+    Ok(result)
+}
+
+pub(super) fn verified_coverage_inventory(plan: &Value) -> Option<(Vec<Value>, Vec<String>)> {
+    paging::verified_inventory(plan)
 }

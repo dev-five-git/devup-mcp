@@ -69,6 +69,14 @@ fn write_plan(
         let mut template_transaction = OutputTransaction::new();
         template_transaction.refuse_existing();
         for (name, bytes) in [
+            ("source-digest.mjs", include_bytes!("../../../../../harness/runtime-audit/source-digest.mjs").as_slice()),
+            ("record-project-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/record-project-checks.mjs").as_slice()),
+            ("motion-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/motion-checks.mjs").as_slice()),
+            (
+                "data-checks.mjs",
+                include_bytes!("../../../../../harness/runtime-audit/data-checks.mjs").as_slice(),
+            ),
+            ("clipping-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/clipping-checks.mjs").as_slice()),
             (
                 "selection-checks.mjs",
                 include_bytes!("../../../../../harness/runtime-audit/selection-checks.mjs").as_slice(),
@@ -97,11 +105,11 @@ fn write_plan(
             ),
             (
                 "package.json",
-                include_bytes!("../../../../../harness/runtime-audit/package.json").as_slice(),
+                include_bytes!("../../../../../harness/runtime-audit/runner-package.json").as_slice(),
             ),
             (
                 "package-lock.json",
-                include_bytes!("../../../../../harness/runtime-audit/package-lock.json").as_slice(),
+                include_bytes!("../../../../../harness/runtime-audit/runner-package-lock.json").as_slice(),
             ),
         ] {
             let requested = Path::new(directory).join(name);

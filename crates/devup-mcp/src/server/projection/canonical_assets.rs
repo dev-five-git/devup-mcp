@@ -41,7 +41,7 @@ fn error(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupInvalidInput, message, false)
 }
 
-fn meaningful_name(path: &str) -> bool {
+pub(super) fn meaningful_name(path: &str) -> bool {
     let decoded = super::super::mask_guard::percent_decode(path);
     let path = decoded.as_str();
     let name = path

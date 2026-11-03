@@ -19,15 +19,45 @@ impl DevupServer {
         };
         let result = match input.action.as_str() {
             "plan" => {
-                let plan = input
+                let mut plan = input
                     .plan
                     .ok_or_else(|| invalid("action plan needs plan."))?;
+                if let Some(root) = input.project_root.as_deref() {
+                    let (digest, _) = super::completion::source_digest(
+                        std::path::Path::new(root),
+                        &self.output_policy,
+                    )
+                    .map_err(to_mcp_error)?;
+                    if plan
+                        .source_digest
+                        .as_ref()
+                        .is_some_and(|supplied| *supplied != digest)
+                    {
+                        return Err(invalid(
+                            "Supplied sourceDigest differs from current project sources.",
+                        ));
+                    }
+                    plan.source_digest = Some(digest);
+                    plan.project_root = Some(root.to_owned());
+                }
                 runtime_audit::create_plan(
                     plan,
                     &self.output_policy,
                     input.output_path.as_deref(),
                     input.template_path.as_deref(),
                     &self.artifacts,
+                )
+                .await
+            }
+            "completion" => {
+                let completion = input
+                    .completion
+                    .ok_or_else(|| invalid("action completion requires completion inputs."))?;
+                super::completion::write(
+                    &completion,
+                    &self.output_policy,
+                    &self.artifacts,
+                    input.output_path.as_deref(),
                 )
                 .await
             }
@@ -44,7 +74,7 @@ impl DevupServer {
                 )
                 .await
             }
-            _ => return Err(invalid("action must be plan or ingest.")),
+            _ => return Err(invalid("action must be plan, ingest or completion.")),
         }
         .map_err(to_mcp_error)?;
         Ok(tool_result(result))

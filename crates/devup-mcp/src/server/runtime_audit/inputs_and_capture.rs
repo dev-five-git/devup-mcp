@@ -31,8 +31,11 @@ const MAX_DIMENSION_ROWS: usize = 100;
 pub struct RuntimeAuditInput {
     /// plan: validate and write a plan for the consumer-side executor.
     /// ingest: verify the executor's report against its plan.
-    #[schemars(extend("enum" = ["plan", "ingest"]))]
+    #[schemars(extend("enum" = ["plan", "ingest", "completion"]))]
     pub action: String,
+    /// plan: explicitly bind browser evidence to current project sources.
+    #[serde(default)]
+    pub project_root: Option<String>,
     /// Required for plan.
     #[serde(default)]
     pub plan: Option<PlanInput>,
@@ -50,6 +53,8 @@ pub struct RuntimeAuditInput {
     /// relative to its directory.
     #[serde(default)]
     pub report_path: Option<String>,
+    #[serde(default)]
+    pub completion: Option<super::completion::CompletionInput>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -57,6 +62,12 @@ pub struct RuntimeAuditInput {
 pub struct PlanInput {
     /// http(s) URL of the running consumer app, e.g. http://127.0.0.1:4173.
     pub base_url: String,
+    /// Current project source digest for completion evidence binding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_digest: Option<String>,
+    /// Local source root measured before and after a source-bound browser run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_root: Option<String>,
     /// Origins the run may load from; every other request is blocked and
     /// recorded. Must include the baseUrl origin.
     pub allowed_origins: Vec<String>,
@@ -198,6 +209,11 @@ pub struct SelectionInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct CheckInput {
+    /// Explicit isolated API/SQLite scenario contract. The shipped Node runner
+    /// validates real OpenAPI/model anchors before mutations in a nonce-bound
+    /// disposable local environment; no production DB mutation is supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_binding: Option<super::data_verification::DataBindingInput>,
     /// Planning prerequisite missing: do not execute this check or count it as passed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unavailable_reason: Option<String>,
@@ -250,8 +266,11 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources", "motion", "data-binding"]))]
     pub kind: String,
+    /// Observe actual intermediate motion and continuity using semantic selectors.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motion: Option<Value>,
     /// links-resolve: confirmed URL patterns and routes found on disk.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub planned_targets: Vec<String>,
@@ -302,6 +321,9 @@ pub struct CheckInput {
     /// on the page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completeness: Option<CompletenessInput>,
+    /// no-clipped-content: exact selectors for proven horizontal looping marquee containers only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_marquees: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -664,6 +686,12 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
 }
 
 fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
+    if !check.allowed_marquees.is_empty() {
+        if check.kind != "no-clipped-content" || check.allowed_marquees.len()>16 {
+            return Err(invalid("allowedMarquees is bounded to 16 selectors on no-clipped-content checks."));
+        }
+        for selector in &check.allowed_marquees { bounded_text("allowedMarquees selector",selector)?; }
+    }
     if let Some(reason) = &check.unavailable_reason {
         return bounded_text("unavailableReason", reason);
     }
@@ -678,7 +706,16 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         }
         Ok(())
     };
+    if check.kind == "motion" {
+        needs(false, false)?;
+        return validate_motion(check.motion.as_ref());
+    }
     match check.kind.as_str() {
+        "data-binding" => {
+            needs(false, false)?;
+            let config=check.data_binding.as_ref().ok_or_else(||invalid("data-binding requires dataBinding configuration."))?;
+            super::data_verification::validate_config(config)?;
+        }
         "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => {
             needs(false, false)?
         }
@@ -799,6 +836,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         other => return Err(invalid(format!("Unknown check kind {other}."))),
     }
     for (field, present, kind) in [
+        ("dataBinding",check.data_binding.is_some(),"data-binding"),
         ("expected", check.expected.is_some(), "bounds"),
         ("state", check.state.is_some(), "interaction"),
         ("reference", check.reference.is_some(), "capture"),
@@ -865,7 +903,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
 
 /// The id a plan is known by: the SHA-256 of its normalized form, so the same
 /// plan always has the same id and any edit gives a new one.
-fn plan_id(plan: &PlanInput) -> Result<String, DevupError> {
+pub(super) fn plan_id(plan: &PlanInput) -> Result<String, DevupError> {
     let bytes = serde_json::to_vec(plan)
         .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
     Ok(sha256(&bytes))

@@ -200,6 +200,9 @@ pub(super) async fn apply_delivery(
     }
     for field in [
         "tsx",
+        "motionControllerTsx",
+        "motionRuntime",
+        "motionBindings",
         "componentTsx",
         "responsiveTsx",
         "devupJson",

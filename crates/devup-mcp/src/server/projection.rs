@@ -1,6 +1,7 @@
 //! Projection, evidence, asset reconciliation and delivery.
 // Sections retain the original namespace and visibility.
 include!("projection/setup.rs");
+pub(super) fn semantic_asset_name(path: &str) -> bool { canonical_assets::meaningful_name(path) }
 include!("projection/asset_paths.rs");
 include!("projection/resource_outputs.rs");
 include!("projection/resource_delivery.rs");

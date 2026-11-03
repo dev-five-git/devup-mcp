@@ -23,6 +23,7 @@ oxc_parser.workspace = true
 oxc_span.workspace = true
 dunce.workspace = true
 rmcp.workspace = true
+rusqlite = { version = "0.41.0", features = ["bundled", "serialize"] }
 rand.workspace = true
 # The release check needs an outbound GET. It was already here as a
 # dev-dependency for the axum-backed test servers; a normal dependency serves
