@@ -20,6 +20,7 @@ expression: actual
         fontWeight="700"
         letterSpacing="-1px"
         lineHeight="30px"
+        overflowWrap="break-word"
         w="100%"
         wordBreak="keep-all"
       >
@@ -41,6 +42,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-1px"
             lineHeight="24px"
+            overflowWrap="break-word"
             wordBreak="keep-all"
           >
             카카오
@@ -52,6 +54,8 @@ expression: actual
             fontWeight="400"
             letterSpacing="-0.5px"
             lineHeight="23px"
+            overflowWrap="break-word"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             연결 전
@@ -70,6 +74,8 @@ expression: actual
               fontWeight="500"
               letterSpacing="0px"
               lineHeight="16px"
+              overflowWrap="break-word"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               인증하기
@@ -91,6 +97,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-1px"
             lineHeight="24px"
+            overflowWrap="break-word"
             wordBreak="keep-all"
           >
             구글
@@ -102,6 +109,7 @@ expression: actual
             fontWeight="400"
             letterSpacing="-0.5px"
             lineHeight="23px"
+            whiteSpace="pre"
           >
             cooolvita@gmail.com
           </Text>
@@ -119,6 +127,8 @@ expression: actual
               fontWeight="500"
               letterSpacing="0px"
               lineHeight="16px"
+              overflowWrap="break-word"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               인증하기
@@ -143,6 +153,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-1px"
             lineHeight="24px"
+            overflowWrap="break-word"
             wordBreak="keep-all"
           >
             서비스 이용약관
@@ -172,6 +183,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-1px"
             lineHeight="24px"
+            overflowWrap="break-word"
             wordBreak="keep-all"
           >
             개인정보 처리방침
@@ -201,6 +213,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-1px"
             lineHeight="24px"
+            overflowWrap="break-word"
             wordBreak="keep-all"
           >
             회원 탈퇴

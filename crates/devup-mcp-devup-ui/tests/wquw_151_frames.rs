@@ -255,3 +255,16 @@ fn resource_ids(value: Option<&Value>) -> BTreeSet<String> {
         .map(str::to_owned)
         .collect()
 }
+
+#[test]
+fn actual_header_hit_area_and_smaller_rotated_icon_remain_distinct() {
+    let fixture = frame_fixture("3879:36108");
+    let outer = &fixture.snapshot.nodes["I3879:36111;65:3062"].fields;
+    let inner = &fixture.snapshot.nodes["I3879:36111;65:3063"].fields;
+    assert_eq!(outer["width"], 50);
+    assert_eq!(outer["layoutSizingVertical"], "FILL");
+    assert_eq!(outer["isAsset"], false);
+    assert_eq!(inner["width"], 32);
+    assert_eq!(inner["height"], 32);
+    assert_eq!(inner["rotation"], -180);
+}

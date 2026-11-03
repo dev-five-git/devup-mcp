@@ -30,17 +30,6 @@ fn attach_instance_overrides(
 
 fn attach_override_records(result: &mut Value, records: Vec<Value>) {
     if records.is_empty() { return; }
-    for field in ["tsx", "componentTsx", "responsiveTsx"] {
-        if let Some(source) = result.get(field).and_then(Value::as_str).map(str::to_owned) {
-            let mut source = source;
-            for record in &records {
-                let hint = format!("// @devup-override {}", record.to_string()
-                    .replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029"));
-                if !source.contains(&hint) { source.push_str(&format!("\n{hint}\n")); }
-            }
-            result[field] = json!(source);
-        }
-    }
     let issues = result.as_object_mut().map(|object| object.entry("projectionIssues").or_insert_with(|| json!([])));
     if let Some(issues) = issues.and_then(Value::as_array_mut) {
         for record in &records {

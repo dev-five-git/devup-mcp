@@ -4,77 +4,6 @@ use serde_json::Value;
 use super::component::{Prop, PropValue, RootLayout};
 use super::width::{Anchor, WidthPolicy};
 
-/// A box in a parent's coordinates: left, top, width, height.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Box4 {
-    pub x: f64,
-    pub y: f64,
-    pub w: f64,
-    pub h: f64,
-}
-
-fn box4(value: Option<&Value>) -> Option<Box4> {
-    let value = value?;
-    Some(Box4 {
-        x: value.get("x")?.as_f64()?,
-        y: value.get("y")?.as_f64()?,
-        w: value.get("width")?.as_f64()?,
-        h: value.get("height")?.as_f64()?,
-    })
-}
-
-/// What Figma exports for an asset node, in its parent's coordinates: the
-/// node's render bounds, which frame its SVG and PNG exports - measured
-/// against `exportAsync` on the official server, 2026-09-07: an instance of
-/// 1373x98 whose vector sits inside it exports as 952x104, and a group of
-/// 686x735 rotated four degrees exports as 759x585 with the rotation drawn
-/// into the paths. `None` where the snapshot does not carry the bounds.
-pub(crate) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
-    let view = node.typed_view();
-    let render = box4(view.value("absoluteRenderBounds"))?;
-    let parent = view
-        .string("parentId")
-        .and_then(|parent_id| snapshot.nodes.get(parent_id))?;
-    let parent_box = box4(parent.typed_view().value("absoluteBoundingBox"))?;
-    Some(Box4 {
-        x: render.x - parent_box.x,
-        y: render.y - parent_box.y,
-        w: render.w,
-        h: render.h,
-    })
-}
-
-/// Where an in-flow asset's export sits inside the box the layout gives it,
-/// and how large it is: the render bounds against the bounding box. `None`
-/// when they coincide, which is every plain icon, or when the snapshot does
-/// not carry them.
-pub(super) fn export_offset(node: &RawNode) -> Option<Box4> {
-    let view = node.typed_view();
-    let render = box4(view.value("absoluteRenderBounds"))?;
-    let bounds = box4(view.value("absoluteBoundingBox"))?;
-    let close = |left: f64, right: f64| (left - right).abs() < 0.5;
-    if close(render.x, bounds.x)
-        && close(render.y, bounds.y)
-        && close(render.w, bounds.w)
-        && close(render.h, bounds.h)
-    {
-        return None;
-    }
-    Some(Box4 {
-        x: render.x - bounds.x,
-        y: render.y - bounds.y,
-        w: render.w,
-        h: render.h,
-    })
-}
-
-/// The box the layout gives an asset that is not positioned: its bounding
-/// box, which is its own box unless it is rotated, when it is the box the
-/// rotation sweeps - the box Figma's own layout gives it.
-pub(crate) fn layout_box(node: &RawNode) -> Option<Box4> {
-    box4(node.typed_view().value("absoluteBoundingBox"))
-}
-
 // Root placement, width policy and image representation are independent
 // inputs to this shared layout property writer.
 #[allow(clippy::too_many_arguments)]
@@ -109,8 +38,9 @@ pub(super) fn push_layout_props(
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
     let fill_h = view.string("layoutSizingVertical") == Some("FILL");
-    let absolute = parent.is_some() && (view.string("layoutPositioning") == Some("ABSOLUTE")
-        || placed_by_a_free_layout(snapshot, node, parent, is_page_root));
+    let absolute = parent.is_some()
+        && (view.string("layoutPositioning") == Some("ABSOLUTE")
+            || placed_by_a_free_layout(snapshot, node, parent, is_page_root));
     let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
     let containing_block = holds_positioned_children(snapshot, node);
     let mut width = None;
@@ -165,6 +95,9 @@ pub(super) fn push_layout_props(
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
         if export.is_some() {
             // Sized above, by the export.
+        } else if let Some((w, h)) = fixed_native_ellipse_size(&view, component, is_asset) {
+            width = Some(px(w));
+            height = Some(px(h));
         } else if component == "Text" {
             width = own_width.map(px);
             height = Some("100%".to_owned());
@@ -516,6 +449,16 @@ pub(super) fn push_layout_props(
             height = view.number("height").map(px);
         }
     }
+    if absolute
+        && parent.is_some_and(|parent| has_clipped_free_child_offset(snapshot, parent))
+        && (original_source || super::style::asset_kind(snapshot, node).is_none())
+    {
+        // This free frame deliberately clips a manually offset layout child.
+        // Replacing its measured overhang with 100% changes that coordinate
+        // system and the captured visible state. Asset export bounds retain
+        // their separate sizing policy.
+        width = view.number("width").map(px).or(width);
+    }
     let wrote_height = height.is_some();
     let wrote_width = width.is_some();
     if let (Some(width), Some(height)) = (&width, &height)
@@ -809,10 +752,14 @@ pub(super) fn push_layout_props(
             string_prop(props, "transformOrigin", "top left");
         }
     }
-    if let Some(grid) = reading_grid(snapshot, node) { reading_grid_props(&grid, props); }
+    if let Some(grid) = reading_grid(snapshot, node) {
+        reading_grid_props(&grid, props);
+    }
     reading_card_props(snapshot, node, props);
     fixed_row_props(snapshot, node, props);
-    if let Some(width) = navigation_width(snapshot, node) { string_prop(props, "data-navigation-width", format_number(width)); }
+    if let Some(width) = navigation_width(snapshot, node) {
+        string_prop(props, "data-navigation-width", format_number(width));
+    }
 }
 
 pub(crate) fn vertical_fill_container(snapshot: &Snapshot, node: &RawNode) -> bool {

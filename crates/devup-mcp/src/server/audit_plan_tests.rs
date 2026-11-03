@@ -140,7 +140,7 @@ fn absent_source_anchors_leave_design_checks_not_run() {
             && check
                 .unavailable_reason
                 .as_deref()
-                .is_some_and(|reason| reason.contains("anchors absent"))
+                .is_some_and(|reason| reason.contains("semantic rendered targets absent"))
     }));
     assert!(
         checks
@@ -185,6 +185,99 @@ fn partial_source_anchors_do_not_enable_unmatched_nodes() {
             .filter(|check| check.node_id.as_deref() == Some("10:131"))
             .all(|check| check.unavailable_reason.is_some())
     );
+}
+
+#[test]
+fn explicit_rendered_targets_replace_only_declared_nodes() {
+    let project = Project::new("explicit-targets");
+    project.write(
+        "src/app/page.tsx",
+        "export default function Page() { return <main id='page'><section id='hero' /></main> }",
+    );
+    project.write(
+        ".devup/rendered-targets.json",
+        r##"{"routes":{"/":{"nodes":{"10:1":"#page","10:12":"#hero"}}}}"##,
+    );
+    let mut built = url_plan(
+        &home(),
+        "http://localhost:3000",
+        &sources(),
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    let checks = &built.plan.screens[0].checks;
+    let hero = checks
+        .iter()
+        .find(|check| check.kind == "bounds" && check.node_id.as_deref() == Some("10:12"))
+        .unwrap();
+    assert_eq!(hero.subject.as_ref().unwrap().css.as_deref(), Some("#hero"));
+    assert_eq!(
+        hero.container.as_ref().unwrap().css.as_deref(),
+        Some("#page")
+    );
+    assert!(hero.unavailable_reason.is_none());
+    assert!(
+        checks
+            .iter()
+            .any(|check| check.node_id.as_deref() == Some("10:131")
+                && check.unavailable_reason.is_some())
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|check| check.kind == "markup" && check.unavailable_reason.is_none())
+    );
+    let complete = checks
+        .iter()
+        .find_map(|check| {
+            check
+                .completeness
+                .as_ref()
+                .filter(|complete| complete.sections.contains(&"10:12".into()))
+        })
+        .unwrap();
+    assert_eq!(
+        complete.node_selectors.get("10:12").map(String::as_str),
+        Some("#hero")
+    );
+}
+
+#[test]
+fn mapped_subject_keeps_an_existing_attribute_container() {
+    let project = Project::new("mixed-targets");
+    project.write(
+        "src/app/page.tsx",
+        "<main data-figma-node-id='10:1'><section id='hero' /></main>",
+    );
+    project.write(
+        ".devup/rendered-targets.json",
+        r##"{"routes":{"/":{"nodes":{"10:12":"#hero"}}}}"##,
+    );
+    let mut built = url_plan(
+        &home(),
+        "http://localhost:3000",
+        &sources(),
+        &VisualThresholds::default(),
+    )
+    .unwrap();
+    gate_source_anchors(&mut built, Path::new(project.root()));
+    let hero = built.plan.screens[0]
+        .checks
+        .iter()
+        .find(|check| check.kind == "bounds" && check.node_id.as_deref() == Some("10:12"))
+        .unwrap();
+    assert_eq!(hero.subject.as_ref().unwrap().css.as_deref(), Some("#hero"));
+    assert!(
+        hero.container
+            .as_ref()
+            .unwrap()
+            .css
+            .as_deref()
+            .unwrap()
+            .contains("10:1")
+    );
+    assert!(hero.unavailable_reason.is_none());
 }
 
 fn payload(target: &str, nodes: Value, assets: Value, reference: bool) -> CollectedPayload {
@@ -476,7 +569,7 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
         "the Header section asks for the nav containment check"
     );
 
-    // Every width, the drawn ones as tall as their frames.
+    // Actual browser window height is independent of both captured frame heights.
     let viewports = home
         .plan
         .viewports
@@ -485,7 +578,7 @@ fn a_two_url_audit_plan_checks_the_page_its_sections_assets_geometry_overflow_an
         .collect::<Vec<_>>();
     assert_eq!(
         viewports,
-        [(1440, 1200), (1100, 900), (858, 900), (390, 2400)]
+        [(1440, 900), (1100, 900), (858, 900), (390, 900)]
     );
     let figma = home.plan.screens[0].figma.as_ref().unwrap();
     assert_eq!(figma.drawn_widths, [1440, 390]);

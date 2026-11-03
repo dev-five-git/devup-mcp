@@ -63,12 +63,23 @@ fn fixed_non_square_frame_folded_into_mask_keeps_its_size() {
     );
 }
 
-fn wquw119() -> devup_mcp_figma::Snapshot {
-    serde_json::from_str(include_str!("../../../fixtures/wquw-119-snapshot.json")).unwrap()
+fn explicitly_folded_wquw119() -> devup_mcp_figma::Snapshot {
+    let mut snapshot: devup_mcp_figma::Snapshot =
+        serde_json::from_str(include_str!("../../../fixtures/wquw-119-snapshot.json")).unwrap();
+    // These tests exercise a folded paint boundary and its HUG-size evidence.
+    // The original FILL layout wrapper now stays live around its FIXED logo;
+    // select an explicit source asset boundary for the separate mask contract.
+    snapshot
+        .nodes
+        .get_mut("3997:46317")
+        .unwrap()
+        .fields
+        .insert("isAsset".into(), json!(true));
+    snapshot
 }
 
 fn offset_hug_mask(horizontal: &str, vertical: &str) -> devup_mcp_figma::Snapshot {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     for (field, value) in [
         ("layoutSizingHorizontal", json!(horizontal)),
@@ -221,8 +232,8 @@ fn offset_mask_restoration_does_not_claim_fluid_rotated_or_positioned_geometry()
 }
 
 #[test]
-fn r5_wquw119_hug_mask_preserves_render_size_and_source_map() {
-    let snapshot = wquw119();
+fn r5_explicit_asset_boundary_hug_mask_preserves_render_size_and_source_map() {
+    let snapshot = explicitly_folded_wquw119();
     let node = &snapshot.nodes["3997:46317"];
     assert_eq!(node.fields["height"], 48);
     assert_eq!(node.fields["absoluteRenderBounds"]["width"], 320);
@@ -280,7 +291,7 @@ fn r5_wquw119_hug_mask_preserves_render_size_and_source_map() {
 
 #[test]
 fn r5_hug_asset_missing_geometry_is_not_exact() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields.remove("height");
     node.fields.remove("absoluteBoundingBox");
@@ -298,7 +309,7 @@ fn r5_hug_asset_missing_geometry_is_not_exact() {
 
 #[test]
 fn r5_asset_size_mapping_to_zero_is_not_evidence() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let mut output =
         generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
     // Preserve byte offsets to isolate value validation from range validity.
@@ -315,7 +326,7 @@ fn r5_asset_size_mapping_to_zero_is_not_evidence() {
 
 #[test]
 fn r5_hug_asset_wrong_positive_height_is_not_exact() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let mut output =
         generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
     output.tsx = output.tsx.replace("320 / 48", "320 / 49");
@@ -331,7 +342,7 @@ fn r5_hug_asset_wrong_positive_height_is_not_exact() {
 
 #[test]
 fn r5_absolute_wide_hug_mask_does_not_collapse() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields
         .insert("layoutPositioning".into(), json!("ABSOLUTE"));
@@ -349,7 +360,7 @@ fn r5_absolute_wide_hug_mask_does_not_collapse() {
 
 #[test]
 fn r5_empty_non_asset_hug_box_cannot_claim_visible_height() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields.insert("childrenIds".into(), json!([]));
     node.fields.insert(
@@ -367,7 +378,7 @@ fn r5_empty_non_asset_hug_box_cannot_claim_visible_height() {
 
 #[test]
 fn r5_asset_url_identity_cannot_be_replaced_with_another_file() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let mut output =
         generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
     assert_eq!(output.fidelity_report.assets.covered, 1);
@@ -383,7 +394,7 @@ fn r5_asset_url_identity_cannot_be_replaced_with_another_file() {
 
 #[test]
 fn r5_embedded_hug_asset_reports_host_size_without_pinning_root() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let output = generate_component(
         &snapshot,
         "3997:46317",
@@ -404,7 +415,7 @@ fn r5_embedded_hug_asset_reports_host_size_without_pinning_root() {
 
 #[test]
 fn r5_asset_url_in_non_rendering_attribute_is_not_covered() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let mut output =
         generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
     output.tsx = output.tsx.replace("maskImage=", "data-icon=");
@@ -419,7 +430,7 @@ fn r5_asset_url_in_non_rendering_attribute_is_not_covered() {
 
 #[test]
 fn r5_empty_hug_non_asset_cannot_use_percentage_or_wrong_size_as_proof() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields.insert("childrenIds".into(), json!([]));
     node.fields.insert(
@@ -446,7 +457,7 @@ fn r5_empty_hug_non_asset_cannot_use_percentage_or_wrong_size_as_proof() {
 
 #[test]
 fn r5_ratio_without_fill_anchor_or_with_fixed_fill_width_is_not_exact() {
-    let snapshot = wquw119();
+    let snapshot = explicitly_folded_wquw119();
     let output = generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
     for replacement in ["x=\"100%\"", "w=\"32px\""] {
         let mut wrong = output.clone();
@@ -469,7 +480,7 @@ fn r5_ratio_without_fill_anchor_or_with_fixed_fill_width_is_not_exact() {
 
 #[test]
 fn r5_both_hug_mask_uses_measured_anchors_and_records_the_lost_children() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     snapshot
         .nodes
         .get_mut("3997:46317")
@@ -490,7 +501,7 @@ fn r5_both_hug_mask_uses_measured_anchors_and_records_the_lost_children() {
 
 #[test]
 fn r5_vertical_fill_requires_definite_parent_height() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields
         .insert("layoutSizingHorizontal".into(), json!("HUG"));
@@ -518,7 +529,7 @@ fn r5_vertical_fill_requires_definite_parent_height() {
 
 #[test]
 fn r5_fixed_mask_never_receives_hug_repair_provenance() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     snapshot
         .nodes
         .get_mut("3997:46317")
@@ -538,7 +549,7 @@ fn r5_fixed_mask_never_receives_hug_repair_provenance() {
 
 #[test]
 fn r5_fill_ratio_cannot_bootstrap_a_hug_parent_width() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let parent = snapshot.nodes.get_mut("3997:46316").unwrap();
     parent
         .fields
@@ -554,7 +565,7 @@ fn r5_fill_ratio_cannot_bootstrap_a_hug_parent_width() {
 
 #[test]
 fn r5_mask_ratio_keeps_fractional_geometry_precision() {
-    let mut snapshot = wquw119();
+    let mut snapshot = explicitly_folded_wquw119();
     let node = snapshot.nodes.get_mut("3997:46317").unwrap();
     node.fields.insert("width".into(), json!(320.123));
     node.fields.insert("height".into(), json!(48.234));
@@ -574,7 +585,7 @@ fn r5_mask_ratio_keeps_fractional_geometry_precision() {
 #[test]
 fn r5_rotated_or_offset_mask_cannot_claim_responsive_repair() {
     for rotated in [true, false] {
-        let mut snapshot = wquw119();
+        let mut snapshot = explicitly_folded_wquw119();
         let node = snapshot.nodes.get_mut("3997:46317").unwrap();
         if rotated {
             node.fields.insert("rotation".into(), json!(90));

@@ -31,6 +31,10 @@ mod field_select;
 mod framework;
 #[path = "../guide.rs"]
 mod guide;
+#[path = "../development_contract.rs"]
+mod development_contract;
+#[path = "../behavior_contracts.rs"]
+mod behavior_contracts;
 #[path = "../interactions.rs"]
 mod interactions;
 #[path = "../mask_guard.rs"]

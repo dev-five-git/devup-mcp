@@ -56,6 +56,16 @@ test('native SVG remains authoritative', async () => {
   assert.equal(result.exportDiagnostics.method, 'native');
 });
 for (const name of ['snapshot', 'fast_snapshot']) {
+  test(`${name} preserves true and false strokesIncludedInLayout including inferred layout`, async () => {
+    for (const flag of [true, false]) {
+      const root = { id: '1:1', type: 'FRAME', name: 'stroke-layout', children: [],
+        strokesIncludedInLayout: flag, inferredAutoLayout: { layoutMode: 'HORIZONTAL', strokesIncludedInLayout: flag } };
+      const result = await script(name, { __DEVUP_NODE_ID__: '1:1', __DEVUP_ROOT_IDS__: ['1:1'], __DEVUP_SNAPSHOT__: {} })({ fileKey: 'fixture', getNodeByIdAsync: async () => root, variables: {} });
+      const node = (result.snapshot ?? result).nodes.find(node => node.id === '1:1');
+      assert.equal(node.fields.strokesIncludedInLayout, flag);
+      assert.equal(node.fields.inferredAutoLayout.strokesIncludedInLayout, flag);
+    }
+  });
   test(`${name} acquires async component identities and preserves actual lookup failures`, async () => {
     const root = { id: '1:1', type: 'FRAME', name: 'screen', children: [] };
     const main = { id: '10:1', name: 'Header', parent: { id: '10:0', type: 'COMPONENT_SET' } };

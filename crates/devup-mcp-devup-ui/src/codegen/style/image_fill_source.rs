@@ -1,5 +1,3 @@
-
-
 /// The file an image fill refers to.
 ///
 /// Every image fill once resolved to a single hard-coded `/icons/image.png`,
@@ -94,16 +92,24 @@ pub fn image_fill_path(
 /// The file name an asset node gets, without folder or extension: readable
 /// kebab-case; distinct things sharing a name get -2, -3 in node-id order.
 pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
-    let canonical = image_hash(node).and_then(|hash| {
-        snapshot.nodes.values().filter(|other| image_hash(other) == Some(hash)).min_by_key(|other| &other.id)
-    }).unwrap_or(node);
+    let canonical = image_hash(node)
+        .and_then(|hash| {
+            snapshot
+                .nodes
+                .values()
+                .filter(|other| image_hash(other) == Some(hash))
+                .min_by_key(|other| &other.id)
+        })
+        .unwrap_or(node);
     let base = readable_stem(snapshot, canonical);
     let own = asset_group_key(snapshot, node, per_node);
     let mut firsts = std::collections::BTreeMap::<String, &str>::new();
     for other in snapshot.nodes.values() {
         let is_asset = asset_kind(snapshot, other).is_some() || image_hash(other).is_some();
         let same_image = image_hash(node).is_some_and(|hash| image_hash(other) == Some(hash));
-        if other.id != node.id && (!is_asset || (!same_image && readable_stem(snapshot, other) != base)) {
+        if other.id != node.id
+            && (!is_asset || (!same_image && readable_stem(snapshot, other) != base))
+        {
             continue;
         }
         let first = firsts
@@ -137,6 +143,9 @@ fn kebab_name(name: &str) -> String {
 }
 
 fn generic_role(role: &str) -> bool {
+    if role.len() >= 24 && role.chars().all(|c| c.is_ascii_hexdigit()) {
+        return true;
+    }
     let word = role.trim_end_matches(|c: char| c.is_ascii_digit() || c == '-');
     word.is_empty()
         || matches!(
@@ -166,7 +175,11 @@ fn readable_stem(snapshot: &Snapshot, node: &RawNode) -> String {
         }
         current = parent.typed_view().string("parentId").map(str::to_owned);
     }
-    if role.is_empty() { "asset".to_owned() } else { role }
+    if role.is_empty() {
+        "asset".to_owned()
+    } else {
+        role
+    }
 }
 
 fn image_hash(node: &RawNode) -> Option<&str> {
@@ -188,8 +201,15 @@ fn asset_group_key(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> Strin
     if per_node || raster_instance {
         return format!("node:{}", node.id);
     }
-    if let Some(properties) = node.typed_view().value("variantProperties").and_then(Value::as_object) {
-        return format!("variant:{}", serde_json::to_string(properties).unwrap_or_default());
+    if let Some(properties) = node
+        .typed_view()
+        .value("variantProperties")
+        .and_then(Value::as_object)
+    {
+        return format!(
+            "variant:{}",
+            serde_json::to_string(properties).unwrap_or_default()
+        );
     }
     "plain".to_owned()
 }
@@ -261,7 +281,10 @@ pub(super) fn paint_css(
         "PATTERN" => {
             let source_id = paint.get("sourceNodeId").and_then(Value::as_str)?;
             let source = snapshot.nodes.get(source_id);
-            let name = source.map_or_else(|| "pattern".to_owned(), |node| asset_stem(snapshot, node, per_node));
+            let name = source.map_or_else(
+                || "pattern".to_owned(),
+                |node| asset_stem(snapshot, node, per_node),
+            );
             // A raster belongs with the images and a vector with the icons,
             // which is the split every other asset reference follows. This one
             // sent a png to the icon folder.
@@ -808,184 +831,5 @@ fn push_radius(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
             [a, b, c, d].map(px).join(" ")
         };
         string_prop(props, "borderRadius", value);
-    }
-}
-
-/// An inside stroke cannot consume layout space when the padding is too small
-/// to absorb a CSS border. Paint it inward with an outline instead.
-pub(super) fn inside_stroke_uses_outline(view: &TypedNode<'_>) -> bool {
-    view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
-        && matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
-        && view.number("strokeWeight").is_some_and(|weight| {
-            weight > 0.0
-                && ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]
-                    .iter()
-                    .any(|field| view.number(field).is_some_and(|padding| padding < weight))
-        })
-}
-
-/// A single straight outside edge is a translated, zero-blur box shadow.
-/// Unlike a CSS border it does not reduce a fixed content box or grow a HUG
-/// box. Rounded corners, dashes and multi-edge joins need a different paint
-/// construction, so retain their existing emission rather than approximate it.
-pub(crate) fn single_outside_stroke(view: &TypedNode<'_>) -> Option<(usize, f64)> {
-    if view.string("strokeAlign") != Some("OUTSIDE")
-        || !matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
-        || view.number("strokeWeight").is_some()
-        || [
-            "cornerRadius",
-            "topLeftRadius",
-            "topRightRadius",
-            "bottomRightRadius",
-            "bottomLeftRadius",
-        ]
-        .iter()
-        .any(|field| view.number(field).is_some_and(|radius| radius != 0.0))
-        || view
-            .value("dashPattern")
-            .and_then(Value::as_array)
-            .is_some_and(|dash| !dash.is_empty())
-        || !view
-            .value("strokes")
-            .and_then(Value::as_array)
-            .is_some_and(|paints| {
-                // Match push_strokes' selected paint, not a later paint that
-                // it will never reach after rejecting an unpaintable first one.
-                paints
-                    .iter()
-                    .find(|paint| {
-                        paint.get("visible").and_then(Value::as_bool) != Some(false)
-                            && paint.get("type").and_then(Value::as_str) == Some("SOLID")
-                    })
-                    .is_some_and(|paint| color_from_paint(paint).is_some())
-            })
-    {
-        return None;
-    }
-    let mut edge = None;
-    for (index, field) in [
-        "strokeTopWeight",
-        "strokeRightWeight",
-        "strokeBottomWeight",
-        "strokeLeftWeight",
-    ]
-    .iter()
-    .enumerate()
-    {
-        let weight = view.number(field)?;
-        if !weight.is_finite() || weight < 0.0 {
-            return None;
-        }
-        if weight > 0.0 {
-            if edge.is_some() {
-                return None;
-            }
-            edge = Some((index, weight));
-        }
-    }
-    edge
-}
-
-fn push_strokes(
-    view: &TypedNode<'_>,
-    outside_edge: Option<(usize, f64)>,
-    props: &mut Vec<Prop>,
-    used_tokens: &mut BTreeSet<String>,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
-) {
-    let Some(paint) = view
-        .value("strokes")
-        .and_then(Value::as_array)
-        .and_then(|strokes| {
-            strokes.iter().find(|paint| {
-                paint.get("visible").and_then(Value::as_bool) != Some(false)
-                    && paint.get("type").and_then(Value::as_str) == Some("SOLID")
-            })
-        })
-    else {
-        return;
-    };
-    let color = if let Some(token) = bound_paint_token(paint, variable_tokens) {
-        used_tokens.insert(token.clone());
-        format!("${token}")
-    } else if let Some(color) = color_from_paint(paint) {
-        color
-    } else {
-        return;
-    };
-    let style = if view
-        .value("dashPattern")
-        .and_then(Value::as_array)
-        .is_some_and(|value| !value.is_empty())
-    {
-        "dashed"
-    } else {
-        "solid"
-    };
-    let align = view.string("strokeAlign").unwrap_or("INSIDE");
-    let explicit_weight = view.number("strokeWeight");
-    if let Some((edge, weight)) = outside_edge {
-        let (x, y) = [(0.0, -weight), (weight, 0.0), (0.0, weight), (-weight, 0.0)][edge];
-        string_prop(
-            props,
-            "boxShadow",
-            format!("{} {} 0 0 {color}", zero_or_px(x), zero_or_px(y)),
-        );
-        return;
-    }
-    if explicit_weight.is_none() {
-        let sides = [
-            ("strokeTopWeight", "borderTop"),
-            ("strokeRightWeight", "borderRight"),
-            ("strokeBottomWeight", "borderBottom"),
-            ("strokeLeftWeight", "borderLeft"),
-        ];
-        if sides.iter().all(|(field, _)| view.number(field).is_some()) {
-            for (field, prop) in sides {
-                let weight = view.number(field).unwrap_or(0.0);
-                if weight != 0.0 {
-                    string_prop(props, prop, format!("{style} {} {color}", px(weight)));
-                }
-            }
-        }
-        return;
-    }
-    let weight = explicit_weight.unwrap_or(0.0);
-    if view.node_type() == "LINE" {
-        string_prop(props, "outline", format!("{style} {} {color}", px(weight)));
-        let base = if view.string("layoutSizingHorizontal") == Some("FIXED") {
-            view.number("width")
-                .map(px)
-                .unwrap_or_else(|| "100%".to_owned())
-        } else {
-            "100%".to_owned()
-        };
-        string_prop(
-            props,
-            "maxW",
-            format!("calc({base} - {})", px(weight * 2.0)),
-        );
-        if view
-            .number("rotation")
-            .is_none_or(|rotation| rotation.abs() <= 0.01)
-        {
-            string_prop(
-                props,
-                "transform",
-                format!("translate({}, {})", px(weight), px(-weight)),
-            );
-        }
-        return;
-    }
-    if inside_stroke_uses_outline(view) {
-        string_prop(props, "outline", format!("{style} {} {color}", px(weight)));
-        string_prop(props, "outlineOffset", px(-weight));
-    } else if align == "INSIDE" {
-        string_prop(props, "border", format!("{style} {} {color}", px(weight)));
-    } else {
-        string_prop(props, "outline", format!("{style} {} {color}", px(weight)));
-        if align == "CENTER" {
-            string_prop(props, "outlineOffset", px(-weight / 2.0));
-        }
     }
 }

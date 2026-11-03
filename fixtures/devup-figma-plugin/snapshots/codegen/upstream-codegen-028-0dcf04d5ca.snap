@@ -10,6 +10,7 @@ expression: actual
   fontWeight="400"
   letterSpacing="0px"
   lineHeight="1.5px"
+  whiteSpace="pre"
 >
   AutoSize
 </Text>"

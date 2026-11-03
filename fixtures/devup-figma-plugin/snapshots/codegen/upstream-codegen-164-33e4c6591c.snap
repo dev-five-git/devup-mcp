@@ -21,6 +21,8 @@ expression: actual
         fontWeight="700"
         letterSpacing="-0.04em"
         lineHeight="29px"
+        overflowWrap="break-word"
+        whiteSpace="pre"
         wordBreak="keep-all"
       >
         더 자세히 알아보기

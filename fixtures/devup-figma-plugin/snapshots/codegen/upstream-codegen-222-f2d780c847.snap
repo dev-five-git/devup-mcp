@@ -13,6 +13,8 @@ expression: actual
       letterSpacing="-0.05em"
       lineHeight="90px"
       mixBlendMode="darken"
+      overflowWrap="break-word"
+      whiteSpace="pre"
       wordBreak="keep-all"
     >
       데브파이브

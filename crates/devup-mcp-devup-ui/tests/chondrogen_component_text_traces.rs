@@ -2,7 +2,7 @@ use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component};
 use devup_mcp_devup_ui::provenance::ProjectionDisposition;
 use devup_mcp_figma::Snapshot;
 
-fn assert_component_text_traces(raw: &str, excluded: &[&str]) {
+fn assert_component_text_traces(raw: &str, excluded: &[&str], unsupported_effect: bool) {
     let snapshot: Snapshot = serde_json::from_str(raw).unwrap();
     let output = generate_component(&snapshot, &snapshot.roots[0], &CodegenOptions::default())
         .expect("componentTsx must account for every source node");
@@ -47,8 +47,13 @@ fn assert_component_text_traces(raw: &str, excluded: &[&str]) {
             .iter()
             .find(|entry| entry.node_id == *node_id)
             .unwrap();
-        assert_eq!(entry.disposition, ProjectionDisposition::Ignored);
-        assert_eq!(entry.reason, "unrepresented-variant-child");
+        if unsupported_effect {
+            assert_eq!(entry.disposition, ProjectionDisposition::Flattened);
+            assert_eq!(entry.reason, "represented-by-parent");
+        } else {
+            assert_eq!(entry.disposition, ProjectionDisposition::Ignored);
+            assert_eq!(entry.reason, "unrepresented-variant-child");
+        }
         assert!(entry.generated_range.is_none());
         assert!(
             !output
@@ -58,12 +63,23 @@ fn assert_component_text_traces(raw: &str, excluded: &[&str]) {
                 .any(|entry| entry.node_id.as_deref() == Some(node_id))
         );
         assert!(output.diagnostics.iter().any(|diagnostic| {
-            diagnostic.node_id.as_deref() == Some(node_id)
-                && diagnostic.code == "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK"
+            let identifies_loss = if unsupported_effect {
+                matches!(
+                    diagnostic.code.as_str(),
+                    "DEVUP_CODEGEN_EFFECT_TOPOLOGY_UNSUPPORTED"
+                        | "DEVUP_CODEGEN_EFFECT_DESCENDANT_UNSUPPORTED"
+                )
+            } else {
+                diagnostic.node_id.as_deref() == Some(node_id)
+                    && diagnostic.code == "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK"
+            };
+            identifies_loss
                 && diagnostic.fidelity_impact() == devup_mcp_figma::FidelityImpact::Lossy
         }));
     }
-    assert!(!output.fidelity_report.strict_compatible());
+    if !excluded.is_empty() {
+        assert!(!output.fidelity_report.strict_compatible());
+    }
 }
 
 #[test]
@@ -71,6 +87,7 @@ fn applications_card_component_text_traces() {
     assert_component_text_traces(
         include_str!("fixtures/chondrogen_applications_card_set.json"),
         &["81:12384"],
+        false,
     );
 }
 
@@ -79,6 +96,7 @@ fn rnd_link_row_component_text_traces() {
     assert_component_text_traces(
         include_str!("fixtures/chondrogen_rnd_link_row_set.json"),
         &["51:5764"],
+        true,
     );
 }
 
@@ -87,5 +105,6 @@ fn tech_step_component_text_traces() {
     assert_component_text_traces(
         include_str!("fixtures/chondrogen_tech_step_set.json"),
         &["51:5505", "51:5506"],
+        true,
     );
 }

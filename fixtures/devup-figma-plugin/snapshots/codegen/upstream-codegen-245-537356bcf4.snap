@@ -12,6 +12,8 @@ expression: actual
       fontWeight="500"
       letterSpacing="-0.05em"
       lineHeight="56px"
+      overflowWrap="break-word"
+      whiteSpace="pre"
       wordBreak="keep-all"
     >
       <Text color="$primary" fontSize="42px" fontWeight="800" lineHeight="59px">

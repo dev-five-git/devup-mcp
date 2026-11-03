@@ -1134,6 +1134,25 @@ legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelop
 
 2026-09-01 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` Section (`4217:7743`)을 찾고, 그 안의 360×740 화면 10개를 시각 순서대로 인덱싱해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. Section 전체 fast envelope는 8 MiB 안전 상한을 넘어서므로 성공으로 오인하지 않고, 각 화면을 공식 read-only MCP로 개별 수집했습니다. 열 화면은 각각 15~210개 node를 가지며 모든 child, styled text segment, 변수 3~25개와 text style 2~13개의 참조 완전성을 실제 JSON fixture와 DevupUI TSX snapshot으로 검증합니다. 대표 proofread 화면은 공식 read-only MCP 1회, 3개 PNG envelope 청크에서 144개 node, 변수 20개와 text style 11개를 수집했고 폴백은 없었습니다. instance children, concrete boolean property, mixed typography, nested `[1. 이름]`, token binding과 개별 footer stroke도 Rust snapshot/live contract로 검증했습니다. 같은 파일의 전체 theme export는 legacy 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다. 현재 full-theme fast collector는 같은 collection/variable/style 전체를 단일 read-only `use_figma` 호출로 수집하고, envelope 검증 실패 시에만 이 legacy 경로를 0부터 다시 시작하도록 contract test로 고정했습니다.
 
+## Delivery quality contracts
+
+Tool use carries `developmentContract`; code exports also provide a bounded
+`behaviorPlan` with motion, interaction, layout and data-binding candidates.
+The binary embeds these rules in `devup://guide/usage` and installs the full
+`devfive-frontend/references/delivery-quality.md` reference with the frontend
+skill. Guidance therefore remains available without a project's custom rules.
+
+Generated TSX contains executable code without Figma identity attributes or
+export metadata comments. Provenance and unapplied instance overrides remain
+structured sidecars. Public asset exports use semantic names and a persistent
+registry, preserving caller-selected safe paths and existing user content.
+
+Plans distinguish captured evidence from inferred behavior. A static export
+does not prove working animation or live DB integration. Source validation and
+browser audit support selected computed paint, keyboard/history navigation and
+short-page footer checks. See the [22-item feedback coverage report](reports/chondrogen-feedback-coverage.md)
+for implementation evidence and conservative limits.
+
 ## Snapshot 의미와 현재 한계
 
 Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 host object를 그대로 REST JSON으로 만들 수 없습니다. 대신 checked-in property manifest와 runtime prototype/enumerable 탐색을 함께 사용해 모든 발견한 data field의 key와 읽기 결과를 보존합니다. 함수, 순환 node object는 제외하거나 id로 바꾸고, binary asset은 bytes 대신 metadata로 나타내며, 타 plugin private data와 오류를 내는 getter는 읽을 수 없습니다. 단일 값이 byte budget을 넘으면 key를 없애지 않고 `{ "$truncated": ..., "byteLength": ... }`와 `DEVUP_FIELD_VALUE_TRUNCATED`를 남기며, `characters`, styled segment, resource binding처럼 UI 변환에 필요한 값은 우선 보존합니다.

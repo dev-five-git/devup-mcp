@@ -6,6 +6,7 @@ expression: actual
 "export function MixBlendMode() {
   return (
     <Image
+      alt=""
       aspectRatio="413 / 413"
       minH="0"
       minW="0"

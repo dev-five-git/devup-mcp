@@ -47,6 +47,32 @@ pub(super) fn image_layout_diagnostics(
         else {
             continue;
         };
+        let view = node.typed_view();
+        if view.bool("strokesIncludedInLayout").is_none()
+            && view
+                .value("inferredAutoLayout")
+                .and_then(|layout| layout.get("strokesIncludedInLayout"))
+                .and_then(Value::as_bool)
+                .is_none()
+            && view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
+            && style::stroke_layout_is_auto(&view)
+            && element
+                .attributes
+                .iter()
+                .any(|(attribute, _)| matches!(attribute.name.as_str(), "border" | "outline"))
+        {
+            diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_STROKE_LAYOUT_UNVERIFIED".into(),
+                message: "The capture omits strokesIncludedInLayout; legacy inside-stroke rendering is retained but its source layout behavior is unverified.".into(),
+                node_id: Some(node.id.clone()), property: Some("strokesIncludedInLayout".into()),
+                severity: Some(DiagnosticSeverity::Warning), fidelity_impact: Some(FidelityImpact::Approximated),
+                details: Some(json!({"sourceFields":["strokesIncludedInLayout","inferredAutoLayout.strokesIncludedInLayout","strokeAlign","strokes"],
+                    "verification":{"state":"unverified","reasonCode":"stroke-layout-flag-not-captured"},
+                    "renderingPolicy":"Legacy compatibility only; absence is not evidence that the source flag is false.",
+                    "nextAction":"Recapture with a bridge whose manifest includes strokesIncludedInLayout; preserve explicit false and true.","output":"tsx"})),
+                ..Default::default()
+            });
+        }
         if element.tag == "Grid" {
             for (columns, property, sizes, count) in [
                 (
@@ -577,6 +603,7 @@ fn geometry(node: &devup_mcp_figma::RawNode) -> Value {
         "paddingRight",
         "paddingBottom",
         "paddingLeft",
+        "strokesIncludedInLayout",
         "itemSpacing",
         "primaryAxisAlignItems",
         "counterAxisAlignItems",

@@ -6,7 +6,7 @@ expression: actual
 "export function Component1() {
   return (
     <VStack bg="$background" borderRadius="30px" gap="20px" p="40px">
-      <Image boxSize="64px" src="/icons/puzzle-piece.svg" />
+      <Image alt="puzzle-piece" boxSize="64px" src="/icons/puzzle-piece.svg" />
       <Text
         color="$text"
         fontFamily="Pretendard"
@@ -14,6 +14,7 @@ expression: actual
         fontWeight="800"
         letterSpacing="-0.04em"
         lineHeight="28px"
+        overflowWrap="break-word"
         wordBreak="keep-all"
       >
         <Text color="$primary">
@@ -28,6 +29,7 @@ expression: actual
         fontWeight="500"
         letterSpacing="-0.06em"
         lineHeight="26px"
+        overflowWrap="break-word"
         whiteSpace="pre-wrap"
         wordBreak="keep-all"
       >

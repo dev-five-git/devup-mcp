@@ -12,6 +12,8 @@ pub fn resolution_semantics() -> Value {
             "derived-lone-child-center":include_str!("../text/resolution-resolution_semantics-2373f8c7.md"),
             "derived-single-edge-outside-stroke":include_str!("../text/resolution-resolution_semantics-6489c0ec.md"),
             "derived-hard-break-whitespace":include_str!("../text/resolution-resolution_semantics-2c171ecb.md"),
+            "derived-wrapped-ascii-whitespace":"Captured fixed-inline-width HEIGHT text uses pre-wrap to retain authored repeated/edge ASCII spaces and soft wrapping. Lists, tabs, clamps and unknown/HUG widths are excluded.",
+            "derived-intrinsic-text-width":"Captured WIDTH_AND_HEIGHT text uses whiteSpace=pre to retain its intrinsic unwrapped width, spaces, and explicit breaks; clamped/list text is excluded.",
             "verified-explicit-dimension":"Error-free source = emitted px.",
             "verified-layout-sizing":"FIXED/FILL/layoutGrow to dimension/flex.",
             "accounted-for-content-sizing":"textAutoResize omission; pixels unmeasured.",

@@ -52,7 +52,7 @@ fn chondrogen_primary_button_fill_override_requires_preservation() {
             .contains(&json!("bg=\"$secondary\""))
     );
     let output = generate_component(&snapshot, "51:5705", &options).unwrap();
-    assert!(output.tsx.contains("// @devup-override "));
+    assert!(!output.tsx.contains("// @devup-"));
     assert!(
         output
             .diagnostics

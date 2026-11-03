@@ -486,6 +486,8 @@ fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Opti
         return compute_leaf_asset(node, nested);
     }
 
+    if single_child_layout_must_remain_live(snapshot, node) { return None; }
+
     if child_ids.len() == 1 {
         if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
             .into_iter()
@@ -797,7 +799,7 @@ pub fn validate_asset_requests(
             .find(|asset| asset.asset_id == request.asset_id)
             .or(direct.as_ref())
         else {
-            return Err(invalid("The requested asset is not in the snapshot."));
+            return Err(asset_scope_error(snapshot, &request.asset_id));
         };
         if let Some(node) = snapshot.nodes.get(&request.node_id) {
             if !request.render_mode.is_original()
@@ -823,9 +825,7 @@ pub fn validate_asset_requests(
             }
         }
         if !in_scope(snapshot, &request.node_id) {
-            return Err(invalid(
-                "The requested node is outside the acquired snapshot scope.",
-            ));
+            return Err(asset_scope_error(snapshot, &request.node_id));
         }
         if candidate.node_id != request.node_id
             || candidate.field != request.field
@@ -918,9 +918,7 @@ pub fn resolve_asset_selections(
                 .iter()
                 .find(|asset| asset.asset_id == selection.asset_id)
                 .or(direct.as_ref())
-                .ok_or_else(|| {
-                    invalid("The selected asset or nodeId is not in the acquired snapshot scope.")
-                })?;
+                .ok_or_else(|| asset_scope_error(snapshot, &selection.asset_id))?;
             // nodeId is a convenient target, not permission to flatten a hero's
             // live heading and controls into its background photograph.
             let source_fill = (selection.render_mode == AssetRenderMode::OriginalSource

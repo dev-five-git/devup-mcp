@@ -1,0 +1,336 @@
+{
+  "fileKey": "transferred-minimum-regression",
+  "roots": [
+    "mobile",
+    "desktop"
+  ],
+  "nodes": {
+    "desktop": {
+      "id": "desktop",
+      "type": "FRAME",
+      "fields": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 800,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "paddingLeft": 163,
+        "paddingRight": 163,
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "paddingLeft": 163,
+          "paddingRight": 163,
+          "counterAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED",
+          "counterAxisSizingMode": "FIXED",
+          "paddingTop": 0,
+          "paddingBottom": 0
+        },
+        "childrenIds": [
+          "body-desktop"
+        ],
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 800
+        },
+        "absoluteRenderBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 800
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "body-desktop": {
+      "id": "body-desktop",
+      "type": "FRAME",
+      "fields": {
+        "name": "body",
+        "parentId": "desktop",
+        "width": 1114,
+        "height": 400.74074074074076,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 80,
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL",
+          "itemSpacing": 80,
+          "counterAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED",
+          "counterAxisSizingMode": "AUTO",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0
+        },
+        "childrenIds": [
+          "steps-desktop",
+          "image-desktop"
+        ],
+        "absoluteBoundingBox": {
+          "x": 163,
+          "y": 0,
+          "width": 1114,
+          "height": 400.74074074074076
+        },
+        "absoluteRenderBounds": {
+          "x": 163,
+          "y": 0,
+          "width": 1114,
+          "height": 400.74074074074076
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "steps-desktop": {
+      "id": "steps-desktop",
+      "type": "FRAME",
+      "fields": {
+        "name": "steps",
+        "parentId": "body-desktop",
+        "width": 493,
+        "height": 392,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 1,
+        "layoutAlign": "INHERIT",
+        "childrenIds": [],
+        "absoluteBoundingBox": {
+          "x": 163,
+          "y": 0,
+          "width": 493,
+          "height": 392
+        },
+        "absoluteRenderBounds": {
+          "x": 163,
+          "y": 0,
+          "width": 493,
+          "height": 392
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "image-desktop": {
+      "id": "image-desktop",
+      "type": "FRAME",
+      "fields": {
+        "name": "visual",
+        "parentId": "body-desktop",
+        "width": 541,
+        "height": 400.74074074074076,
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 1,
+        "layoutAlign": "INHERIT",
+        "isAsset": true,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0
+        },
+        "targetAspectRatio": {
+          "x": 540,
+          "y": 400
+        },
+        "fills": [
+          {
+            "type": "IMAGE",
+            "imageHash": "source-image",
+            "scaleMode": "FILL"
+          }
+        ],
+        "absoluteBoundingBox": {
+          "x": 736,
+          "y": 0,
+          "width": 541,
+          "height": 400.74074074074076
+        },
+        "absoluteRenderBounds": {
+          "x": 736,
+          "y": 0,
+          "width": 541,
+          "height": 400.74074074074076
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "mobile": {
+      "id": "mobile",
+      "type": "FRAME",
+      "fields": {
+        "name": "mobile",
+        "width": 360,
+        "height": 800,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "counterAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED",
+          "counterAxisSizingMode": "FIXED",
+          "paddingTop": 0,
+          "paddingBottom": 0
+        },
+        "childrenIds": [
+          "body-mobile"
+        ],
+        "absoluteBoundingBox": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 800
+        },
+        "absoluteRenderBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 800
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "body-mobile": {
+      "id": "body-mobile",
+      "type": "FRAME",
+      "fields": {
+        "name": "body",
+        "parentId": "mobile",
+        "width": 320,
+        "height": 400.74074074074076,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 24,
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "itemSpacing": 24,
+          "counterAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO",
+          "counterAxisSizingMode": "FIXED",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0
+        },
+        "childrenIds": [
+          "steps-mobile",
+          "image-mobile"
+        ],
+        "absoluteBoundingBox": {
+          "x": 20,
+          "y": 0,
+          "width": 320,
+          "height": 400.74074074074076
+        },
+        "absoluteRenderBounds": {
+          "x": 20,
+          "y": 0,
+          "width": 320,
+          "height": 400.74074074074076
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "steps-mobile": {
+      "id": "steps-mobile",
+      "type": "FRAME",
+      "fields": {
+        "name": "steps",
+        "parentId": "body-mobile",
+        "width": 320,
+        "height": 392,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 0,
+        "layoutAlign": "INHERIT",
+        "childrenIds": [],
+        "absoluteBoundingBox": {
+          "x": 20,
+          "y": 0,
+          "width": 320,
+          "height": 392
+        },
+        "absoluteRenderBounds": {
+          "x": 20,
+          "y": 0,
+          "width": 320,
+          "height": 392
+        },
+        "x": 0,
+        "y": 0
+      }
+    },
+    "image-mobile": {
+      "id": "image-mobile",
+      "type": "FRAME",
+      "fields": {
+        "name": "visual",
+        "parentId": "body-mobile",
+        "width": 320,
+        "height": 237.03703703703704,
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 0,
+        "layoutAlign": "INHERIT",
+        "isAsset": true,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0
+        },
+        "targetAspectRatio": {
+          "x": 540,
+          "y": 400
+        },
+        "fills": [
+          {
+            "type": "IMAGE",
+            "imageHash": "source-image",
+            "scaleMode": "FILL"
+          }
+        ],
+        "absoluteBoundingBox": {
+          "x": 20,
+          "y": 416,
+          "width": 320,
+          "height": 237.03703703703704
+        },
+        "absoluteRenderBounds": {
+          "x": 20,
+          "y": 416,
+          "width": 320,
+          "height": 237.03703703703704
+        },
+        "x": 0,
+        "y": 0
+      }
+    }
+  },
+  "diagnostics": []
+}

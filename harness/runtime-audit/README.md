@@ -1,13 +1,40 @@
 # Real-render verification
 
+Screens may assert `expect.selected` with a semantic `group` and `target`,
+`attribute` (`aria-current` or `aria-selected`), true selection `value`, and
+captured `styles` such as `{ "background-color": "rgb(0, 87, 187)" }`.
+The executor requires exactly one visible selected control, matching computed
+paint and an optional visible `content` target. A URL or ARIA update with stale
+highlight paint fails. Use source-backed expected colours, not invented ones.
+Steps accept `press` (target + key value) and `back`, `forward`, `reload` (no
+target/value) to verify both directions, keyboard, history and persistence.
+The `markup` probe also detects a short-page footer ending above the viewport.
+
+Generated plans include a `markup` check for document language, semantic
+landmarks, one primary heading, heading levels and image `alt` attributes.
+It also records controls below 24 CSS pixels for review of target-size
+exceptions; size alone is not treated as a conformance verdict.
+
+For pages without Figma attributes, declare explicit node-to-CSS mappings in
+the app's `.devup/rendered-targets.json` before generating the audit plan:
+
+```json
+{ "routes": { "/": { "nodes": { "10:1": "#page", "10:12": "#hero" } } } }
+```
+
+These selectors replace attribute locators in geometry and capture checks,
+and populate `completeness.nodeSelectors`. They must identify the actual
+rendered target from the implementation; DOM order alone is not evidence.
+Unmapped nodes remain not-run; absent or ambiguous matches cannot pass.
+
 At drawn widths, `figma.frames[].height` records the reference frame height,
-independently of the viewport height (tall frames can use a 900px viewport).
-The main page screenshot is clipped at the top-left to the drawn frame size
-when the page is at least that tall. Content below the frame remains covered by
-the layout and completeness checks, not the page pixel comparison. A shorter
-page is captured at its actual height, never padded: completeness and ingest's
-`page-height` finding report the actual and required heights. Older plans without
-a frame height keep full-page captures; re-plan to enable frame-sized captures.
+independently of the actual browser viewport (a tall frame can use a 900px window).
+Capture the natural full page without forcing its height or cropping to the frame.
+Record actual inner width/height, DPR, visual viewport scale and root/body CSS zoom
+in `captureContext`. Different PNG dimensions make strict pixels inconclusive;
+compare logical geometry and explicit completeness checks separately. A shorter
+capture alone does not prove missing content. `minHeightRatio` remains an explicit
+logical completeness condition; no hidden exact-frame-height override is applied.
 
 Geometry and captures pause running animations at `currentTime = 0` and disable
 CSS transitions after scroll reveals settle. The runner restores motion before
@@ -53,23 +80,28 @@ node verify-render.mjs --plan plan.json --references references.json --out out/p
 On Windows append `.exe` to the comparator path. With a custom Cargo target
 directory use the binary under `cargo metadata`'s `target_directory`.
 
-Use an audit plan containing the drawn viewports at deviceScaleFactor 1, with
+Use an audit plan containing the drawn CSS widths and an independent window height, with
 `page-health`, `image-loaded` and the relevant geometry checks. Use the normal
 runtime audit separately for widths without Figma originals. Each planned
-screen/viewport must have exactly one entry in `references.json`:
+screen/viewport must have exactly one entry in `references.json`. `height` is the reference image height; optional `viewportHeight` identifies the browser window when a width is repeated:
 
 ```json
 {
   "references": [{
     "screen": "home",
     "width": 1440,
-    "height": 900,
+    "height": 5953,
+    "viewportHeight": 900,
     "path": "figma/home-1440.png",
     "sha256": "<SHA-256 of the independently exported Figma PNG>",
     "threshold": 0.03
   }]
 }
 ```
+
+Native 1x references and measured unit-scale captures support direct strict pixels.
+Non-unit DPR or zoom without independent logical capture/reference calibration
+remains inconclusive; never multiply dimensions or resample to manufacture evidence.
 
 Paths are relative to the manifest. Export the original frame at scale 1 and
 the drawn dimensions, without resizing it. Never create a reference from the
@@ -80,7 +112,7 @@ file/node/version provenance alongside the manifest.
 `verify-render.mjs` launches the runtime-audit Chromium runner and compares every
 page screenshot with `devup-mcp-visual`. It writes the runtime report, screenshots,
 `real-render.json` and `visual-diff-*.png`. Exit codes: 0 means runtime and pixels
-passed; 1 means a runtime or visual failure; 2 means tooling, input or reference
+passed; 1 means a runtime/strict-pixel failure or explicitly inconclusive comparison; 2 means tooling, input or reference
 failure. Missing/duplicate references, changed reference bytes, missing captures,
 browser errors and invalid image dimensions cannot pass. Do not infer success
 from `report.status: completed`, which describes execution, not correctness.

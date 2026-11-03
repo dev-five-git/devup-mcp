@@ -8,6 +8,8 @@ pub mod site;
 pub mod wiring;
 #[path = "visual_behavior.rs"]
 pub mod visual_behavior;
+#[path = "delivery_quality.rs"]
+mod delivery_quality;
 #[cfg(test)]
 #[path = "visual_behavior_tests.rs"]
 mod visual_behavior_tests;
@@ -159,6 +161,7 @@ fn validate_source(
     violations.extend(visitor.violations);
     violations.extend(wiring::findings(tsx));
     violations.extend(visual_behavior::findings(tsx));
+    violations.extend(delivery_quality::findings(tsx));
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));

@@ -34,6 +34,17 @@ fn typography_problem(style: &Value) -> Option<String> {
     None
 }
 
+fn materialize_percentage_advance(entry: &mut Value, style: &Value, size: f64) {
+    // Mode projection has resolved the size, so the same integer advance as a
+    // fixed-size Figma style now applies. A bound line height remains its token.
+    if style.pointer("/boundVariables/lineHeight").is_none()
+        && style.pointer("/lineHeight/unit").and_then(Value::as_str) == Some("PERCENT")
+        && let Some(percent) = style.pointer("/lineHeight/value").and_then(Value::as_f64)
+    {
+        entry["lineHeight"] = Value::String(format_px((size * percent / 100.0).round()));
+    }
+}
+
 /// A text style's value as devup-ui reads it — the plugin's
 /// `textStyleToTypography`.
 ///

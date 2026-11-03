@@ -133,8 +133,9 @@ pub struct ScreenInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct StepInput {
-    #[schemars(extend("enum" = ["click", "fill"]))]
+    #[schemars(extend("enum" = ["click", "fill", "press", "back", "forward", "reload"]))]
     pub action: String,
+    #[serde(default)]
     pub target: LocatorInput,
     /// The text for fill.
     #[serde(default)]
@@ -173,6 +174,24 @@ pub struct ExpectInput {
     pub heading: Option<String>,
     #[serde(default)]
     pub visible: Option<LocatorInput>,
+    /// Assert a single selected control AND its captured computed paint, not only navigation.
+    #[serde(default)]
+    pub selected: Option<SelectionInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct SelectionInput {
+    pub group: LocatorInput,
+    pub target: LocatorInput,
+    /// aria-current or aria-selected.
+    pub attribute: String,
+    pub value: String,
+    /// CSS property names and captured expected values; at least one paint value is required.
+    pub styles: BTreeMap<String, String>,
+    #[serde(default)]
+    pub content: Option<LocatorInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -203,6 +222,8 @@ pub struct CheckInput {
     /// no-clipped-content: internal clipped rows require an explicit carousel with controls.
     /// styles-applied: every class name on the rendered page has a CSS rule;
     /// a page served before its own CSS arrived (cold dev server) fails.
+    /// markup: semantic landmarks, document language, headings, image alternatives
+    /// and target-size review evidence, independent of Figma node attributes.
     /// page-health: no error page text ("This page couldn't load",
     /// "Application error", ...), page error, console error or failed
     /// navigation while the screen was open.
@@ -229,7 +250,7 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources"]))]
     pub kind: String,
     /// links-resolve: confirmed URL patterns and routes found on disk.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -555,14 +576,21 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
             )));
         }
         for step in &screen.steps {
-            validate_locator("steps[].target", &step.target, false)?;
+            if matches!(step.action.as_str(), "back" | "forward" | "reload") {
+                if [&step.target.role, &step.target.name, &step.target.test_id, &step.target.text, &step.target.css].iter().any(|field| field.is_some()) {
+                    return Err(invalid("History/reload steps take no target."));
+                }
+            } else {
+                validate_locator("steps[].target", &step.target, false)?;
+            }
             timeout("steps[].timeoutMs", step.timeout_ms)?;
             match (step.action.as_str(), &step.value) {
-                ("click", None) => {}
+                ("click" | "back" | "forward" | "reload", None) => {}
                 ("fill", Some(value)) if value.chars().count() <= MAX_TEXT => {}
+                ("press", Some(value)) if !value.is_empty() && value.chars().count() <= MAX_TEXT => {}
                 _ => {
                     return Err(invalid(
-                        "A step is click (no value) or fill (with a value of at most 300 characters).",
+                        "A step is click, back, forward or reload (no value), or fill/press (nonempty value, at most 300 characters).",
                     ));
                 }
             }
@@ -576,6 +604,23 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
             }
             if let Some(visible) = &expect.visible {
                 validate_locator("expect.visible", visible, true)?;
+            }
+            if let Some(selected) = &expect.selected {
+                validate_locator("expect.selected.group", &selected.group, true)?;
+                validate_locator("expect.selected.target", &selected.target, true)?;
+                if !matches!(selected.attribute.as_str(), "aria-current" | "aria-selected")
+                    || !matches!(selected.value.as_str(), "true" | "page" | "step" | "location" | "date" | "time")
+                    || (selected.attribute=="aria-selected" && selected.value!="true")
+                    || selected.styles.is_empty() || selected.styles.len()>12 {
+                    return Err(invalid("Selected expectations require a true ARIA selection and 1..12 captured CSS paint properties."));
+                }
+                for (property, value) in &selected.styles {
+                    if !matches!(property.as_str(), "color" | "background-color" | "backgroundColor" | "border-color" | "borderColor" | "opacity" | "outline-color" | "outlineColor" | "transform") {
+                        return Err(invalid("Selected styles must name supported paint/transform properties."));
+                    }
+                    bounded_text("expect.selected.styles", value)?;
+                }
+                if let Some(content) = &selected.content { validate_locator("expect.selected.content", content, true)?; }
             }
         }
         for check in &screen.checks {
@@ -638,7 +683,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
             needs(false, false)?
         }
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
-        "stale-resources" | "styles-applied" => needs(false, false)?,
+        "stale-resources" | "styles-applied" | "markup" => needs(false, false)?,
         "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
             if check.container.is_some() {
                 return Err(invalid(format!(
@@ -905,4 +950,3 @@ pub(crate) async fn create_plan(
     let references = dimension_references(&input, artifacts).await;
     write_plan(input, policy, output_path, template_path, references)
 }
-

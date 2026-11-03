@@ -305,6 +305,7 @@ pub fn select(
         ));
     }
     let evidence_fields = [
+        "assetRegistry",
         "projectionIssues",
         "instanceOverrides",
         "projectionEvidence",
@@ -326,6 +327,8 @@ pub fn select(
         "widgetCandidates",
         "sharedComponentCandidates",
         "breakpointCompletion",
+        "behaviorPlan",
+        "developmentContract",
     ];
     let mut details = serde_json::Map::new();
     for field in evidence_fields {

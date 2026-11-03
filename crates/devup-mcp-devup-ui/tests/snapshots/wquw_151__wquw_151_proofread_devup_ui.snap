@@ -27,6 +27,7 @@ export function AStoryFProofread() {
           fontWeight="700"
           letterSpacing="-0.02em"
           lineHeight="39px"
+          overflowWrap="break-word"
           textAlign="center"
           typography="h3"
           w="100%"
@@ -43,7 +44,9 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXs"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               현재 적용된 문체 :
@@ -54,12 +57,14 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="29px"
+              overflowWrap="break-word"
               typography="bodySmSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               담담체
             </Text>
-            <Image aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
+            <Image alt="write" aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
           </Center>
           <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="11px">
             <Flex alignItems="center" gap="12px">
@@ -69,7 +74,9 @@ export function AStoryFProofread() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="26px"
+                overflowWrap="break-word"
                 typography="bodyXs"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 공개 설정 :
@@ -80,7 +87,9 @@ export function AStoryFProofread() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 나만 보기
@@ -125,6 +134,7 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="24px"
+              overflowWrap="break-word"
               textAlign="center"
               typography="caption"
               w="100%"
@@ -143,6 +153,7 @@ export function AStoryFProofread() {
             fontWeight="400"
             letterSpacing="-0.01em"
             lineHeight="22px"
+            overflowWrap="break-word"
             typography="captionSm"
             wordBreak="keep-all"
           >
@@ -164,6 +175,7 @@ export function AStoryFProofread() {
             letterSpacing="-0.01em"
             lineHeight="26px"
             typography="bodyXsSemibold"
+            whiteSpace="pre"
           >
             TIP
           </Text>
@@ -173,6 +185,7 @@ export function AStoryFProofread() {
             fontWeight="400"
             letterSpacing="-0.01em"
             lineHeight="26px"
+            overflowWrap="break-word"
             typography="bodyXs"
             whiteSpace="pre-wrap"
             wordBreak="keep-all"
@@ -216,20 +229,24 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               제목
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -244,6 +261,7 @@ export function AStoryFProofread() {
               fontWeight="700"
               letterSpacing="-0.02em"
               lineHeight="31px"
+              overflowWrap="break-word"
               typography="h5"
               wordBreak="keep-all"
             >
@@ -266,20 +284,24 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               1단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -293,6 +315,7 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="32px"
+              overflowWrap="break-word"
               typography="body"
               w="100%"
               wordBreak="keep-all"
@@ -316,20 +339,24 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               2단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -343,6 +370,7 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="32px"
+              overflowWrap="break-word"
               typography="body"
               w="100%"
               wordBreak="keep-all"
@@ -374,20 +402,24 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               3단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -401,6 +433,7 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="32px"
+              overflowWrap="break-word"
               typography="body"
               w="100%"
               wordBreak="keep-all"
@@ -424,20 +457,24 @@ export function AStoryFProofread() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               4단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -451,6 +488,7 @@ export function AStoryFProofread() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="32px"
+              overflowWrap="break-word"
               typography="body"
               w="100%"
               wordBreak="keep-all"
@@ -462,6 +500,7 @@ export function AStoryFProofread() {
       </VStack>
       <Flex
         alignItems="center"
+        as="header"
         bg="$containerBackground"
         borderTop="solid 1px $border"
         bottom="0px"
@@ -486,7 +525,9 @@ export function AStoryFProofread() {
             fontWeight="600"
             letterSpacing="-0.01em"
             lineHeight="31px"
+            overflowWrap="break-word"
             typography="bodySemibold"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             편집 설정
@@ -499,7 +540,9 @@ export function AStoryFProofread() {
             fontWeight="600"
             letterSpacing="-0.01em"
             lineHeight="31px"
+            overflowWrap="break-word"
             typography="bodySemibold"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             검토 완료

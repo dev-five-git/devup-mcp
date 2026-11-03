@@ -109,8 +109,9 @@ async fn feedback_integrated_large_code_hints_theme_and_resources_match_saved_by
         assert_eq!(sha256_hex(&bytes), manifest.sha256);
     }
     let code = std::fs::read_to_string(directory.join("screen.tsx")).unwrap();
-    assert!(code.contains("// @devup-interaction "));
-    assert!(code.contains("https://example.com/confirmed"));
+    assert!(!code.contains("// @devup-"));
+    assert!(!code.contains("https://example.com/confirmed"));
+    assert!(result["interactionHints"].to_string().contains("https://example.com/confirmed"), "{result}");
     let theme: Value = serde_json::from_slice(&std::fs::read(directory.join("devup.json")).unwrap()).unwrap();
     assert_eq!(theme["theme"]["typography"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["body"]);
     assert!(code.contains("typography=\"body\""));

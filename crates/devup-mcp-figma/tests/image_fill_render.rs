@@ -341,9 +341,10 @@ fn duplicate_names_have_safe_stable_hierarchy_suggestions_and_enriched_measureme
         .iter()
         .map(|a| a.suggested_filename.clone().unwrap())
         .collect::<Vec<_>>();
-    assert_ne!(names[0], names[1]);
+    // Suggestions describe meaning; the project registry resolves real content collisions.
+    assert_eq!(names[0], names[1]);
     for name in &names {
-        assert!(name.starts_with("section-con-rectangle-32-"));
+        assert!(name.starts_with("section-con-rectangle-32."));
         assert!(
             name.bytes()
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.'))
@@ -422,7 +423,7 @@ fn unicode_parent_names_remain_readable_and_cannot_introduce_write_paths() {
     let assets = discover_asset_manifest(&snapshot).assets;
     for asset in assets {
         let name = asset.suggested_filename.unwrap();
-        assert!(name.starts_with("예시-화면-안전-rectangle-32-"));
+        assert!(name.starts_with("예시-화면-안전-rectangle-32."));
         assert!(!name.contains(['/', '\\', ':']));
         assert!(!name.contains(".."));
         assert!(name.len() < 160);
@@ -459,7 +460,7 @@ fn direct_leaf_filename_uses_runtime_parent_names_when_snapshot_has_no_ancestors
     annotate_assets(&snapshot, &mut assets);
     let name = assets[0].suggested_filename.as_ref().unwrap();
     assert!(
-        name.starts_with("예시-화면-gallery-con-rectangle-32-"),
+        name.starts_with("예시-화면-gallery-con-rectangle-32."),
         "{name}"
     );
     assert!(!name.contains(['/', '\\', ':']));

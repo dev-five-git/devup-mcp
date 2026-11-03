@@ -28,12 +28,16 @@ pub(super) fn generated_drift(record: &Value, root: &Path, sources: &[String]) -
     }
     let mut actual = Vec::new();
     let mut files = Vec::new();
+    let mut exact_source_matches = 0usize;
     for source in sources {
         let path = root.join(source);
         if !path.starts_with(root) || source.split(['/', '\\']).any(|part| part == "..") { continue; }
         if !dunce::canonicalize(&path).ok().zip(dunce::canonicalize(root).ok()).is_some_and(|(path, root)| path.starts_with(root)) { continue; }
         if std::fs::metadata(&path).map_or(true, |metadata| metadata.len() > MAX_RECORD_BYTES) { continue; }
         let Ok(text) = std::fs::read_to_string(&path) else { continue; };
+        if record["generatedSource"].as_str() == Some(text.as_str()) {
+            exact_source_matches += 1;
+        }
         files.push(source.clone());
         actual.extend(style_elements(&text).into_iter().map(|element| (source, element)));
     }
@@ -65,8 +69,11 @@ pub(super) fn generated_drift(record: &Value, root: &Path, sources: &[String]) -
     for (file, element) in actual.iter().skip(expected.len()) {
         findings.push(json!({"kind": "styled-element-added", "file": file, "actual": element}));
     }
-    json!({"state": if findings.is_empty() { "matched-heuristic" } else { "drift" }, "confidence": "medium",
-        "method": "Ordered style-bearing JSX elements across mapped URL files; wiring-only wrappers and attributes are ignored. Component extraction or reordering can require mapping review; not a runtime proof.",
+    let source_matched = files.len() == 1 && exact_source_matches == 1;
+    json!({"state": if source_matched { "source-matched" } else { "unverified" }, "confidence": if source_matched { "high" } else { "low" },
+        "candidateOnly": !source_matched,"runtimeVerified":false,
+        "reason":if source_matched { "The complete source is identical to the recorded generated source; browser behavior remains unverified." } else { "Source identity is unavailable after edits or component extraction. Findings are positional review candidates, not verified node drift." },
+        "method": "Ordered style-bearing JSX comparison; wiring-only wrappers and attributes are ignored. Only an identical complete generated file establishes source identity. Review candidate mapping after extraction or reordering; never infer runtime DOM identities from ordinals.",
         "files": files, "findings": findings})
 }
 
@@ -80,5 +87,23 @@ mod generated_drift_tests {
         let wired = style_elements("<Link href=\"/next\"><Box w={['360px', null, '1440px']} onClick={go} aria-label=\"Next\" key=\"next\"><Text color=\"$text\" /></Box></Link>");
         assert_eq!(generated, wired);
         assert_ne!(generated, style_elements("<Box w=\"1440px\" h=\"640px\"><Text /></Box>"));
+    }
+
+    #[test]
+    fn changed_source_is_a_review_candidate_without_verified_node_identity() {
+        let root = std::env::temp_dir().join(format!("devup-drift-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&root).unwrap();
+        let code = "<Box w=\"40px\"><Text color=\"$text\" /></Box>";
+        let record = json!({"generatedSource":code,"generatedStyles":style_elements(code)});
+        let sources = vec!["Screen.tsx".into()];
+        std::fs::write(root.join("Screen.tsx"), code).unwrap();
+        assert_eq!(generated_drift(&record, &root, &sources)["state"], "source-matched");
+        std::fs::write(root.join("Screen.tsx"), code.replace("40px", "80px")).unwrap();
+        let drift = generated_drift(&record, &root, &sources);
+        assert_eq!(drift["state"], "unverified");
+        assert_eq!(drift["candidateOnly"], true);
+        assert_eq!(drift["runtimeVerified"], false);
+        assert!(!drift["findings"].as_array().unwrap().is_empty());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

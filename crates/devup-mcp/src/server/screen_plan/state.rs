@@ -120,6 +120,11 @@ pub struct ScreenPlanInput {
     /// assume: what was decided during implementation without asking.
     #[serde(default)]
     pub assumptions: Vec<AssumptionInput>,
+    /// assume: explicitly pair baseline and state frames at distinct widths.
+    /// Every frame of each affected URL must belong to exactly one group.
+    /// Supply evidence in reason; frame order or duplicate names do not prove a pairing.
+    #[serde(default)]
+    pub responsive_groups: Vec<ResponsiveGroupInput>,
     /// assume: the outcome of the dependency step. Each pin is also recorded
     /// as an assumption.
     #[serde(default)]
@@ -269,6 +274,18 @@ pub struct AssumptionInput {
     pub decision: String,
     #[serde(default)]
     pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct ResponsiveGroupInput {
+    pub url: String,
+    pub id: String,
+    #[schemars(extend("enum" = ["baseline", "state"]))]
+    pub kind: String,
+    pub frame_ids: Vec<String>,
+    pub reason: String,
 }
 
 /// The outcome of the dependency step, recorded once it ran.

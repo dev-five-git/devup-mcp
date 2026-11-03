@@ -60,6 +60,47 @@ fn has_responsive_value(expression: &Expression) -> bool {
     }
 }
 
+fn visible_tree_at(tree: &Tree, path: &NodePath) -> bool {
+    (0..=path.len()).all(|end| {
+        tree_at(tree, &path[..end])
+            .is_some_and(|node| node.props.get("display").is_none_or(|value| value != "none"))
+    })
+}
+
+fn viewport_alt_diagnostics(records: &[Record], tree: &Tree, path: &NodePath) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if tree.component == "Image" {
+        let mut groups = BTreeMap::<BTreeMap<String, String>, BTreeSet<String>>::new();
+        for record in records {
+            if !visible_tree_at(&record.tree, path) { continue; }
+            let Some(alt) = tree_at(&record.tree, path).and_then(|node| node.props.get("alt")) else { continue; };
+            let dimensions = record.values.iter().filter(|(name, _)| !name.eq_ignore_ascii_case("viewport"))
+                .map(|(name, value)| (name.clone(), value.clone())).collect();
+            groups.entry(dimensions).or_default().insert(alt.clone());
+        }
+        for (dimensions, alternatives) in groups.into_iter().filter(|(_, values)| values.len() > 1) {
+            diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_RESPONSIVE_ALT_UNREPRESENTED".into(),
+                message: "Visible viewport variants have different image alternatives. A scalar fallback is emitted; the alternatives are not represented responsively.".into(),
+                node_id: Some(tree.node_id.clone()),
+                property: Some("alt".into()),
+                severity: Some(DiagnosticSeverity::Warning),
+                fidelity_impact: Some(FidelityImpact::Lossy),
+                details: Some(serde_json::json!({"classification":"scalar-html-attribute","dimensions":dimensions,"alternatives":alternatives,
+                    "nextAction":"Use separate per-width image branches preserving each captured alt, or explicitly resolve their shared text; never pass responsive arrays to HTML alt."})),
+                ..Default::default()
+            });
+        }
+    }
+    let keys = child_keys(tree);
+    for (index, child) in tree.children.iter().enumerate() {
+        let Some(key) = keys.get(index) else { continue; };
+        let mut child_path = path.to_vec(); child_path.push(key.clone());
+        diagnostics.extend(viewport_alt_diagnostics(records, child, &child_path));
+    }
+    diagnostics
+}
+
 fn fill_absent_display(expression: &mut Expression) {
     match expression {
         Expression::Responsive(slots) => {

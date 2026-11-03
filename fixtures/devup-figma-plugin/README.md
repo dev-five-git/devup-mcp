@@ -32,6 +32,70 @@ The 50 affected snapshot checksums are synchronized in `manifest.json`; original
 case inputs and upstream inventory remain unchanged. These are static codegen
 regressions, not new browser pixel measurements.
 
+Intrinsic-width text (`textAutoResize=WIDTH_AND_HEIGHT`) now emits
+`whiteSpace="pre"` so a narrow flex parent cannot soft-wrap a captured marquee.
+The reviewed corpus changes add only that property and formatter whitespace;
+source-map snapshots also record the explicit textAutoResize derivation.
+Clamped text and list text retain their separate policies. Original inputs and
+upstream inventory are unchanged; checksums follow the reviewed snapshots.
+
+The accessibility correction adds image `alt` attributes derived from captured
+layer names to 34 reviewed codegen snapshots. Explicitly named semantic regions
+and heading layers also emit their HTML tags. The review checks that all other
+attribute values and text remain unchanged, allowing formatter line wrapping.
+Only the affected snapshot checksums are updated; case inputs, upstream source
+identity and test inventory are preserved. These are non-visual HTML corrections,
+not additional browser pixel measurements.
+
 ## R4 배치 계약 변경
 
 `upstream-codegen-191`, `251`–`254`의 골든은 absolute 자식의 기준 요소를 생성 코드가 소유하도록 갱신했습니다. PAGE/SECTION 루트에 relative와 FIXED 축의 크기를 보존하고, 앞에 그린 absolute 배경에는 루트 stacking context 안의 z-index를 적용합니다. 원본 case JSON은 유지했고 변경한 5개 snapshot의 LF-normalized checksum만 동기화했습니다. 이는 생성 코드 배치 계약의 의도적인 변경이며 신규 브라우저 픽셀 측정 결과를 뜻하지 않습니다.
+
+The carriage-return correction updates only codegen snapshot 253: lone CR
+controls render as inline spaces, while CRLF, LF and Unicode line separators
+retain their hard breaks. Its two changed JSX lines follow three lone CRs in
+unchanged captured strings (including trailing spaces). The rule was checked
+against the native Figma location transit PNGs and four single-line source
+boxes; this is not a new pixel measurement of the Greetings corpus screen.
+Raw case inputs, style properties and the upstream inventory remain unchanged.
+
+
+### Captured Korean HEIGHT wrapping correction
+
+Six reviewed codegen goldens intentionally replace exactly fourteen
+`wordBreak="keep-all"` lines with `wordBreak="normal"`. Every changed source
+Text has captured Korean styled segments, `textAutoResize=HEIGHT`, a positive
+measured width on a FILL axis, and `textTruncation=DISABLED` without a line cap.
+The old keep-all default adds word-boundary restrictions absent from Figma's
+captured wrapping. The source-backed Vision correction is protected by
+`captured_korean_wrapping.rs`. Separate browser verification of those Vision
+cases matched source heights 46/52px instead of the old 69/78px; these older
+corpus screens have not acquired new PNG measurements.
+
+| Golden case | Source Text IDs | Changed lines |
+| --- | --- | --- |
+| 165 | 1:17, 1:18 | 2 |
+| 191 | 107:32 | 1 |
+| 213 | 109:64 | 1 |
+| 223 | 113:10, 113:13, 113:18, 113:25, 113:29, 113:33 | 6 |
+| 252 | 284:18751, 284:18753 | 2 |
+| 253 | 213:7494, 213:7495 | 2 |
+
+The review verifies that all other output bytes are unchanged after LF
+normalization. Original case JSON, upstream source identity and the test
+inventory remain untouched; only these six snapshot checksums change.
+Intrinsic HUG/no-wrap text, unknown fields, truncation/clamping, explicit
+existing word-break settings and theme policies retain their separate guards.
+`compat_fixtures` continues to compare all 268 complete outputs byte for byte;
+there is no comparator exception or broad text normalization.
+
+### ChondroGen delivery feedback (2026-11-03)
+
+The later explicit Korean-word-boundary requirement supersedes the HEIGHT
+wrapping default above: Korean text uses keep-all plus emergency long-token
+wrapping unless an explicit user/theme policy says otherwise. Seventeen reviewed
+codegen goldens change only this wrapping policy, emergency wrapping, or removal
+of one component-usage inspection comment. Source case JSON, upstream identity
+and coverage inventory are unchanged. Only the affected snapshot checksums are
+updated; complete outputs still compare byte for byte. These changes do not
+assert new pixel measurements of every pinned upstream screen.

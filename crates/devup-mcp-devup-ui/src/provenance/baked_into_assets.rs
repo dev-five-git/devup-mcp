@@ -1,5 +1,3 @@
-
-
 /// Nodes whose variable bindings no correct generator could write out.
 ///
 /// An asset drawn in one colour becomes a Box masked to its shape with `bg`
@@ -123,20 +121,15 @@ fn text_sources(snapshot: &Snapshot, text_nodes: &BTreeSet<&str>) -> Vec<(String
         let Some(node) = snapshot.nodes.get(*node_id) else {
             continue;
         };
-        let segments = node
-            .typed_view()
-            .value("styledTextSegments")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|segment| {
-                segment
-                    .get("characters")
-                    .and_then(serde_json::Value::as_str)
-            })
-            .filter(|characters| !characters.is_empty())
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
+        let segments = crate::codegen::render_segment_characters(
+            node.typed_view()
+                .value("styledTextSegments")
+                .and_then(serde_json::Value::as_array)
+                .map_or(&[], Vec::as_slice),
+        )
+        .into_iter()
+        .filter(|characters| !characters.is_empty())
+        .collect::<Vec<_>>();
         if segments.is_empty() {
             if let Some(characters) = node
                 .typed_view()
@@ -643,6 +636,7 @@ pub(crate) fn finalize_tsx(
         }
 
         let mut prop_sources = PROP_SOURCES.to_vec();
+        prop_sources.extend(wrapped_gaps::sources(node));
         if crate::codegen::asset_kind(snapshot, node).is_none()
             && crate::codegen::single_outside_stroke(&node.typed_view()).is_some()
         {
@@ -718,10 +712,20 @@ pub(crate) fn finalize_tsx(
                 })
                 .flatten();
             let resolution = if *prop == "whiteSpace"
+                && value == "pre"
+                && crate::codegen::preserves_intrinsic_text_width(&node.typed_view())
+            {
+                "derived-intrinsic-text-width"
+            } else if *prop == "whiteSpace"
                 && value == "pre-wrap"
                 && crate::codegen::preserves_hard_break_spaces(&node.typed_view())
             {
                 "derived-hard-break-whitespace"
+            } else if *prop == "whiteSpace"
+                && value == "pre-wrap"
+                && crate::codegen::preserves_wrapped_ascii_spaces(&node.typed_view())
+            {
+                "derived-wrapped-ascii-whitespace"
             } else if *prop == "boxShadow"
                 && crate::codegen::asset_kind(snapshot, node).is_none()
                 && crate::codegen::single_outside_stroke(&node.typed_view()).is_some()
@@ -752,8 +756,14 @@ pub(crate) fn finalize_tsx(
                 "raw-fallback"
             };
             let source_property = if *prop == "whiteSpace"
+                && value == "pre"
+                && crate::codegen::preserves_intrinsic_text_width(&node.typed_view())
+            {
+                "textAutoResize"
+            } else if *prop == "whiteSpace"
                 && value == "pre-wrap"
-                && crate::codegen::preserves_hard_break_spaces(&node.typed_view())
+                && (crate::codegen::preserves_hard_break_spaces(&node.typed_view())
+                    || crate::codegen::preserves_wrapped_ascii_spaces(&node.typed_view()))
             {
                 if node.typed_view().string("characters").is_some() {
                     "characters"

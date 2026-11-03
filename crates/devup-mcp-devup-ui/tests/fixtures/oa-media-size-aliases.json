@@ -1,0 +1,372 @@
+{
+  "fileKey": "oa-captured-size-constraint-regression",
+  "roots": [
+    "mobile",
+    "desktop"
+  ],
+  "nodes": {
+    "73:9310": {
+      "id": "73:9310",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "desktop",
+        "absoluteBoundingBox": {
+          "height": 560,
+          "width": 560,
+          "x": 23286,
+          "y": 8982
+        },
+        "absoluteRenderBounds": {
+          "height": 560,
+          "width": 560,
+          "x": 23286,
+          "y": 8982
+        },
+        "bottomLeftRadius": 24,
+        "bottomRightRadius": 24,
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 24,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "a68b88adaa0b7b4858328d09295d8066747e2d2b",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 1,
+            "type": "IMAGE",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "4ad66daf3d3a965fc153b8b5e36cc4f679e6eae6",
+            "imageTransform": [
+              [
+                0.8333333134651184,
+                0,
+                0.0833333358168602
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "height": 560,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 20,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 20,
+          "primaryAxisAlignItems": "MAX",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "isAsset": true,
+        "itemSpacing": 0,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "media",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 20,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 20,
+        "primaryAxisAlignItems": "MAX",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            720
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 24,
+        "topRightRadius": 24,
+        "visible": true,
+        "width": 560,
+        "x": 720,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "desktop": {
+      "id": "desktop",
+      "type": "FRAME",
+      "fields": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 800,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "paddingLeft": 80,
+        "paddingRight": 80,
+        "paddingTop": 0,
+        "paddingBottom": 0,
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "counterAxisAlignItems": "MIN",
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 80,
+          "paddingRight": 80
+        },
+        "childrenIds": [
+          "73:9310"
+        ]
+      }
+    },
+    "73:9401": {
+      "id": "73:9401",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "mobile",
+        "absoluteBoundingBox": {
+          "height": 240,
+          "width": 320,
+          "x": 23979,
+          "y": 8768
+        },
+        "absoluteRenderBounds": {
+          "height": 240,
+          "width": 320,
+          "x": 23979,
+          "y": 8768
+        },
+        "bottomLeftRadius": 16,
+        "bottomRightRadius": 16,
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 16,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "a68b88adaa0b7b4858328d09295d8066747e2d2b",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 1,
+            "type": "IMAGE",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "4ad66daf3d3a965fc153b8b5e36cc4f679e6eae6",
+            "imageTransform": [
+              [
+                0.8333333134651184,
+                0,
+                0.0833333358168602
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "height": 240,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 12,
+          "paddingLeft": 12,
+          "paddingRight": 12,
+          "paddingTop": 12,
+          "primaryAxisAlignItems": "MAX",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "isAsset": true,
+        "itemSpacing": 0,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "media",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 12,
+        "paddingLeft": 12,
+        "paddingRight": 12,
+        "paddingTop": 12,
+        "primaryAxisAlignItems": "MAX",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "visible": true,
+        "width": 320,
+        "x": 0,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "mobile": {
+      "id": "mobile",
+      "type": "FRAME",
+      "fields": {
+        "name": "mobile",
+        "width": 360,
+        "height": 800,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 0,
+        "paddingBottom": 0,
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "counterAxisAlignItems": "MIN",
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 20,
+          "paddingRight": 20
+        },
+        "childrenIds": [
+          "73:9401"
+        ]
+      }
+    }
+  },
+  "diagnostics": []
+}

@@ -5,8 +5,8 @@
 //! every section, card and asset, containment and clipped text between the
 //! widths, interaction states, and the view transition to the next URL.
 //!
-//! A plan per URL, because a page comparison needs the viewport as tall as
-//! that URL's frame, and because the work goes URL by URL.
+//! A plan per URL keeps the workflow route-scoped. Frame height is reference
+//! metadata; the actual browser window height is independent.
 
 // Source sections share this module to preserve privacy and test names.
 include!("audit_plan/planning_and_capture.rs");

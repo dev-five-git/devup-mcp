@@ -55,6 +55,17 @@ fn close(actual: &Value, expected: f64) {
     );
 }
 
+fn assert_intrinsic_metadata_without_style_aliases(
+    output: &devup_mcp_devup_ui::codegen::CodegenOutput,
+) {
+    assert!(!output.tsx.contains(" width="), "{}", output.tsx);
+    assert!(!output.tsx.contains(" height="), "{}", output.tsx);
+    assert_eq!(
+        output.source_map.asset_css_mappings[0]["intrinsicAttributes"],
+        json!({"width":800.0,"height":600.0})
+    );
+}
+
 #[test]
 fn original_source_has_one_css_effect_and_native_has_one_baked_effect() {
     let photo = node("CROP", json!([[0.5, 0, 0.25], [0, 0.5, 0.1]]));
@@ -72,11 +83,7 @@ fn original_source_has_one_css_effect_and_native_has_one_baked_effect() {
         output.tsx
     );
     assert!(output.tsx.contains("src=\"/images/full.webp\""));
-    assert!(
-        output.tsx.contains("width=\"800\"") && output.tsx.contains("height=\"600\""),
-        "{}",
-        output.tsx
-    );
+    assert_intrinsic_metadata_without_style_aliases(&output);
     assert!(output.tsx.contains("overflow=\"hidden\""));
     assert!(
         output
@@ -418,7 +425,7 @@ fn crop_hug_content_keeps_measured_display_size_instead_of_source_intrinsic_size
         "{}",
         output.tsx
     );
-    assert!(output.tsx.contains("width=\"800\"") && output.tsx.contains("height=\"600\""));
+    assert_intrinsic_metadata_without_style_aliases(&output);
     assert!(!output.tsx.contains("w=\"800px\""));
 }
 
@@ -636,5 +643,5 @@ fn affine_fill_width_follows_flex_parent_and_embedded_hug_keeps_host_control() {
         "{}",
         embedded.tsx
     );
-    assert!(embedded.tsx.contains("width=\"800\"") && embedded.tsx.contains("height=\"600\""));
+    assert_intrinsic_metadata_without_style_aliases(&embedded);
 }

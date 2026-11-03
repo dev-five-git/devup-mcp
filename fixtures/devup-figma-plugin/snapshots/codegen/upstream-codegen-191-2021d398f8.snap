@@ -17,6 +17,7 @@ expression: actual
       zIndex="0"
     >
       <Image
+        alt="puzzle"
         aspectRatio="300 / 332"
         filter="blur(12px)"
         h="332px"
@@ -49,6 +50,8 @@ expression: actual
           fontWeight="600"
           letterSpacing="-0.04em"
           lineHeight="19px"
+          overflowWrap="break-word"
+          whiteSpace="pre"
           wordBreak="keep-all"
         >
           지금 시작할 수 있어요
@@ -60,6 +63,8 @@ expression: actual
           fontWeight="700"
           letterSpacing="-0.04em"
           lineHeight="24px"
+          overflowWrap="break-word"
+          whiteSpace="pre"
           wordBreak="keep-all"
         >
           내 삶을 더 잘 이해하는 첫 걸음
@@ -72,6 +77,7 @@ expression: actual
         fontWeight="400"
         letterSpacing="-0.04em"
         lineHeight="22px"
+        overflowWrap="break-word"
         whiteSpace="pre-wrap"
         wordBreak="keep-all"
       >
@@ -87,6 +93,8 @@ expression: actual
           letterSpacing="-0.04em"
           lineHeight="19px"
           opacity="0.5"
+          overflowWrap="break-word"
+          whiteSpace="pre"
           wordBreak="keep-all"
         >
           회원가입 후, 유료로 진행됩니다

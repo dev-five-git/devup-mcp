@@ -4,9 +4,9 @@
 //! matches it and renders wrong anyway (a converter bug, reported with a
 //! repro, never hand-tuned in silence).
 //!
-//! `.devup/exports/<root node>.json` holds, for every element the export
-//! marked with `data-figma-node-id(s)`, its tag, its attributes as written
-//! and the source map entries of its node.
+//! `.devup/exports/<root node>.json` keeps source-map identities, generated
+//! code and design evidence outside application source. Source ordinals can
+//! identify an unchanged generated file; they never prove runtime DOM identity.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -171,6 +171,45 @@ pub(super) fn elements(tsx: &str) -> BTreeMap<String, Value> {
     out
 }
 
+fn source_elements(tsx: &str) -> Vec<Value> {
+    let mut attributes = BTreeMap::<usize, Vec<String>>::new();
+    for attribute in generated_attributes(tsx).into_iter().filter(|attribute| !is_identity(&attribute.name)) {
+        attributes.entry(attribute.element).or_default().push(normalized(&attribute.source));
+    }
+    devup_mcp_devup_ui::provenance::attributes::opening_elements(tsx).into_iter().map(|opening| {
+        let tag = tsx[opening.start + 1..opening.end].split(|c: char| c.is_whitespace() || c == '>' || c == '/').next().unwrap_or_default();
+        json!({"elementIndex":opening.ordinal,"tag":tag,"attributes":attributes.remove(&opening.ordinal).unwrap_or_default()})
+    }).collect()
+}
+
+fn mapped_elements(tsx: &str, response: &Value, field: &str) -> BTreeMap<String, Value> {
+    let elements = source_elements(tsx);
+    let tags = elements.iter().map(|entry| entry["tag"].clone()).collect::<Vec<_>>();
+    let entries = response["outputResults"][field]["_sourceMap"].as_array().into_iter().flatten()
+        .filter_map(|entry| Some((entry["nodeId"].as_str()?.to_owned(), entry["elementIndex"].as_u64()? as usize)))
+        .chain(response["outputResults"][field]["sectionCoverage"]["elementMappings"].as_array().into_iter().flatten()
+            .filter_map(|entry| Some((entry["nodeId"].as_str()?.to_owned(),entry["elementIndex"].as_u64()? as usize))))
+        .chain(response["sourceIdentity"]["responsive"].as_array().into_iter().flatten()
+            .filter(|_| field == "responsiveTsx")
+            .flat_map(|entry| entry["ids"].as_array().into_iter().flatten().filter_map(|id| Some((id["nodeId"].as_str()?.to_owned(),entry["elementIndex"].as_u64()? as usize))))).collect::<Vec<_>>();
+    let mut nodes = BTreeMap::new();
+    for (node,index) in entries {
+        let Some(element) = elements.get(index) else { continue; };
+        let mut element = element.clone();
+        element["sourceTags"] = json!(tags);
+        nodes.entry(node).or_insert(element);
+    }
+    nodes
+}
+
+fn source_evidence(response: &Value) -> Value {
+    let outputs = response["outputResults"].as_object().into_iter().flat_map(|outputs| outputs.iter())
+        .filter(|(_, output)| output["_sourceMap"].is_array() || output["sectionCoverage"].is_object())
+        .map(|(field, output)| (field.clone(), json!({"sourceMap":output["_sourceMap"],"sectionCoverage":output["sectionCoverage"]})))
+        .collect::<serde_json::Map<_, _>>();
+    json!({"sourceMap":response["sourceMap"],"outputs":outputs})
+}
+
 /// Writes the record of one export into a project. Returns where.
 pub(super) fn write(
     policy: &OutputPolicy,
@@ -181,9 +220,10 @@ pub(super) fn write(
 ) -> Result<Option<String>, DevupError> {
     let mut nodes = BTreeMap::new();
     let mut output = None;
-    for field in ["responsiveTsx", "tsx"] {
+    for field in ["responsiveTsx", "tsx", "componentTsx"] {
         if let Some(tsx) = response[field].as_str() {
-            let found = elements(tsx);
+            let mut found = elements(tsx);
+            found.extend(mapped_elements(tsx, response, field));
             if !found.is_empty() && output.is_none() {
                 output = Some(field);
             }
@@ -205,10 +245,7 @@ pub(super) fn write(
         .collect::<std::collections::BTreeSet<_>>();
     if frame_ids.is_empty() && !root_node_id.is_empty() { frame_ids.insert(root_node_id.to_owned()); }
     let mut source_map = BTreeMap::<String, Vec<Value>>::new();
-    for entry in response["outputResults"]["tsx"]["_sourceMap"]
-        .as_array()
-        .into_iter()
-        .flatten()
+    for entry in ["tsx", "componentTsx", "responsiveTsx"].into_iter().flat_map(|field| response["outputResults"][field]["_sourceMap"].as_array().into_iter().flatten())
     {
         if let Some(node) = entry["nodeId"].as_str()
             && nodes.contains_key(node)
@@ -226,15 +263,27 @@ pub(super) fn write(
     }
     let record = json!({
         "kind": RECORD_KIND,
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "fileKey": file_key,
         "rootNodeId": root_node_id,
         "output": output,
         "nodes": nodes,
         "responsive": response["figmaNodeIds"]["responsive"],
+        "sourceIdentity": response["sourceIdentity"],
+        "instanceOverrides": response["instanceOverrides"],
+        "interactionHints": response["interactionHints"],
+        "overlayAnchors": response["overlayAnchors"],
+        "sourceEvidence": source_evidence(response),
+        "frames": response["frames"].as_array().into_iter().flatten().map(|frame| json!({
+            "nodeId":frame["nodeId"],"sourceEvidence":source_evidence(frame),
+            "generatedSource":frame["tsx"],"componentSource":frame["componentTsx"],
+            "instanceOverrides":frame["instanceOverrides"],"interactionHints":frame["interactionHints"],
+            "overlayAnchors":frame["overlayAnchors"],"sourceIdentity":frame["sourceIdentity"]
+        })).collect::<Vec<_>>(),
         "frameIds": frame_ids,
         "artifactId": response["artifactId"],
         "generatedStyles": generated.map(style_elements),
+        "generatedSource": generated,
     });
     let path = Path::new(project_root)
         .join(EXPORTS_DIR)
@@ -312,17 +361,24 @@ pub(super) fn geometry_cause(project_root: &Path, node_id: &str, sources: &[Stri
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        if !text.contains(node_id) {
-            continue;
-        }
         if let Some(element) = elements(&text).remove(node_id) {
             code = Some((source.clone(), element));
             break;
         }
+        if let Some(index) = exported["elementIndex"].as_u64() {
+            let current = source_elements(&text);
+            let tags = current.iter().map(|entry| entry["tag"].clone()).collect::<Vec<_>>();
+            // A changed tree or an ambiguous multi-file extraction invalidates ordinal matching.
+            if sources.len() == 1 && record["generatedSource"].as_str() == Some(text.as_str()) && exported["sourceTags"] == json!(tags)
+                && let Some(element) = current.get(index as usize) {
+                code = Some((source.clone(), element.clone()));
+                break;
+            }
+        }
     }
     let Some((file, element)) = code else {
         return Cause::Unknown(format!(
-            "No source file marks an element with data-figma-node-id {node_id}; the exported element was removed or renamed."
+            "No unambiguous source-map/file mapping identifies {node_id}; refresh the sidecar after restructuring or component extraction. DOM or JSX order alone is not identity proof."
         ));
     };
     let attributes = |value: &Value| {
@@ -398,7 +454,7 @@ pub(super) fn write_repro(
         "page": finding["routePath"],
         "screenshot": finding["evidence"]["screenshot"],
         "why": include_str!("text/export_record-write_repro-ab60ad0a.md"),
-        "file": "Report it to devup-mcp with this file. A local override may finish the site, but it must carry a comment naming this file.",
+        "file": "Report it to devup-mcp with this file. Record any local correction in this sidecar; keep application source free of export metadata comments.",
     });
     let path = Path::new(project_root)
         .join(CONVERTER_BUGS_DIR)
@@ -419,3 +475,31 @@ pub(super) fn write_repro(
 }
 
 include!("export_record/generated_drift.rs");
+
+#[cfg(test)]
+mod pure_record_tests {
+    use super::*;
+
+    #[test]
+    fn pure_exports_retain_node_and_override_evidence_outside_source() {
+        let root = std::env::temp_dir().join(format!("devup-pure-sidecar-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&root).unwrap();
+        let code = "export function Screen() { return <Box h=\"40px\"><Text>Content</Text></Box>; }";
+        let response = json!({"tsx":code,"outputResults":{"tsx":{"_sourceMap":[{"nodeId":"frame","elementIndex":0}]}},"instanceOverrides":[{"instanceNodeId":"instance","generatedProps":["flex=\"1\""]}],"interactionHints":[{"nodeId":"action","targetResolved":false}],"frames":[{"nodeId":"other-width","tsx":code,"sourceMap":{"entries":[{"nodeId":"nested","elementIndex":1}]}}]});
+        let policy = OutputPolicy::from_roots(vec![root.clone()]).unwrap();
+        let path = write(&policy, &root.to_string_lossy(), "file", "frame", &response).unwrap().unwrap();
+        let record: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(record["nodes"]["frame"]["elementIndex"], 0);
+        assert_eq!(record["nodes"]["frame"]["tag"], "Box");
+        assert_eq!(record["instanceOverrides"], response["instanceOverrides"]);
+        assert_eq!(record["interactionHints"], response["interactionHints"]);
+        assert_eq!(record["sourceEvidence"]["outputs"]["tsx"]["sourceMap"], response["outputResults"]["tsx"]["_sourceMap"]);
+        assert_eq!(record["frames"][0]["sourceEvidence"]["sourceMap"], response["frames"][0]["sourceMap"]);
+        std::fs::write(root.join("Screen.tsx"), code).unwrap();
+        assert!(matches!(geometry_cause(&root, "frame", &["Screen.tsx".into()]), Cause::ConverterBug { .. }));
+        std::fs::write(root.join("Screen.tsx"), code.replace("40px", "80px")).unwrap();
+        assert!(matches!(geometry_cause(&root, "frame", &["Screen.tsx".into()]), Cause::Unknown(_)));
+        drop(policy);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

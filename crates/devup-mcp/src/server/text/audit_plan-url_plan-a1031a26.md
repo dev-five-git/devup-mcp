@@ -1,1 +1,1 @@
-The {width}px frame {node_id} is {height}px tall, outside the 1..={MAX_VIEWPORT_SIDE}px viewport range. Use the default viewport height and capture the page at its recorded drawn frame height for visual comparison.
+The {width}px frame {node_id} is {height}px tall, outside the 1..={MAX_VIEWPORT_SIDE}px viewport range. Keep the default browser viewport height and capture the natural full page. Frame height is reference metadata, not a required browser window/capture height.

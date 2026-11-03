@@ -63,6 +63,44 @@ fn responsive_merge_diagnostics_survive_export_summary_without_opt_in() {
 }
 
 #[tokio::test]
+async fn explicit_expanded_tsx_also_expands_the_responsive_companion() {
+    for expanded in [false, true] {
+        let mut data = responsive_payload();
+        for (root, instance, text) in [
+            ("1:1", "small-card", "small-text"),
+            ("1:2", "wide-card", "wide-text"),
+        ] {
+            data.snapshot.nodes.get_mut(root).unwrap().fields.insert("childrenIds".into(), json!([instance]));
+            for value in [
+                json!({"id":instance,"type":"INSTANCE","fields":{
+                    "name":"Card","parentId":root,"mainComponentId":"master",
+                    "width":100,"height":40,"layoutMode":"VERTICAL","childrenIds":[text]
+                }}),
+                json!({"id":text,"type":"TEXT","fields":{
+                    "name":"Label","parentId":instance,"characters":"Concrete instance content",
+                    "width":100,"height":20,"fontSize":16
+                }}),
+            ] {
+                let node: devup_mcp_figma::RawNode = serde_json::from_value(value).unwrap();
+                data.snapshot.nodes.insert(node.id.clone(), node);
+            }
+        }
+        let master: devup_mcp_figma::RawNode = serde_json::from_value(json!({
+            "id":"master","type":"COMPONENT","fields":{"name":"Card","width":100,"height":40}
+        })).unwrap();
+        data.snapshot.nodes.insert(master.id.clone(), master);
+        let mut op = operation(if expanded { &["tsx", "responsiveTsx"] } else { &["responsiveTsx"] });
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        let source = result["responsiveTsx"].as_str().expect("responsive source");
+        assert_eq!(source.contains("Concrete instance content"), expanded, "{source}");
+        assert_eq!(source.contains("@/components/Card"), !expanded, "{source}");
+    }
+}
+
+#[tokio::test]
 async fn instance_overrides_reach_export_and_required_review_without_opt_in() {
     for output in ["tsx", "componentTsx"] {
         let mut data = payload();
@@ -80,7 +118,7 @@ async fn instance_overrides_reach_export_and_required_review_without_opt_in() {
         super::super::review::attach(&mut result);
         assert_eq!(result["instanceOverrides"][0]["instanceNodeId"], root, "{result}");
         assert_eq!(result["instanceOverrides"][0]["resolution"], "resolved");
-        assert!(result[output].as_str().unwrap().contains("// @devup-override "));
+        assert!(!result[output].as_str().unwrap().contains("// @devup-"));
         assert!(result["projectionIssues"].as_array().unwrap().iter().any(|item|
             item["code"] == "DEVUP_CODEGEN_INSTANCE_OVERRIDE"));
         assert!(result["reviewChecklist"].as_array().unwrap().iter().any(|item|
@@ -276,7 +314,7 @@ async fn feedback32_component_set_has_no_canvas_coverage_failure() {
 }
 
 #[tokio::test]
-async fn feedback64_node_identity_requires_explicit_opt_in() {
+async fn feedback64_node_identity_stays_in_sidecars_even_with_legacy_opt_in() {
     for enabled in [false, true] {
         let mut op = operation(&["tsx", "componentTsx", "sourceMap"]);
         if let PendingOperation::Export { theme_options, .. } = &mut op {
@@ -285,7 +323,9 @@ async fn feedback64_node_identity_requires_explicit_opt_in() {
         let result = project(payload(), op).await.unwrap();
         for output in ["tsx", "componentTsx"] {
             let code = result[output].as_str().unwrap();
-            assert_eq!(code.contains("data-figma-node-id"), enabled, "{output}: {code}");
+            assert!(!code.contains("data-figma-node-id"), "{output}: {code}");
+            assert!(!code.contains("// @devup-"), "{output}: {code}");
+            assert!(result["outputResults"][output]["sectionCoverage"]["elementMappings"].is_array(), "{result}");
         }
         assert!(result["sourceMap"].is_object(), "{result}");
         let mut op = operation(&["responsiveTsx"]);
@@ -295,7 +335,9 @@ async fn feedback64_node_identity_requires_explicit_opt_in() {
         }
         let result = project(responsive_payload(), op).await.unwrap();
         let code = result["responsiveTsx"].as_str().unwrap();
-        assert_eq!(code.contains("data-figma-node-id"), enabled, "{code}");
+        assert!(!code.contains("data-figma-node-id"), "{code}");
+        assert!(!code.contains("// @devup-"), "{code}");
+        assert!(result["sourceIdentity"]["responsive"].is_array(), "{result}");
     }
 }
 

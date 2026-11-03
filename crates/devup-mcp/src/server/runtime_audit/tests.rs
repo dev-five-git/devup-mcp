@@ -61,7 +61,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 7);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 8);
         let imported = std::process::Command::new("node")
             .args(["--input-type=module", "-e", "await import('./run.mjs')"])
             .current_dir(dir.join("runner"))
@@ -700,8 +700,8 @@ mod tests {
     }
 
     #[test]
-    fn tall_audit_frame_compares_clipped_capture_and_short_page_fails() {
-        for height in [5953, 5900, 500] {
+    fn natural_capture_height_does_not_infer_missing_content() {
+        for height in [5953, 5900, 6174] {
             let (dir, policy) = root();
             let input: PlanInput = serde_json::from_value(json!({
                 "baseUrl": "http://localhost:3000", "allowedOrigins": ["http://localhost:3000"],
@@ -742,23 +742,27 @@ mod tests {
                     .unwrap()
                     .ends_with("frame-clipped.png")
             );
-            if height == 5953 {
-                assert_eq!(comparison["blockers"], json!([]), "{result}");
-            } else {
-                assert_eq!(result["verdict"], "fail", "{result}");
-                let finding = result["findings"]
+            assert_eq!(
+                comparison["call"]["arguments"]["environment"]["viewport"]["height"],
+                900
+            );
+            let blockers = comparison["blockers"].as_array().unwrap();
+            assert_eq!(blockers.is_empty(), height == 5953, "{result}");
+            assert!(
+                !result["findings"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .find(|row| row["kind"] == "page-height")
-                    .unwrap();
+                    .any(|row| row["kind"] == "page-height"),
+                "raster dimensions do not establish missing content: {result}"
+            );
+            if height != 5953 {
                 assert!(
-                    finding["reason"]
+                    blockers.iter().any(|item| item
                         .as_str()
-                        .unwrap()
-                        .contains(&height.to_string())
+                        .is_some_and(|text| text.contains("inconclusive"))),
+                    "{result}"
                 );
-                assert!(finding["reason"].as_str().unwrap().contains("5953"));
             }
             drop(policy);
             std::fs::remove_dir_all(dir).unwrap();

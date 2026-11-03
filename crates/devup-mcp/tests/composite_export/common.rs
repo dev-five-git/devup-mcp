@@ -664,9 +664,14 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
     );
     assert_eq!(
         summaries.len(),
-        3,
-        "asset manifest, image-fill audit and one binary asset"
+        5,
+        "asset manifest, image-fill audit, asset registry, development contract and one binary asset"
     );
+    assert!(summaries.iter().any(|r| r["name"] == "asset-registry.json"));
+    let contract_resource = summaries.iter().find(|r| r["name"] == "development-contract.json")
+        .expect("the contract accompanies asset-only resource delivery");
+    let contract: Value = serde_json::from_slice(&read_resource_bytes(&client, contract_resource["uri"].as_str().unwrap()).await?)?;
+    assert_eq!(contract["alwaysApplies"], true);
     assert!(
         summaries
             .iter()

@@ -1,5 +1,5 @@
 pub const PLUGIN_SCRIPTS_HASH: &str =
-    "a5e954ac7dea2bf7b253b558b8821439181cf56477c0a293fa2689e18131edc0";
+    "65a2275bcca2589f0381f2ef1c4b529a6eff43282703996e68376314a4a01850";
 pub const PLUGIN_PROTOCOL: u32 = 1;
 
 /// The scripts of [`PLUGIN_SCRIPTS_HASH`] as one evaluable expression. The bridge
@@ -95,7 +95,7 @@ mod tests {
             ),
             (
                 include_bytes!("plugin_api_manifest.json").as_slice(),
-                "a171365479755c4cd31a0e3759afe52ae8645da1a2a0446a75568f0c96c78074",
+                "182f925e84c26d1763174d6ed7574948a87762fa0731e00d2b1e0d05a54ee5c6",
             ),
             (
                 include_bytes!("text_segment_manifest.json").as_slice(),
@@ -103,7 +103,7 @@ mod tests {
             ),
             (
                 include_bytes!("plugin_scripts_bundle.js").as_slice(),
-                "57a4c256d1001820eaddcd4aec52460ccd30d07b8b6f9f5c5ad1977bc9bf050d",
+                "56a0fed0dc5e0fe31ce8133de5f1e17409afe57b98d28161af4a1b7ce4bcef10",
             ),
         ] {
             let actual = Sha256::digest(source)

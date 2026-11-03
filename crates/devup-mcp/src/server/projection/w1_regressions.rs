@@ -1,8 +1,10 @@
+include!("responsive_paint_regressions.rs");
 
 include!("design_drift_tests.rs");
 include!("feedback_theme_tests.rs");
 include!("feedback_codegen_tests.rs");
 include!("feedback_delivery_tests.rs");
+include!("truncated_delivery_tests.rs");
 use super::super::artifacts::ArtifactRequestKey;
 use super::*;
 use devup_mcp_figma::{CollectionRequest, CollectionScope};
@@ -283,61 +285,6 @@ async fn r13_agreeing_widths_verify_the_responsive_merge() {
             .any(|d| d["details"]["output"] == "responsiveTsx"
                 && d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED")
     );
-}
-
-#[tokio::test]
-async fn r13_responsive_mapping_gap_is_explicit_and_strict_rejects() {
-    let mut op = operation(&["responsiveTsx"]);
-    if let PendingOperation::Export { all_screens, .. } = &mut op {
-        *all_screens = true;
-    }
-    // Only the mobile width is filled. devup-ui keeps a value into the
-    // wider slots, so the desktop width is drawn red where it is not.
-    let mut data = responsive_payload();
-    data.snapshot.nodes.get_mut("1:1").unwrap().fields.insert(
-        "fills".into(),
-        json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
-    );
-    let result = project(data.clone(), op.clone()).await.unwrap();
-    assert!(result["responsiveTsx"].is_string());
-    assert_eq!(result["mappingComplete"], false);
-    let merge = result["projectionIssues"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|d| {
-            d["details"]["unmappedProperties"]
-                .as_array()
-                .into_iter()
-                .flatten()
-        })
-        .find(|p| p["reason"] == "unverified-responsive-merge")
-        .unwrap();
-    assert!(
-        merge["gaps"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|gap| gap["property"] == "bg" && gap["slot"] == 4 && gap["widthNodeId"] == "1:2"),
-        "{merge}"
-    );
-    assert_ne!(
-        result["outputResults"]["responsiveTsx"]["projection"],
-        "exact"
-    );
-    assert!(
-        result["projectionIssues"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|d| d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
-                && d["details"]["output"] == "responsiveTsx"
-                && d["fidelityImpact"] == "none")
-    );
-    if let PendingOperation::Export { strict, .. } = &mut op {
-        *strict = true;
-    }
-    assert!(project(data, op).await.is_err());
 }
 
 #[tokio::test]
@@ -771,6 +718,7 @@ async fn r2_production_six_frames_return_valid_story_tsx() {
     if let PendingOperation::Export {
         frame_ids,
         include_diagnostics,
+        delivery,
         ..
     } = &mut op
     {
@@ -785,8 +733,35 @@ async fn r2_production_six_frames_return_valid_story_tsx() {
         .map(str::to_owned)
         .to_vec();
         *include_diagnostics = false;
+        *delivery = DeliveryMode::Auto;
     }
-    let result = project(data, op).await.unwrap();
+    // Complete source evidence can outgrow inline delivery; normal auto mode
+    // must retain all six frame bodies in readable resources without widening
+    // the transport limit or discarding diagnostic evidence.
+    let store = ArtifactStore::default();
+    let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+        data.target.clone(), CollectionScope::Node,
+    ));
+    let artifact = store.insert(key, data).await.unwrap();
+    let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+    let mut result = complete_operation(op, &artifact.payload, "fixture", &artifact, &policy, &store).await.unwrap();
+    let mut frame_bodies = BTreeMap::new();
+    for manifest in store.output_manifests().await {
+        let frame = manifest.name.strip_prefix("frame-").and_then(|name| name.strip_suffix(".tsx")).and_then(|index| index.parse::<usize>().ok());
+        if frame.is_none() && manifest.name != "envelope-overflow.json" { continue; }
+        let mut bytes = Vec::new();
+        for chunk in 0..manifest.chunk_count {
+            bytes.extend(store.read_output_chunk(&artifact.artifact_id, &manifest.output_id, chunk).await.unwrap());
+        }
+        if let Some(index) = frame {
+            frame_bodies.insert(index, String::from_utf8(bytes).unwrap());
+        } else {
+            let full: Map<String, Value> = serde_json::from_slice(&bytes).unwrap();
+            result.as_object_mut().unwrap().extend(full);
+        }
+    }
+    assert_eq!(frame_bodies.len(), 6);
+    for (index, body) in frame_bodies { result["frames"][index - 1]["tsx"] = json!(body); }
     assert_eq!(result["frames"].as_array().unwrap().len(), 6);
     for frame in result["frames"].as_array().unwrap() {
         let tsx = frame["tsx"]
@@ -885,6 +860,11 @@ async fn r5_wquw119_missing_mask_size_is_output_scoped_and_not_final() {
     data.target.node_id = Some("3997:46315".into());
     data.target.file_key = data.snapshot.file_key.clone();
     let node = data.snapshot.nodes.get_mut("3997:46317").unwrap();
+    // The unmodified FILL wrapper now stays live around its fixed-size Logo.
+    // This regression specifically exercises a caller-declared folded mask,
+    // whose own missing dimension must remain an output-scoped fidelity loss.
+    // live_asset_layout covers the original, unmodified capture separately.
+    node.fields.insert("isAsset".into(), json!(true));
     node.fields.remove("height");
     node.fields.remove("absoluteBoundingBox");
     let mut op = operation(&["tsx", "sourceMap"]);

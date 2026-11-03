@@ -1,4 +1,3 @@
-
 #[tokio::test]
 async fn r7_real_wquw118_layout_contracts_are_preserved() {
     let data: CollectedPayload = serde_json::from_str(include_str!(
@@ -210,99 +209,11 @@ fn r8_nonsection_semantic_asset_mapping_uses_delivered_path() {
     rewrite_result_asset_references(&mut result, &BTreeMap::new());
     assert_eq!(
         result["sourceMap"]["tsx"][0]["generatedProperty"],
-        "src=\"/icons/grommet-icons-language-d201f62b16f5.svg\""
+        "src=\"/icons/grommet-icons-language.svg\""
     );
 }
 
-#[tokio::test]
-async fn r8_three_frame_nine_output_units_measure_local_projection() {
-    let data: CollectedPayload = serde_json::from_str(include_str!(
-        "../../../../../fixtures/r2/wquw-119-payload.json"
-    ))
-    .unwrap();
-    let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
-    if let PendingOperation::Export { frame_ids, .. } = &mut op {
-        *frame_ids = vec![
-            "3997:46315".into(),
-            "3997:46715".into(),
-            "3997:46333".into(),
-        ];
-    }
-    let began = std::time::Instant::now();
-    let store = ArtifactStore::default();
-    let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
-        data.target.clone(),
-        CollectionScope::Node,
-    ));
-    let artifact = store.insert(key, data).await.unwrap();
-    let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
-    // R17 source FILL issues exceed the unchanged inline limit. Exercise the
-    // retained-artifact recovery and read every output, rather than hiding loss.
-    let error = complete_operation(
-        op.clone(),
-        &artifact.payload,
-        "fixture",
-        &artifact,
-        &policy,
-        &store,
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
-    assert_eq!(error.details["recoveryState"], "available");
-    assert_eq!(
-        error.details["nextAction"]["arguments"]["artifactId"],
-        artifact.artifact_id
-    );
-    assert_eq!(
-        error.details["nextAction"]["arguments"]["delivery"],
-        "resource"
-    );
-    if let PendingOperation::Export { delivery, .. } = &mut op {
-        *delivery = DeliveryMode::Resource;
-    }
-    let mut result =
-        complete_operation(op, &artifact.payload, "fixture", &artifact, &policy, &store)
-            .await
-            .unwrap();
-    let mut outputs = BTreeMap::new();
-    for manifest in store.output_manifests().await {
-        let mut bytes = Vec::new();
-        for index in 0..manifest.chunk_count {
-            bytes.extend(
-                store
-                    .read_output_chunk(&artifact.artifact_id, &manifest.output_id, index)
-                    .await
-                    .unwrap(),
-            );
-        }
-        assert_eq!(bytes.len(), manifest.raw_bytes);
-        outputs.insert(manifest.name, String::from_utf8(bytes).unwrap());
-    }
-    assert_eq!(outputs.len(), 8); // shared snapshot/audit plus 3 TSX/sourceMap pairs
-    assert_eq!(
-        serde_json::from_str::<Value>(&outputs["raw-snapshot.json"]).unwrap(),
-        serde_json::to_value(&artifact.payload.snapshot).unwrap()
-    );
-    for index in 0..3 {
-        let tsx = &outputs[&format!("frame-{}.tsx", index + 1)];
-        assert!(tsx.contains("export function"));
-        result["frames"][index]["tsx"] = json!(tsx);
-        result["frames"][index]["sourceMap"] =
-            serde_json::from_str(&outputs[&format!("frame-{}.source-map.json", index + 1)])
-                .unwrap();
-    }
-    assert_eq!(result["frames"].as_array().unwrap().len(), 3);
-    for frame in result["frames"].as_array().unwrap() {
-        assert!(frame["tsx"].is_string());
-        assert!(frame["sourceMap"].is_object());
-        assert!(frame["sourceMap"]["rasterizedAssets"].is_array());
-    }
-    eprintln!(
-        "R8 offline 3-frame/9-unit projection: {:?}; no upstream timing inferred",
-        began.elapsed()
-    );
-}
+include!("w1_three_frame_resource_delivery.rs");
 
 #[tokio::test]
 async fn r8_final_korean_semantic_map_follows_asset_path_rewrites() {
@@ -705,9 +616,36 @@ async fn feedback_interaction_hints_match_saved_files_and_resource_hashes() {
         assert_eq!(bytes.len(), manifest.raw_bytes);
         assert_eq!(sha256_hex(&bytes), manifest.sha256);
         let code = String::from_utf8(bytes).unwrap();
-        assert!(code.contains("// @devup-interaction "));
-        assert!(code.contains("https://example.com/confirmed"));
-        assert!(code.contains("disabled"));
+        assert!(!code.contains("// @devup-"));
+        assert!(!code.contains("https://example.com/confirmed"));
+        let hints = result["interactionHints"].to_string();
+        assert!(hints.contains("https://example.com/confirmed"), "{result}");
+        assert!(hints.contains("disabled"), "{result}");
+        let hints_manifest = store
+            .output_manifests()
+            .await
+            .into_iter()
+            .find(|manifest| manifest.name == "interaction-hints.json")
+            .expect("interaction evidence resource");
+        let mut hint_bytes = Vec::new();
+        for index in 0..hints_manifest.chunk_count {
+            hint_bytes.extend(
+                store
+                    .read_output_chunk(
+                        &hints_manifest.artifact_id,
+                        &hints_manifest.output_id,
+                        index,
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        assert_eq!(sha256_hex(&hint_bytes), hints_manifest.sha256);
+        assert_eq!(hint_bytes.len(), hints_manifest.raw_bytes);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&hint_bytes).unwrap(),
+            result["interactionHints"]
+        );
         assert!(!code.contains("href="));
         assert_eq!(result["deliverable"]["isFinal"], false);
         assert_eq!(result["mappingComplete"], baseline["mappingComplete"]);
@@ -775,7 +713,10 @@ async fn w1_unavailable_responsive_output_is_actionable_even_with_tsx_and_strict
             let response = project(section(2), op).await;
             if outputs == vec!["responsiveTsx"] {
                 let error = response.unwrap_err();
-                assert_eq!(error.details["nextAction"]["arguments"]["outputs"], json!(["tsx"]));
+                assert_eq!(
+                    error.details["nextAction"]["arguments"]["outputs"],
+                    json!(["tsx"])
+                );
                 assert_eq!(error.details["frameReasons"].as_array().unwrap().len(), 2);
                 continue;
             }
@@ -784,11 +725,24 @@ async fn w1_unavailable_responsive_output_is_actionable_even_with_tsx_and_strict
             } else {
                 response.unwrap()
             };
-            let failure = result["failures"].as_array().unwrap().iter()
-                .find(|failure| failure["output"] == "responsiveTsx").unwrap();
-            assert_eq!(failure["details"]["nextAction"]["tool"], "devup_figma_export");
-            assert_eq!(failure["details"]["nextAction"]["arguments"]["outputs"], json!(["tsx"]));
-            assert_eq!(failure["details"]["frameReasons"].as_array().unwrap().len(), 2);
+            let failure = result["failures"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|failure| failure["output"] == "responsiveTsx")
+                .unwrap();
+            assert_eq!(
+                failure["details"]["nextAction"]["tool"],
+                "devup_figma_export"
+            );
+            assert_eq!(
+                failure["details"]["nextAction"]["arguments"]["outputs"],
+                json!(["tsx"])
+            );
+            assert_eq!(
+                failure["details"]["frameReasons"].as_array().unwrap().len(),
+                2
+            );
             if !strict_value {
                 assert_eq!(result["outputResults"]["responsiveTsx"]["state"], "failed");
             }
@@ -936,10 +890,10 @@ async fn w1_resource_delivery_moves_all_code_and_updates_note() {
 }
 
 #[test]
-fn w1_asset_paths_are_ascii_bounded_and_windows_safe() {
+fn w1_asset_paths_are_semantic_bounded_and_windows_safe() {
     assert_eq!(
         host_safe_asset_path("/images/Frame 269.png"),
-        "/images/Frame-269-3e2af8571e3f.png"
+        "/images/frame-269.png"
     );
     for name in [
         "한글.svg".to_owned(),
@@ -947,7 +901,7 @@ fn w1_asset_paths_are_ascii_bounded_and_windows_safe() {
         format!("{}.png", "a".repeat(300)),
     ] {
         let path = host_safe_asset_path(&format!("/icons/{name}"));
-        assert!(path.is_ascii());
+        assert!(!path.contains(['?', ':', '\\']));
         assert!(path.len() < 200);
         assert_ne!(path.to_uppercase(), "/ICONS/CON.SVG");
         assert_eq!(host_safe_asset_path(&path), path);

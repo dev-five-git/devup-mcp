@@ -40,6 +40,7 @@ expression: actual
                   w="100%"
                 >
                   <Image
+                    alt=""
                     display="block"
                     h="100%"
                     left="0"

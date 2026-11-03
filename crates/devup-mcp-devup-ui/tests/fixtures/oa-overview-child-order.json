@@ -1,0 +1,180 @@
+{
+  "roots": [
+    "73:9282",
+    "73:9393"
+  ],
+  "nodes": {
+    "73:9289": {
+      "id": "73:9289",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9288",
+        "absoluteBoundingBox": {
+          "height": 560,
+          "width": 1280,
+          "x": 22566,
+          "y": 8982
+        },
+        "height": 560,
+        "itemSpacing": 80,
+        "layoutMode": "HORIZONTAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "name": "container",
+        "visible": true,
+        "width": 1280,
+        "childrenIds": [
+          "73:9290",
+          "73:9310"
+        ]
+      }
+    },
+    "73:9290": {
+      "id": "73:9290",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9289",
+        "absoluteBoundingBox": {
+          "height": 466,
+          "width": 640,
+          "x": 22566,
+          "y": 8982
+        },
+        "height": 466,
+        "itemSpacing": 40,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "name": "text",
+        "visible": true,
+        "width": 640
+      }
+    },
+    "73:9310": {
+      "id": "73:9310",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9289",
+        "absoluteBoundingBox": {
+          "height": 560,
+          "width": 560,
+          "x": 23286,
+          "y": 8982
+        },
+        "height": 560,
+        "itemSpacing": 0,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "name": "media",
+        "primaryAxisAlignItems": "MAX",
+        "visible": true,
+        "width": 560
+      }
+    },
+    "73:9400": {
+      "id": "73:9400",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9399",
+        "absoluteBoundingBox": {
+          "height": 895,
+          "width": 320,
+          "x": 23979,
+          "y": 8768
+        },
+        "height": 895,
+        "itemSpacing": 24,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "name": "container",
+        "visible": true,
+        "width": 320,
+        "childrenIds": [
+          "73:9401",
+          "73:9404"
+        ]
+      }
+    },
+    "73:9401": {
+      "id": "73:9401",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9400",
+        "absoluteBoundingBox": {
+          "height": 240,
+          "width": 320,
+          "x": 23979,
+          "y": 8768
+        },
+        "height": 240,
+        "itemSpacing": 0,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "name": "media",
+        "primaryAxisAlignItems": "MAX",
+        "visible": true,
+        "width": 320
+      }
+    },
+    "73:9404": {
+      "id": "73:9404",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:9400",
+        "absoluteBoundingBox": {
+          "height": 631,
+          "width": 320,
+          "x": 23979,
+          "y": 9032
+        },
+        "height": 631,
+        "itemSpacing": 32,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "name": "text",
+        "visible": true,
+        "width": 320
+      }
+    },
+    "73:9282": {
+      "id": "73:9282",
+      "type": "FRAME",
+      "fields": {
+        "name": "Page",
+        "width": 1440,
+        "height": 3703.769287109375,
+        "layoutMode": "VERTICAL",
+        "childrenIds": [
+          "73:9289"
+        ]
+      }
+    },
+    "73:9393": {
+      "id": "73:9393",
+      "type": "FRAME",
+      "fields": {
+        "name": "Page",
+        "width": 360,
+        "height": 4238.23095703125,
+        "layoutMode": "VERTICAL",
+        "childrenIds": [
+          "73:9400"
+        ]
+      }
+    }
+  },
+  "captureScope": "Bounded actual OA Overview container/direct-child layout fields; child content omitted to isolate sibling ordering.",
+  "fileKey": "captured-oa-overview-order",
+  "nodeId": "73:9289",
+  "diagnostics": []
+}

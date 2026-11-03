@@ -16,6 +16,8 @@ import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './dev-environment.mjs';
+import { collectMarkup, evaluateMarkup } from './markup-checks.mjs';
+import { assertSelection } from './selection-checks.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
@@ -299,10 +301,9 @@ export function observeClippedContent(page) {
 // width in its data-figma-node-ids map.
 export function observeCompleteness(page, completeness, width, subject) {
   const scope = subject ? locate(page, subject) : page.locator('body');
-  return scope.evaluate(async (root, { sections, images, width: drawnWidth }) => {
-    const find = (id) => document.querySelectorAll(
-      `[data-figma-node-id="${id}"], [data-figma-node-ids~="${drawnWidth}:${id}"]`,
-    );
+  return scope.evaluate(async (root, { sections, images, nodeSelectors, width: drawnWidth }) => {
+    const find = (id) => document.querySelectorAll(nodeSelectors[id]
+      ?? `[data-figma-node-id="${id}"], [data-figma-node-ids~="${drawnWidth}:${id}"]`);
     const shown = (element) => !element.checkVisibility
       || element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
     const describe = (id) => {
@@ -438,7 +439,7 @@ export function observeCompleteness(page, completeness, width, subject) {
       images: images.map(describe),
       texts,
     };
-  }, { sections: completeness.sections ?? [], images: completeness.images ?? [], width });
+  }, { sections: completeness.sections ?? [], images: completeness.images ?? [], nodeSelectors: completeness.nodeSelectors ?? {}, width });
 }
 
 // Numbered labels are grouped by their label form ("01" or "STEP 1") within
@@ -648,6 +649,12 @@ async function pageMetrics(page) {
     const bodyStyle = document.body ? getComputedStyle(document.body) : style;
     return {
       viewportWidth,
+      captureContext: {
+        innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        visualViewportScale: window.visualViewport?.scale ?? null,
+        rootCssZoom: Number.parseFloat(style.zoom), bodyCssZoom: Number.parseFloat(bodyStyle.zoom),
+      },
       documentWidth: document.documentElement.getBoundingClientRect().width,
       scrollWidth: document.documentElement.scrollWidth,
       maxRight,
@@ -809,6 +816,7 @@ async function checkExpectations(page, expect, timeout) {
   if (expect.visible) {
     await locate(page, expect.visible).first().waitFor({ state: 'visible', timeout });
   }
+  if (expect.selected) return { selected: await assertSelection(page, expect.selected, locate, timeout) };
   return null;
 }
 
@@ -899,12 +907,19 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             }
           }
           for (const step of screen.steps ?? []) {
-            const target = locate(page, step.target);
             const timeout = step.timeoutMs ?? stepTimeout;
-            if (step.action === 'click') await target.click({ timeout });
-            else await target.fill(step.value, { timeout });
+            if (step.action === 'back') await page.goBack({ waitUntil: 'load', timeout });
+            else if (step.action === 'forward') await page.goForward({ waitUntil: 'load', timeout });
+            else if (step.action === 'reload') await page.reload({ waitUntil: 'load', timeout });
+            else {
+              const target = locate(page, step.target);
+              if (step.action === 'click') await target.click({ timeout });
+              else if (step.action === 'press') await target.press(step.value, { timeout });
+              else if (step.action === 'fill') await target.fill(step.value, { timeout });
+              else throw new Error(`unknown step action: ${step.action}`);
+            }
           }
-          await checkExpectations(page, screen.expect, stepTimeout);
+          record.expectationEvidence = await checkExpectations(page, screen.expect, stepTimeout);
           await waitReady(page, plan, stepTimeout);
         } catch (error) {
           const failure = classifyStepError(error);
@@ -919,6 +934,11 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         record.frozenAnimations = await freezeAnimations(page);
         const layoutBefore = await layoutFingerprint(page);
         const metrics = await pageMetrics(page);
+        record.captureContext = metrics.captureContext;
+        if ([metrics.captureContext.visualViewportScale, metrics.captureContext.rootCssZoom, metrics.captureContext.bodyCssZoom]
+          .some((value) => !Number.isFinite(value) || value !== 1)) {
+          environmentErrors.push({ kind: 'capture-calibration-unverified', message: 'Visual viewport/CSS zoom is not unit scale; logical geometry and PNG scale require independent calibration' });
+        }
         if (metrics.viewportWidth !== viewport.width) {
           environmentErrors.push({ kind: 'viewport-mismatch', message: `innerWidth ${metrics.viewportWidth} for a ${viewport.width}px viewport` });
         }
@@ -937,6 +957,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'links-resolve') continue;
           try {
+          if (check.kind === 'markup') {
+            record.checks.push({ ...item, ...evaluateMarkup(await page.evaluate(collectMarkup)) });
+            continue;
+          }
           if (check.kind === 'page-health') {
             const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
             const errors = environmentErrors
@@ -1032,12 +1056,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'rendered-completeness') {
             const observed = await observeCompleteness(page, check.completeness, viewport.width);
-            const frame = screen.figma?.frames?.find((frame) => frame.width === viewport.width);
             const result = evaluateRenderedCompleteness(check.completeness, observed);
-            if (frame?.height && observed.pageHeight < frame.height) {
-              result.status = 'fail';
-              result.reason = `the page is ${observed.pageHeight}px tall, shorter than the ${frame.height}px drawn frame`;
-            }
             record.checks.push({ ...item, ...result });
             continue;
           }
@@ -1077,13 +1096,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
-        const frame = screen.figma?.drawnWidths?.includes(viewport.width)
-          ? screen.figma.frames?.find((frame) => frame.width === viewport.width)
-          : undefined;
-        const captureHeight = frame?.height ? Math.min(metrics.fullHeight, frame.height) : metrics.fullHeight;
+        // Preserve the naturally rendered page. Figma frame height is not a
+        // browser viewport or permission to crop away additional content.
         const bytes = await page.screenshot({
           fullPage: true,
-          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: captureHeight },
           animations: 'allow',
           caret: 'hide',
         });

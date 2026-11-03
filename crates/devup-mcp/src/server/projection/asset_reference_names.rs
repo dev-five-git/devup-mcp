@@ -42,7 +42,20 @@ fn with_host_safe_asset_paths(code: &str) -> String {
         {
             end = after + filename.trim_end().len();
         }
-        safe.push_str(&host_safe_file_name(&rest[after..end]));
+        let candidate = &rest[after..end];
+        // Canonical caller-selected URLs are already escaped by public_asset_url.
+        // Sanitizing percent escapes would change the selected filename on replay.
+        if candidate.contains('%') {
+            safe.push_str(candidate);
+        } else {
+            safe.push_str(
+                &candidate
+                    .split('/')
+                    .map(host_safe_file_name)
+                    .collect::<Vec<_>>()
+                    .join("/"),
+            );
+        }
         rest = &rest[end..];
     }
 }

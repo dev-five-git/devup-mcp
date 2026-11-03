@@ -519,6 +519,57 @@ fn object_config(tokens: &[Token]) -> Option<String> {
 /// references, which must first be expanded through OpenAPI's devup tags.
 type References = Vec<(String, String)>;
 
+/// Read the generator's literal accepted method keys, not arbitrary strings
+/// in declarations or comments. `convertCase` is configurable, so a naming
+/// resemblance alone cannot prove that an operation alias exists.
+pub(in crate::server) fn generated_client_keys(source: &str, spec_name: &str) -> BTreeSet<String> {
+    let tokens = tokenize(source, false);
+    let mut keys = BTreeSet::new();
+    for i in 0..tokens.len() {
+        if !word(&tokens, i, "interface")
+            || !word(&tokens, i + 1, "DevupPrecomputedMethodKeys")
+            || !symbol(&tokens, i + 2, '{')
+        {
+            continue;
+        }
+        let Some(end) = group_end(&tokens, i + 2) else {
+            continue;
+        };
+        let mut at = i + 3;
+        while at < end {
+            if tokens.get(at).and_then(Token::literal) == Some(spec_name)
+                && symbol(&tokens, at + 1, ':')
+                && symbol(&tokens, at + 2, '{')
+                && let Some(server_end) = group_end(&tokens, at + 2)
+            {
+                let mut field = at + 3;
+                while field < server_end {
+                    if tokens
+                        .get(field)
+                        .and_then(Token::word)
+                        .is_some_and(http_method)
+                        && symbol(&tokens, field + 1, ':')
+                    {
+                        field += 2;
+                        while field < server_end && !symbol(&tokens, field, ';') {
+                            if let Some(key) = tokens[field].literal() {
+                                keys.insert(key.to_owned());
+                            }
+                            field += 1;
+                        }
+                    }
+                    field += 1;
+                }
+                at = server_end;
+            } else if let Some(group) = group_end(&tokens, at) {
+                at = group;
+            }
+            at += 1;
+        }
+    }
+    keys
+}
+
 /// Names bound directly to a `createApi(...)` result in this source:
 /// `export const client = createApi({ ... })`.
 pub(in crate::server) fn api_client_bindings(source: &str) -> Vec<String> {
@@ -549,12 +600,22 @@ fn client_receivers(tokens: &[Token], source: &str, known: &BTreeSet<String>) ->
             && word(tokens, end + 1, "from")
         {
             for part in comma_parts(&tokens[i + 2..end]) {
-                let part = if word(part, 0, "type") { &part[1..] } else { part };
-                let Some(imported) = part.first().and_then(Token::word) else { continue };
+                let part = if word(part, 0, "type") {
+                    &part[1..]
+                } else {
+                    part
+                };
+                let Some(imported) = part.first().and_then(Token::word) else {
+                    continue;
+                };
                 if !known.contains(imported) {
                     continue;
                 }
-                let local = if word(part, 1, "as") { part.get(2).and_then(Token::word) } else { Some(imported) };
+                let local = if word(part, 1, "as") {
+                    part.get(2).and_then(Token::word)
+                } else {
+                    Some(imported)
+                };
                 if let Some(local) = local {
                     receivers.insert(local.to_owned());
                 }

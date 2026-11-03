@@ -284,21 +284,18 @@ pub(super) fn url_plan(
     let mut missing = Vec::new();
     let mut viewports = Vec::<ViewportInput>::new();
     for (width, node_id, height) in &target.frames {
-        let height = height.map(|height| height.round() as u32);
-        let height = match height {
-            Some(height) if (1..=MAX_VIEWPORT_SIDE).contains(&height) => height,
-            Some(height) => {
-                notes.push(format!(
-                    include_str!("../text/audit_plan-url_plan-a1031a26.md"),
-                    MAX_VIEWPORT_SIDE = MAX_VIEWPORT_SIDE,
-                    height = height,
-                    node_id = node_id,
-                    width = width
-                ));
-                DEFAULT_HEIGHT
-            }
-            None => DEFAULT_HEIGHT,
-        };
+        // The design frame is not evidence of a browser window height.
+        // Keep its height in Figma reference metadata, not the CSS viewport.
+        if let Some(height) = height.filter(|value| *value > f64::from(MAX_VIEWPORT_SIDE)) {
+            notes.push(format!(
+                include_str!("../text/audit_plan-url_plan-a1031a26.md"),
+                MAX_VIEWPORT_SIDE = MAX_VIEWPORT_SIDE,
+                height = height,
+                node_id = node_id,
+                width = width
+            ));
+        }
+        let height = DEFAULT_HEIGHT;
         if !viewports.iter().any(|viewport| viewport.width == *width) {
             viewports.push(viewport(*width, height));
         }
@@ -333,6 +330,9 @@ pub(super) fn url_plan(
         check(json!({"kind": "sequence-order", "label": "numbered cards in reading order"})),
         check(json!({"kind": "section-layout", "label": "responsive sections and text columns"})),
         check(json!({"kind": "page-health", "label": "page health"})),
+        check(
+            json!({"kind": "markup", "label": "semantic landmarks, headings and image alternatives"}),
+        ),
         check(json!({"kind": "styles-applied", "label": "page styles delivered"})),
         check(json!({"kind": "no-low-contrast-text", "label": "visible text contrast"})),
         check(json!({"kind": "image-loaded", "label": "images and backgrounds loaded"})),

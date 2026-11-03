@@ -245,6 +245,9 @@ fn record_value(
     path: &NodePath,
     prop: &str,
 ) -> Option<String> {
+    if prop == "alt" && !visible_tree_at(&record.tree, path) {
+        return None;
+    }
     let value = tree_at(&record.tree, path).and_then(|tree| tree_field(tree, prop));
     let (Some(baseline), Some(effect_name)) = (baseline, effect_name) else {
         return value;
@@ -514,6 +517,12 @@ fn viewport_expression(
         .iter()
         .find(|value| !value.eq_ignore_ascii_case("mobile"))
         .and_then(|value| lookup(Some(value)));
+    // HTML alternatives are scalar attributes, not CSS breakpoint values.
+    // Only a visible width supplies an alt. Conflicting visible alternatives
+    // are retained as a lossy diagnostic by viewport_alt_diagnostics.
+    if prop == "alt" {
+        return mobile.or(desktop).map(Expression::Literal);
+    }
     if mobile == desktop {
         mobile.or(desktop).map(Expression::Literal)
     } else {
@@ -583,6 +592,16 @@ fn render_component(
     transition: Option<&(String, String)>,
     text_properties: &BTreeMap<String, String>,
 ) -> String {
+    let body = render_tree(tree, selectors, transition, 2);
+    render_component_body(name, dimensions, text_properties, &body)
+}
+
+fn render_component_body(
+    name: &str,
+    dimensions: &[Definition],
+    text_properties: &BTreeMap<String, String>,
+    body: &str,
+) -> String {
     let interface = if dimensions.is_empty() && text_properties.is_empty() {
         String::new()
     } else {
@@ -626,7 +645,6 @@ fn render_component(
             .join(", ");
         format!("export function {name}({{ {props} }}: {name}Props)")
     };
-    let body = render_tree(tree, selectors, transition, 2);
     format!("{interface}{signature} {{\n  return (\n{body}\n  )\n}}")
 }
 
@@ -722,10 +740,6 @@ fn render_tree(
     // A node a boolean property switches on is written as that condition. The
     // brace has to wrap the whole element, so it is applied after the element
     // is rendered rather than woven into it.
-    let rendered = match &tree.leading_comment {
-        Some(comment) => format!("{indent}{{/* {comment} */}}\n{rendered}"),
-        None => rendered,
-    };
     let guards = tree
         .visible_when
         .iter()
@@ -762,6 +776,7 @@ fn needs_const(prop: &str) -> bool {
 fn render_expression_attr(prop: &str, expression: &Expression) -> String {
     match expression {
         Expression::Undefined => "={undefined}".into(),
+        Expression::Literal(value) if prop == "alt" => super::semantics::scalar_html_value(value),
         Expression::Literal(value) => format!("=\"{value}\""),
         Expression::Variant(name, _) if needs_const(prop) => {
             let rendered = render_expression_value(expression, 0);

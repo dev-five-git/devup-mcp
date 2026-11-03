@@ -39,6 +39,7 @@ fn columns(
         fold(&[
             "links-resolve",
             "page-health",
+            "markup",
             "no-horizontal-overflow",
             "no-clipped-content",
             "styles-applied",

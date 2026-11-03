@@ -43,3 +43,16 @@ async fn missing_sections_and_asset_files_fail_even_without_strict() -> anyhow::
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn pure_source_coverage_uses_sidecar_mappings_without_requiring_dom_attributes() -> anyhow::Result<()> {
+    let result = validate(json!({
+        "tsx":"export function Screen(){return <Box><Text>Content</Text></Box>}",
+        "sectionCoverage":{"nodeIds":["frame","copy"],"elementMappings":[{"nodeId":"frame","elementIndex":0,"tag":"Box"},{"nodeId":"copy","elementIndex":1,"tag":"Text"}]}
+    })).await?;
+    assert!(!result["violations"].as_array().unwrap().iter().any(|finding| finding["rule"]=="section-coverage"),"{result}");
+    assert_eq!(result["sectionCoverageVerification"]["runtimeVerified"], false);
+    let unavailable = validate(json!({"tsx":"<Box />","sectionCoverage":{"nodeIds":["missing"]}})).await?;
+    assert!(unavailable["violations"].as_array().unwrap().iter().any(|finding| finding["rule"]=="section-coverage"&&finding["severity"]=="warning"),"{unavailable}");
+    Ok(())
+}

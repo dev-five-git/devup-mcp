@@ -18,3 +18,4 @@ include!("runtime_audit/capture_comparison.rs");
 include!("runtime_audit/plan_columns.rs");
 include!("runtime_audit/screenshot_integrity.rs");
 include!("runtime_audit/tests.rs");
+include!("runtime_audit/selection_tests.rs");

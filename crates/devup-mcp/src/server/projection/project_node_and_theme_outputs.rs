@@ -124,6 +124,13 @@ pub(super) fn project_node_and_theme_outputs(
         fidelity_reports.push(output.fidelity_report.clone());
         generated_output_target = "tsx";
         tsx_source_map = Some(output.source_map.clone());
+        attach_overlay_anchor_delivery(
+            &payload.snapshot,
+            &[node_id.to_owned()],
+            &output.tsx,
+            "tsx",
+            &mut result,
+        );
         if keep_tsx && output_paths.contains_key("tsx") {
             pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
         }
@@ -192,6 +199,13 @@ pub(super) fn project_node_and_theme_outputs(
                     generated_output_target = "componentTsx";
                     tsx_source_map = Some(output.source_map.clone());
                 }
+                attach_overlay_anchor_delivery(
+                    &payload.snapshot,
+                    &[node_id.to_owned()],
+                    &output.tsx,
+                    "componentTsx",
+                    &mut result,
+                );
                 if output_paths.contains_key("componentTsx") {
                     pending_text_outputs.insert("componentTsx".to_owned(), output.tsx.clone());
                 }

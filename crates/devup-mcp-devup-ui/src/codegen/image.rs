@@ -5,3 +5,4 @@
 // Source sections share this module to preserve privacy and test names.
 include!("image/image_projection.rs");
 include!("image/project_tree.rs");
+include!("image/transferred_minimum.rs");

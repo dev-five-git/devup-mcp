@@ -13,7 +13,7 @@ description: |
 
 ## Project intake comes first
 
-When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Never discard `// @devup-override` annotations or the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item silently.
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Keep override records in sidecar JSON and resolve the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item; never put metadata comments into application TSX.
 
 For a confirmed multi-width URL, `responsiveTsx` is the deliverable. Export all sibling frameIds in width order using screen-plan status's next export action. Never start from single-width `tsx`/`componentTsx` for its page or sections. Only wire links/events/data; never change generated layout values, collapse arrays, or add hard-coded sizes/layout wrappers. Review `generatedExport.generatedDrift` in status; its confidence-labelled findings are heuristic and missing mappings remain unverified.
 
@@ -181,7 +181,7 @@ the full rules; these are the steps.
    page, each section and each asset against its Figma render and the size
    and position of each section, card and asset at the drawn widths -
    exact, half a pixel of rounding and no tolerance; merged pages per width
-   (`data-figma-node-ids`); dynamic routes at concrete URLs; hover
+   (sidecar element mappings and semantic targets); dynamic routes at concrete URLs; hover
    and focus; a view-transition check, last. Export whatever
    `missingReferences` names and run auditPlan again.
 10. **Run, status, fix - URL by URL.** Run each plan with the runner it wrote,
@@ -209,10 +209,7 @@ the full rules; these are the steps.
     widths and health and overflow pass at every required width. Report filed
     converter bugs and unresolved findings with evidence as incomplete. Also: every
     URL implemented, the production build free of `data-figma-node-id`.
-DevupUI strips audit attributes by default; `DEVUP_AUDIT=1` keeps them.
-Figma node attributes are off by default; opt in with `figmaNodeIds: true`
-only where the export schema supports it. Do not change app build config for auditing
-or register a strip plugin. Inspect the ordinary production output.
+Generated TSX contains no provenance attributes, including debug builds. Use source-map sidecars and semantic runtime targets. Do not add strip plugins. Inspect the ordinary production output.
 Run `bun run lint:fix` first, then `bunx oxlint --deny-warnings` at the root.
 Never fix JSX prop order, import sorting or formatting errors by hand.
 Fix only non-fixable leftovers by hand (type errors, logic and decisions the fixer cannot make).
@@ -267,3 +264,11 @@ user-owned decision unresolved; a prose question or silent assumption is not a
 substitute. Ordinary implementation choices still use defer/assume without asking.
 
 Any decision that needs the user, before or after confirm, is asked with the runtime question tool, never as numbered prose such as "tell me which numbers to change". Show the evidence table first, then ask. Put the recommended option first, labelled "(Recommended)", with two or three concrete alternatives (for example "category as a kind column / as an enum column / as a free text column"). A header is at most 30 characters and a question has two to four options. Keep the confirmation of a table separate from the decisions inside it: the table is one approve-or-change question, each real decision gets its own entry in the same question call. Record each answer with `devup_project_plan defer` or `assume` (id, reason, recommended) so it survives in the plan; a decision that changes a model is applied to `models/*.json` and the next action says so.
+
+## Delivery quality
+
+Apply `developmentContract` and `behaviorPlan` on every export. Read the bundled
+`devfive-frontend/references/delivery-quality.md` for pure TSX, one responsive tree,
+persistent server layouts, state/colour semantics, motion, all public assets and
+DB-to-API-to-UI verification. Inferred motion is an implementation requirement,
+not a claim that static generated markup is already interactive.

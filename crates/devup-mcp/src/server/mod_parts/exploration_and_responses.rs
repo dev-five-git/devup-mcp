@@ -348,6 +348,7 @@ fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex
 const CODE_SKILLS: [&str; 2] = ["devup-ui", "devfive-frontend"];
 
 fn with_skill_gap(mut result: Value, lookup: &skills::Lookup) -> Value {
+    development_contract::attach(&mut result);
     if let Some(gap) = skill_gap(CODE_SKILLS.into_iter(), lookup, CODE_GAP_WHY) {
         result["skillGap"] = gap;
     }
@@ -421,6 +422,7 @@ fn skill_gap<'a>(
 /// has no use for the vespera skill, and naming it there is the noise that
 /// teaches a reader to skip the field.
 fn with_context_skill_gap(mut result: Value, scope: &str, lookup: &skills::Lookup) -> Value {
+    development_contract::attach(&mut result);
     let found = |key: &str| {
         // `all` nests one object per scope; a single scope answers at the top
         // level. Both say `found`.

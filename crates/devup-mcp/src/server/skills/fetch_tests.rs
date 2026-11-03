@@ -164,7 +164,13 @@ async fn own_external_and_unknown_skills_never_fetch() {
     .await
     .unwrap();
     assert_eq!(result["installed"][0]["source"], "embedded");
-    assert_eq!(result["installed"][0]["paths"].as_array().unwrap().len(), 5);
+    let installed_paths = result["installed"][0]["paths"].as_array().unwrap();
+    assert_eq!(installed_paths.len(), 6);
+    let delivery_reference = installed_paths.iter().find_map(|path| {
+        let path = std::path::Path::new(path.as_str()?);
+        (path.file_name()?.to_str()? == "delivery-quality.md").then_some(path)
+    }).expect("delivery rules are installed with the frontend skill");
+    assert!(std::fs::read_to_string(delivery_reference).unwrap().contains("Behavior and data contracts"));
     assert_eq!(
         result["notInstallable"][0]["name"],
         "vercel-react-best-practices"

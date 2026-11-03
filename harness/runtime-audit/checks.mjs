@@ -418,15 +418,21 @@ export function evaluateRenderedCompleteness(completeness, observed) {
     problems.push(`the page is ${round(observed.pageHeight)}px tall, under ${Math.round(ratio * 100)}% of the ${round(completeness.frameHeight)}px frame`);
   }
   const absent = (items) => items.filter((item) => item.count !== 1 || !item.visible || !(item.width > 0) || !(item.height > 0));
-  const missingSections = absent(observed.sections);
+  const expectedEvidence = (expected, items) => !(expected?.length) ? items : expected.map((id) => {
+    const matches = items.filter((item) => item.id === id);
+    return matches.length === 1 ? matches[0] : { id, count: matches.length };
+  });
+  const sections = expectedEvidence(completeness.sections, observed.sections);
+  const images = expectedEvidence(completeness.images, observed.images);
+  const missingSections = absent(sections);
   if (missingSections.length) {
-    problems.push(`${missingSections.length} of ${observed.sections.length} sections not rendered: ${missingSections.slice(0, 5).map((item) => item.id).join(', ')}`);
+    problems.push(`${missingSections.length} of ${sections.length} sections not rendered: ${missingSections.slice(0, 5).map((item) => item.id).join(', ')}`);
   }
-  const missingImages = absent(observed.images);
+  const missingImages = absent(images);
   if (missingImages.length) {
-    problems.push(`${missingImages.length} of ${observed.images.length} images not rendered: ${missingImages.slice(0, 5).map((item) => item.id).join(', ')}`);
+    problems.push(`${missingImages.length} of ${images.length} images not rendered: ${missingImages.slice(0, 5).map((item) => item.id).join(', ')}`);
   }
-  const broken = observed.images.filter((item) => !missingImages.includes(item) && item.broken);
+  const broken = images.filter((item) => !missingImages.includes(item) && item.broken);
   if (broken.length) {
     problems.push(`${broken.length} images did not load: ${broken.slice(0, 5).map((item) => item.id).join(', ')}`);
   }
@@ -438,11 +444,15 @@ export function evaluateRenderedCompleteness(completeness, observed) {
     pageHeight: round(observed.pageHeight),
     frameHeight: completeness.frameHeight,
     minHeightRatio: ratio,
-    sections: { listed: observed.sections.length, missing: missingSections.map((item) => item.id) },
-    images: { listed: observed.images.length, missing: missingImages.map((item) => item.id), broken: broken.map((item) => item.id) },
+    sections: { listed: sections.length, missing: missingSections.map((item) => item.id) },
+    images: { listed: images.length, missing: missingImages.map((item) => item.id), broken: broken.map((item) => item.id) },
     texts: contrast.measured,
     resources: resources.measured,
   };
+  if (!problems.length && !sections.length && !images.length && !observed.texts.length
+    && !(observed.resources?.length)) {
+    return { status: 'inconclusive', reason: 'no section, image, text or resource evidence; page height alone cannot prove rendered completeness', measured };
+  }
   return problems.length === 0
     ? { status: contrast.status, reason: contrast.status === 'inconclusive' ? contrast.reason : `rendered complete: ${observed.sections.length} sections, ${observed.images.length} images, ${contrast.measured.judged} texts visible, ${round(observed.pageHeight)}px tall`, measured }
     : { status: 'fail', reason: problems.join('; '), measured };

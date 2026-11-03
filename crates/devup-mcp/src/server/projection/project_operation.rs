@@ -173,11 +173,12 @@ async fn project_operation(
                     .collect();
                 if let Some(root) = &asset_public_root {
                     for capture in &asset_captures {
-                        let name = format!("{}.webp", sha256_hex(capture.asset_id.as_bytes()));
+                        let asset = payload.assets.iter().find(|asset| asset.asset_id == capture.asset_id);
+                        let name = asset.and_then(|asset| asset.suggested_filename.clone().or_else(|| devup_mcp_figma::suggested_asset_filename(&payload.snapshot, asset)))
+                            .map(|name| host_safe_file_name(&name)).unwrap_or_else(|| "image.webp".into());
                         asset_output_paths.insert(
                             capture.asset_id.clone(),
                             root.join("images")
-                                .join("web-ready")
                                 .join(name)
                                 .display()
                                 .to_string(),

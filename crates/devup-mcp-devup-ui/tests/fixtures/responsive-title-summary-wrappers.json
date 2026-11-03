@@ -1,0 +1,337 @@
+{
+  "fileKey": "responsive-wrapper",
+  "version": null,
+  "roots": [
+    "page:4",
+    "page:0"
+  ],
+  "nodes": {
+    "eyebrow:0": {
+      "id": "eyebrow:0",
+      "type": "TEXT",
+      "fields": {
+        "name": "Eyebrow",
+        "parentId": "title:0",
+        "characters": "PATENTS",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "eyebrow:4": {
+      "id": "eyebrow:4",
+      "type": "TEXT",
+      "fields": {
+        "name": "Eyebrow",
+        "parentId": "title:4",
+        "characters": "PATENTS",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "heading:0": {
+      "id": "heading:0",
+      "type": "TEXT",
+      "fields": {
+        "name": "Heading",
+        "parentId": "title:0",
+        "characters": "특허 · 지식재산권",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "heading:4": {
+      "id": "heading:4",
+      "type": "TEXT",
+      "fields": {
+        "name": "Heading",
+        "parentId": "title:4",
+        "characters": "특허 · 지식재산권",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "page:0": {
+      "id": "page:0",
+      "type": "FRAME",
+      "fields": {
+        "name": "Patent section",
+        "parentId": null,
+        "width": 360,
+        "height": 100,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 24,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "title:0",
+          "summary:0",
+          "table:0"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "page:4": {
+      "id": "page:4",
+      "type": "FRAME",
+      "fields": {
+        "name": "Patent section",
+        "parentId": null,
+        "width": 1440,
+        "height": 100,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 32,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "row:4",
+          "table:4"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "row:4": {
+      "id": "row:4",
+      "type": "FRAME",
+      "fields": {
+        "name": "Title and summary",
+        "parentId": "page:4",
+        "width": 1280,
+        "height": 100,
+        "layoutMode": "HORIZONTAL",
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 40,
+        "primaryAxisAlignItems": "SPACE_BETWEEN",
+        "counterAxisAlignItems": "CENTER",
+        "childrenIds": [
+          "title:4",
+          "summary:4"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "summary-text:0": {
+      "id": "summary-text:0",
+      "type": "TEXT",
+      "fields": {
+        "name": "Summary",
+        "parentId": "summary:0",
+        "characters": "전체 3건 / 등록 2건 / 출원 1건",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "summary-text:4": {
+      "id": "summary-text:4",
+      "type": "TEXT",
+      "fields": {
+        "name": "Summary",
+        "parentId": "summary:4",
+        "characters": "전체 3건 / 등록 2건 / 출원 1건",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "summary:0": {
+      "id": "summary:0",
+      "type": "FRAME",
+      "fields": {
+        "name": "Patent summary",
+        "parentId": "page:0",
+        "width": 320,
+        "height": 100,
+        "layoutMode": "HORIZONTAL",
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 16,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "summary-text:0"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "summary:4": {
+      "id": "summary:4",
+      "type": "FRAME",
+      "fields": {
+        "name": "Patent summary",
+        "parentId": "row:4",
+        "width": 400,
+        "height": 100,
+        "layoutMode": "HORIZONTAL",
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 16,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "summary-text:4"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "table:0": {
+      "id": "table:0",
+      "type": "TEXT",
+      "fields": {
+        "name": "Patent list",
+        "parentId": "page:0",
+        "characters": "특허 목록",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "table:4": {
+      "id": "table:4",
+      "type": "TEXT",
+      "fields": {
+        "name": "Patent list",
+        "parentId": "page:4",
+        "characters": "특허 목록",
+        "fontSize": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "width": 280,
+        "height": 24,
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "title:0": {
+      "id": "title:0",
+      "type": "FRAME",
+      "fields": {
+        "name": "Section title",
+        "parentId": "page:0",
+        "width": 320,
+        "height": 100,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 8,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "eyebrow:0",
+          "heading:0"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "title:4": {
+      "id": "title:4",
+      "type": "FRAME",
+      "fields": {
+        "name": "Section title",
+        "parentId": "row:4",
+        "width": 600,
+        "height": 100,
+        "layoutMode": "VERTICAL",
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        },
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 12,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "childrenIds": [
+          "eyebrow:4",
+          "heading:4"
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

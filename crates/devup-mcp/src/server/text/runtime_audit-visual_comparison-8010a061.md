@@ -1,1 +1,1 @@
-The page capture is {}x{}px but the drawn Figma frame is {}x{}px. Capture the frame-sized region when the page is tall enough; a shorter page is a page-height failure, not a viewport-height problem.
+The natural page capture is {}x{}px and the drawn Figma reference is {}x{}px. Strict pixel comparison is inconclusive until capture scope and scale are compatible. Inspect logical geometry and explicit completeness evidence separately; do not force viewport/frame height or resize, pad or crop to manufacture matching dimensions.

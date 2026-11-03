@@ -1149,7 +1149,7 @@ const envelopeRootId = p.nodeId;
 const manifest = [
   "absoluteBoundingBox", "absoluteRenderBounds", "arcData", "backgroundStyleId", "blendMode", "bottomLeftRadius",
   "bottomRightRadius", "boundVariables", "characters", "clipsContent", "componentProperties", "componentPropertyDefinitions",
-  "componentPropertyReferences", "constraints", "cornerRadius", "counterAxisAlignItems", "dashPattern", "defaultVariant",
+  "componentPropertyReferences", "constraints", "cornerRadius", "counterAxisAlignContent", "counterAxisAlignItems", "counterAxisSpacing", "dashPattern", "defaultVariant",
   "effectStyleId", "effects", "fillStyleId", "fills", "fontName", "fontSize",
   "gridColumnAnchorIndex", "gridColumnCount", "gridColumnGap", "gridColumnSizes", "gridColumnSpan", "gridRowAnchorIndex",
   "gridRowCount", "gridRowGap", "gridRowSizes", "gridRowSpan", "gridStyleId", "height",
@@ -1157,8 +1157,8 @@ const manifest = [
   "layoutPositioning", "layoutSizingHorizontal", "layoutSizingVertical", "letterSpacing", "lineHeight", "maxHeight",
   "maxLines", "maxWidth", "minHeight", "minWidth", "name", "opacity", "overflowDirection", "overrides",
   "paddingBottom", "paddingLeft", "paddingRight", "paddingTop", "primaryAxisAlignItems", "reactions",
-  "rotation", "strokeAlign", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight", "strokeStyleId",
-  "strokeTopWeight", "strokeWeight", "strokes", "targetAspectRatio", "textAlignHorizontal", "textAlignVertical",
+  "relativeTransform", "rotation", "strokeAlign", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight", "strokeStyleId",
+  "strokeTopWeight", "strokeWeight", "strokes", "strokesIncludedInLayout", "targetAspectRatio", "textAlignHorizontal", "textAlignVertical",
   "textAutoResize", "textCase", "textDecoration", "textStyleId", "textTruncation", "topLeftRadius",
   "topRightRadius", "variantProperties", "visible", "width", "x", "y"
 ]
@@ -3470,7 +3470,7 @@ if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
 const manifest = [
   "absoluteBoundingBox", "absoluteRenderBounds", "arcData", "backgroundStyleId", "blendMode", "bottomLeftRadius",
   "bottomRightRadius", "boundVariables", "characters", "clipsContent", "componentProperties", "componentPropertyDefinitions",
-  "componentPropertyReferences", "constraints", "cornerRadius", "counterAxisAlignItems", "dashPattern", "defaultVariant",
+  "componentPropertyReferences", "constraints", "cornerRadius", "counterAxisAlignContent", "counterAxisAlignItems", "counterAxisSpacing", "dashPattern", "defaultVariant",
   "effectStyleId", "effects", "fillStyleId", "fills", "fontName", "fontSize",
   "gridColumnAnchorIndex", "gridColumnCount", "gridColumnGap", "gridColumnSizes", "gridColumnSpan", "gridRowAnchorIndex",
   "gridRowCount", "gridRowGap", "gridRowSizes", "gridRowSpan", "gridStyleId", "height",
@@ -3478,8 +3478,8 @@ const manifest = [
   "layoutPositioning", "layoutSizingHorizontal", "layoutSizingVertical", "letterSpacing", "lineHeight", "maxHeight",
   "maxLines", "maxWidth", "minHeight", "minWidth", "name", "opacity", "overflowDirection", "overrides",
   "paddingBottom", "paddingLeft", "paddingRight", "paddingTop", "primaryAxisAlignItems", "reactions",
-  "rotation", "strokeAlign", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight", "strokeStyleId",
-  "strokeTopWeight", "strokeWeight", "strokes", "targetAspectRatio", "textAlignHorizontal", "textAlignVertical",
+  "relativeTransform", "rotation", "strokeAlign", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight", "strokeStyleId",
+  "strokeTopWeight", "strokeWeight", "strokes", "strokesIncludedInLayout", "targetAspectRatio", "textAlignHorizontal", "textAlignVertical",
   "textAutoResize", "textCase", "textDecoration", "textStyleId", "textTruncation", "topLeftRadius",
   "topRightRadius", "variantProperties", "visible", "width", "x", "y"
 ]

@@ -1,0 +1,3126 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "73:8466",
+    "73:8525"
+  ],
+  "nodes": {
+    "73:8466": {
+      "id": "73:8466",
+      "type": "INSTANCE",
+      "fields": {
+        "childrenIds": [
+          "I73:8466;40:643"
+        ],
+        "absoluteBoundingBox": {
+          "height": 67,
+          "width": 1440,
+          "x": 36792,
+          "y": 8891
+        },
+        "absoluteRenderBounds": {
+          "height": 67,
+          "width": 1440,
+          "x": 36792,
+          "y": 8891
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "componentProperties": {
+          "Slot#44:11": {
+            "preferredValues": [],
+            "type": "SLOT"
+          },
+          "viewport": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "Desktop"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "height": 67,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 0,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "desktop",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            316
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "viewport": "Desktop"
+        },
+        "visible": true,
+        "width": 1440,
+        "x": 0,
+        "y": 316,
+        "mainComponentId": "40:650",
+        "mainComponentName": "viewport=Desktop",
+        "mainComponentSetId": "44:5410"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643": {
+      "id": "I73:8466;40:643",
+      "type": "SLOT",
+      "fields": {
+        "parentId": "73:8466",
+        "childrenIds": [
+          "I73:8466;40:643;73:8461",
+          "I73:8466;40:643;73:8462",
+          "I73:8466;40:643;73:8463",
+          "I73:8466;40:643;73:8464",
+          "I73:8466;40:643;73:8465"
+        ],
+        "absoluteBoundingBox": {
+          "height": 67,
+          "width": 950,
+          "x": 37037,
+          "y": 8891
+        },
+        "absoluteRenderBounds": {
+          "height": 67,
+          "width": 950,
+          "x": 37037,
+          "y": 8891
+        },
+        "bottomLeftRadius": 10000,
+        "bottomRightRadius": 10000,
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:349",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "componentPropertyReferences": {
+          "slotContentId": "Slot#44:11"
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 10000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:349",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9843137264251708,
+              "g": 0.9803921580314636,
+              "r": 0.9764705896377563
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 67,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 8,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 8,
+          "paddingLeft": 8,
+          "paddingRight": 8,
+          "paddingTop": 8,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 8,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": 1280,
+        "name": "Slot",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 8,
+        "paddingLeft": 8,
+        "paddingRight": 8,
+        "paddingTop": 8,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            245
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 10000,
+        "topRightRadius": 10000,
+        "visible": true,
+        "width": 950,
+        "x": 245,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8461": {
+      "id": "I73:8466;40:643;73:8461",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "I73:8466;40:643",
+        "childrenIds": [
+          "I73:8466;40:643;73:8461;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 49,
+          "width": 180,
+          "x": 37046,
+          "y": 8900
+        },
+        "absoluteRenderBounds": {
+          "height": 49,
+          "width": 180,
+          "x": 37046,
+          "y": 8900
+        },
+        "bottomLeftRadius": 1000,
+        "bottomRightRadius": 1000,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 49,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 핵심 기술",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "I73:8466;40:643;73:8461",
+            "overriddenFields": [
+              "height",
+              "name",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8466;40:643;73:8461;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 24,
+        "paddingRight": 24,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            9
+          ],
+          [
+            0,
+            1,
+            9
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 1000,
+        "topRightRadius": 1000,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 180,
+        "x": 9,
+        "y": 9,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8461;40:610": {
+      "id": "I73:8466;40:643;73:8461;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I73:8466;40:643;73:8461",
+        "absoluteBoundingBox": {
+          "height": 17,
+          "width": 62,
+          "x": 37105,
+          "y": 8916
+        },
+        "absoluteRenderBounds": {
+          "height": 15.146484375,
+          "width": 60.90234375,
+          "x": 37105.48046875,
+          "y": 8917.23046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "핵심 기술",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 17,
+        "height": 17,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            59
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 62,
+        "x": 59,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "핵심 기술",
+            "end": 5,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8462": {
+      "id": "I73:8466;40:643;73:8462",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "I73:8466;40:643",
+        "childrenIds": [
+          "I73:8466;40:643;73:8462;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 49,
+          "width": 180,
+          "x": 37234,
+          "y": 8900
+        },
+        "absoluteRenderBounds": {
+          "height": 49,
+          "width": 180,
+          "x": 37234,
+          "y": 8900
+        },
+        "bottomLeftRadius": 1000,
+        "bottomRightRadius": 1000,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 49,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 연구개발 분야",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "I73:8466;40:643;73:8462",
+            "overriddenFields": [
+              "height",
+              "name",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8466;40:643;73:8462;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 24,
+        "paddingRight": 24,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            197
+          ],
+          [
+            0,
+            1,
+            9
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 1000,
+        "topRightRadius": 1000,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 180,
+        "x": 197,
+        "y": 9,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8462;40:610": {
+      "id": "I73:8466;40:643;73:8462;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I73:8466;40:643;73:8462",
+        "absoluteBoundingBox": {
+          "height": 17,
+          "width": 92,
+          "x": 37278,
+          "y": 8916
+        },
+        "absoluteRenderBounds": {
+          "height": 15.1630859375,
+          "width": 89.95703125,
+          "x": 37279.25,
+          "y": 8917.23046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "연구개발 분야",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 17,
+        "height": 17,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            44
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 92,
+        "x": 44,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "연구개발 분야",
+            "end": 7,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8463": {
+      "id": "I73:8466;40:643;73:8463",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "I73:8466;40:643",
+        "childrenIds": [
+          "I73:8466;40:643;73:8463;40:608"
+        ],
+        "absoluteBoundingBox": {
+          "height": 49,
+          "width": 180,
+          "x": 37422,
+          "y": 8900
+        },
+        "absoluteRenderBounds": {
+          "height": 49,
+          "width": 180,
+          "x": 37422,
+          "y": 8900
+        },
+        "bottomLeftRadius": 1000,
+        "bottomRightRadius": 1000,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "selected"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 49,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 골관절염/연골재생",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "I73:8466;40:643;73:8463",
+            "overriddenFields": [
+              "height",
+              "name",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8466;40:643;73:8463;40:608",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 24,
+        "paddingRight": 24,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            385
+          ],
+          [
+            0,
+            1,
+            9
+          ]
+        ],
+        "strokeBottomWeight": 3,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 1000,
+        "topRightRadius": 1000,
+        "variantProperties": {
+          "effect": "selected"
+        },
+        "visible": true,
+        "width": 180,
+        "x": 385,
+        "y": 9,
+        "mainComponentId": "40:615",
+        "mainComponentName": "effect=selected",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8463;40:608": {
+      "id": "I73:8466;40:643;73:8463;40:608",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I73:8466;40:643;73:8463",
+        "absoluteBoundingBox": {
+          "height": 17,
+          "width": 124,
+          "x": 37450,
+          "y": 8916
+        },
+        "absoluteRenderBounds": {
+          "height": 15.3173828125,
+          "width": 122.1484375,
+          "x": 37450.578125,
+          "y": 8917.14453125
+        },
+        "boundVariables": {
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "골관절염/연골재생",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 17,
+        "height": 17,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            28
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:4233490d967b21346e274bd97badac8375c1ed19,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 124,
+        "x": 28,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "골관절염/연골재생",
+            "end": 9,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:4233490d967b21346e274bd97badac8375c1ed19,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8464": {
+      "id": "I73:8466;40:643;73:8464",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "I73:8466;40:643",
+        "childrenIds": [
+          "I73:8466;40:643;73:8464;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 49,
+          "width": 180,
+          "x": 37610,
+          "y": 8900
+        },
+        "absoluteRenderBounds": {
+          "height": 49,
+          "width": 180,
+          "x": 37610,
+          "y": 8900
+        },
+        "bottomLeftRadius": 1000,
+        "bottomRightRadius": 1000,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 49,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 특허/지식재산권",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "I73:8466;40:643;73:8464",
+            "overriddenFields": [
+              "height",
+              "name",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8466;40:643;73:8464;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 24,
+        "paddingRight": 24,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            573
+          ],
+          [
+            0,
+            1,
+            9
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 1000,
+        "topRightRadius": 1000,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 180,
+        "x": 573,
+        "y": 9,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8464;40:610": {
+      "id": "I73:8466;40:643;73:8464;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I73:8466;40:643;73:8464",
+        "absoluteBoundingBox": {
+          "height": 17,
+          "width": 109,
+          "x": 37645.5,
+          "y": 8916
+        },
+        "absoluteRenderBounds": {
+          "height": 15.146484375,
+          "width": 107.1484375,
+          "x": 37646.078125,
+          "y": 8917.23046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "특허/지식재산권",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 17,
+        "height": 17,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            35.5
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 109,
+        "x": 35.5,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "특허/지식재산권",
+            "end": 8,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8465": {
+      "id": "I73:8466;40:643;73:8465",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "I73:8466;40:643",
+        "childrenIds": [
+          "I73:8466;40:643;73:8465;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 49,
+          "width": 180,
+          "x": 37798,
+          "y": 8900
+        },
+        "absoluteRenderBounds": {
+          "height": 49,
+          "width": 180,
+          "x": 37798,
+          "y": 8900
+        },
+        "bottomLeftRadius": 1000,
+        "bottomRightRadius": 1000,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 49,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 연구성과/주요실적",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "I73:8466;40:643;73:8465",
+            "overriddenFields": [
+              "height",
+              "name",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8466;40:643;73:8465;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 24,
+        "paddingRight": 24,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            761
+          ],
+          [
+            0,
+            1,
+            9
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 1000,
+        "topRightRadius": 1000,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 180,
+        "x": 761,
+        "y": 9,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8466;40:643;73:8465;40:610": {
+      "id": "I73:8466;40:643;73:8465;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I73:8466;40:643;73:8465",
+        "absoluteBoundingBox": {
+          "height": 17,
+          "width": 124,
+          "x": 37826,
+          "y": 8916
+        },
+        "absoluteRenderBounds": {
+          "height": 15.1630859375,
+          "width": 120.984375,
+          "x": 37827.0234375,
+          "y": 8917.23046875
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "연구성과/주요실적",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 17,
+        "height": 17,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            28
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 124,
+        "x": 28,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "연구성과/주요실적",
+            "end": 9,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8525": {
+      "id": "73:8525",
+      "type": "FRAME",
+      "fields": {
+        "childrenIds": [
+          "73:8526"
+        ],
+        "absoluteBoundingBox": {
+          "height": 47,
+          "width": 360,
+          "x": 38352,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 47,
+          "width": 360,
+          "x": 38352,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:349",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "strokes": [
+            {
+              "id": "VariableID:9:351",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:349",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9843137264251708,
+              "g": 0.9803921580314636,
+              "r": 0.9764705896377563
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 47,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 0,
+          "layoutAlign": "MIN",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 1,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "NONE",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "mobile",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            202
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:351",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "strokesIncludedInLayout": false,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 360,
+        "x": 0,
+        "y": 202
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8526": {
+      "id": "73:8526",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8525",
+        "childrenIds": [
+          "73:8527",
+          "73:8528",
+          "73:8529",
+          "73:8530",
+          "73:8531"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 582,
+          "x": 38201,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 46,
+          "width": 360,
+          "x": 38352,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 0,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "tabs (가로 스크롤 · 현재 탭이 보이도록 스크롤된 상태)",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            -151
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 582,
+        "x": -151,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8527": {
+      "id": "73:8527",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "73:8526",
+        "childrenIds": [
+          "I73:8527;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 84,
+          "x": 38201,
+          "y": 8777
+        },
+        "absoluteRenderBounds": null,
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 핵심 기술",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "73:8527",
+            "overriddenFields": [
+              "height",
+              "name",
+              "paddingLeft",
+              "paddingRight",
+              "primaryAxisSizingMode",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8527;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 16,
+        "paddingRight": 16,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 84,
+        "x": 0,
+        "y": 0,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8527;40:610": {
+      "id": "I73:8527;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "73:8527",
+        "absoluteBoundingBox": {
+          "height": 14,
+          "width": 52,
+          "x": 38217,
+          "y": 8793
+        },
+        "absoluteRenderBounds": null,
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "핵심 기술",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 14,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            16
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 52,
+        "x": 16,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "핵심 기술",
+            "end": 5,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8528": {
+      "id": "73:8528",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "73:8526",
+        "childrenIds": [
+          "I73:8528;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 107,
+          "x": 38285,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 46,
+          "width": 40,
+          "x": 38352,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 연구개발 분야",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "73:8528",
+            "overriddenFields": [
+              "height",
+              "name",
+              "paddingLeft",
+              "paddingRight",
+              "primaryAxisSizingMode",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8528;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 16,
+        "paddingRight": 16,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            84
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 107,
+        "x": 84,
+        "y": 0,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8528;40:610": {
+      "id": "I73:8528;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "73:8528",
+        "absoluteBoundingBox": {
+          "height": 14,
+          "width": 75,
+          "x": 38301,
+          "y": 8793
+        },
+        "absoluteRenderBounds": {
+          "height": 12.48828125,
+          "width": 23.73046875,
+          "x": 38352,
+          "y": 8793.66015625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "연구개발 분야",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 14,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            16
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 75,
+        "x": 16,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "연구개발 분야",
+            "end": 7,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8529": {
+      "id": "73:8529",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "73:8526",
+        "childrenIds": [
+          "I73:8529;40:608"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 135,
+          "x": 38392,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 46,
+          "width": 135,
+          "x": 38392,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "fills": [
+            {
+              "id": "VariableID:9:345",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "selected"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:345",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.7323716878890991,
+              "g": 0.34177345037460327,
+              "r": 0
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 골관절염/연골재생",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "73:8529",
+            "overriddenFields": [
+              "height",
+              "name",
+              "paddingLeft",
+              "paddingRight",
+              "primaryAxisSizingMode",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8529;40:608",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 16,
+        "paddingRight": 16,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            191
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 3,
+        "strokeLeftWeight": 0,
+        "strokeRightWeight": 0,
+        "strokeTopWeight": 0,
+        "strokeWeight": {
+          "$unsupported": "symbol"
+        },
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "selected"
+        },
+        "visible": true,
+        "width": 135,
+        "x": 191,
+        "y": 0,
+        "mainComponentId": "40:615",
+        "mainComponentName": "effect=selected",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8529;40:608": {
+      "id": "I73:8529;40:608",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "73:8529",
+        "absoluteBoundingBox": {
+          "height": 14,
+          "width": 103,
+          "x": 38408,
+          "y": 8793
+        },
+        "absoluteRenderBounds": {
+          "height": 12.6142578125,
+          "width": 100.58984375,
+          "x": 38408.91796875,
+          "y": 8793.58984375
+        },
+        "boundVariables": {
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "골관절염/연골재생",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "ExtraBold"
+        },
+        "fontSize": 14,
+        "height": 14,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            16
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:4233490d967b21346e274bd97badac8375c1ed19,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 103,
+        "x": 16,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "골관절염/연골재생",
+            "end": 9,
+            "fillStyleId": "",
+            "fontWeight": 800,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:4233490d967b21346e274bd97badac8375c1ed19,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8530": {
+      "id": "73:8530",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "73:8526",
+        "childrenIds": [
+          "I73:8530;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 122,
+          "x": 38527,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 46,
+          "width": 122,
+          "x": 38527,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 특허/지식재산권",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "73:8530",
+            "overriddenFields": [
+              "height",
+              "name",
+              "paddingLeft",
+              "paddingRight",
+              "primaryAxisSizingMode",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8530;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 16,
+        "paddingRight": 16,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            326
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 122,
+        "x": 326,
+        "y": 0,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8530;40:610": {
+      "id": "I73:8530;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "73:8530",
+        "absoluteBoundingBox": {
+          "height": 14,
+          "width": 90,
+          "x": 38543,
+          "y": 8793
+        },
+        "absoluteRenderBounds": {
+          "height": 12.4736328125,
+          "width": 88.23828125,
+          "x": 38543.59375,
+          "y": 8793.66015625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "특허/지식재산권",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 14,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            16
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 90,
+        "x": 16,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "특허/지식재산권",
+            "end": 8,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8531": {
+      "id": "73:8531",
+      "type": "INSTANCE",
+      "fields": {
+        "parentId": "73:8526",
+        "childrenIds": [
+          "I73:8531;40:610"
+        ],
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 134,
+          "x": 38649,
+          "y": 8777
+        },
+        "absoluteRenderBounds": {
+          "height": 46,
+          "width": 63,
+          "x": 38649,
+          "y": 8777
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "bottomLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "bottomRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topLeftRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          },
+          "topRightRadius": {
+            "id": "VariableID:44:5419",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "componentProperties": {
+          "effect": {
+            "boundVariables": {},
+            "type": "VARIANT",
+            "value": "default"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 46,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 10,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "primaryAxisAlignItems": "CENTER",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 10,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "HORIZONTAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "PageTitleMenu · 연구성과/주요실적",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "overrides": [
+          {
+            "id": "73:8531",
+            "overriddenFields": [
+              "height",
+              "name",
+              "paddingLeft",
+              "paddingRight",
+              "primaryAxisSizingMode",
+              "width"
+            ]
+          },
+          {
+            "id": "I73:8531;40:610",
+            "overriddenFields": [
+              "characters",
+              "styledTextSegments"
+            ]
+          }
+        ],
+        "paddingBottom": 16,
+        "paddingLeft": 16,
+        "paddingRight": 16,
+        "paddingTop": 16,
+        "primaryAxisAlignItems": "CENTER",
+        "relativeTransform": [
+          [
+            1,
+            0,
+            448
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "variantProperties": {
+          "effect": "default"
+        },
+        "visible": true,
+        "width": 134,
+        "x": 448,
+        "y": 0,
+        "mainComponentId": "40:614",
+        "mainComponentName": "effect=default",
+        "mainComponentSetId": "40:616"
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I73:8531;40:610": {
+      "id": "I73:8531;40:610",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "73:8531",
+        "absoluteBoundingBox": {
+          "height": 14,
+          "width": 102,
+          "x": 38665,
+          "y": 8793
+        },
+        "absoluteRenderBounds": {
+          "height": 12.48828125,
+          "width": 46.21875,
+          "x": 38665.78125,
+          "y": 8793.66015625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:358",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:44:5420",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "연구성과/주요실적",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:358",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.1529411822557449,
+              "g": 0.08627451211214066,
+              "r": 0.06666667014360428
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Bold"
+        },
+        "fontSize": 14,
+        "height": 14,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 100
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "텍스트",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            16
+          ],
+          [
+            0,
+            1,
+            16
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 102,
+        "x": 16,
+        "y": 16,
+        "styledTextSegments": [
+          {
+            "characters": "연구성과/주요실적",
+            "end": 9,
+            "fillStyleId": "",
+            "fontWeight": 700,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:ab9a4b96cc300838fb4b14185fdd981a07ac2475,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

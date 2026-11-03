@@ -13,7 +13,9 @@ fn multi_width_export_redirects_single_width_code_before_collection() {
     assert!(responsive_required(fixture.root(), &["10:3".into()], &["tsx".into()]).unwrap().is_none());
     assert!(responsive_required(fixture.root(), &["10:1".into()], &["outline".into()]).unwrap().is_none());
     assert!(responsive_required(fixture.root(), &["10:1".into()], &["responsiveTsx".into()]).unwrap().is_some());
-    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_some());
+    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_none());
+    assert!(responsive_required(fixture.root(), &["10:1".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_some());
+    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["tsx".into()]).unwrap().is_some());
 }
 
 #[test]

@@ -49,10 +49,11 @@ pub(super) fn status_report(
         let Some(url) = route["url"].as_str() else {
             continue;
         };
-        let route_states = state_exports(route).into_iter().map(|mut state| {
+        let route_states = state_exports(plan, route).into_iter().map(|mut state| {
             let suffix = format!("-state-{}", super::audit_plan::slug(text(&state["nodeId"])));
             let mut required_widths = DEFAULT_WIDTHS.to_vec();
             if let Some(width) = state["width"].as_f64() { required_widths.push(width.round() as u32); }
+            required_widths.extend(array(&state["drawnWidths"]).iter().filter_map(Value::as_u64).filter_map(|width| u32::try_from(width).ok()));
             let results = required_widths.iter().map(|width| {
                 audit_rows.iter().find(|row| row["routePath"] == url && row["width"] == *width && text(&row["screen"]).ends_with(&suffix))
                     .map_or("not-run", |row| text(&row["status"]))

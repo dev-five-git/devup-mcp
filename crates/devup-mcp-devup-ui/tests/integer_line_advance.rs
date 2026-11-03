@@ -92,7 +92,7 @@ fn variable_or_missing_font_size_keeps_the_percentage_in_the_theme() {
 
 /// A size bound to a variable whose modes are breakpoints is one size per
 /// breakpoint: Mobile at the first slot and Tablet at the third (768px), each
-/// with the percentage. Modes that are not breakpoints keep the token.
+/// with its integer line advance. Modes that are not breakpoints keep the token.
 #[test]
 fn font_size_whose_modes_are_breakpoints_is_one_size_per_breakpoint() {
     let theme = |mobile: &str, tablet: &str| {
@@ -115,9 +115,9 @@ fn font_size_whose_modes_are_breakpoints_is_one_size_per_breakpoint() {
     assert_eq!(
         theme("Mobile", "Tablet"),
         json!([
-            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "24px", "lineHeight": "150%"},
+            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "24px", "lineHeight": "36px"},
             null,
-            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "16px", "lineHeight": "150%"}
+            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "16px", "lineHeight": "24px"}
         ])
     );
     assert_eq!(
@@ -145,6 +145,68 @@ fn percentage_style_uses_its_own_integer_advance() {
 }
 
 #[test]
+fn breakpoint_font_sizes_materialize_each_integer_advance_and_preserve_unresolved_sizes() {
+    for (mobile, desktop, advances) in [
+        (json!(15), json!(16), Some(("23px", "24px"))),
+        (json!(13), json!(14), Some(("20px", "21px"))),
+        (json!("calc(15px + 1px)"), json!(16), None),
+        (json!("var(--font-size)"), json!(16), None),
+    ] {
+        let snapshot: VariableSnapshot = serde_json::from_value(json!({
+            "collections":[{"id":"c","name":"Size","defaultModeId":"m","modes":[
+                {"modeId":"m","name":"Mobile"},{"modeId":"d","name":"Desktop"}]}],
+            "variables":[{"id":"size","name":"size","resolvedType":"FLOAT",
+                "variableCollectionId":"c","valuesByMode":{"m":mobile,"d":desktop}}],
+            "styles":[{"id":"s","name":"body","styleType":"TEXT","value":{
+                "fontSize":16,"lineHeight":{"unit":"PERCENT","value":150},
+                "boundVariables":{"fontSize":{"type":"VARIABLE_ALIAS","id":"size"}}
+            }}]
+        }))
+        .unwrap();
+        let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
+        let theme: Value = serde_json::from_str(&output.json).unwrap();
+        let body = &theme["theme"]["typography"]["body"];
+        if let Some((mobile, desktop)) = advances {
+            assert_eq!(body[0]["lineHeight"], mobile);
+            assert_eq!(body[4]["lineHeight"], desktop);
+            assert!(body[1].is_null() && body[2].is_null() && body[3].is_null());
+        } else {
+            assert_eq!(body["fontSize"], "$size");
+            assert_eq!(body["lineHeight"], "150%");
+        }
+    }
+}
+
+#[test]
+fn breakpoint_size_does_not_override_a_bound_line_height() {
+    let snapshot: VariableSnapshot = serde_json::from_value(json!({
+        "collections":[{"id":"c","name":"Size","defaultModeId":"m","modes":[
+            {"modeId":"m","name":"Mobile"},{"modeId":"d","name":"Desktop"}]}],
+        "variables":[
+            {"id":"size","name":"size","resolvedType":"FLOAT","variableCollectionId":"c",
+                "valuesByMode":{"m":15,"d":16}},
+            {"id":"height","name":"height","resolvedType":"FLOAT","variableCollectionId":"c",
+                "valuesByMode":{"m":30,"d":32}}
+        ],
+        "styles":[{"id":"s","name":"body","styleType":"TEXT","value":{
+            "fontSize":16,"lineHeight":{"unit":"PERCENT","value":150},
+            "boundVariables":{"fontSize":{"id":"size"},"lineHeight":{"id":"height"}}
+        }}]
+    }))
+    .unwrap();
+    let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
+    let theme: Value = serde_json::from_str(&output.json).unwrap();
+    assert_eq!(
+        theme["theme"]["typography"]["body"][0]["lineHeight"],
+        "$height"
+    );
+    assert_eq!(
+        theme["theme"]["typography"]["body"][4]["lineHeight"],
+        "$height"
+    );
+}
+
+#[test]
 fn inline_text_uses_integer_advance() {
     let snapshot: Snapshot = serde_json::from_value(json!({
         "fileKey":"test", "version":"1", "roots":["t"], "diagnostics":[],
@@ -159,7 +221,7 @@ fn inline_text_uses_integer_advance() {
 }
 
 #[test]
-fn variable_font_size_keeps_the_percentage_advance_instead_of_a_pixel_one() {
+fn variable_font_size_keeps_relative_integer_advance_instead_of_frozen_pixels() {
     let snapshot: Snapshot = serde_json::from_value(json!({
         "fileKey":"test", "version":"1", "roots":["t"], "diagnostics":[],
         "nodes":{"t":{"id":"t","type":"TEXT","fields":{
@@ -170,7 +232,13 @@ fn variable_font_size_keeps_the_percentage_advance_instead_of_a_pixel_one() {
     }))
     .unwrap();
     let output = generate_component(&snapshot, "t", &CodegenOptions::default()).unwrap();
-    assert!(output.tsx.contains("lineHeight=\"150%\""), "{}", output.tsx);
+    assert!(
+        output
+            .tsx
+            .contains("lineHeight=\"round(nearest, 1.5em, 1px)\""),
+        "{}",
+        output.tsx
+    );
     assert!(
         !output.tsx.contains("lineHeight=\"27px\""),
         "{}",

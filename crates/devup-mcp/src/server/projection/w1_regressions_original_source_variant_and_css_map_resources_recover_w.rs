@@ -1,4 +1,3 @@
-
 #[tokio::test]
 async fn original_source_variant_and_css_map_resources_recover_without_reacquiring() {
     let store = ArtifactStore::default();
@@ -194,7 +193,13 @@ async fn image_modes_keep_file_manifest_and_shared_resource_observations_consist
                 asset["outputPath"],
                 result["outputPaths"][format!("asset:{}", asset["assetId"].as_str().unwrap())]
             );
-            assert!(asset["suggestedFilename"].as_str().unwrap().contains(mode));
+            assert!(
+                asset["suggestedFilename"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with(".png")
+            );
+            assert!(asset["renderInfo"]["canonicalAsset"]["path"].is_string());
         }
         if delivery_mode == DeliveryMode::Resource {
             let resource = result["resources"]
@@ -437,8 +442,16 @@ async fn webp_preset_replays_more_than_six_captures_with_public_files_and_couple
         assert_eq!(result["webReadyImages"]["total"], 9);
         assert_eq!(result["webReadyImages"]["failed"], 0);
         let files = result["outputPaths"].as_object().unwrap();
-        assert_eq!(files.len(), 9);
-        for path in files.values().filter_map(Value::as_str) {
+        assert_eq!(
+            files.keys().filter(|key| key.starts_with("asset:")).count(),
+            9
+        );
+        assert!(files.contains_key("assetRegistry"));
+        for path in files
+            .iter()
+            .filter(|(key, _)| key.starts_with("asset:"))
+            .filter_map(|(_, path)| path.as_str())
+        {
             assert!(path.ends_with(".webp"));
             assert_eq!(
                 image::guess_format(&std::fs::read(path).unwrap()).unwrap(),

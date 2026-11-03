@@ -511,6 +511,7 @@ pub fn generate_devup_json(
                         if slots[slot].is_none() {
                             let mut value = typography_value(&style.value, &variable_names);
                             value["fontSize"] = Value::String(format_px(size));
+                            materialize_percentage_advance(&mut value, &style.value, size);
                             slots[slot] = Some(value);
                         }
                     }

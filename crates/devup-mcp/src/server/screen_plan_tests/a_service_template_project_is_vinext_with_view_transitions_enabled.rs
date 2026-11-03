@@ -444,18 +444,17 @@ async fn audit_plan_writes_a_plan_per_url_and_reports_what_it_cannot_compare() {
             .exists()
     );
     assert_eq!(result["runner"]["state"], "written");
-    // The plugin that strips the audit ids from production builds sits next
-    // to the app's vite.config, and the config is not wired to it yet.
+    // Auditing must not create a strip plugin or alter consumer build config.
     let strip = &result["productionStrip"][0];
-    assert!(
+    assert!(!
         fixture
             .0
             .join("vite-plugin-strip-figma-node-ids.mjs")
             .exists()
     );
-    assert_eq!(strip["written"], true);
+    assert_eq!(strip["written"], false);
     assert_eq!(strip["wired"], false);
-    assert!(text(&strip["verify"]).contains("grep -rl data-figma-node-id"));
+    assert!(text(&strip["verify"]).contains("no debug exception"));
     assert_eq!(
         result["expiredArtifacts"][0]["artifactId"],
         "expired-artifact"

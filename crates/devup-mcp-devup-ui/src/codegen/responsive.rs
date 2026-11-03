@@ -24,7 +24,17 @@
 
 // Source sections share this module to preserve privacy and test names.
 include!("responsive/breakpoint_merge.rs");
+include!("responsive/padding_aliases.rs");
+include!("responsive/size_aliases.rs");
+include!("responsive/gap_aliases.rs");
+include!("responsive/layout_defaults.rs");
+include!("responsive/paint_defaults.rs");
 include!("responsive/child_alignment.rs");
+include!("responsive/wrapper_reconciliation.rs");
+include!("responsive/child_order.rs");
 include!("responsive/width_label.rs");
+include!("responsive/instance_text_branches.rs");
+include!("responsive/literal_text_branches.rs");
+include!("responsive/length_token_projection.rs");
 include!("responsive/merge_content.rs");
 include!("responsive/impl.rs");

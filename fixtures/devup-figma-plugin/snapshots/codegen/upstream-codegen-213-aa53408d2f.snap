@@ -20,6 +20,8 @@ expression: actual
           fontWeight="600"
           letterSpacing="-1px"
           lineHeight="24px"
+          overflowWrap="break-word"
+          whiteSpace="pre"
           wordBreak="keep-all"
         >
           플레이 제목
@@ -38,6 +40,7 @@ expression: actual
           fontWeight="400"
           letterSpacing="-0.5px"
           lineHeight="23px"
+          whiteSpace="pre"
         >
           2025.03.03 18:00
         </Text>
@@ -65,6 +68,7 @@ expression: actual
             fontWeight="600"
             letterSpacing="-0.5px"
             lineHeight="23px"
+            whiteSpace="pre"
           >
             2
           </Text>
@@ -77,6 +81,7 @@ expression: actual
         fontWeight="400"
         letterSpacing="-1px"
         lineHeight="24px"
+        overflowWrap="break-word"
         wordBreak="keep-all"
       >
         댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력

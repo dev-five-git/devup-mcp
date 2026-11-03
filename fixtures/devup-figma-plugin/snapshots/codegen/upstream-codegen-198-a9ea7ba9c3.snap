@@ -20,10 +20,12 @@ expression: actual
           fontWeight="400"
           letterSpacing="0em"
           lineHeight="normal"
+          whiteSpace="pre"
         >
           Hello World!
         </Text>
         <Image
+          alt=""
           aspectRatio="1280 / 720"
           h="720px"
           minH="0"

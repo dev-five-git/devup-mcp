@@ -5,13 +5,51 @@ use devup_mcp_devup_ui::codegen::responsive::{
 use devup_mcp_figma::ExploreCandidate;
 
 pub(crate) fn confirmed(project_root: Option<&str>, ids: &[String]) -> Result<bool, DevupError> {
-    let Some(root) = project_root else { return Ok(false) };
-    let Some(plan) = super::super::screen_plan::read_plan(root)? else { return Ok(false) };
-    Ok(plan["status"] == "confirmed" && ids.len() >= 2 && plan["routes"].as_array().is_some_and(|routes| {
-        routes.iter().any(|route| route["nodeIds"].as_array().is_some_and(|nodes| {
-            nodes.len() == ids.len() && ids.iter().all(|id| nodes.contains(&json!(id)))
-        }))
-    }))
+    let Some(root) = project_root else {
+        return Ok(false);
+    };
+    if ids.len() < 2 {
+        return Ok(false);
+    }
+    for ancestor in std::path::Path::new(root).ancestors() {
+        let Some(plan) = super::super::screen_plan::read_plan(&ancestor.to_string_lossy())? else {
+            continue;
+        };
+        if plan["status"] != "confirmed" {
+            continue;
+        }
+        return Ok(plan["routes"].as_array().is_some_and(|routes| {
+            routes.iter().any(|route| {
+                route["implementation"] != "state"
+                    && (legacy_exact_confirmation(route, ids)
+                        || super::super::screen_plan::responsive_groups(route)
+                        .ok()
+                        .is_some_and(|groups| {
+                            groups.iter().any(|group| {
+                                group["frameIds"].as_array().is_some_and(|nodes| {
+                                    nodes.len() == ids.len()
+                                        && ids.iter().all(|id| nodes.contains(&json!(id)))
+                                })
+                            })
+                        }))
+            })
+        }));
+    }
+    Ok(false)
+}
+
+/// Older confirmed plans recorded exact frame identity without drawn widths.
+/// Preserve that identity proof; the export still validates actual snapshot
+/// widths and slots. A newer plan with explicit groups or width evidence must
+/// satisfy its stronger contract rather than falling back to route membership.
+fn legacy_exact_confirmation(route: &Value, ids: &[String]) -> bool {
+    route.get("drawnWidths").is_none()
+        && route.get("responsiveGroups").is_none()
+        && route["nodeIds"].as_array().is_some_and(|nodes| {
+            nodes.len() == ids.len()
+                && ids.iter().collect::<std::collections::BTreeSet<_>>().len() == ids.len()
+                && ids.iter().all(|id| nodes.contains(&json!(id)))
+        })
 }
 
 pub fn discover(candidates: &[ExploreCandidate], artifact_id: &str) -> Vec<Value> {
@@ -191,6 +229,27 @@ pub fn completion(result: &mut Map<String, Value>, selected: &[String], all_scre
 #[cfg(test)]
 mod feedback_tests {
     use super::*;
+
+    #[test]
+    fn legacy_confirmation_never_bypasses_recorded_widths_or_explicit_groups() {
+        let ids = vec!["1:1".to_owned(), "1:2".to_owned()];
+        let legacy = json!({"route":"/technology","nodeIds":ids});
+        assert!(legacy_exact_confirmation(&legacy, &ids));
+        assert!(!legacy_exact_confirmation(&legacy, &ids[..1]));
+        assert!(!legacy_exact_confirmation(
+            &legacy,
+            &["1:1".into(), "1:1".into()]
+        ));
+        for field in ["drawnWidths", "responsiveGroups"] {
+            let mut stronger = legacy.clone();
+            stronger[field] = json!([]);
+            assert!(
+                !legacy_exact_confirmation(&stronger, &ids),
+                "A malformed recorded {field} cannot silently become legacy evidence"
+            );
+        }
+    }
+
     #[test]
     fn responsive_ambiguity_and_missing_widths_are_reviewed_within_selected_roots() {
         let snapshot:devup_mcp_figma::Snapshot=serde_json::from_value(json!({"fileKey":"Synthetic","roots":["1:1","1:2"],"nodes":{

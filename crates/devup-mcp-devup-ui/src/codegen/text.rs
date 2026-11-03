@@ -1,3 +1,5 @@
+include!("text/wrapping_policy.rs");
+include!("text/bound_line_advance.rs");
 use std::collections::{BTreeMap, BTreeSet};
 
 use devup_mcp_figma::TypedNode;
@@ -66,9 +68,10 @@ pub(super) fn push_text_props(
     if let Some(letter_spacing) = letter_spacing(value("letterSpacing")) {
         string_prop(props, "letterSpacing", letter_spacing);
     }
-    if let Some(line_height) = line_height(
+    if let Some(line_height) = source_line_height(
         value("lineHeight"),
-        line_height_font_size(value("fontSize"), value("boundVariables")),
+        value("fontSize"),
+        value("boundVariables"),
     ) {
         string_prop(props, "lineHeight", line_height);
     }
@@ -93,7 +96,9 @@ pub(super) fn push_text_props(
             string_prop(props, "display", "-webkit-box");
         }
     }
-    if preserves_hard_break_spaces(view) {
+    if preserves_intrinsic_text_width(view) {
+        string_prop(props, "whiteSpace", "pre");
+    } else if preserves_hard_break_spaces(view) || preserves_wrapped_ascii_spaces(view) {
         string_prop(props, "whiteSpace", "pre-wrap");
     }
     // Reads the designer's own truncation setting, which Figma always
@@ -133,9 +138,11 @@ pub(super) fn push_text_props(
             _ => {}
         }
     }
-    if segments_contain_korean(view) {
-        string_prop(props, "wordBreak", "keep-all");
-    }
+    push_korean_wrap_policy(
+        view,
+        typography.and_then(|token| typography_values.get(token)),
+        props,
+    );
     if let Some(strokes) = view.value("strokes")
         && let Some(color) = first_solid_color(Some(strokes))
     {
@@ -382,36 +389,6 @@ fn line_height(value: Option<&Value>, font_size: Option<f64>) -> Option<String> 
     }
 }
 
-/// Korean offers a browser no inter-word breaking opportunity it can infer, so
-/// the default `word-break` splits a word wherever the line happens to end.
-/// Figma's text engine breaks Korean the same way, which puts pixel fidelity
-/// and correct Korean in direct opposition here: dropping this moves the render
-/// closer to Figma's PNG and makes the generated screen worse. The plugin
-/// settles it deliberately - `if (hasKorean) defaultProps.wordBreak =
-/// 'keep-all'` in its text renderer - and so do we, because Figma's behaviour
-/// is a limitation to compensate for rather than a specification to reproduce.
-/// This was measured before being kept: removing it buys 0.21 percent on one
-/// screen and costs 38 byte-parity goldens and every Korean line break.
-fn segments_contain_korean(view: &TypedNode<'_>) -> bool {
-    view.value("styledTextSegments")
-        .and_then(Value::as_array)
-        .is_some_and(|segments| {
-            segments.iter().any(|segment| {
-                segment
-                    .get("characters")
-                    .and_then(Value::as_str)
-                    .is_some_and(|text| {
-                        text.chars().any(|character| {
-                            matches!(
-                                character as u32,
-                                0xAC00..=0xD7AF | 0x1100..=0x11FF | 0x3130..=0x318F
-                            )
-                        })
-                    })
-            })
-        })
-}
-
 fn replace_prop(props: &mut Vec<Prop>, name: &str, value: String) {
     if let Some((_, existing)) = props.iter_mut().find(|(prop, _)| prop == name) {
         *existing = PropValue::String(value);
@@ -442,11 +419,9 @@ pub(super) fn render_text_children(
     let default = default_segment(view).expect("non-empty styledTextSegments");
     let default_props = typography_props(default, text_style_tokens, variable_tokens, used_tokens);
     let mut rendered: Vec<String> = Vec::new();
-    for segment in segments {
-        let value = segment
-            .get("characters")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
+    let rendered_characters = render_segment_characters(segments);
+    for (segment, value) in segments.iter().zip(&rendered_characters) {
+        let value = value.as_str();
         let list = segment
             .get("listOptions")
             .and_then(Value::as_object)
@@ -454,9 +429,7 @@ pub(super) fn render_text_children(
             .and_then(Value::as_str)
             .unwrap_or("NONE");
         if list != "NONE" {
-            let lines = value
-                .replace("\r\n", "\n")
-                .replace(['\r', '\u{2028}', '\u{2029}'], "\n");
+            let lines = value.replace(['\u{2028}', '\u{2029}'], "\n");
             let items = lines.split_terminator('\n').collect::<Vec<_>>();
             rendered.extend(items.iter().enumerate().map(|(index, line)| {
                 // A trailing separator is a break inside the last item, not
@@ -477,10 +450,19 @@ pub(super) fn render_text_children(
 
         let mut segment_props =
             typography_props(segment, text_style_tokens, variable_tokens, used_tokens);
+        let changes_size = segment_props.iter().any(|(name, value)| {
+            name == "fontSize"
+                && !default_props
+                    .iter()
+                    .any(|(base, old)| base == name && old == value)
+        });
         segment_props.retain(|(name, value)| {
-            !default_props
-                .iter()
-                .any(|(default_name, default_value)| default_name == name && default_value == value)
+            (changes_size
+                && name == "lineHeight"
+                && matches!(value, PropValue::String(value) if value.starts_with("round(")))
+                || !default_props.iter().any(|(default_name, default_value)| {
+                    default_name == name && default_value == value
+                })
         });
         // A different run style establishes its own metrics. Equal metrics
         // can be omitted there; same-style runs keep local overrides relative
@@ -576,9 +558,10 @@ fn typography_props(
     if let Some(value) = letter_spacing(segment.get("letterSpacing")) {
         string_prop(&mut props, "letterSpacing", value);
     }
-    if let Some(value) = line_height(
+    if let Some(value) = source_line_height(
         segment.get("lineHeight"),
-        line_height_font_size(segment.get("fontSize"), segment.get("boundVariables")),
+        segment.get("fontSize"),
+        segment.get("boundVariables"),
     ) {
         string_prop(&mut props, "lineHeight", value);
     }
@@ -705,12 +688,44 @@ fn is_js_whitespace(character: char) -> bool {
     )
 }
 
+/// Normalize adjacent styled runs with the same CRLF boundary rule as plain
+/// text. A CR at one run's end is consumed only when the next nonempty run
+/// begins with LF; that following run owns the single rendered break.
+pub(crate) fn render_segment_characters(segments: &[Value]) -> Vec<String> {
+    let mut output = Vec::with_capacity(segments.len());
+    let mut next_character = None;
+    for segment in segments.iter().rev() {
+        let raw = segment
+            .get("characters")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let visible = if raw.ends_with('\r') && next_character == Some('\n') {
+            &raw[..raw.len() - 1]
+        } else {
+            raw
+        };
+        output.push(normalize_render_characters(visible));
+        next_character = raw.chars().next().or(next_character);
+    }
+    output.reverse();
+    output
+}
+
+/// Figma's lone carriage return occupies an inline space (captured transit
+/// strings remain a single line). CRLF is one hard break. Keep raw values in
+/// the snapshot/provenance; apply this only to render text and prop defaults.
+pub(crate) fn normalize_render_characters(input: &str) -> String {
+    input.replace("\r\n", "\n").replace('\r', " ")
+}
+
 /// Preserve ordinary text in the plugin's JSX spelling. Edge spaces use
 /// string expressions because source indentation would trim them; other edge
-/// whitespace retains its actual characters instead of becoming ASCII spaces.
+/// whitespace retains its characters after render-control normalization.
 /// Design line separators paint as explicit breaks (CRLF is one separator).
 /// This encoder is also used by the provenance mapper.
 pub(crate) fn escape_jsx_text(input: &str) -> String {
+    let normalized = normalize_render_characters(input);
+    let input = normalized.as_str();
     let characters = input.chars().collect::<Vec<_>>();
     let leading = characters
         .iter()
@@ -733,6 +748,15 @@ pub(crate) fn escape_jsx_text(input: &str) -> String {
     while index < middle.len() {
         let character = middle[index];
         match character {
+            ' ' if middle.get(index + 1) == Some(&' ') => {
+                let count = middle[index..].iter().take_while(|ch| **ch == ' ').count();
+                result.push_str(&format!(
+                    "{{{}}}",
+                    serde_json::to_string(&" ".repeat(count)).expect("serialize spaces")
+                ));
+                index += count;
+                continue;
+            }
             '{' | '}' | '&' | '<' | '>' | '\'' => {
                 let run_end = middle[index..]
                     .iter()
@@ -788,7 +812,11 @@ fn push_edge_whitespace(run: &[char], into: &mut String) {
 pub(super) fn whitespace_collapse_diagnostic(
     view: &TypedNode<'_>,
 ) -> Option<devup_mcp_figma::Diagnostic> {
-    if view.node_type() != "TEXT" || preserves_hard_break_spaces(view) {
+    if view.node_type() != "TEXT"
+        || preserves_hard_break_spaces(view)
+        || preserves_wrapped_ascii_spaces(view)
+        || preserves_intrinsic_text_width(view)
+    {
         return None;
     }
     let characters = source_characters(view);
@@ -846,7 +874,24 @@ fn source_characters(view: &TypedNode<'_>) -> String {
 /// width and grows only the height. HUG text needs a separate intrinsic-width
 /// treatment: pre-wrap includes trailing spaces in its max-content width.
 /// Lists, tabs and clamps retain their existing projection and loss reporting.
-pub(crate) fn preserves_hard_break_spaces(view: &TypedNode<'_>) -> bool {
+pub(crate) fn preserves_intrinsic_text_width(view: &TypedNode<'_>) -> bool {
+    view.node_type() == "TEXT"
+        && view.string("textAutoResize") == Some("WIDTH_AND_HEIGHT")
+        && !view.number("maxLines").is_some_and(|lines| lines > 0.0)
+        && !view
+            .value("styledTextSegments")
+            .and_then(Value::as_array)
+            .is_some_and(|segments| {
+                segments.iter().any(|segment| {
+                    segment
+                        .pointer("/listOptions/type")
+                        .and_then(Value::as_str)
+                        .is_some_and(|kind| kind != "NONE")
+                })
+            })
+}
+
+fn wrapped_space_characters(view: &TypedNode<'_>) -> Option<String> {
     if view.node_type() != "TEXT"
         || view.string("textAutoResize") != Some("HEIGHT")
         || view.number("maxLines").is_some_and(|lines| lines > 0.0)
@@ -863,15 +908,42 @@ pub(crate) fn preserves_hard_break_spaces(view: &TypedNode<'_>) -> bool {
                 })
             })
     {
-        return false;
+        return None;
     }
     let characters = source_characters(view);
     if characters.contains('\t') {
-        return false;
+        return None;
     }
+    Some(characters)
+}
+
+pub(crate) fn preserves_hard_break_spaces(view: &TypedNode<'_>) -> bool {
+    let Some(characters) = wrapped_space_characters(view) else {
+        return false;
+    };
     let is_break = |ch| matches!(ch, '\r' | '\n' | '\u{2028}' | '\u{2029}');
     characters
         .chars()
         .zip(characters.chars().skip(1))
         .any(|(left, right)| (left == ' ' && is_break(right)) || (is_break(left) && right == ' '))
 }
+
+/// HEIGHT text has a captured inline width and still soft-wraps. Preserve
+/// authored ASCII spacing without making its width intrinsic or guessing a
+/// height. Lists, tabs, clamps and unknown/HUG widths keep their existing policy.
+pub(crate) fn preserves_wrapped_ascii_spaces(view: &TypedNode<'_>) -> bool {
+    if view.string("layoutSizingHorizontal") == Some("HUG")
+        || !view
+            .number("width")
+            .is_some_and(|width| width.is_finite() && width > 0.0)
+    {
+        return false;
+    }
+    wrapped_space_characters(view).is_some_and(|characters| {
+        characters
+            .split(['\r', '\n', '\u{2028}', '\u{2029}'])
+            .any(|line| line.starts_with(' ') || line.ends_with(' ') || line.contains("  "))
+    })
+}
+
+include!("text/wrapping_policy_tests.rs");

@@ -1,5 +1,3 @@
-
-
 // ---------------------------------------------------------------------
 // openapi-client: does the frontend call endpoints the spec has?
 // ---------------------------------------------------------------------
@@ -39,6 +37,7 @@ fn openapi_client_layer(root: &Path) -> Value {
 
     let mut known_identifiers = BTreeSet::<String>::new();
     let mut known_paths = BTreeSet::<String>::new();
+    let mut generated_aliases = BTreeSet::<String>::new();
     let mut crud_operations = BTreeMap::<String, BTreeSet<String>>::new();
     for file in &openapi_files {
         let Ok(source) = std::fs::read_to_string(file) else {
@@ -47,6 +46,22 @@ fn openapi_client_layer(root: &Path) -> Value {
         let Ok(spec) = serde_json::from_str::<Value>(&source) else {
             continue;
         };
+        // @devup-api defaults to camelCase operation IDs, but can also keep
+        // or convert their spelling. Require the generated accepted-key map
+        // plus a corresponding operation in the current spec; never accept a
+        // guessed alias or a stale key for a removed operation.
+        let generated_keys = file
+            .parent()
+            .and_then(|parent| std::fs::read_to_string(parent.join("df/api.d.ts")).ok())
+            .map(|source| {
+                parse::generated_client_keys(
+                    &source,
+                    file.file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("openapi.json"),
+                )
+            })
+            .unwrap_or_default();
         if let Some(paths) = spec.get("paths").and_then(Value::as_object) {
             for (path, methods) in paths {
                 known_identifiers.insert(path.clone());
@@ -57,6 +72,16 @@ fn openapi_client_layer(root: &Path) -> Value {
                             operation.get("operationId").and_then(Value::as_str)
                         {
                             known_identifiers.insert(operation_id.to_owned());
+                            generated_aliases.extend(
+                                generated_keys
+                                    .iter()
+                                    .filter(|key| {
+                                        !key.starts_with('/')
+                                            && operation_alias_key(key)
+                                                == operation_alias_key(operation_id)
+                                    })
+                                    .cloned(),
+                            );
                         }
                         for tag in operation
                             .get("tags")
@@ -88,7 +113,11 @@ fn openapi_client_layer(root: &Path) -> Value {
 
     let sources = ts_files
         .iter()
-        .filter_map(|file| std::fs::read_to_string(file).ok().map(|source| (file, source)))
+        .filter_map(|file| {
+            std::fs::read_to_string(file)
+                .ok()
+                .map(|source| (file, source))
+        })
         .collect::<Vec<_>>();
     let known_clients = sources
         .iter()
@@ -97,6 +126,7 @@ fn openapi_client_layer(root: &Path) -> Value {
     let mut drifts = Vec::new();
     let mut calls_checked = 0usize;
     let mut spelling_only_matches = 0usize;
+    let mut generated_alias_matches = 0usize;
     for (file, source) in &sources {
         let (mut calls, configs) = parse::client_references_with(source, &known_clients);
         for (call_site, name) in configs {
@@ -123,6 +153,10 @@ fn openapi_client_layer(root: &Path) -> Value {
             if known_identifiers.contains(&identifier) {
                 continue;
             }
+            if generated_aliases.contains(&identifier) {
+                generated_alias_matches += 1;
+                continue;
+            }
             if identifier.starts_with('/') && known_paths.contains(&client_path_key(&identifier)) {
                 spelling_only_matches += 1;
                 continue;
@@ -144,6 +178,7 @@ fn openapi_client_layer(root: &Path) -> Value {
         "callsChecked": calls_checked,
         "knownIdentifierCount": known_identifiers.len(),
         "spellingNormalizedMatches": spelling_only_matches,
+        "generatedOperationAliasMatches": generated_alias_matches,
         "drifts": drifts,
     });
     if spelling_only_matches > 0
@@ -157,8 +192,28 @@ fn openapi_client_layer(root: &Path) -> Value {
             )]),
         );
     }
+    if generated_alias_matches > 0 {
+        let note = json!(
+            "Operation aliases were verified against df/api.d.ts DevupPrecomputedMethodKeys and a corresponding operationId in the current OpenAPI spec. Custom generated directories and missing accepted-key maps remain unverified; naming similarity alone is never accepted."
+        );
+        if let Some(notes) = layer.get_mut("notes").and_then(Value::as_array_mut) {
+            notes.push(note);
+        } else {
+            layer["notes"] = json!([note]);
+        }
+    }
     attach_excluded_paths(&mut layer, excluded);
     layer
+}
+
+/// Naming only connects a generated key to a current operation. The key must
+/// also be declared by the generator before this comparison is considered.
+fn operation_alias_key(identifier: &str) -> String {
+    identifier
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|character| character.to_ascii_lowercase())
+        .collect()
 }
 
 /// Folds the ways the same endpoint path is spelled on the two sides of
@@ -212,6 +267,11 @@ fn find_frontend_sources(root: &Path, max_depth: usize) -> Vec<PathBuf> {
         "target",
         // Another branch's copy of the same frontend (defect D7).
         ".worktrees",
+        // Saved exports, former page implementations and agent documents are
+        // evidence, not the current frontend. Auditing them reports stale calls.
+        ".devup",
+        ".agents",
+        ".opencode",
     ];
     let mut found = Vec::new();
     let mut queue = vec![(root.to_path_buf(), 0usize)];
@@ -250,6 +310,7 @@ fn extract_devup_api_calls(source: &str) -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod tests {
-include!("tests.rs");
-include!("tests_route_openapi_layer_flags_route_missing_from_spec.rs");
+    include!("tests.rs");
+    include!("tests_route_openapi_layer_flags_route_missing_from_spec.rs");
+    include!("tests_generated_operation_aliases.rs");
 }

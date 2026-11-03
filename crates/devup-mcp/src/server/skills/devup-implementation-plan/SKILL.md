@@ -24,7 +24,7 @@ description: |
 
 ## Project intake comes first
 
-When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Never discard `// @devup-override` annotations or the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item silently.
+When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. Keep override records in sidecar JSON and resolve the required `DEVUP_CODEGEN_INSTANCE_OVERRIDE` review item; never put metadata comments into application TSX.
 
 For a confirmed multi-width URL, `responsiveTsx` is the deliverable. Export all sibling frameIds in width order using screen-plan status's next export action. Never start from single-width `tsx`/`componentTsx` for its page or sections. Only wire links/events/data; never change generated layout values, collapse arrays, or add hard-coded sizes/layout wrappers. Review `generatedExport.generatedDrift` in status; its confidence-labelled findings are heuristic and missing mappings remain unverified.
 
@@ -392,7 +392,7 @@ its computer-use setup yourself. Verify status and a small read before export.
    environment error. Between the drawn widths there is no design, so only
    health, overflow, containment, clipped text and the nav are checked. A
    page merged from one frame per width is found per width through
-   `data-figma-node-ids` (`"1440:12:34 390:56:78"`), and an element a width
+   sidecar element mappings and explicit semantic runtime targets, and an element a width
    does not draw is checked hidden there. A dynamic route (`[slug]`, `[id]`,
    catch-all) is audited at concrete URLs: its `generateStaticParams`
    (literal params, or the local data file it maps), else the links the
@@ -569,11 +569,10 @@ evidence and replaces the question it would otherwise take:
 - `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
   forbids it, and `viewTransitions: false` opts out of view transitions.
-- Figma node attributes are off by default. Where the exporter supports it,
-  `figmaNodeIds: true` explicitly opts in; do not send unsupported parameters
-  to an older server. DevupUI strips these attributes by default and
-  `DEVUP_AUDIT=1` keeps them. Do not change app build config for auditing.
-  Missing audit anchors are unverified, not a reason to claim checks passed.
+- Figma identities stay in source-map/element-mapping JSON sidecars. No debug
+  option adds provenance attributes or metadata comments to TSX. Use explicit
+  semantic runtime targets; unavailable targets are unverified. Do not add a
+  strip plugin or change application build configuration for auditing.
 - `maxFixAttempts` (default 3) is how many fix-and-rerun rounds a finding gets
   before it is unresolved.
 - Geometry has no tolerance to configure; it is exact.
@@ -595,3 +594,11 @@ These rules apply to every plan this workflow produces.
 ## Wrong-Width Component Masters
 
 Treat `DEVUP_DESIGN_COMPONENT_WIDTH_MISMATCH` as an automatically resolved design placement error. The screen plan records the strict same-width majority, the expected master and a correct sibling instance, plus native-node PNG comparisons when available (otherwise `render=unavailable`). Follow that assumption without another question. Header/Footer/Nav remains one responsive component across widths, not a second variant. Audit planning substitutes the correct sibling's height and children at screen width and the suspect's original y position. The original whole-page PNG still depicts the design error and must not be accepted as a corrected-page visual reference.
+
+## Delivery quality
+
+Apply `developmentContract` and `behaviorPlan` on every export. Read the bundled
+`devfive-frontend/references/delivery-quality.md` for pure TSX, one responsive tree,
+persistent server layouts, state/colour semantics, motion, all public assets and
+DB-to-API-to-UI verification. Inferred motion is an implementation requirement,
+not a claim that static generated markup is already interactive.
