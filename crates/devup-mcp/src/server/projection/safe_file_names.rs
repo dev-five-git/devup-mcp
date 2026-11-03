@@ -1,13 +1,13 @@
-/// Bound generated filenames, retaining a hash when transliteration would lose
-/// identity. The generated folders are short; user-chosen output roots remain
+/// Bound semantic filenames without putting source IDs or hashes into public paths.
+/// Unicode names remain readable on the supported filesystems. Generated folders are short; output roots remain
 /// subject to OutputPolicy and the host filesystem's own path limits.
 fn host_safe_file_name(name: &str) -> String {
     let (stem, extension) = name.rsplit_once('.').unwrap_or((name, ""));
     let mut slug = stem
         .chars()
         .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '@') {
-                c
+            if c.is_alphanumeric() || matches!(c, '-' | '_' | '@') {
+                c.to_lowercase().next().unwrap_or(c)
             } else {
                 '-'
             }
@@ -19,17 +19,19 @@ fn host_safe_file_name(name: &str) -> String {
         || (upper.len() == 4
             && (upper.starts_with("COM") || upper.starts_with("LPT"))
             && matches!(upper.as_bytes()[3], b'1'..=b'9'));
-    let needs_hash =
-        !name.is_ascii() || slug != stem || slug.len() > 120 || slug.is_empty() || reserved;
     if slug.is_empty() || reserved {
         slug.insert_str(0, "asset-");
     }
-    if needs_hash {
-        slug.truncate(100);
+    slug = slug
+        .split('-')
+        .filter(|part| !(part.len() >= 24 && part.chars().all(|c| c.is_ascii_hexdigit())))
+        .collect::<Vec<_>>()
+        .join("-");
+    while slug.len() > 120 {
+        slug.pop();
     }
-    if needs_hash {
-        slug.push('-');
-        slug.push_str(&sha256_hex(name.as_bytes())[..12]);
+    if slug.is_empty() {
+        slug = "image".into();
     }
     let extension = extension
         .chars()
@@ -43,12 +45,17 @@ fn host_safe_file_name(name: &str) -> String {
     slug
 }
 
-/// `/icons/ic:round-arrow-left.svg` as `/icons/ic-round-arrow-left-b041d24e668d.svg`. Only
-/// the file name is touched; the folder the code looks in is left alone.
+/// Preserve semantic subdirectories and Unicode while sanitizing unsafe path characters.
 fn host_safe_asset_path(path: &str) -> String {
     for prefix in ["/icons/", "/images/"] {
         if let Some(name) = path.strip_prefix(prefix) {
-            return format!("{prefix}{}", host_safe_file_name(name));
+            return format!(
+                "{prefix}{}",
+                name.split('/')
+                    .map(host_safe_file_name)
+                    .collect::<Vec<_>>()
+                    .join("/")
+            );
         }
     }
     match path.rsplit_once('/') {

@@ -1,0 +1,631 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "73:8740",
+    "73:8800"
+  ],
+  "nodes": {
+    "73:8740": {
+      "id": "73:8740",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8739",
+        "parentType": "SECTION",
+        "parentName": "연구성과/주요실적",
+        "childrenIds": [
+          "73:8749"
+        ],
+        "absoluteBoundingBox": {
+          "height": 1752,
+          "width": 1440,
+          "x": 41240,
+          "y": 8485
+        },
+        "absoluteRenderBounds": {
+          "height": 1752,
+          "width": 1440,
+          "x": 41240,
+          "y": 8485
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:350",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:350",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 1752,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "연구성과/주요실적 · Desktop 1440",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            60
+          ],
+          [
+            0,
+            1,
+            70
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 1440,
+        "x": 60,
+        "y": 70
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8749": {
+      "id": "73:8749",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8740",
+        "childrenIds": [
+          "73:8750"
+        ],
+        "absoluteBoundingBox": {
+          "height": 1188,
+          "width": 1440,
+          "x": 41240,
+          "y": 8868
+        },
+        "absoluteRenderBounds": {
+          "height": 1188,
+          "width": 1440,
+          "x": 41240,
+          "y": 8868
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "paddingBottom": {
+            "id": "VariableID:30:632",
+            "type": "VARIABLE_ALIAS"
+          },
+          "paddingLeft": {
+            "id": "VariableID:30:628",
+            "type": "VARIABLE_ALIAS"
+          },
+          "paddingRight": {
+            "id": "VariableID:30:628",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 1188,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 80,
+          "paddingLeft": 40,
+          "paddingRight": 40,
+          "paddingTop": 40,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Achievements",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 80,
+        "paddingLeft": 40,
+        "paddingRight": 40,
+        "paddingTop": 40,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            383
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 1440,
+        "x": 0,
+        "y": 383
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8750": {
+      "id": "73:8750",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8749",
+        "childrenIds": [],
+        "absoluteBoundingBox": {
+          "height": 1068,
+          "width": 1280,
+          "x": 41320,
+          "y": 8908
+        },
+        "absoluteRenderBounds": {
+          "height": 1068,
+          "width": 1280,
+          "x": 41320,
+          "y": 8908
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "height": 1068,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 48,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 48,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": 1280,
+        "name": "container",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            80
+          ],
+          [
+            0,
+            1,
+            40
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 1280,
+        "x": 80,
+        "y": 40
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8800": {
+      "id": "73:8800",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8739",
+        "parentType": "SECTION",
+        "parentName": "연구성과/주요실적",
+        "childrenIds": [
+          "73:8809"
+        ],
+        "absoluteBoundingBox": {
+          "height": 1791,
+          "width": 360,
+          "x": 42800,
+          "y": 8485
+        },
+        "absoluteRenderBounds": {
+          "height": 1791,
+          "width": 360,
+          "x": 42800,
+          "y": 8485
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:350",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:350",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 1791,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "연구성과/주요실적 · Mobile 360",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            1620
+          ],
+          [
+            0,
+            1,
+            70
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 360,
+        "x": 1620,
+        "y": 70
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8809": {
+      "id": "73:8809",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8800",
+        "childrenIds": [
+          "73:8810"
+        ],
+        "absoluteBoundingBox": {
+          "height": 1295,
+          "width": 360,
+          "x": 42800,
+          "y": 8734
+        },
+        "absoluteRenderBounds": {
+          "height": 1295,
+          "width": 360,
+          "x": 42800,
+          "y": 8734
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "boundVariables": {
+          "paddingBottom": {
+            "id": "VariableID:30:632",
+            "type": "VARIABLE_ALIAS"
+          },
+          "paddingLeft": {
+            "id": "VariableID:30:628",
+            "type": "VARIABLE_ALIAS"
+          },
+          "paddingRight": {
+            "id": "VariableID:30:628",
+            "type": "VARIABLE_ALIAS"
+          }
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisAlignItems": "CENTER",
+        "counterAxisSpacing": 0,
+        "height": 1295,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 0,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 40,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 40,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 0,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Achievements",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 40,
+        "paddingLeft": 20,
+        "paddingRight": 20,
+        "paddingTop": 40,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            249
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 360,
+        "x": 0,
+        "y": 249
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "73:8810": {
+      "id": "73:8810",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "73:8809",
+        "childrenIds": [],
+        "absoluteBoundingBox": {
+          "height": 1215,
+          "width": 320,
+          "x": 42820,
+          "y": 8774
+        },
+        "absoluteRenderBounds": {
+          "height": 1215,
+          "width": 320,
+          "x": 42820,
+          "y": 8774
+        },
+        "bottomLeftRadius": 0,
+        "bottomRightRadius": 0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "counterAxisAlignContent": "AUTO",
+        "counterAxisSpacing": 0,
+        "height": 1215,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 24,
+          "layoutAlign": "STRETCH",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "itemSpacing": 24,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "maxHeight": null,
+        "maxWidth": 1280,
+        "name": "container",
+        "opacity": 1,
+        "overflowDirection": "NONE",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            20
+          ],
+          [
+            0,
+            1,
+            40
+          ]
+        ],
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "strokesIncludedInLayout": true,
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "visible": true,
+        "width": 320,
+        "x": 20,
+        "y": 40
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

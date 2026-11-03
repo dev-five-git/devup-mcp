@@ -11,3 +11,4 @@ include!("screen_plan_tests/monorepo_root_plan.rs");
 include!("screen_plan_tests/feedback_remaining.rs");
 include!("screen_plan_tests/component_width.rs");
 include!("screen_plan_tests/responsive_contract.rs");
+include!("screen_plan_tests/responsive_groups.rs");

@@ -1,0 +1,246 @@
+{
+  "fileKey": "captured-footer-spacing",
+  "roots": [
+    "41:908",
+    "43:1195"
+  ],
+  "nodes": {
+    "41:908": {
+      "id": "41:908",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "41:926",
+        "absoluteBoundingBox": {
+          "height": 21,
+          "width": 1033,
+          "x": 9209,
+          "y": 3822
+        },
+        "absoluteRenderBounds": {
+          "height": 14.3359375,
+          "width": 701.615234375,
+          "x": 9209.5595703125,
+          "y": 3826.64599609375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:13:153",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "주식회사 콘드로젠  ·  대표자 임군일  · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호  ·   contact@chondrogen.kr",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:13:153",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.5160255432128906,
+              "g": 0.4530186951160431,
+              "r": 0.4333290457725525
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 14,
+        "height": 21,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "주식회사 콘드로젠 · 대표자 임군일 · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호 · contact@chondrogen.kr",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:b24dbe253b56eab7caafdd82199d1cfb1188d02f,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 1033,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "주식회사 콘드로젠  ·  대표자 임군일  · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호  ·   contact@chondrogen.kr",
+            "end": 87,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:b24dbe253b56eab7caafdd82199d1cfb1188d02f,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "43:1195": {
+      "id": "43:1195",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "43:1194",
+        "absoluteBoundingBox": {
+          "height": 60,
+          "width": 320,
+          "x": 8822,
+          "y": 4103
+        },
+        "absoluteRenderBounds": {
+          "height": 53.2080078125,
+          "width": 310.5810546875,
+          "x": 8822.4814453125,
+          "y": 4107.56103515625
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:13:153",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:956",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "주식회사 콘드로젠  ·  대표자 임군일  · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호  ·   contact@chondrogen.kr",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:13:153",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.5160255432128906,
+              "g": 0.4530186951160431,
+              "r": 0.4333290457725525
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 13,
+        "height": 60,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "주식회사 콘드로젠 · 대표자 임군일 · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호 · contact@chondrogen.kr",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:b24dbe253b56eab7caafdd82199d1cfb1188d02f,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 320,
+        "x": 0,
+        "y": 0,
+        "styledTextSegments": [
+          {
+            "characters": "주식회사 콘드로젠  ·  대표자 임군일  · 경기 고양시 일산동구 동국로 32 동국대학교 산학협력관 733호  ·   contact@chondrogen.kr",
+            "end": 87,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:b24dbe253b56eab7caafdd82199d1cfb1188d02f,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

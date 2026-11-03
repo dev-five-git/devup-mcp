@@ -12,6 +12,7 @@ expression: actual
       fontWeight="400"
       letterSpacing="0em"
       lineHeight="normal"
+      whiteSpace="pre"
     >
       Hello World
     </Text>

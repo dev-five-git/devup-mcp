@@ -1,1 +1,1 @@
-The page capture is {}x{}px, shorter than the drawn Figma frame at {}x{}px. Render the missing page content before comparing pixels.
+The capture is {}x{}px and the Figma frame is {}x{}px. Raster height alone does not establish missing page content; assess calibrated logical geometry and explicitly declared completeness checks.

@@ -1,4 +1,3 @@
-
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use devup_mcp_figma::{DevupError, RawNode, Snapshot};
@@ -7,8 +6,8 @@ use serde_json::{Value, json};
 use super::{
     component::{CodegenOptions, generate_component},
     variant::{
-        POSITION_PROPS, Tree, instance_variant_props, project_tree_keeping_instances,
-            referenced_component_name,
+        POSITION_PROPS, Tree, instance_variant_props, project_tree, project_tree_keeping_instances,
+        referenced_component_name,
     },
 };
 use crate::provenance::attributes::{
@@ -669,78 +668,20 @@ fn render_attribute(merged: &Merged) -> Option<String> {
             let written = slots
                 .iter()
                 .map(|slot| {
-                    slot.as_ref()
-                        .map_or_else(|| "  null".to_owned(), |value| format!("  \"{value}\""))
+                    slot.as_ref().map_or_else(
+                        || "  null".to_owned(),
+                        |value| {
+                            format!(
+                                "  {}",
+                                serde_json::to_string(value).expect("string serialization")
+                            )
+                        },
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join(",\n");
             Some(format!("={{[\n{written}\n]}}"))
         }
-    }
-}
-
-/// What a layout element does by itself besides its `display`.
-fn implied_layout(component: &str) -> &'static [(&'static str, &'static str)] {
-    match component {
-        "Flex" => &[("flexDir", "row")],
-        "VStack" => &[("flexDir", "column")],
-        "Center" => &[("alignItems", "center"), ("justifyContent", "center")],
-        _ => &[],
-    }
-}
-
-/// The `display` a devup-ui element already carries by being itself.
-fn implied_display(component: &str) -> Option<&'static str> {
-    match component {
-        "Flex" | "VStack" | "Center" => Some("flex"),
-        "Grid" => Some("grid"),
-        _ => None,
-    }
-}
-
-/// What `display` an element goes back to when a wider width stops hiding it.
-///
-/// `merge_slots` clears a dropped layout prop to `"initial"`, which is right
-/// for the other forty and wrong for this one. `initial` is the value the CSS
-/// specification gives a property, not the value the element has: for `w` that
-/// is `auto` and for `p` it is `0`, which are what "unset" should mean, but for
-/// `display` it is `inline` whatever the element is. An element's own display
-/// comes from the user-agent stylesheet instead, so a `Box` shown only from
-/// tablet up would come back inline rather than block.
-///
-/// `revert` is the keyword that would mean what is wanted, and it cannot be
-/// used either: it rolls the cascade back past the author origin, which is
-/// where devup-ui puts `VStack`'s own `display: flex`. So the value is written
-/// out, and `display` is never cleared to `initial`.
-fn natural_display(component: &str) -> &'static str {
-    match component {
-        "Flex" | "VStack" | "Center" => "flex",
-        "Grid" => "grid",
-        // `Image` is an `img`, which is inline. Everything else devup-ui draws
-        // is a `div`, and `Text` is a `p`.
-        "Image" => "inline",
-        _ => "block",
-    }
-}
-
-/// Put back the `display` the element name stands for, before any merging.
-///
-/// The plugin keeps `display` in a node's props and picks the element from it;
-/// this projection picks the element first and drops the value. That is the
-/// same thing for one width, but not across several: a width where the node is
-/// hidden would leave the others with nothing to go back to, and `merge_slots`
-/// would clear them to `"initial"` — which for `display` is `inline`, not
-/// `flex`. The node would stop being a flex container at every width it is
-/// shown. Rendering drops the value again where the element implies it, so
-/// nothing is written that was not written before.
-fn restore_implied_display(tree: &mut Tree) {
-    if let Some(display) = implied_display(&tree.component) {
-        tree.props
-            .entry("display".to_owned())
-            .or_insert_with(|| display.to_owned());
-    }
-    for child in &mut tree.children {
-        restore_implied_display(child);
     }
 }
 
@@ -751,6 +692,16 @@ fn merge_trees(
     precedence: &Precedence,
     context: &mut MergeContext<'_>,
 ) -> Option<Tree> {
+    let normalized_main = normalize_source_main_alignment(by_slot, context.snapshot);
+    let by_slot = normalized_main.as_ref().unwrap_or(by_slot);
+    let normalized_gap = normalize_responsive_gap(by_slot, context.snapshot);
+    let by_slot = normalized_gap.as_ref().unwrap_or(by_slot);
+    let normalized_paint = normalize_source_paint_defaults(by_slot, context.snapshot);
+    let by_slot = normalized_paint.as_ref().unwrap_or(by_slot);
+    let normalized_padding = normalize_responsive_padding(by_slot);
+    let by_slot = normalized_padding.as_ref().unwrap_or(by_slot);
+    let normalized_size = normalize_responsive_size(by_slot);
+    let by_slot = normalized_size.as_ref().unwrap_or(by_slot);
     // The merged element is the first width's. Where another width draws it as
     // a different layout element, what each element does by itself has to be
     // written out, or the first one's would apply at every width: a `VStack`
@@ -765,12 +716,31 @@ fn merge_trees(
         && components.iter().all(|name| LAYOUT_ELEMENTS.contains(name))
         && by_slot.iter().flatten().all(|tree| !tree.is_component)
     {
+        let layout_names = components
+            .iter()
+            .flat_map(|component| implied_layout(component).iter().map(|(name, _)| *name))
+            .collect::<BTreeSet<_>>();
         restated = std::array::from_fn(|slot| {
             by_slot[slot].clone().map(|mut tree| {
                 for (name, value) in implied_layout(&tree.component) {
                     tree.props
                         .entry((*name).to_owned())
                         .or_insert_with(|| (*value).to_owned());
+                }
+                // A missing class default is significant too: Flex starts and
+                // stretches, whereas Center centers both axes. `null` would
+                // retain the chosen JSX primitive's class, not restore the
+                // source primitive's CSS initial value. Restate only defaults
+                // that differ among these captured primitives, preserving all
+                // explicitly projected alignment and direction props.
+                for name in &layout_names {
+                    if components.iter().any(|component| {
+                        settled(name, None, component) != settled(name, None, &tree.component)
+                    }) {
+                        tree.props
+                            .entry((*name).to_owned())
+                            .or_insert_with(|| "initial".to_owned());
+                    }
                 }
                 tree.props
                     .entry("display".to_owned())
@@ -790,6 +760,36 @@ fn merge_trees(
     }
     let mut props = BTreeMap::new();
     for key in keys {
+        if key == "alt" && !first.is_component {
+            let values = by_slot
+                .iter()
+                .flatten()
+                .filter(|tree| {
+                    tree.props
+                        .get("display")
+                        .is_none_or(|value| value != "none")
+                })
+                .filter_map(|tree| tree.props.get("alt"))
+                .collect::<BTreeSet<_>>();
+            let selected = values.first().copied().or_else(|| first.props.get("alt"));
+            if values.len() > 1 {
+                context.notes.push(Unrepresented { node_id:first.node_id.clone(),
+                    detail:format!("Visible widths have different alt text: {values:?}. HTML alt is scalar; the captured fallback is used until separate image branches preserve every alternative.") });
+                context.diagnostics.push(devup_mcp_figma::Diagnostic {
+                    code:"DEVUP_CODEGEN_RESPONSIVE_ALT_UNREPRESENTED".into(),
+                    message:"Different visible alt text cannot be represented by a CSS responsive array.".into(),
+                    node_id:Some(first.node_id.clone()),property:Some("alt".into()),
+                    severity:Some(devup_mcp_figma::DiagnosticSeverity::Warning),
+                    fidelity_impact:Some(devup_mcp_figma::FidelityImpact::Lossy),
+                    details:Some(json!({"alternatives":values,"classification":"scalar-html-attribute","output":"responsiveTsx",
+                        "nextAction":"Use separate image branches for these widths, preserving each captured alt."})),..Default::default()
+                });
+            }
+            if let Some(value) = selected {
+                props.insert(key, super::semantics::scalar_html_value(value));
+            }
+            continue;
+        }
         // A component's own props are not style props. devup-ui reads an array
         // only where it applies CSS, so `property1={[...]}` on `<Header />` is
         // read as the literal array and the component sees nonsense. The widest
@@ -826,6 +826,7 @@ fn merge_trees(
                 .map_or(Drawn::Unset, |value| Drawn::Set(value)),
         });
         let mut merged = merge_slots(&key, &widths);
+        project_nested_length_tokens(&key, &mut merged, &first.node_id, context);
         for (slot, width) in widths.iter().enumerate() {
             if let Drawn::Set(expected) = width
                 && cleared_when_dropped(&key)
@@ -882,6 +883,14 @@ fn merge_trees(
         }
     }
 
+    if !props.keys().any(|key| key.starts_with('_') || key == "selectors") {
+        for (left, right, axis, all) in [("pl", "pr", "px", "p"), ("pt", "pb", "py", "p"), ("ml", "mr", "mx", "m"), ("mt", "mb", "my", "m")] {
+            if props.contains_key(axis) || props.contains_key(all) { continue; }
+            if let Some(value) = props.get(left).cloned().filter(|value| props.get(right) == Some(value)) {
+                props.remove(left); props.remove(right); props.insert(axis.into(), value);
+            }
+        }
+    }
     let mut source_node_ids = BTreeSet::new();
     for tree in by_slot.iter().flatten() {
         source_node_ids.extend(tree.source_node_ids.iter().cloned());

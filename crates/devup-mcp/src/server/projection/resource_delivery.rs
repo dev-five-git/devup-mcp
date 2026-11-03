@@ -120,7 +120,10 @@ pub(super) async fn apply_delivery(
     spill_oversized_fields(result, &mut outputs, &artifact.artifact_id)?;
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
-    let output_bytes = outputs.iter().map(|output| output.bytes.len()).sum::<usize>();
+    let output_bytes = outputs
+        .iter()
+        .map(|output| output.bytes.len())
+        .sum::<usize>();
     let reservation = artifact_store
         .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
@@ -157,9 +160,13 @@ pub(super) async fn apply_delivery(
         ("imageFillAudit", "image-fill-audit.json"),
         ("imageAudit", "image-audit.json"),
         ("assetCssMap", "asset-css-map.json"),
+        ("assetRegistry", "asset-registry.json"),
     ] {
         if let Some(audit) = result.get_mut(field).and_then(Value::as_object_mut) {
             audit.remove("assets");
+            if field == "assetRegistry" {
+                audit.remove("namingReview");
+            }
             if let Some(manifest) = manifests.iter().find(|m| m.name == name) {
                 audit.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
             }
@@ -174,8 +181,28 @@ pub(super) async fn apply_delivery(
             plan.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
         }
     }
+    if let Some(plan) = result
+        .get_mut("behaviorPlan")
+        .and_then(Value::as_object_mut)
+        && let Some(manifest) = manifests.iter().find(|m| m.name == "behavior-plan.json")
+    {
+        let count = plan
+            .get("candidates")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        plan.clear();
+        plan.insert("candidateCount".into(), json!(count));
+        plan.insert("implemented".into(), json!(false));
+        plan.insert(
+            "detailsResource".into(),
+            json!({"uri":manifest.manifest_uri,"name":manifest.name,"requiresFullDetailRead":true}),
+        );
+    }
     for field in [
         "tsx",
+        "motionControllerTsx",
+        "motionRuntime",
+        "motionBindings",
         "componentTsx",
         "responsiveTsx",
         "devupJson",
@@ -289,7 +316,13 @@ const ESSENTIAL_INLINE: [&str; 6] = [
     "server",
 ];
 
-const HANDLED_LATER: [&str; 4] = ["imageFillAudit", "imageAudit", "assetCssMap", "webReadyImages"];
+const HANDLED_LATER: [&str; 5] = [
+    "imageFillAudit",
+    "imageAudit",
+    "assetCssMap",
+    "webReadyImages",
+    "assetRegistry",
+];
 
 fn envelope_bytes(result: &Value) -> usize {
     let mut probe = result.clone();
@@ -305,7 +338,9 @@ fn envelope_bytes(result: &Value) -> usize {
             }
         }
     }
-    serde_json::to_vec(&probe).map_or(0, |bytes| bytes.len())
+    // MCP repeats structured content in a text block. Escaping can make that
+    // text much larger than twice the raw JSON, particularly for sidecars.
+    serde_json::to_vec(&super::delivery::tool_result(probe)).map_or(usize::MAX, |bytes| bytes.len())
 }
 
 fn spill_oversized_fields(
@@ -313,7 +348,8 @@ fn spill_oversized_fields(
     outputs: &mut Vec<ProjectedOutput>,
     artifact_id: &str,
 ) -> Result<(), DevupError> {
-    let budget = super::delivery::MAX_INLINE_TOTAL_BYTES / 2;
+    // Reserve room for the resource links that are attached after this pass.
+    let budget = super::delivery::MAX_INLINE_TOTAL_BYTES - 64 * 1024;
     if envelope_bytes(result) <= budget {
         return Ok(());
     }
@@ -392,5 +428,19 @@ mod spill_tests {
         assert_eq!(result["status"], "complete");
         assert_eq!(outputs.len(), 1);
         assert!(envelope_bytes(&result) <= super::super::delivery::MAX_INLINE_TOTAL_BYTES / 2);
+    }
+
+    #[test]
+    fn metadata_spilling_measures_escaped_mcp_text_as_well_as_structured_json() {
+        let quoted = "\"".repeat(180_000);
+        let mut result = json!({"status":"complete", "details":{"quoted":quoted}});
+        assert!(serde_json::to_vec(&result).unwrap().len() < super::super::delivery::MAX_INLINE_TOTAL_BYTES / 2);
+        assert!(super::super::delivery::choose_delivery_for_result(DeliveryMode::Inline, &result, &[]).is_err());
+        let mut outputs = Vec::new();
+        spill_oversized_fields(&mut result, &mut outputs, "artifact").unwrap();
+        super::super::delivery::choose_delivery_for_result(DeliveryMode::Inline, &result, &[]).unwrap();
+        assert_eq!(result["details"]["state"], "resource-details");
+        let full: Value = serde_json::from_slice(&outputs[0].bytes).unwrap();
+        assert_eq!(full["details"]["quoted"], quoted);
     }
 }

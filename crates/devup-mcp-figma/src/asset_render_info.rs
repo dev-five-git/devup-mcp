@@ -25,6 +25,9 @@ fn size(width: Option<f64>, height: Option<f64>) -> Value {
 }
 
 fn filename_part(name: &str) -> String {
+    if name.len() >= 24 && name.chars().all(|c| c.is_ascii_hexdigit()) {
+        return "image".into();
+    }
     let decoded = name
         .replace("&amp;", "&")
         .replace("&lt;", "<")
@@ -577,21 +580,9 @@ pub fn suggested_asset_filename(snapshot: &Snapshot, asset: &AssetManifestEntry)
         }
     }
     parts.reverse();
-    let identity = hash(asset.asset_id.as_bytes());
     Some(format!(
-        "{}-{}-{}.{}",
+        "{}.{}",
         parts.join("-"),
-        &identity[..16],
-        if asset.render_mode.is_original()
-            || asset
-                .render_info
-                .as_ref()
-                .is_some_and(|i| i["representation"] == "original-fill")
-        {
-            "fill"
-        } else {
-            "node"
-        },
         asset.format.unwrap_or(AssetFormat::Png).extension()
     ))
 }

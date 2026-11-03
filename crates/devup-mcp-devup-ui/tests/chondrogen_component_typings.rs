@@ -45,9 +45,10 @@ fn responsive_sources_remain_scalar_images() {
 }
 
 #[test]
-fn absent_responsive_variant_values_have_explicit_undefined_branches() {
+fn structurally_different_page_title_variants_have_explicit_type_branches() {
     let tsx = generate(include_str!("fixtures/chondrogen_page_title_set.json"));
-    assert!(tsx.contains("White: undefined"), "{tsx}");
+    assert!(tsx.contains("type === \"White\""), "{tsx}");
+    assert!(tsx.contains("type === \"Image\""), "{tsx}");
 }
 
 #[test]
@@ -75,7 +76,7 @@ fn icon_effects_never_emit_attributes_inside_style_selectors() {
 }
 
 #[test]
-fn desktop_only_footer_logo_has_scalar_source_and_explicit_visibility() {
+fn footer_logos_have_scalar_sources_inside_explicit_viewport_branches() {
     let tsx = generate(include_str!("fixtures/chondrogen_footer_set.json"));
     assert!(!tsx.contains("src={["), "{tsx}");
     let image = tsx
@@ -86,9 +87,16 @@ fn desktop_only_footer_logo_has_scalar_source_and_explicit_visibility() {
         .next()
         .unwrap();
     assert!(image.contains("src=\"/icons/logo.svg\""), "{image}");
+    // Both captured viewports contain a visible logo. The previous default-tree
+    // merge incorrectly hid the mobile logo because its parent changes layout.
+    assert_eq!(tsx.matches("alt=\"Logo\"").count(), 2, "{tsx}");
     assert!(
-        image.contains("display={[\"none\", null, null, null, \"inline\"]}"),
-        "{image}"
+        tsx.contains("display={[\"none\",null,null,null,\"flex\"]}"),
+        "{tsx}"
+    );
+    assert!(
+        tsx.contains("display={[\"flex\",null,null,null,\"none\"]}"),
+        "{tsx}"
     );
     assert!(!tsx.contains("typography={["), "{tsx}");
 }
@@ -108,7 +116,7 @@ fn header_container_does_not_inherit_a_leaf_variants_source() {
 }
 
 #[test]
-fn mobile_only_source_is_hidden_at_desktop_instead_of_inherited() {
+fn swapped_viewport_sources_have_explicit_branch_visibility() {
     let mut snapshot: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/chondrogen_footer_set.json")).unwrap();
     for node in snapshot["nodes"].as_object_mut().unwrap().values_mut() {
@@ -128,7 +136,7 @@ fn mobile_only_source_is_hidden_at_desktop_instead_of_inherited() {
     let tsx = generate(&snapshot.to_string());
     assert!(!tsx.contains("src={["), "{tsx}");
     assert!(
-        tsx.contains("display={[\"inline\", null, null, null, \"none\"]}"),
+        tsx.contains("display={[\"flex\",null,null,null,\"none\"]}"),
         "{tsx}"
     );
 }
@@ -185,12 +193,31 @@ fn logo_variants_keep_scalar_image_sources() {
 
 #[test]
 fn dropdown_options_keep_state_styles() {
-    let tsx = generate(include_str!("fixtures/chondrogen_dropdown_option_set.json"));
-    assert!(tsx.contains("bg={{"), "{tsx}");
-    assert!(tsx.contains("}[property1]"), "{tsx}");
-    assert!(tsx.contains("typography="), "{tsx}");
-    assert!(tsx.contains("color="), "{tsx}");
-    assert!(tsx.contains("px=") && tsx.contains("py="), "{tsx}");
+    let raw = include_str!("fixtures/chondrogen_dropdown_option_set.json");
+    let source: Snapshot = serde_json::from_str(raw).unwrap();
+    let tsx = generate(raw);
+    let compact = tsx.split_whitespace().collect::<String>();
+    // This captured unnamed axis is exactly default/hover/active. Its root
+    // paints bind VariableID:13:161 / 11:2 / 11:3 respectively; descendants
+    // retain the same option label, typography, colour and spacing.
+    assert!(compact.contains("_active={{\"bg\":\"$3\"}}"), "{tsx}");
+    assert!(compact.contains("_hover={{\"bg\":\"$2\"}}"), "{tsx}");
+    assert!(tsx.contains("bg=\"$161\""), "{tsx}");
+    assert!(!tsx.contains("property1:"), "{tsx}");
+    assert!(tsx.contains("typography=\"bodySm\""), "{tsx}");
+    assert!(tsx.contains("color=\"#374051\""), "{tsx}");
+    assert!(
+        tsx.contains("px=\"16px\"") && tsx.contains("py=\"12px\""),
+        "{tsx}"
+    );
+    let label = source.nodes["45:2030"].fields["characters"]
+        .as_str()
+        .unwrap();
+    assert!(
+        tsx.contains(&serde_json::to_string(label).unwrap()),
+        "{tsx}"
+    );
+    assert!(tsx.contains("{text1}"), "{tsx}");
 }
 
 #[test]

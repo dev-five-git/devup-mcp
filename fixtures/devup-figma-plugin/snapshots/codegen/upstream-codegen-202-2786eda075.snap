@@ -13,6 +13,7 @@ expression: actual
         fontWeight="400"
         letterSpacing="0em"
         lineHeight="normal"
+        whiteSpace="pre"
       >
         Hello World
       </Text>
@@ -23,6 +24,7 @@ expression: actual
         fontWeight="400"
         letterSpacing="0em"
         lineHeight="normal"
+        whiteSpace="pre"
       >
         Lorem ipsum dolor sit amet, consectetur adipiscing elit.
       </Text>

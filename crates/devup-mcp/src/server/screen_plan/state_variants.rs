@@ -69,20 +69,47 @@ fn record_states(routes: &mut [Value], folds: &[(String, Vec<Value>)]) {
     }
 }
 
-pub(super) fn state_exports(route: &Value) -> Vec<Value> {
-    array(&route["states"]).iter().map(|state| {
+pub(super) fn state_exports(plan: &Value, route: &Value) -> Vec<Value> {
+    let mut result = array(&route["states"]).iter().map(|state| {
         let mut state = state.clone();
         state["hostUrl"] = route["url"].clone();
         state["exportCall"] = json!({"tool": "devup_figma_export", "arguments": {
             "frameIds": [state["nodeId"]], "outputs": ["tsx", "referencePng"]
         }});
         state
-    }).collect()
+    }).collect::<Vec<_>>();
+    if !array(&route["responsiveGroups"]).is_empty()
+        && let Ok(groups) = responsive_groups(route)
+    {
+        result.extend(groups.iter().filter(|group| group["kind"] == "state").map(|group| {
+            let ids = array(&group["frameIds"]);
+            json!({"nodeId":ids.first(),"name":group["id"],"groupId":group["id"],
+                "frameIds":ids,"drawnWidths":group["drawnWidths"],"width":array(&group["drawnWidths"]).first(),
+                "hostUrl":route["url"],"reason":group["reason"],
+                "exportCall":{"tool":"devup_figma_export","arguments":{"frameIds":ids,"outputs":[if ids.len()>1 { "responsiveTsx" } else { "tsx" }]}}})
+        }));
+    }
+    for state in &mut result {
+        anchor_export_arguments(plan, &mut state["exportCall"]["arguments"]);
+    }
+    result
 }
 
 pub(super) fn audit_routes(plan: &Value) -> Vec<Value> {
     array(&plan["routes"]).iter().flat_map(|route| {
-        let mut targets = vec![route.clone()];
+        let mut targets = if !array(&route["responsiveGroups"]).is_empty() {
+            responsive_groups(route).ok().map(|groups| groups.into_iter().map(|group| {
+                let mut target = route.clone();
+                target["nodeIds"] = group["frameIds"].clone();
+                target["drawnWidths"] = group["drawnWidths"].clone();
+                target["responsiveGroups"] = json!([]);
+                target["states"] = json!([]);
+                if group["kind"] == "state" {
+                    target["state"] = json!({"nodeId":array(&group["frameIds"]).first(),"name":group["id"],"groupId":group["id"],"frameIds":group["frameIds"],"reason":group["reason"]});
+                }
+                target
+            }).collect::<Vec<_>>()).unwrap_or_else(|| vec![route.clone()])
+        } else { vec![route.clone()] };
         for state in array(&route["states"]) {
             let mut target = route.clone();
             target["nodeIds"] = json!([state["nodeId"]]);

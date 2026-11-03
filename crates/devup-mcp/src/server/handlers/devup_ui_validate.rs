@@ -141,15 +141,15 @@ impl DevupServer {
         }
         report.violations.extend(missing);
         if let Some(coverage) = &input.section_coverage {
-            if coverage.node_ids.len() + coverage.asset_urls.len() > 4096 {
+            if coverage.node_ids.len() + coverage.asset_urls.len() + coverage.element_mappings.len() > 4096 {
                 return Err(invalid("sectionCoverage exceeds 4096 entries.".into()));
             }
-            let mut missing = asset_guard::coverage_violations(&sources, &coverage.node_ids);
+            let mut missing = asset_guard::mapped_coverage_violations(&sources, &coverage.node_ids, &coverage.element_mappings);
             missing.extend(asset_guard::asset_coverage_violations(
                 &sources,
                 &coverage.asset_urls,
             ));
-            if !missing.is_empty() {
+            if missing.iter().any(|item| item.severity == Severity::Error || (input.strict && item.severity == Severity::Warning)) {
                 report.ok = false;
             }
             report.violations.extend(missing);
@@ -219,6 +219,9 @@ impl DevupServer {
             "themeAvailable": theme_lookup.theme.is_some(),
             "themeGuardrail": theme_lookup.guardrail,
         });
+        if input.section_coverage.is_some() {
+            result["sectionCoverageVerification"] = json!({"sourceStructure":"Original source-map element/file mappings are compared where unambiguous.","nodeIdentity":"Source order is structural evidence only; extracted or reordered trees require updated mappings.","runtimeVerified":false,"renderedTargets":"Use semantic selectors in .devup/rendered-targets.json; no Figma attributes are required in JSX."});
+        }
         if let Some(name) = &input.source_name {
             for finding in result["violations"].as_array_mut().unwrap() {
                 finding["sourceName"] = json!(name);

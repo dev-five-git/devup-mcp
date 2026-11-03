@@ -131,14 +131,15 @@ fn assert_round_trip(snapshot: &Snapshot, id: &str) -> String {
     output.tsx
 }
 
-// Design line separators each paint one break; CRLF is one separator. No
+// LF/Unicode separators paint one break; CRLF is one separator and lone CR is an inline space. No
 // spaces, tabs, NBSP or Unicode spaces are trimmed or collapsed by this oracle.
 // This checks JSX child text plus explicit breaks, before CSS normal/nowrap
 // collapsing. Those CSS modes both collapse spaces; that residue is diagnosed.
 fn design_breaks(value: &str) -> String {
     value
         .replace("\r\n", "\n")
-        .replace(['\r', '\u{2028}', '\u{2029}'], "\n")
+        .replace('\r', " ")
+        .replace(['\u{2028}', '\u{2029}'], "\n")
 }
 
 #[test]
@@ -215,7 +216,7 @@ fn jsx_already_faithful_text_keeps_its_existing_spelling() {
     for (characters, emitted) in [
         ("plain text", "plain text"),
         ("中 文", "中 文"),
-        (" a  b ", "{\" \"}a  b{\" \"}"),
+        (" a  b ", "{\" \"}a{\"  \"}b{\" \"}"),
         ("a\nb", "a<br />b"),
         ("<&>", "{\"<&>\"}"),
     ] {
@@ -361,6 +362,7 @@ fn jsx_existing_fixture_texts_round_trip() {
     let mut count = 0;
     let mut css_collapsing = 0;
     let mut css_preserved = 0;
+    let mut intrinsic_preserved = 0;
     let mut failures = Vec::new();
     for path in json_files(&root.join("../../fixtures/devup-figma-plugin/cases"))
         .into_iter()
@@ -406,6 +408,28 @@ fn jsx_existing_fixture_texts_round_trip() {
             {
                 css_collapsing += 1;
             }
+            if output.tsx.contains("whiteSpace=\"pre\"") {
+                assert_eq!(view.string("textAutoResize"), Some("WIDTH_AND_HEIGHT"));
+                if expected
+                    .split(['\r', '\n', '\u{2028}', '\u{2029}'])
+                    .any(|line| {
+                        line.starts_with(' ')
+                            || line.ends_with(' ')
+                            || line.contains("  ")
+                            || line.contains('\t')
+                    })
+                {
+                    intrinsic_preserved += 1;
+                }
+                assert!(
+                    output
+                        .source_map
+                        .entries
+                        .iter()
+                        .any(|entry| entry.resolution == "derived-intrinsic-text-width"
+                            && entry.generated_property.as_deref() == Some("whiteSpace=\"pre\""))
+                );
+            }
             if output.tsx.contains("whiteSpace=\"pre-wrap\"") {
                 assert_eq!(view.string("textAutoResize"), Some("HEIGHT"));
                 assert!(
@@ -436,11 +460,15 @@ fn jsx_existing_fixture_texts_round_trip() {
     }
     assert!(count > 400, "representative sweep shrank: {count}");
     assert_eq!(
-        css_collapsing + css_preserved,
+        css_collapsing + css_preserved + intrinsic_preserved,
         35,
         "original whitespace population"
     );
-    assert_eq!(css_collapsing, 5, "remaining CSS-collapse population");
+    assert_eq!(css_collapsing, 3, "remaining CSS-collapse population");
+    assert_eq!(
+        intrinsic_preserved, 2,
+        "intrinsic-width text now preserves its spaces"
+    );
     assert_eq!(
         css_preserved, 30,
         "fixed-inline-width text now preserves its spaces"
@@ -454,4 +482,16 @@ fn jsx_existing_fixture_texts_round_trip() {
     eprintln!(
         "JSX fixture sweep: {count} text nodes round-tripped; {css_collapsing} CSS-collapse diagnostics"
     );
+}
+
+#[test]
+fn crlf_split_between_styled_runs_is_one_break_without_an_inserted_space() {
+    let source = snapshot(
+        "First\r\nSecond",
+        Some(json!([
+            {"characters":"First\r", "fontWeight":400},
+            {"characters":"\nSecond", "fontWeight":700}
+        ])),
+    );
+    assert_round_trip(&source, "text");
 }

@@ -60,7 +60,7 @@ test('decorative and marquee contrast is excluded without hiding ordinary animat
     await page.setContent('<style>@keyframes slide{to{transform:translateX(-50%)}}@keyframes fade{to{opacity:.8}}.track{width:2000px;animation:slide 10s linear infinite}</style><div aria-hidden="true">hidden</div><div role="presentation"><span>decoration</span></div><div style="overflow:hidden;width:300px"><div class="track"><span>marquee</span></div></div><p style="animation:fade 1s infinite">ordinary</p>');
     const observed = await observeCompleteness(page, {}, 390);
     assert.deepEqual(observed.texts.map((item) => item.text), ['ordinary']);
-    assert.deepEqual((await observeClippedContent(page)).clipped, []);
+    assert.equal((await observeClippedContent(page)).clipped.length, 1, 'an unregistered animated track cannot waive clipping');
   } finally { await browser.close(); }
 });
 

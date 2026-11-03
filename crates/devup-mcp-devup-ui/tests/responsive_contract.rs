@@ -117,39 +117,45 @@ fn a_break_one_width_has_is_verified_by_reading_the_text_at_each_slot() {
     assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
 }
 
-/// A fill only the mobile screen has is not cleared at desktop — devup-ui
-/// keeps the narrower value — so the desktop width is not reproduced.
+/// A captured empty desktop paint resets the mobile fill rather than inheriting it.
 #[test]
-fn a_value_carried_into_a_width_that_does_not_have_it_is_not_verified() {
-    let merged = merged(|index, nodes| {
+fn captured_empty_paint_is_reset_and_verified_at_the_other_width() {
+    let result = merged(|index, nodes| {
         if index == 0 {
             nodes["frame:0"]["fields"]["fills"] =
                 json!([{"type":"SOLID","visible":true,"color":{"r":1,"g":0,"b":0}}]);
         }
     });
-    assert!(!merged.verified, "{}", merged.tsx);
-    assert!(
-        reasons(&merged).contains(&"value-differs-at-width"),
-        "{:?}",
-        merged.gaps
-    );
-    let bg = merged
+    assert!(result.verified, "{:?}\n{}", result.gaps, result.tsx);
+    assert!(result.tsx.contains("\"#F00\""));
+    assert!(result.tsx.contains("\"initial\""));
+    let bg = result
         .contract
         .iter()
-        .find(|entry| {
-            entry["generatedProperty"]
+        .find(|e| {
+            e["generatedProperty"]
                 .as_str()
-                .is_some_and(|property| property.starts_with("bg="))
+                .is_some_and(|p| p.starts_with("bg="))
         })
         .unwrap();
-    assert_eq!(bg["verified"], false);
-    let gap = merged
-        .gaps
-        .iter()
-        .find(|gap| gap["property"] == "bg")
-        .unwrap();
-    assert_eq!(gap["slot"], 4);
-    assert_eq!(gap["widthNodeId"], "frame:1");
+    assert_eq!(bg["verified"], true);
+}
+#[test]
+fn unreadable_desktop_paint_cannot_be_reset_or_verified_as_empty() {
+    let result = merged(|index, nodes| {
+        if index == 0 {
+            nodes["frame:0"]["fields"]["fills"] =
+                json!([{"type":"SOLID","visible":true,"color":{"r":1,"g":0,"b":0}}]);
+        } else {
+            nodes["frame:1"]["fieldErrors"] = json!({"fills":"read failed"});
+        }
+    });
+    assert!(!result.verified, "{}", result.tsx);
+    assert!(
+        reasons(&result).contains(&"value-differs-at-width"),
+        "{:?}",
+        result.gaps
+    );
 }
 
 /// Two children the widths order oppositely keep one order in the module, so
@@ -349,21 +355,20 @@ fn a_layer_no_width_draws_is_left_out_and_the_rest_verified() {
     assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
 }
 
-/// Words that differ by more than their breaks keep the first width's, and
-/// the other width's text is then not what the module writes there.
+/// Literal labels that differ preserve each width's source text in its own visible branch.
 #[test]
-fn text_that_reads_differently_at_a_width_is_not_verified() {
-    let merged = merged(|index, nodes| {
+fn literal_text_that_differs_at_each_width_has_verified_branches() {
+    let result = merged(|index, nodes| {
         if index == 1 {
             nodes["label:1"]["fields"]["characters"] = json!("three four");
         }
     });
-    assert!(!merged.verified, "{}", merged.tsx);
-    assert!(
-        reasons(&merged).contains(&"text-differs-at-width"),
-        "{:?}",
-        merged.gaps
-    );
+    assert!(result.verified, "{:?}\n{}", result.gaps, result.tsx);
+    assert!(result.tsx.contains("one two"));
+    assert!(result.tsx.contains("three four"));
+    assert_eq!(result.tsx.matches("<Text").count(), 2, "{}", result.tsx);
+    assert!(result.tsx.contains("\"none\""));
+    assert!(!reasons(&result).contains(&"text-differs-at-width"));
 }
 
 /// Every merged element names the node each width drew it from, so a

@@ -7,9 +7,11 @@
     "devup-runtime-audit": "run.mjs"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "node prepared-binaries.mjs && node --test --test-concurrency=1 test/*.test.mjs",
     "verify:render": "node verify-render.mjs",
-    "test:unit": "node --test test/checks.test.mjs"
+    "test:unit": "node --test test/checks.test.mjs",
+    "prepare:binaries": "node prepared-binaries.mjs",
+    "test:ci": "node ci-browser.mjs"
   },
   "dependencies": {
     "playwright": "1.63.0"
@@ -17,9 +19,16 @@
   "devDependencies": {
     "@devup-ui/react": "^1.0.41",
     "@devup-ui/reset-css": "^1.0.28",
-    "@devup-ui/vite-plugin": "^1.0.69",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "@devup-ui/vite-plugin": "1.0.73",
+    "@types/node": "26.0.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-rsc": "0.5.38",
+    "oxc-transform-react": "0.156.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "7.0.2",
+    "vinext": "1.4.1",
     "vite": "^8.3.0"
   }
 }

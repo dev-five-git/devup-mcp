@@ -4,6 +4,7 @@ expression: actual
 ---
 
 "<Image
+  alt="ObjectFitCover"
   aspectRatio="120 / 90"
   h="90px"
   minH="0"

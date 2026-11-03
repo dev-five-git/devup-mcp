@@ -218,6 +218,15 @@ pub(super) fn project_section_frames(input: SectionFrames<'_>) -> SectionFramePr
                 }
                 frame_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
+                if let Some(frame_result) = frame.as_object_mut() {
+                    attach_overlay_anchor_delivery(
+                        &payload.snapshot,
+                        std::slice::from_ref(&candidate.node.node_id),
+                        &output.tsx,
+                        field,
+                        frame_result,
+                    );
+                }
                 frame[field] = json!(output.tsx);
                 attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                 if outputs.iter().any(|output| output == "sourceMap") {

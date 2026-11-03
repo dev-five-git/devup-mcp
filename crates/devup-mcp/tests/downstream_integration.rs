@@ -385,7 +385,10 @@ async fn jsx_css_whitespace_loss_is_exposed_without_optional_diagnostics() -> an
     assert_eq!(issue["property"], "characters");
     assert_eq!(issue["fidelityImpact"], "lossy");
     assert_eq!(result["quality"]["projection"], "lossy");
-    assert!(result["tsx"].as_str().unwrap().contains("a  b"));
+    assert_eq!(issue["details"]["originalValue"], "a  b");
+    // The JSX string expression preserves both source spaces; normal CSS
+    // still collapses them, which is the visual loss this diagnostic reports.
+    assert!(result["tsx"].as_str().unwrap().contains(r#"a{"  "}b"#));
     Ok(())
 }
 

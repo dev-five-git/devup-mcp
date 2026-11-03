@@ -3,4 +3,4 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"<Image boxSize="24px" src="/icons/polygonicon.svg" />"
+"<Image alt="PolygonIcon" boxSize="24px" src="/icons/polygonicon.svg" />"

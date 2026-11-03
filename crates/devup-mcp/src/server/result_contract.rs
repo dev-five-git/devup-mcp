@@ -148,7 +148,7 @@ pub(super) fn attach_review_and_deliverable(
     let is_final = result.get("status").and_then(Value::as_str) == Some("complete")
         && !available.is_empty()
         && withheld.is_empty();
-    result.insert("deliverable".into(), json!({"kind":"devup-ui-tsx","isFinal":is_final,
+    result.insert("deliverable".into(), json!({"kind":"devup-ui-tsx","isFinal":is_final,"scope":"generated-source-only","applicationComplete":false,
         "availableOutputs":available,"withheldOutputs":withheld,
         "note":if is_final {"This tsx is the final deliverable. Implement from this value."} else {"Review projectionIssues and outputResults before using available outputs. Withheld outputs have no code; failures supplies their operational context."}}));
 }

@@ -502,18 +502,13 @@ fn horizontal_allocation(
             if matches!(prop(tag, "pos"), Some("absolute" | "fixed")) {
                 return Err("sibling-position-mismatch");
             }
-            if [
-                "m",
-                "mx",
-                "ml",
-                "mr",
-                "minW",
-                "maxW",
-                "flexBasis",
-                "flexGrow",
-            ]
-            .iter()
-            .any(|p| prop(tag, p).is_some())
+            let transferred_minimum = transferred_minimum_is_emitted(snapshot, sibling, tag);
+            if prop(tag, "minW").is_some() && transferred_minimum.is_none() {
+                return Err("sibling-flex-constraint");
+            }
+            if ["m", "mx", "ml", "mr", "maxW", "flexBasis", "flexGrow"]
+                .iter()
+                .any(|p| prop(tag, p).is_some())
             {
                 return Err("sibling-flex-constraint");
             }
@@ -532,16 +527,22 @@ fn horizontal_allocation(
                     .split(|c: char| c.is_whitespace() || c == '/')
                     .next()
                     .unwrap_or("");
-                if !matches!(primitive, "Box" | "Flex" | "Center" | "VStack") {
+                if !matches!(primitive, "Box" | "Flex" | "Center" | "VStack")
+                    && transferred_minimum.is_none()
+                {
                     return Err("intrinsic-replaced-minimum-unverified");
                 }
                 let grow = prop(tag, "flex")
                     .and_then(|s| s.parse::<f64>().ok())
                     .filter(|g| g.is_finite() && *g > 0.0)
                     .ok_or("flex-shorthand-unverified")?;
-                if prop(tag, "w").is_some()
+                // With flex-basis zero, a 100% preferred width is not the basis.
+                // Empty primitive items still have zero content minimum; the
+                // bounded image's transferred minimum is below this parent cap.
+                if prop(tag, "w").is_some_and(|value| value != "100%")
+                    || transferred_minimum.is_some_and(|minimum| minimum > width + 0.5)
                     || prop(tag, "boxSize").is_some()
-                    || prop(tag, "aspectRatio").is_some()
+                    || (prop(tag, "aspectRatio").is_some() && transferred_minimum.is_none())
                     || sv.child_ids().next().is_some()
                     || sibling.node_type == "TEXT"
                     || [
@@ -571,7 +572,7 @@ fn horizontal_allocation(
                 if sid == id {
                     own_grow = grow;
                 }
-                siblings.push(json!({"nodeId":sid,"grow":grow,"basis":"0%","shrink":prop(tag,"flexShrink").unwrap_or("1"),"capturedWidth":measured}));
+                siblings.push(json!({"nodeId":sid,"grow":grow,"basis":"0%","shrink":prop(tag,"flexShrink").unwrap_or("1"),"capturedWidth":measured,"transferredMinimum":transferred_minimum}));
             } else {
                 if prop(tag, "flex").is_some() {
                     return Err("sibling-flex-basis-unverified");
@@ -602,17 +603,15 @@ fn horizontal_allocation(
         }
         // With positive free space, shrink does not participate. Empty flex items
         // have zero automatic minimum; constraints and intrinsic children reject above.
-        let divisor = total_grow.max(1.0);
-        for sibling in &siblings {
-            if let Some(g) = sibling["grow"].as_f64()
-                && (free * g / divisor - sibling["capturedWidth"].as_f64().unwrap()).abs() > 0.5
-            {
-                return Err("allocated-width-mismatch");
-            }
-        }
+        allocate_with_transferred_minimums(&mut siblings, free, total_grow)?;
+        let own_width = siblings
+            .iter()
+            .find(|s| s["nodeId"] == id)
+            .and_then(|s| s["allocatedWidth"].as_f64())
+            .ok_or("child-allocation-missing")?;
         Ok(
             json!({"parentWidth":width,"padding":padding,"gap":gap,"siblings":siblings,"freeSpace":free,
-            "allocatedWidth":free*own_grow/divisor,"totalGrow":total_grow,"shrinkActive":false}),
+            "allocatedWidth":own_width,"totalGrow":total_grow,"shrinkActive":false}),
         )
     };
     match check() {
@@ -621,7 +620,7 @@ fn horizontal_allocation(
             proof["allocation"] = allocation;
             proof["reasonCode"] = json!("verified-main-axis-allocation");
             proof["reason"] = json!(
-                "The emitted flex shorthand, parent width, padding, siblings and gaps preserve positive remaining-space allocation; no minimum or shrink constraint overrides it."
+                "The emitted flex shorthand, parent width, padding, siblings, gaps and any source-proven transferred image minimum preserve positive remaining-space allocation; unknown intrinsic constraints are not waived."
             );
         }
         Err(reason) => {

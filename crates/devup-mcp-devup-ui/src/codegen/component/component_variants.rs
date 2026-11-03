@@ -224,9 +224,19 @@ fn finalize_codegen_output(
     output.tsx = tsx;
     output.source_map = source_map;
     for record in super::instance_overrides::instance_overrides(snapshot, root_id, options) {
-        output.tsx.push_str(&format!("\n// @devup-override {}\n", record.to_string()
-            .replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029")));
         output.diagnostics.push(super::instance_overrides::diagnostic(record));
+    }
+    let overlay_anchors = super::overlay_anchors::overlay_anchor_metadata(snapshot, &[root_id.to_owned()], &output.tsx);
+    output.diagnostics.extend(super::overlay_anchors::diagnostics(snapshot, root_id, &output.tsx));
+    for record in overlay_anchors {
+        output.diagnostics.push(Diagnostic {
+            code: "DEVUP_CODEGEN_OVERLAY_ANCHOR_RUNTIME_UNVERIFIED".into(),
+            node_id: record["overlayNodeId"].as_str().map(str::to_owned),
+            message: "The captured dropdown relationship is projected with CSS anchors; verify native control binding and dynamic/error states in the consumer browser. Unsupported browsers are not verified.".into(),
+            severity: Some(DiagnosticSeverity::Warning),
+            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
+            details: Some(record), ..Diagnostic::default()
+        });
     }
     super::image::attach_evidence(snapshot, options, &mut output);
     crate::provenance::account_for_sizing(snapshot, &mut output);

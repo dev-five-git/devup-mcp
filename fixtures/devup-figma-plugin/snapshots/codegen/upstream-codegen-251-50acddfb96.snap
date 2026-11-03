@@ -49,6 +49,7 @@ expression: actual
               fontWeight="700"
               letterSpacing="0.04em"
               lineHeight="normal"
+              whiteSpace="pre"
             >
               Under Construction
             </Text>
@@ -59,6 +60,8 @@ expression: actual
               fontWeight="700"
               letterSpacing="-0.02em"
               lineHeight="normal"
+              overflowWrap="break-word"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               제주국제관악제 리뉴얼 알림
@@ -72,7 +75,9 @@ expression: actual
               fontWeight="400"
               letterSpacing="-0.03em"
               lineHeight="40px"
+              overflowWrap="break-word"
               textAlign="center"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               더 나은 서비스 제공을 위해 시스템 점검 및 리뉴얼을 진행 중입니다.<br />이용에 불편을 드려 죄송하며, 빠른 시일 내에 다시 찾아뵙겠습니다.
@@ -85,6 +90,7 @@ expression: actual
               letterSpacing="-0.02em"
               lineHeight="29px"
               textAlign="center"
+              whiteSpace="pre"
             >
               We are currently updating our website to serve you better. <br />We apologize for the inconvenience.
             </Text>
@@ -98,13 +104,28 @@ expression: actual
             fontWeight="700"
             letterSpacing="-0.02em"
             lineHeight="29px"
+            overflowWrap="break-word"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             제주국제관악제 최신 소식 확인하기
           </Text>
           <Flex gap="30px">
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/instagram-15713420-1.svg" />
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/facebook-1384053-1.svg" />
+    
+            <Image
+              alt="instagram_15713420 1"
+              aspectRatio="1"
+              borderRadius="4px"
+              boxSize="32px"
+              src="/icons/instagram-15713420-1.svg"
+            />
+            <Image
+              alt="facebook_1384053 1"
+              aspectRatio="1"
+              borderRadius="4px"
+              boxSize="32px"
+              src="/icons/facebook-1384053-1.svg"
+            />
             <Flex
               aspectRatio="1"
               bg="#FFF"
@@ -112,8 +133,9 @@ expression: actual
               boxSize="32px"
               overflow="hidden"
             >
-              <Image boxSize="32px" src="/icons/youtube-3991722-1-layer-2.svg" />
+              <Image alt="Layer 2" boxSize="32px" src="/icons/youtube-3991722-1-layer-2.svg" />
             </Flex>
+    
           </Flex>
           <Text
             color="$text"
@@ -122,6 +144,8 @@ expression: actual
             fontWeight="500"
             letterSpacing="-0.02em"
             lineHeight="29px"
+            overflowWrap="break-word"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             문의 : 064-722-8704 / bandfestival@hanmail.net

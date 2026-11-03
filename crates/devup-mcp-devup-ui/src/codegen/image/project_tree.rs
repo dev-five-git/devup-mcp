@@ -241,12 +241,14 @@ pub(super) fn map_for(
         .and_then(|i| style::image_fill_path(snapshot, &node.id, i, per_node))
         .or_else(|| style::asset_path(snapshot, &node.id, per_node))
         .unwrap_or_default();
-    asset_css_map(
+    let mut mapping = asset_css_map(
         &serde_json::to_value(node).expect("RawNode serializes"),
         &id,
         &default_path,
         &policy_for(node, &id, policies),
-    )
+    );
+    preserve_transferred_minimum(snapshot, node, &mut mapping);
+    mapping
 }
 
 pub(super) fn attach_evidence(

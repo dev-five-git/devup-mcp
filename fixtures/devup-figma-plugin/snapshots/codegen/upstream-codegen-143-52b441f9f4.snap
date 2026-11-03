@@ -25,6 +25,7 @@ export function Button({ size, leftIcon, showLeftIcon, rightIcon, showRightIcon 
         lineHeight="1.5px"
         overflow="hidden"
         textOverflow="ellipsis"
+        whiteSpace="pre"
       >
         Submit
       </Text>

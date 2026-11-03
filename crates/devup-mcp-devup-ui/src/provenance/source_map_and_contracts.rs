@@ -14,10 +14,14 @@ mod absolute_bounds;
 pub mod attributes;
 #[path = "fingerprint.rs"]
 mod fingerprint;
+#[path = "line_height_calculation.rs"]
+mod line_height_calculation;
 #[path = "resolution.rs"]
 mod resolution;
 #[path = "sizing.rs"]
 mod sizing;
+#[path = "wrapped_gaps.rs"]
+mod wrapped_gaps;
 pub use fingerprint::design_fingerprints;
 pub use resolution::resolution_semantics;
 pub(crate) use sizing::absolute_component_verification;
@@ -143,7 +147,11 @@ impl SourceMap {
                             .map(|end| source[at..at + 7 + end].to_owned())
                     })
                 }
-                ("derived-hard-break-whitespace", _, Some(source)) => Some(source.trim().into()),
+                (
+                    "derived-hard-break-whitespace" | "derived-wrapped-ascii-whitespace",
+                    _,
+                    Some(source),
+                ) => Some(source.trim().into()),
                 (_, "characters", Some(_)) => Some("children".into()),
                 (_, _, Some(source)) if !source.trim().is_empty() => Some(source.trim().into()),
                 _ => None,
@@ -151,50 +159,6 @@ impl SourceMap {
             if entry.generated_property.is_none() && entry.resolution == "exact" {
                 entry.resolution = "unverified-property-mapping".into();
             }
-        }
-    }
-
-    /// Explain unit conversions the generator performs, so a reader can
-    /// reproduce `lineHeight="26px"` from the raw `{unit: PERCENT, value: 160}`.
-    pub(crate) fn describe_conversions(&mut self, snapshot: &devup_mcp_figma::Snapshot) {
-        for entry in &mut self.entries {
-            if entry.property.as_deref() != Some("lineHeight") {
-                continue;
-            }
-            let Some(node) = entry
-                .node_id
-                .as_deref()
-                .and_then(|id| snapshot.nodes.get(id))
-            else {
-                continue;
-            };
-            let view = node.typed_view();
-            let Some(line_height) = view.value("lineHeight") else {
-                continue;
-            };
-            if line_height["unit"] != "PERCENT" {
-                continue;
-            }
-            let percent =
-                (line_height["value"].as_f64().unwrap_or_default() * 100.0).round() / 100.0;
-            let bound = view
-                .value("boundVariables")
-                .and_then(|b| b.get("fontSize"))
-                .is_some();
-            entry.calculation = Some(
-                match (
-                    view.value("fontSize").and_then(serde_json::Value::as_f64),
-                    bound,
-                ) {
-                    (Some(size), false) => format!(
-                        "round(fontSize * percent / 100) = round({size} * {percent} / 100) = {}px",
-                        (size * percent / 100.0).round()
-                    ),
-                    _ => format!(
-                        "{percent}% kept as a percentage because fontSize is variable-bound or unknown"
-                    ),
-                },
-            );
         }
     }
 
@@ -713,6 +677,11 @@ pub fn validate_fidelity(
                                 return sizing::sizing_mapping_matches(
                                     snapshot, output, node_id, property, source,
                                 );
+                            }
+                            if let Some(matches) =
+                                wrapped_gaps::mapping_matches(snapshot, node_id, property, source)
+                            {
+                                return matches;
                             }
                             layout_source_matches(property, source)
                                 && dimension_value_matches(

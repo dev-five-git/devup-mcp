@@ -204,17 +204,12 @@ pub(super) fn dynamic_urls(root: &str, route: &Value, links: &Value, sources: &S
     }
 }
 
-const STRIP_PLUGIN: &[u8] =
-    include_bytes!("../../../../../harness/runtime-audit/strip-figma-node-ids.mjs");
-const STRIP_FILE: &str = "vite-plugin-strip-figma-node-ids.mjs";
-
-/// Puts the plugin that strips the audit attributes from production builds
-/// next to each app's vite.config, once, and says whether the config uses
-/// it yet.
+/// Compatibility response for older clients. Source is pure in every build;
+/// auditing never writes plugins or changes a consumer's compiler configuration.
 fn production_strip(
     routes: &[&Value],
-    root: &str,
-    policy: &OutputPolicy,
+    _root: &str,
+    _policy: &OutputPolicy,
 ) -> Result<Vec<Value>, DevupError> {
     let apps = routes
         .iter()
@@ -228,40 +223,11 @@ fn production_strip(
         .collect::<BTreeSet<_>>();
     let mut out = Vec::new();
     for app in apps {
-        let dir = Path::new(root).join(&app);
-        let file = dir.join(STRIP_FILE);
-        let written = if file.exists() {
-            false
-        } else {
-            let target = policy.resolve(&file.to_string_lossy())?;
-            let mut transaction = super::output::OutputTransaction::new();
-            transaction.stage("stripPlugin", target, STRIP_PLUGIN)?;
-            transaction.commit()?;
-            true
-        };
-        let config = [
-            "vite.config.ts",
-            "vite.config.mts",
-            "vite.config.js",
-            "vite.config.mjs",
-        ]
-        .iter()
-        .map(|name| dir.join(name))
-        .find(|path| path.is_file());
-        let wired = config
-            .as_ref()
-            .and_then(|path| std::fs::read_to_string(path).ok())
-            .is_some_and(|text| text.contains(STRIP_FILE));
         out.push(json!({
             "app": app,
-            "plugin": file.display().to_string(),
-            "written": written,
-            "viteConfig": config.map(|path| path.display().to_string()),
-            "wired": wired,
-            "add": format!("import stripFigmaNodeIds from './{STRIP_FILE}'  // then plugins: [stripFigmaNodeIds(), vinext()]"),
-            "nextCli": "On the next CLI instead: compiler.reactRemoveProperties: process.env.DEVUP_AUDIT === '1' ? false : { properties: ['^data-figma-node-ids?$'] }",
-            "audit": "Audit against `bun run dev` or an audit build: DEVUP_AUDIT=1 bun run build.",
-            "verify": "After `bun run build`, `grep -rl data-figma-node-id dist` (or the app's build output) must find nothing.",
+            "needed": false, "written": false, "wired": false,
+            "audit": "Use source-map/element-mapping sidecars and explicit semantic runtime targets. Missing targets remain unverified.",
+            "verify": "Check application source and production output for absent provenance attributes and metadata comments; no debug exception or strip plugin is needed.",
         }));
     }
     Ok(out)

@@ -1,3 +1,4 @@
+include!("w1_live_header_icon_contract.rs");
 
 #[tokio::test]
 async fn r4_export_exposes_placement_contract_without_diagnostics() {
@@ -5,6 +6,7 @@ async fn r4_export_exposes_placement_contract_without_diagnostics() {
         "../../../../../fixtures/r2/wquw-120-payload.json"
     ))
     .unwrap();
+    assert_r4_live_header_icon_contract(&data.snapshot);
     let mut op = operation(&["tsx", "componentTsx"]);
     if let PendingOperation::Export {
         frame_ids,
@@ -41,7 +43,7 @@ async fn r4_export_exposes_placement_contract_without_diagnostics() {
     assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
     assert_eq!(
         frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
-        134 // R17: prior 117 + 17 verified horizontal FILL obligations.
+        136 // Prior 134 plus the live Header icon's independent 32px width/height.
     );
     assert_eq!(
         frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
@@ -103,7 +105,9 @@ async fn r9_confirmed_evidence_survives_diagnostics_opt_out() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|d| d["nodeId"] == "3997:46621")
+                .any(|d| d["nodeId"] == "3997:46621"),
+            "Hidden node must not create fidelity issues: {:?}",
+            owner["projectionIssues"]
         );
     }
 }
@@ -411,8 +415,12 @@ async fn r1_approximation_is_explained_without_diagnostics() {
     let frame = &result["frames"][0];
     assert_eq!(frame["quality"]["projection"], "lossy");
     assert!(!frame["tsx"].as_str().unwrap().contains("pos=\"absolute\""));
-    let issue = frame["projectionIssues"].as_array().unwrap().iter()
-        .find(|issue| issue["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK").unwrap();
+    let issue = frame["projectionIssues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+        .unwrap();
     assert_eq!(issue["fidelityImpact"], "approximated");
     assert_eq!(issue["nodeId"], "1:1");
     assert_eq!(issue["property"], "layoutPositioning");
@@ -529,6 +537,8 @@ async fn r1_captured_asset_overrides_hidden_discovery_prediction() {
     let mut data = payload();
     let node = data.snapshot.nodes.get_mut("1:1").unwrap();
     node.node_type = "VECTOR".into();
+    // This test exercises captured visibility evidence; naming is already reviewed.
+    node.fields.insert("name".into(),json!("Research icon"));
     node.fields.insert(
         "absoluteBoundingBox".into(),
         json!({"x":0,"y":0,"width":24,"height":24}),

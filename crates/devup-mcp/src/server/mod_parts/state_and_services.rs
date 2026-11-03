@@ -2,6 +2,8 @@
 pub mod artifacts;
 #[path = "../asset_guard.rs"]
 mod asset_guard;
+#[path = "../assets/mod.rs"]
+mod assets;
 #[path = "../asset_job_progress.rs"]
 mod asset_job_progress;
 #[path = "../asset_jobs.rs"]
@@ -20,6 +22,12 @@ mod design_drift;
 mod diagnostics;
 #[path = "../export_record.rs"]
 mod export_record;
+#[path = "../source_identity.rs"]
+mod source_identity;
+#[path = "../source_sync.rs"]
+mod source_sync;
+#[path = "../data_verification.rs"]
+mod data_verification;
 #[path = "../feature_trace.rs"]
 mod feature_trace;
 #[cfg(test)]
@@ -31,6 +39,12 @@ mod field_select;
 mod framework;
 #[path = "../guide.rs"]
 mod guide;
+#[path = "../completion.rs"]
+mod completion;
+#[path = "../development_contract.rs"]
+mod development_contract;
+#[path = "../behavior_contracts.rs"]
+mod behavior_contracts;
 #[path = "../interactions.rs"]
 mod interactions;
 #[path = "../mask_guard.rs"]
@@ -141,6 +155,10 @@ pub use tools::{
 pub struct FigmaExportWorkflowInput {
     #[serde(flatten)]
     pub input: FigmaExportInput,
+    /// Continue a bounded behavior inventory using the same artifactId. The
+    /// signed cursor retains its original scope and remaining work; no recapture.
+    #[serde(default)]
+    pub behavior_cursor: Option<String>,
     /// Opt in to rewriting exported asset references. Existing absolute local
     /// directory served at URL /. Only exported files below it are mapped;
     /// URL path segments are percent-encoded. Omit to keep placeholder paths.

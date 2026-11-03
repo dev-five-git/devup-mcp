@@ -405,7 +405,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "file": route["file"],
                 "nodeIds": route["nodeIds"],
                 "drawnWidths": route["drawnWidths"],
-                "states": state_exports(route),
+                "states": state_exports(&plan, route),
                 "nextExport": if multi_width(route) { responsive_export_action(&plan, route, root) } else { Value::Null },
             })
         })
@@ -450,9 +450,9 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
             "Assumptions belong to implementation, after confirm. Before confirm, put the decision to the user in the question rounds instead.",
         ));
     }
-    if input.assumptions.is_empty() && input.dependency_update.is_none() && input.navigation_targets.is_empty() {
+    if input.assumptions.is_empty() && input.dependency_update.is_none() && input.navigation_targets.is_empty() && input.responsive_groups.is_empty() {
         return Err(invalid(
-            "action assume needs assumptions, dependencyUpdate or navigationTargets.",
+            "action assume needs assumptions, dependencyUpdate, navigationTargets or responsiveGroups.",
         ));
     }
     let recorded_at = now();
@@ -512,6 +512,7 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
         all.extend(remapped.iter().cloned());
         plan["remaps"] = json!(all);
     }
+    list.extend(apply_responsive_groups(&mut plan, &input.responsive_groups)?);
     plan["assumptions"] = json!(list);
     // An assumption never builds what the plan excluded or sent back for a
     // design fix; the export gate refuses those frames whatever is recorded.
@@ -541,6 +542,7 @@ pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<V
             "why": "Excluded or sent back for a design fix; an assumption cannot build it, and the export gate refuses it."})).collect::<Vec<_>>(),
         "assumptions": plan["assumptions"],
         "remapped": remapped,
+        "responsiveGroups": plan["routes"].as_array().into_iter().flatten().filter(|route| route["responsiveGroups"].is_array()).map(|route| json!({"url":route["url"],"groups":route["responsiveGroups"]})).collect::<Vec<_>>(),
         "dependencies": plan["dependencies"],
         "writtenTo": written,
         "how": "Keep implementing. Every assumption appears in status and must be in your final report.",

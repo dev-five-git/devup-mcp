@@ -11,6 +11,27 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut input = workflow.input;
+        if let Some(cursor) = workflow.behavior_cursor.as_deref() {
+            if input.url.is_some() || workflow.job_id.is_some() || !input.frame_ids.is_empty() || input.all_screens || input.refresh || !input.asset_requests.is_empty() || input.page_scaffold.is_some() || workflow.asset_public_root.is_some() || input.output_paths.keys().any(|key|!matches!(key.as_str(),"behaviorPlan"|"motionControllerTsx"|"motionRuntime"|"motionBindings")) {
+                return Err(to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, "behaviorCursor continues the original artifact/scope. Only behaviorPlan and generated motion outputPaths may be written; omit recapture/job/scaffold options.", false)));
+            }
+            let id = input.artifact_id.as_deref().ok_or_else(|| to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, "behaviorCursor requires its original artifactId.", false)))?;
+            let artifact = self.artifacts.get(id).await.ok_or_else(|| to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, "Behavior artifact is no longer available; export the original scope again.", false)))?;
+            let mut result = behavior_contracts::resume(id, &artifact.payload.snapshot, cursor).map_err(|message| to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, message, false)))?;
+            development_contract::attach(&mut result);
+            let mut transaction=output::OutputTransaction::new();
+            for (key,path) in &input.output_paths {
+                let body=result.get(key).ok_or_else(||to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, format!("No {key} output on this behavior page."),false)))?;
+                let bytes=body.as_str().map(|source|source.as_bytes().to_vec()).unwrap_or_else(||serde_json::to_vec_pretty(body).expect("behavior JSON"));
+                transaction.stage(key,self.output_policy.resolve(path).map_err(to_mcp_error)?,&bytes).map_err(to_mcp_error)?;
+            }
+            let outputs=projection::projected_outputs_from_result(result.as_object().expect("behavior object")).map_err(to_mcp_error)?;
+            let attachment=projection::apply_delivery(&mut result,input.delivery.parse().map_err(to_mcp_error)?,&self.artifacts,&artifact,outputs,None).await.map_err(to_mcp_error)?;
+            transaction.commit().map_err(to_mcp_error)?;
+            projection::commit_delivery(attachment);
+            if !input.output_paths.is_empty() {result["outputPaths"]=json!(input.output_paths);}
+            return Ok(tool_result(result));
+        }
         let manifest_added = !input.asset_requests.is_empty()
             && !input
                 .outputs

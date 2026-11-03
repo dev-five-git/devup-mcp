@@ -1,5 +1,3 @@
-
-
 impl WidthCheck<'_> {
     fn run(&self, width: &[OwnedElement], ok: &mut [bool], gaps: &mut Vec<Value>) {
         let slot = self.slot;
@@ -37,6 +35,15 @@ impl WidthCheck<'_> {
                 continue;
             };
             let gap = |reason: &str| json!({"reason":reason,"slot":slot,"widthNodeId":node,"element":index,"tag":tag});
+            if let Some([parent, wrapper]) = contents_wrapper_source(node) {
+                // This box has no source element at this width. Its children
+                // retain their real identities and are verified below; do not
+                // claim the derived topology has been browser-tested.
+                fail(own, ok, json!({"reason":"derived-responsive-wrapper-requires-runtime-review",
+                    "slot":slot,"element":index,"sourceParentNodeId":parent,
+                    "capturedWrapperNodeId":wrapper,"runtimeVerified":false}), gaps);
+                continue;
+            }
             if !element.shown[slot] {
                 if element.parent_shown[slot]
                     && !element.in_text
@@ -193,31 +200,113 @@ impl WidthCheck<'_> {
         let placement = |name: &str, value: &str| {
             absolute && (POSITION_PROPS.contains(&name) || (name == "w" && value == "100%"))
         };
-        let theirs = theirs
+        let mut theirs = theirs
             .attributes
             .iter()
             .map(|(attribute, verified)| (attribute.name.as_str(), (written(attribute), *verified)))
             .filter(|(name, (value, _))| !placement_only || placement(name, value.as_str()))
             .collect::<BTreeMap<_, _>>();
+        let own_uses_axis_gaps = own.iter().any(|index| matches!(self.attributes[*index].name.as_str(), "rowGap" | "columnGap"))
+            && !own.iter().any(|index| self.attributes[*index].name == "gap");
+        if own_uses_axis_gaps && let Some(gap) = theirs.remove("gap") {
+            // Preserve the original shorthand's verification for each exactly
+            // equivalent axis; explicit source axis values take precedence.
+            for axis in ["rowGap", "columnGap"] { theirs.entry(axis).or_insert_with(|| gap.clone()); }
+        }
+        let own_uses_physical_size = own
+            .iter()
+            .any(|index| matches!(self.attributes[*index].name.as_str(), "w" | "h"))
+            && !own
+                .iter()
+                .any(|index| self.attributes[*index].name == "boxSize");
+        if own_uses_physical_size && let Some(size) = theirs.remove("boxSize") {
+            // Width and height are exact aliases of the same captured scalar;
+            // carry its original provenance verification to both physical axes.
+            for axis in ["w", "h"] {
+                theirs.entry(axis).or_insert_with(|| size.clone());
+            }
+        }
+        for (all, sides) in [("p", ["pl", "pr", "pt", "pb"]), ("m", ["ml", "mr", "mt", "mb"])] {
+            if !own.iter().any(|index| self.attributes[*index].name == all)
+                && let Some(value) = theirs.remove(all) {
+                for side in sides { theirs.entry(side).or_insert_with(|| value.clone()); }
+            }
+        }
+        for (left, right, axis) in [("pl", "pr", "px"), ("pt", "pb", "py"), ("ml", "mr", "mx"), ("mt", "mb", "my")] {
+            if !own.iter().any(|index| self.attributes[*index].name == axis)
+                && own.iter().any(|index| self.attributes[*index].name == left || self.attributes[*index].name == right)
+                && let Some(value) = theirs.remove(axis) {
+                theirs.entry(left).or_insert_with(|| value.clone());
+                theirs.entry(right).or_insert(value);
+            }
+        }
+        let own_uses_physical_padding = own.iter().any(|index| {
+            matches!(
+                self.attributes[*index].name.as_str(),
+                "pl" | "pr" | "pt" | "pb"
+            )
+        }) && !own
+            .iter()
+            .any(|index| matches!(self.attributes[*index].name.as_str(), "p" | "px" | "py"));
+        if own_uses_physical_padding
+            && ["p", "px", "py"]
+                .iter()
+                .any(|name| theirs.contains_key(name))
+        {
+            let original = theirs.clone();
+            for name in ["p", "px", "py", "pl", "pr", "pt", "pb"] {
+                theirs.remove(name);
+            }
+            for (side, axis) in [("pl", "px"), ("pr", "px"), ("pt", "py"), ("pb", "py")] {
+                if let Some(value) = original
+                    .get(side)
+                    .or_else(|| original.get(axis))
+                    .or_else(|| original.get("p"))
+                {
+                    theirs.insert(side, value.clone());
+                }
+            }
+        }
+        for (left, right, axis) in [("pl", "pr", "px"), ("pt", "pb", "py"), ("ml", "mr", "mx"), ("mt", "mb", "my")] {
+            if own.iter().any(|index| self.attributes[*index].name == axis)
+                && let Some(value) = theirs.get(left).cloned().filter(|value| theirs.get(right) == Some(value)) {
+                theirs.remove(left); theirs.remove(right); theirs.insert(axis, value);
+            }
+        }
         let mut names = BTreeSet::new();
         for index in own {
             let attribute = &self.attributes[*index];
             let name = attribute.name.as_str();
             names.insert(name);
+            if name == "order" && captured_order_provenance(self.snapshot, self.placed[element].tree)
+                .iter().any(|source| source["slot"] == self.slot && slot_values(&attribute.source[name.len()..])
+                    .as_deref().and_then(|values| effective(values, self.css_slot))
+                    .and_then(|value| value.parse::<u64>().ok()) == source["sourceIndex"].as_u64())
+            {
+                continue;
+            }
             if placement_only && name == "display" {
                 continue;
             }
             let here = slot_values(&attribute.source[name.len()..]).map(|values| {
-                let value = effective(&values, slot);
+                let value = effective(&values, self.css_slot);
                 let unset = value == Some("initial")
                     && INHERITED.contains(&name)
                     && !self.inherited(element, name);
-                settled(name, if unset { None } else { value }, tag)
+                resolved_length_value(
+                    settled(name, if unset { None } else { value }, tag),
+                    self.css_slot,
+                    self.length_tokens,
+                )
             });
             let (there, verified) = theirs.get(name).map_or((None, true), |(value, verified)| {
                 (Some(value.as_str()), *verified)
             });
-            let there = settled(name, there, their_tag);
+            let there = resolved_length_value(
+                settled(name, there, their_tag),
+                self.css_slot,
+                self.length_tokens,
+            );
             if here.as_ref() != Some(&there) || !verified {
                 ok[*index] = false;
                 gaps.push(json!({"reason":if verified {"value-differs-at-width"} else {"unverified-at-width"},

@@ -15,9 +15,30 @@ fn render_node(
         ));
     }
     let view = node.typed_view();
+    let concrete_visibility = if context.inline_instances {
+        view.value("componentPropertyReferences")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|references| references.get("visible"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|property| {
+                context
+                    .instance_boolean_properties
+                    .iter()
+                    .rev()
+                    .find_map(|properties| properties.get(property).copied())
+            })
+    } else {
+        None
+    };
+    if concrete_visibility == Some(true) && view.bool("visible") == Some(false) {
+        let mut resolved = node.clone();
+        resolved.fields.insert("visible".into(), serde_json::Value::Bool(true));
+        visiting.remove(&node.id);
+        return render_node(snapshot, &resolved, depth, context, visiting);
+    }
     // Hidden snapshot subtrees have no deliverable assets. Do not emit their
     // image/background/mask references, even under display:none.
-    if view.bool("visible") == Some(false) {
+    if view.bool("visible") == Some(false) && concrete_visibility != Some(true) {
         context.diagnostics.push(non_rendering_diagnostic(
             node,
             "visible-false",
@@ -34,26 +55,11 @@ fn render_node(
             },
         ));
     }
-    add_fallback_diagnostics(snapshot, node, context);
-    let concrete_visibility = if context.inline_instances {
-        view.value("componentPropertyReferences")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|references| references.get("visible"))
-            .and_then(serde_json::Value::as_str)
-            .and_then(|property| {
-                context
-                    .instance_boolean_properties
-                    .iter()
-                    .rev()
-                    .find_map(|properties| properties.get(property).copied())
-            })
-    } else {
-        None
-    };
     if concrete_visibility == Some(false) {
         visiting.remove(&node.id);
         return Ok(mark_node(&node.id, String::new()));
     }
+    add_fallback_diagnostics(snapshot, node, context);
     if view.node_type() == "INSTANCE"
         && !context.inline_instances
         && style::non_rendering_asset_reason(snapshot, node).is_none()
@@ -239,6 +245,7 @@ fn render_node(
         context.width_policy.as_ref(),
         super::image::original_image(node, &context.asset_policies),
     );
+    if context.inline_instances { super::overlay_anchors::apply_props(snapshot, node, &mut props); }
     context.diagnostics.extend(layout::suspicious_values(snapshot, node, &props));
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
@@ -301,6 +308,7 @@ fn render_node(
         &mut context.used_tokens,
         &mut props,
     );
+    super::semantics::push_semantic_props(snapshot, node, component, &mut props);
     style::tokenize_lengths(
         snapshot,
         node,
@@ -369,23 +377,10 @@ fn render_node(
     let children_result = if asset.is_some() {
         Ok(Vec::new())
     } else {
-        for child in view
-            .child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .filter(|child| child.typed_view().bool("visible") == Some(false))
-        {
-            context.diagnostics.push(non_rendering_diagnostic(
-                child,
-                "visible-false",
-                "",
-                "omitted",
-            ));
-        }
         reading_grid.as_ref().map_or_else(
             || view.child_ids().filter_map(|id| snapshot.nodes.get(id)).collect::<Vec<_>>(),
             |grid| grid.cards.clone(),
         ).into_iter()
-            .filter(|child| child.typed_view().bool("visible") != Some(false))
             .map(|child| render_node(snapshot, child, depth + 1, context, visiting))
             .collect::<Result<Vec<_>, _>>()
     };
@@ -596,6 +591,18 @@ pub(super) fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
         return (String::new(), false);
     }
     let mut sorted = props.to_vec();
+    if !sorted.iter().any(|(name, _)| name.starts_with('_') || name == "selectors") {
+        for (left, right, axis, all) in [("pl", "pr", "px", "p"), ("pt", "pb", "py", "p"), ("ml", "mr", "mx", "m"), ("mt", "mb", "my", "m")] {
+            if sorted.iter().any(|(name, _)| name == axis || name == all) { continue; }
+            let sides = sorted.iter().filter(|(name, _)| name == left || name == right).collect::<Vec<_>>();
+            if sides.len() != 2 { continue; }
+            let (PropValue::String(a), PropValue::String(b)) = (&sides[0].1, &sides[1].1);
+            if a != b { continue; }
+            let value = a.clone();
+            sorted.retain(|(name, _)| name != left && name != right);
+            sorted.push((axis.into(), PropValue::String(value)));
+        }
+    }
     sorted.sort_by(|left, right| left.0.cmp(&right.0));
     let rendered = sorted
         .into_iter()

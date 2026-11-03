@@ -29,8 +29,8 @@ pub(super) struct Tree {
     /// The variant options this node is drawn at, when it is not drawn at all
     /// of them. Rendered as the condition guarding it.
     pub drawn_when: Vec<String>,
-    /// A JSX comment to write immediately above this node, naming the
-    /// component it was spelled out from.
+    /// Internal provenance naming the inlined component. Renderers never
+    /// copy this inspection evidence into delivered application source.
     pub leading_comment: Option<String>,
     /// In a responsive merge, the node each slot's width drew this element
     /// from and that node's text; empty everywhere else.
@@ -68,6 +68,7 @@ enum Expression {
     Variant(String, Vec<(String, Expression)>),
     Conditional(String, String, String),
 }
+
 pub(super) fn generate_variant_component_set(
     snapshot: &Snapshot,
     set_id: &str,
@@ -147,8 +148,14 @@ pub(super) fn generate_variant_component_set(
             }
         }
     }
+    let inferred_state_axis = if merge_all { promote_unnamed_state_axis(&mut definitions, &mut records) } else { None };
+    let state_diagnostics = state_axis_diagnostics(set, &definitions, inferred_state_axis.as_deref());
     // A boolean property is not part of a variant's identity — it never appears
     // in `variantProperties` — so filtering records by it matches nothing.
+    if let Some(mut output) = preserve_structural_variants(snapshot, set, &records, &definitions)? {
+        output.diagnostics.extend(state_diagnostics);
+        return Ok(Some(output));
+    }
     let default_filters = definitions
         .iter()
         .filter(|definition| !definition.boolean)
@@ -273,6 +280,8 @@ pub(super) fn generate_variant_component_set(
                 fallback: Some("default-variant-structure".to_owned()),
                 ..Diagnostic::default()
             })
+            .chain(viewport_alt_diagnostics(&records, &root, &[]))
+            .chain(state_diagnostics)
             .collect(),
         source_map: crate::provenance::SourceMap::empty(),
         projection_trace: crate::provenance::ProjectionTrace::default(),
@@ -513,13 +522,22 @@ fn project_tree_inner(
     is_render_root: bool,
     keep_instances: bool,
 ) -> Result<Tree, DevupError> {
+    if options.inline_instances && let Some(visible)=captured_instance_visibility(snapshot,node) {
+        if !visible { return Ok(concretely_hidden_tree(node)); }
+        let mut resolved=node.clone();
+        resolved.fields.insert("visible".into(),Value::Bool(true));
+        if let Some(references)=resolved.fields.get_mut("componentPropertyReferences").and_then(Value::as_object_mut) {
+            references.remove("visible");
+        }
+        return project_tree_inner(snapshot,&resolved,options,is_render_root,keep_instances);
+    }
     let view = node.typed_view();
     if keep_instances && view.node_type() == "INSTANCE" {
         // An instance whose component is nothing but a shape is spelled out
         // rather than referenced. `<Logo />` would be a component whose entire
         // body is one masked Box, so the reference costs a file and an import
-        // and says less than the Box does. The plugin does the same, and marks
-        // the spot with a `{/* <Logo /> */}` comment.
+        // and says less than the Box does. Retain the component relationship
+        // as structured evidence instead of an application source comment.
         let mut props = instance_variant_props(&view);
         let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
         if (is_asset_leaf(&expanded) && !set_has_non_asset_variant(snapshot, node))
@@ -613,6 +631,7 @@ fn project_tree_inner(
         None,
         super::image::original_image(node, &options.asset_policies),
     );
+    if options.inline_instances { super::overlay_anchors::apply_props(snapshot, node, &mut props); }
     let mut used_tokens = BTreeSet::new();
     style::push_style_props(
         snapshot,
@@ -639,6 +658,7 @@ fn project_tree_inner(
         &mut used_tokens,
         &mut props,
     );
+    super::semantics::push_semantic_props(snapshot, node, &component, &mut props);
     style::tokenize_lengths(
         snapshot,
         node,
@@ -647,7 +667,7 @@ fn project_tree_inner(
         &mut used_tokens,
     );
     text::elide_tokenized_typography(&mut props, &options.typography_values, &options.length_tokens);
-    if visible_when(&view).is_some() && view.bool("visible") == Some(false) {
+    if !options.inline_instances && visible_when(&view).is_some() && view.bool("visible") == Some(false) {
         props.retain(|(name, _)| name != "display");
     }
     if asset.is_some() {
@@ -882,7 +902,7 @@ fn merged_props(
                 None,
                 path.unwrap_or_default(),
                 &prop,
-            )?;
+            ).or_else(|| (prop == "alt").then(|| defaults.get("alt").cloned().map(Expression::Literal)).flatten())?;
             if prop == "typography" {
                 return Some(typography_attribute(&expression));
             }
@@ -946,48 +966,3 @@ const KEYS_THE_PLUGIN_WRITES_ON_AN_ABSOLUTE_NODE: &[&str] =
 /// `getAutoLayoutProps` writes `display` on every laid-out node and the
 /// renderer drops the `flex`; a hidden one differs by value, not by key.
 const COMPONENTS_THE_PLUGIN_ALWAYS_GIVES_DISPLAY: &[&str] = &["Flex", "VStack", "Center", "Grid"];
-
-/// What a node looks like, ignoring the values it holds.
-///
-/// This is the plugin's `getChildStructureSignature`. Prop *names* count but
-/// their values do not, so a node that only changed a colour still matches
-/// itself in another variant — less the names the plugin writes on every
-/// node regardless, see [`KEYS_THE_PLUGIN_ALWAYS_WRITES`].
-pub(super) fn structure_signature(tree: &Tree) -> String {
-    let absolute = tree
-        .props
-        .get("pos")
-        .is_some_and(|value| value == "absolute");
-    let laid_out = COMPONENTS_THE_PLUGIN_ALWAYS_GIVES_DISPLAY.contains(&tree.component.as_str());
-    let props = tree
-        .props
-        .keys()
-        .filter(|name| !KEYS_THE_PLUGIN_ALWAYS_WRITES.contains(&name.as_str()))
-        .filter(|name| {
-            !(absolute && KEYS_THE_PLUGIN_WRITES_ON_AN_ABSOLUTE_NODE.contains(&name.as_str()))
-        })
-        .filter(|name| !(laid_out && name.as_str() == "display"))
-        // `getObjectFitProps` answers for every image-filled asset, `null`
-        // for the scale modes that need nothing said.
-        .filter(|name| !(tree.component == "Image" && name.as_str() == "objectFit"))
-        .cloned()
-        .collect::<Vec<_>>()
-        .join(",");
-    let children = tree
-        .children
-        .iter()
-        .map(structure_signature)
-        .collect::<Vec<_>>()
-        .join("|");
-    let kind = if tree.is_component {
-        "component"
-    } else {
-        "node"
-    };
-    let text = if tree.content.is_some() {
-        "text"
-    } else {
-        "notext"
-    };
-    format!("{}::{kind}::{text}::{props}::{children}", tree.component)
-}

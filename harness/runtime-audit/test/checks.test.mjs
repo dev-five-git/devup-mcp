@@ -192,6 +192,29 @@ test('a rendered page is complete only when tall enough, with every section, ima
   assert.ok(textContrast({ ...dark, opacity: 0 }) < 1.01, 'fully transparent text cannot be seen');
 });
 
+test('rendered completeness cannot pass omitted expected observations or height-only evidence', () => {
+  const empty = { pageHeight: 1000, sections: [], images: [], texts: [], resources: [] };
+  const unverified = evaluateRenderedCompleteness({ frameHeight: 1000 }, empty);
+  assert.equal(unverified.status, 'inconclusive');
+  assert.match(unverified.reason, /height alone cannot prove/);
+
+  const missing = evaluateRenderedCompleteness({ frameHeight: 1000, sections: ['section'], images: ['image'] }, empty);
+  assert.equal(missing.status, 'fail');
+  assert.deepEqual(missing.measured.sections.missing, ['section']);
+  assert.deepEqual(missing.measured.images.missing, ['image']);
+
+  const duplicate = { id: 'section', count: 1, visible: true, width: 100, height: 100 };
+  const ambiguous = evaluateRenderedCompleteness({ frameHeight: 1000, sections: ['section'] }, {
+    ...empty, sections: [duplicate, duplicate],
+  });
+  assert.equal(ambiguous.status, 'fail');
+
+  const validImage = evaluateRenderedCompleteness({ frameHeight: 1000, images: ['image'] }, {
+    ...empty, images: [{ ...duplicate, id: 'image', broken: false }],
+  });
+  assert.equal(validImage.status, 'pass', 'a verified image-only design does not need text');
+});
+
 
 test('no-low-contrast-text composites ancestor backgrounds and translucent ink', () => {
   const sample = { text: 'Submit', tag: 'button', color: 'rgb(255, 255, 255)', backgrounds: ['rgb(239, 239, 239)'] };
@@ -223,3 +246,7 @@ test('contrast composites opacity of text and background together through ancest
 test('transparent backgrounds use the browser canvas colour', () => {
   assert.ok(textContrast({ color: 'rgb(255, 255, 255)', canvasColor: 'rgb(0, 0, 0)', backgrounds: ['rgba(0, 0, 0, 0)'] }) > 20);
 });
+
+// CI also runs the complete Chromium and App Router consumer suite.
+import {runBrowserCI,shouldRunBrowserCI} from '../ci-browser.mjs';
+test('CI executes the complete real-browser consumer gate',{skip:!shouldRunBrowserCI(),timeout:30*60_000},()=>runBrowserCI());

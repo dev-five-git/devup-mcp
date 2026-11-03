@@ -1,5 +1,3 @@
-
-
 fn add_flattened_resource_entries(
     tsx: &str,
     snapshot: &Snapshot,
@@ -296,7 +294,9 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("typography", "textStyleId"),
     ("w", "width"),
     ("whiteSpace", "textAutoResize"),
-    ("wordBreak", "characters"),
+    ("wordBreak", "styledTextSegments"),
+    ("wordBreak", "textAutoResize"),
+    ("wordBreak", "width"),
 ];
 
 fn add_text_entries(
@@ -310,29 +310,27 @@ fn add_text_entries(
 ) {
     let source = &tsx[range.start..range.end];
     let view = node.typed_view();
-    let mut text_segments = view
+    let segments = view
         .value("styledTextSegments")
-        .and_then(serde_json::Value::as_array)
+        .and_then(serde_json::Value::as_array);
+    let rendered = crate::codegen::render_segment_characters(segments.map_or(&[], Vec::as_slice));
+    let mut text_segments = segments
         .into_iter()
         .flatten()
-        .filter_map(|segment| {
-            segment
-                .get("characters")
-                .and_then(serde_json::Value::as_str)
-                .map(|characters| (characters, Some(segment)))
-        })
-        .filter(|(characters, _)| !characters.is_empty())
+        .zip(rendered)
+        .filter(|(_, characters)| !characters.is_empty())
+        .map(|(segment, characters)| (characters, Some(segment)))
         .collect::<Vec<_>>();
     if text_segments.is_empty()
         && let Some(characters) = view
             .string("characters")
             .filter(|characters| !characters.is_empty())
     {
-        text_segments.push((characters, None));
+        text_segments.push((characters.to_owned(), None));
     }
     let mut cursor = 0;
     for (characters, segment) in text_segments {
-        if let Some((start, end)) = find_text_span(source, characters, cursor) {
+        if let Some((start, end)) = find_text_span(source, &characters, cursor) {
             // A rich-text wrapper can carry its own advance and weight.
             // Attribute ownership belongs to the segment whose text directly
             // follows this opening, rather than the node's default metrics.

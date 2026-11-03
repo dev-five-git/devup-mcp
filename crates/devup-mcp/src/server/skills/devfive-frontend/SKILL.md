@@ -16,6 +16,12 @@ description: |
 
 # DevFive Frontend Coding Conventions
 
+Before wiring generated screens, read [delivery-quality](references/delivery-quality.md).
+It covers clean TSX/sidecars, shared server layouts, responsive merging, Korean
+word boundaries, complete controls and palette variants, motion, canonical assets
+and DB-backed landing/detail content. Apply these rules even when the screenshot
+looks correct; verify actual runtime state, asset URLs and changed data.
+
 Common coding conventions for DevFive frontend projects (puzzle-fit, girok-space, etc.).
 
 ## Links, controls and completion evidence
@@ -25,9 +31,17 @@ are a review list, and `deliverable.isFinal` never proves working navigation or
 forms. Resolve GNB, logo, footer, CTA, cards, “view all”, tabs and breadcrumbs
 before reporting functional completion. Preserve checkbox/radio semantics and
 selected/disabled/active variants; an icon or widget screenshot is not behavior.
-`@devup-interaction` TSX comments preserve prototype/state hints; they do not wire
-events or implement runtime state. Validation separates semantic controls, native
+Structured interactionHints sidecars preserve prototype/state hints; never put
+metadata comments in TSX. They do not implement events. Validation separates semantic controls, native
 checkbox/radio toggling and application wiring; report those counts by their scope.
+
+A URL x width navigation pass is not interaction completion. Collect every used
+interactive component's full COMPONENT_SET and carry its captured pseudo-state
+styles onto the actual semantic focusable boundary, preserving instance overrides
+and responsive layout. A page's default instance or screenshot is not full state
+coverage. Test hover, pointer press, keyboard focus, disabled/pending, select open
+and selected states, plus resize; leave undefined or uncaptured states explicitly
+unverified. Use only source-backed state values, never invented token colors.
 
 1. Supply `projectRoot` with the export to review `projectContext.ui` reuse
    evidence, routes, `routeSuggestions`, and `envKeyNames` (names only, never

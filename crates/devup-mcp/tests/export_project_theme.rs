@@ -294,7 +294,8 @@ async fn an_export_confirms_a_project_that_already_has_the_token() -> anyhow::Re
 
 /// Node identities are explicitly opted into, independently of project config.
 #[tokio::test]
-async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> anyhow::Result<()> {
+async fn an_export_into_a_project_keeps_node_evidence_outside_application_source()
+-> anyhow::Result<()> {
     let root = std::env::temp_dir().join(format!("devup-node-ids-{}", std::process::id()));
     fs::create_dir_all(root.join(".devup"))?;
     fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
@@ -303,7 +304,7 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
         export(json!({"url": URL, "outputs": ["tsx"], "projectRoot": root.to_string_lossy(), "figmaNodeIds": true}))
             .await?;
     assert!(
-        fs::read_to_string(result["outputPaths"]["tsx"].as_str().unwrap())?.contains(marked),
+        !fs::read_to_string(result["outputPaths"]["tsx"].as_str().unwrap())?.contains(marked),
         "{}",
         result["tsx"]
     );
@@ -348,7 +349,10 @@ async fn an_export_into_a_project_marks_its_elements_with_the_figma_node() -> an
             .contains("data-figma-node-id")
     );
     assert!(result.get("figmaNodeIds").is_none());
-    assert!(result["outputResults"]["tsx"]["sectionCoverage"].is_null());
+    assert_eq!(
+        result["outputResults"]["tsx"]["sectionCoverage"]["identityStrategy"],
+        "source-map-sidecar"
+    );
 
     let result = export(json!({"url": URL, "outputs": ["tsx"]})).await?;
     assert!(

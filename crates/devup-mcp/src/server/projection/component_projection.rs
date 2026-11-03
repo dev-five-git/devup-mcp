@@ -1,6 +1,4 @@
-/// Marks the page root, its top-level children (the sections), their
-/// children and every asset with `data-figma-node-id`, so the runtime audit captures a section
-/// or an asset by the node it came from. Only when `figmaNodeIds` is true.
+/// Preserve source identity in sidecar records, never application JSX attributes.
 fn annotate_node_ids(
     output: &mut devup_mcp_devup_ui::codegen::CodegenOutput,
     snapshot: &devup_mcp_figma::Snapshot,
@@ -39,15 +37,18 @@ fn annotate_node_ids(
         .chain(sections.iter().cloned())
         .chain(parts.iter().cloned())
         .chain(assets.iter().cloned())
-        .collect();
-    let written = devup_mcp_devup_ui::codegen::node_ids::annotate_node_ids(output, &wanted);
+        .collect::<std::collections::BTreeSet<_>>();
+    let elements = output.source_map.entries.iter().filter_map(|entry| {
+        Some(json!({"nodeId":entry.node_id.as_ref()?,"elementIndex":entry.element_index?}))
+    }).filter(|entry| entry["nodeId"].as_str().is_some_and(|id| wanted.contains(id))).collect::<Vec<_>>();
+    let written = elements.iter().filter_map(|entry| entry["nodeId"].as_str()).collect::<std::collections::BTreeSet<_>>();
     json!({
-        "attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE,
-        "root": written.iter().any(|id| id == root_id).then_some(root_id),
-        "sections": sections.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
-        "parts": parts.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
-        "assets": assets.iter().filter(|id| written.contains(id)).collect::<Vec<_>>(),
-        "note": include_str!("../text/projection-annotate_node_ids-b03e6d56.md"),
+        "strategy": "source-map-sidecar", "attributesWritten": false, "elements": elements,
+        "root": written.iter().any(|id| *id == root_id).then_some(root_id),
+        "sections": sections.iter().filter(|id| written.contains(id.as_str())).collect::<Vec<_>>(),
+        "parts": parts.iter().filter(|id| written.contains(id.as_str())).collect::<Vec<_>>(),
+        "assets": assets.iter().filter(|id| written.contains(id.as_str())).collect::<Vec<_>>(),
+        "note": "Source ordinals are export evidence, not verified DOM selectors. Supply semantic rendered-target mappings to audit the browser.",
     })
 }
 

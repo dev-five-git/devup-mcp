@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import {preparedBinaries,renderFixture} from '../prepared-binaries.mjs';
+const binaries=await preparedBinaries();
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -24,23 +26,15 @@ async function cli(args) {
   }
 }
 
-function cargo(args) {
-  const result = spawnSync('cargo', args, { cwd: repo, encoding: 'utf8', windowsHide: true, timeout: 300_000 });
-  assert.equal(result.status, 0, `${args.join(' ')}\n${result.error ?? ''}\n${result.stderr}`);
-  return result.stdout;
-}
-
 test('production codegen renders in Chromium; geometry alone cannot pass broken pixels or assets', { timeout: 360_000 }, async () => {
   const outRoot = join(harness, 'out');
   await mkdir(outRoot, { recursive: true });
   const dir = await mkdtemp(join(outRoot, 'real-render-'));
   let server;
   try {
-    cargo(['run', '--quiet', '-p', 'devup-mcp-devup-ui', '--example', 'render_fixture', '--',
-      join(harness, 'fixtures/render-snapshot.json'), join(dir, 'Generated.tsx')]);
-    cargo(['build', '--quiet', '-p', 'devup-mcp-visual']);
-    const target = JSON.parse(cargo(['metadata', '--format-version', '1', '--no-deps'])).target_directory;
-    const visualBin = join(target, 'debug', process.platform === 'win32' ? 'devup-mcp-visual.exe' : 'devup-mcp-visual');
+    const generated=await renderFixture(join(harness,'fixtures/render-snapshot.json'),join(dir,'Generated.tsx'));
+    assert.equal(generated.status,0,generated.stderr);
+    const visualBin=binaries.visual;
     await mkdir(join(dir, 'public/images'), { recursive: true });
     const hero = await readFile(join(harness, 'fixtures/render-hero.png'));
     await writeFile(join(dir, 'public/images/hero.png'), hero);

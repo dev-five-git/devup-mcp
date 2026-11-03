@@ -512,7 +512,14 @@ fn inline_instance_provenance_offsets_reference_sorted_and_prefixed_final_tsx() 
         })
         .expect("final inline component type provenance");
     assert_eq!(mapped_property(&output.tsx, component_type), "Box");
-    assert!(output.tsx.starts_with("{/* <Card size=\"small\" /> */}"));
+    assert!(!output.tsx.contains("{/*"));
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "DEVUP_CODEGEN_COMPONENT_USAGE"
+            && diagnostic
+                .details
+                .as_ref()
+                .is_some_and(|details| details["componentUsage"] == "<Card size=\"small\" />")
+    }));
     assert!(!output.projection_trace.entries.is_empty());
     assert!(output.fidelity_report.nodes.total > 0);
 }
@@ -658,7 +665,7 @@ fn non_default_variant_missing_child_is_lossy_not_falsely_covered() {
 
     assert!(output.tsx.contains("Default only") || output.tsx.contains("w=\"100px\""));
     assert!(output.diagnostics.iter().any(|diagnostic| {
-        diagnostic.code == "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK"
+        diagnostic.code == "DEVUP_CODEGEN_EFFECT_TOPOLOGY_UNSUPPORTED"
             && diagnostic.node_id.as_deref() == Some("hover")
             && diagnostic.fidelity_impact() == devup_mcp_figma::FidelityImpact::Lossy
     }));

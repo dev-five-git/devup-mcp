@@ -1,4 +1,3 @@
-
 #[tokio::test]
 async fn w1_hidden_asset_is_warning_and_requested_failure_is_partial() {
     let mut data = payload();
@@ -59,7 +58,7 @@ async fn w1_manifest_preserves_layer_name_and_section_paths_match() {
     let asset = &result["assetManifest"]["assets"][0];
     assert_eq!(asset["layerName"], "BI - 아이콘");
     let path = asset["path"].as_str().unwrap();
-    assert!(path.is_ascii());
+    assert!(!path.contains(['?', ':', '\\']));
     assert!(!path.contains(' '));
     assert!(result["frames"][0]["tsx"].as_str().unwrap().contains(path));
 }
@@ -258,9 +257,9 @@ fn w1_slash_in_layer_name_matches_manifest_and_code() {
     let original = "/icons/한글 Foo/Bar-1-2.svg";
     let path = host_safe_asset_path(original);
     let code = with_host_safe_asset_paths(&format!("<Box maskImage=\"url('{original}')\" />"));
-    assert!(path.is_ascii());
+    assert!(path.contains("한글"), "meaningful Unicode names are preserved");
     assert!(!path.contains(' '));
-    assert_eq!(path.matches('/').count(), 2);
+    assert_eq!(path.matches('/').count(), 3);
     assert!(code.contains(&path));
 }
 
@@ -288,8 +287,7 @@ async fn w1_captured_main_component_id_is_reported_when_missing() {
     assert_eq!(result["failures"][0]["details"]["componentId"], "9:9");
 }
 
-#[tokio::test]
-async fn w1_responsive_text_loss_is_partial_and_strict_rejects() {
+fn responsive_literal_payload(known_characters: bool) -> CollectedPayload {
     let mut data = responsive_payload();
     for (root, id, text) in [
         ("1:1", "2:1", "Mobile only"),
@@ -301,13 +299,54 @@ async fn w1_responsive_text_loss_is_partial_and_strict_rejects() {
             .unwrap()
             .fields
             .insert("childrenIds".into(), json!([id]));
-        data.snapshot.nodes.insert(id.into(), serde_json::from_value(json!({"id":id,"type":"TEXT",
-                "fields":{"name":"Label","parentId":root,"characters":text,"visible":true,"fontSize":16}})).unwrap());
+        let mut node: devup_mcp_figma::RawNode = serde_json::from_value(json!({"id":id,"type":"TEXT",
+            "fields":{"name":"Label","parentId":root,"characters":text,"visible":true,"fontSize":16}})).unwrap();
+        if !known_characters {
+            // Partial styled runs can render text but do not establish that the
+            // authoritative full characters value was captured successfully.
+            node.fields.remove("characters");
+            node.fields.insert(
+                "styledTextSegments".into(),
+                json!([{"characters":text,"fontSize":16}]),
+            );
+        }
+        data.snapshot.nodes.insert(id.into(), node);
     }
+    data
+}
+
+#[tokio::test]
+async fn w1_responsive_captured_literal_copies_are_preserved() {
     let mut op = operation(&["responsiveTsx"]);
     if let PendingOperation::Export { all_screens, .. } = &mut op {
         *all_screens = true;
     }
+    let result = project(responsive_literal_payload(true), op).await.unwrap();
+    assert!(
+        result["responsiveUnrepresented"]
+            .as_array()
+            .is_none_or(Vec::is_empty)
+    );
+    let tsx = result["responsiveTsx"].as_str().unwrap();
+    assert!(
+        tsx.contains("Mobile only") && tsx.contains("Desktop only"),
+        "{tsx}"
+    );
+    assert!(
+        tsx.contains("display="),
+        "Different captured copies must be viewport gated: {tsx}"
+    );
+    // This positive content proof does not waive unrelated incomplete layout or
+    // typography evidence from the deliberately small source fixture.
+}
+
+#[tokio::test]
+async fn w1_responsive_unknown_full_characters_is_partial_and_strict_rejects() {
+    let mut op = operation(&["responsiveTsx"]);
+    if let PendingOperation::Export { all_screens, .. } = &mut op {
+        *all_screens = true;
+    }
+    let data = responsive_literal_payload(false);
     let result = project(data.clone(), op.clone()).await.unwrap();
     assert!(
         result["responsiveUnrepresented"]
@@ -348,8 +387,13 @@ async fn w1_missing_collected_outputs_explain_how_to_recollect() {
         assert!(error.message.contains(output));
         assert!(error.details["snapshotRootIds"].is_array());
     }
-    let result = project(payload(), operation(&["referencePng"])).await.unwrap();
-    assert_eq!(result["outputResults"]["referencePng"]["state"], "unavailable");
+    let result = project(payload(), operation(&["referencePng"]))
+        .await
+        .unwrap();
+    assert_eq!(
+        result["outputResults"]["referencePng"]["state"],
+        "unavailable"
+    );
     assert_ne!(result["status"], "complete");
     assert!(result["artifactId"].is_string());
 }
@@ -373,12 +417,14 @@ async fn w1_optional_responsive_collision_keeps_requested_tsx() {
 }
 
 #[test]
-fn w1_ascii_slugs_do_not_merge_distinct_variant_assets() {
-    assert_ne!(
+fn w1_sanitized_name_collisions_require_content_registry_reconciliation() {
+    // Name normalization cannot prove content identity; registry reconciliation
+    // detects differing bytes before any public path is written.
+    assert_eq!(
         host_safe_asset_path("/icons/Icons=a b.svg"),
         host_safe_asset_path("/icons/Icons=a-b.svg")
     );
-    assert_ne!(
+    assert_eq!(
         host_safe_asset_path("/icons/Foo Bar.svg"),
         host_safe_asset_path("/icons/Foo-Bar.svg")
     );

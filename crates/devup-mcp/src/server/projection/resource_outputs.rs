@@ -2,6 +2,9 @@ pub(super) fn projected_outputs_from_result(
     result: &Map<String, Value>,
 ) -> Result<Vec<ProjectedOutput>, DevupError> {
     let mut outputs = Vec::new();
+    for (field, name) in [("motionControllerTsx", "MotionController.tsx"), ("motionRuntime", "motion-runtime.ts")] {
+        if let Some(source) = result.get(field).and_then(Value::as_str) { outputs.push(ProjectedOutput::text(name, "text/typescript", source.as_bytes().to_vec())); }
+    }
     for field in ["tsx", "componentTsx", "responsiveTsx"] {
         if let Some(tsx) = result.get(field).and_then(Value::as_str) {
             outputs.push(ProjectedOutput::text(
@@ -42,15 +45,23 @@ pub(super) fn projected_outputs_from_result(
         ("rawSnapshot", "raw-snapshot.json"),
         ("rawPayload", "raw-payload.json"),
         ("sourceMap", "source-map.json"),
+        ("instanceOverrides", "instance-overrides.json"),
+        ("interactionHints", "interaction-hints.json"),
+        ("sourceIdentity", "source-identity.json"),
+        ("overlayAnchors", "overlay-anchors.json"),
         ("designFingerprints", "design-fingerprints.json"),
         ("designChanges", "design-changes.json"),
         ("assetManifest", "asset-manifest.json"),
+        ("assetRegistry", "asset-registry.json"),
         ("imageFillAudit", "image-fill-audit.json"),
         ("imageAudit", "image-audit.json"),
         ("assetCssMap", "asset-css-map.json"),
         ("webReadyImages", "web-ready-images.json"),
         ("pageScaffold", "page-scaffold.json"),
         ("outline", "outline.json"),
+        ("behaviorPlan", "behavior-plan.json"),
+        ("motionBindings", "motion-bindings.json"),
+        ("developmentContract", "development-contract.json"),
         ("selected", "selected.json"),
     ] {
         if let Some(value) = result.get(field) {

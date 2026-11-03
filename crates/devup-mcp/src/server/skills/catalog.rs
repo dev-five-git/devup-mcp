@@ -76,6 +76,7 @@ const EMBEDDED: &[(&str, Documents)] = &[
         "devfive-frontend",
         &[
             ("SKILL.md", include_str!("devfive-frontend/SKILL.md")),
+            ("references/delivery-quality.md", include_str!("devfive-frontend/references/delivery-quality.md")),
             (
                 "references/critical-rules.md",
                 include_str!("devfive-frontend/references/critical-rules.md"),

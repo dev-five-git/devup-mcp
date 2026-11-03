@@ -101,11 +101,11 @@ fn segment_boundary_spaces_use_segment_provenance() {
 
 #[test]
 fn unrelated_whitespace_and_constrained_text_keep_existing_policy() {
-    for characters in [
-        "Single trailing ",
-        " leading",
-        "Two  spaces",
-        "First\nSecond",
+    for (characters, preserves_spaces) in [
+        ("Single trailing ", true),
+        (" leading", true),
+        ("Two  spaces", true),
+        ("First\nSecond", false),
     ] {
         let output = generate_component(
             &text(characters, "HEIGHT"),
@@ -113,7 +113,10 @@ fn unrelated_whitespace_and_constrained_text_keep_existing_policy() {
             &CodegenOptions::default(),
         )
         .unwrap();
-        assert!(!output.tsx.contains("whiteSpace=\"pre-wrap\""));
+        assert_eq!(
+            output.tsx.contains("whiteSpace=\"pre-wrap\""),
+            preserves_spaces
+        );
     }
     for max_lines in [1, 2] {
         let mut snapshot = text("First \nSecond", "HEIGHT");

@@ -1,5 +1,3 @@
-
-
 /// Preserve source tracks, including content sizing. A flexible column in a
 /// non-HUG grid has a zero minimum so replaced content cannot enlarge its share
 /// through CSS's automatic min-content minimum. Rows and HUG grids retain their
@@ -105,18 +103,51 @@ pub(super) fn grid_template(node: &RawNode, columns: bool) -> GridTemplate {
 /// Hidden and absolutely positioned children do not participate in distribution.
 pub(crate) fn centers_lone_space_between_child(snapshot: &Snapshot, node: &RawNode) -> bool {
     let view = node.typed_view();
-    matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
-        && view.string("primaryAxisAlignItems") == Some("SPACE_BETWEEN")
-        && view
-            .child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .filter(|child| {
-                let child = child.typed_view();
-                child.bool("visible") != Some(false)
-                    && child.string("layoutPositioning") != Some("ABSOLUTE")
-            })
-            .count()
-            == 1
+    if !matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
+        || view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
+    {
+        return false;
+    }
+    let children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| {
+            child.typed_view().bool("visible") != Some(false)
+                && child.typed_view().string("layoutPositioning") != Some("ABSOLUTE")
+        })
+        .collect::<Vec<_>>();
+    let [child] = children.as_slice() else {
+        return false;
+    };
+    // A captured start-aligned lone child is stronger evidence than the
+    // legacy center fallback (e.g. a FILL mobile header with one fixed logo).
+    let (position, size, near, far) = if view.string("layoutMode") == Some("HORIZONTAL") {
+        ("x", "width", "paddingLeft", "paddingRight")
+    } else {
+        ("y", "height", "paddingTop", "paddingBottom")
+    };
+    let measured = view
+        .value("absoluteBoundingBox")
+        .zip(child.typed_view().value("absoluteBoundingBox"))
+        .and_then(|(parent, child)| {
+            Some((
+                parent.get(position)?.as_f64()?,
+                parent.get(size)?.as_f64()?,
+                child.get(position)?.as_f64()?,
+                child.get(size)?.as_f64()?,
+            ))
+        });
+    if let Some((start, extent, child_start, child_extent)) = measured {
+        let expected = start
+            + view.number(near).unwrap_or(0.0)
+            + (extent
+                - view.number(near).unwrap_or(0.0)
+                - view.number(far).unwrap_or(0.0)
+                - child_extent)
+                / 2.0;
+        return (child_start - expected).abs() <= 0.5;
+    }
+    true
 }
 
 fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props: &mut Vec<Prop>) {
@@ -145,6 +176,23 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
             string_prop(props, "columnGap", px(column));
         }
         return;
+    }
+    // A captured wrapped auto-layout is still a flex layout. Its main-axis
+    // spacing and cross-axis spacing are independent; a uniform CSS gap would
+    // silently replace the captured row spacing with itemSpacing.
+    if view.string("layoutWrap") == Some("WRAP") {
+        string_prop(props, "flexWrap", "wrap");
+        if view.string("counterAxisAlignContent") == Some("SPACE_BETWEEN") {
+            string_prop(props, "alignContent", "space-between");
+        }
+        if let Some(cross_gap) = view.number("counterAxisSpacing") {
+            let cross_property = if mode == Some("HORIZONTAL") {
+                "rowGap"
+            } else {
+                "columnGap"
+            };
+            string_prop(props, cross_property, px(cross_gap));
+        }
     }
     // Figma's two newer distributions came to the plugin after the pinned
     // corpus (9214391); they are the CSS keywords of the same name.
@@ -190,8 +238,19 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
             .get("itemSpacing")
             .and_then(Value::as_f64)
             .or_else(|| view.number("itemSpacing"));
-        if let Some(gap) = gap.filter(|gap| *gap != 0.0) {
-            string_prop(props, "gap", px(gap));
+        let separate_cross_gap = view.string("layoutWrap") == Some("WRAP")
+            && view.number("counterAxisSpacing").is_some();
+        if let Some(gap) = gap.filter(|gap| *gap != 0.0 || separate_cross_gap) {
+            let property = if separate_cross_gap {
+                if mode == Some("HORIZONTAL") {
+                    "columnGap"
+                } else {
+                    "rowGap"
+                }
+            } else {
+                "gap"
+            };
+            string_prop(props, property, px(gap));
         }
     }
 }
@@ -472,7 +531,9 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     else {
         return;
     };
-    // An inside stroke is painted over the padding: a card 20px in from its
+    // With strokesIncludedInLayout=true Figma adds the stroke around the
+    // padding, like CSS border-box: retain every captured padding value.
+    // Otherwise an inside stroke is painted over the padding: a card 20px in from its
     // edge with a 1px stroke inside is still 20px in, stroke and all, and
     // its height is the content plus 40. CSS's border is added around the
     // padding instead, so a hugging card came out 2px taller - the landing
@@ -480,7 +541,12 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     // fixed axis the content sat 1px further in. Taking the stroke out of
     // the padding puts the content where Figma has it on every axis: it
     // starts `p` in and, hugging, the box is content plus `2p`.
-    if view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
+    if let Some([new_top, new_right, new_bottom, new_left]) =
+        super::style::mixed_excluded_stroke_padding(&view, [top, right, bottom, left])
+    {
+        [top, right, bottom, left] = [new_top, new_right, new_bottom, new_left];
+    } else if !super::style::strokes_included_in_layout(&view)
+        && view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
         && !super::style::inside_stroke_uses_outline(&view)
         && view.node_type() != "LINE"
         && let Some(weight) = view.number("strokeWeight").filter(|weight| *weight > 0.0)
@@ -588,6 +654,35 @@ fn sits_behind_in_flow_siblings(snapshot: &Snapshot, parent: &RawNode, child_id:
 /// in the same place and lets it size the frame; and a frame whose single
 /// child is centred is written as a `Center` with the child in flow, see
 /// `centres_its_only_child`.
+fn has_clipped_free_child_offset(snapshot: &Snapshot, parent: &RawNode) -> bool {
+    let view = parent.typed_view();
+    if view.string("layoutMode") != Some("NONE")
+        || view.bool("clipsContent") != Some(true)
+        || view
+            .number("rotation")
+            .is_some_and(|rotation| rotation.abs() > 0.01)
+    {
+        return false;
+    }
+    let Some(child) = only_visible_child(snapshot, parent) else {
+        return false;
+    };
+    if child
+        .typed_view()
+        .number("rotation")
+        .is_some_and(|rotation| rotation.abs() > 0.01)
+    {
+        return false;
+    }
+    let (Some(parent_box), Some(child_box)) = (layout_box(parent), layout_box(child)) else {
+        return false;
+    };
+    // Inferred auto layout cannot reproduce a manually offset child before
+    // the clipped free frame's origin. Keep these measured coordinates through
+    // the ordinary absolute-placement path; no scrolling is inferred.
+    child_box.x < parent_box.x - 0.5 || child_box.y < parent_box.y - 0.5
+}
+
 pub(crate) fn placed_by_a_free_layout(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -615,10 +710,11 @@ pub(crate) fn placed_by_a_free_layout(
         Some("AUTO" | "ABSOLUTE")
     ) && parent_view.number("width").is_some()
         && parent_view.number("height").is_some()
-        && parent_view
+        && (parent_view
             .value("inferredAutoLayout")
             .and_then(Value::as_object)
             .is_none()
+            || has_clipped_free_child_offset(snapshot, parent))
         && !matches!(
             parent_view.string("layoutMode"),
             Some("HORIZONTAL" | "VERTICAL" | "GRID")
@@ -696,6 +792,22 @@ fn push_absolute(
             string_prop(props, "left", "50%");
             string_prop(props, "transform", "translateX(-50%)");
         }
+        (None, "MIN")
+            if x < 0.0
+                && parent.string("layoutSizingHorizontal") == Some("FILL")
+                && parent.number("width").is_some_and(|width| placed.w > width)
+                && has_clipped_free_child_offset(snapshot, parent_node) =>
+        {
+            // Keep the captured negative view while the track overhangs, then
+            // release it to the origin when the fluid frame can show it all.
+            // Every length is the captured offset or child width; no scroll
+            // interaction or guessed breakpoint is introduced.
+            string_prop(
+                props,
+                "left",
+                format!("clamp({}, calc(100% - {}), 0px)", px(x), px(placed.w)),
+            );
+        }
         (None, _) => string_prop(props, "left", px(x)),
     }
     match vertical {
@@ -715,6 +827,9 @@ fn push_absolute(
             }
         }
         _ => string_prop(props, "top", px(y)),
+    }
+    if policy.is_none() && placed_by.is_none() {
+        correct_absolute_border_origin(snapshot, node, parent_node, props);
     }
     anchor
 }

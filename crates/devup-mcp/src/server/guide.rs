@@ -31,7 +31,7 @@ pub const INSTRUCTIONS: &str = include_str!("text/guide-INSTRUCTIONS-49bd7ec6.md
 /// The rules that moved out of `instructions`, verbatim in meaning. This is a
 /// relocation, not a rewrite: every numbered rule that was published before is
 /// published here under the same number.
-pub const GUIDE: &str = include_str!("text/guide-GUIDE-c682b0c5.md");
+pub const GUIDE: &str = concat!(include_str!("text/guide-GUIDE-c682b0c5.md"), "\n", include_str!("skills/devfive-frontend/references/delivery-quality.md"), "\n", include_str!("text/devup-assets.md"), "\n", include_str!("text/devup-source-sync.md"), "\n", include_str!("text/completion.md"));
 
 #[cfg(test)]
 mod tests {

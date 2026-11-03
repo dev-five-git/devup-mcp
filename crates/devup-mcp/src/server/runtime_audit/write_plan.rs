@@ -69,6 +69,22 @@ fn write_plan(
         let mut template_transaction = OutputTransaction::new();
         template_transaction.refuse_existing();
         for (name, bytes) in [
+            ("source-digest.mjs", include_bytes!("../../../../../harness/runtime-audit/source-digest.mjs").as_slice()),
+            ("record-project-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/record-project-checks.mjs").as_slice()),
+            ("motion-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/motion-checks.mjs").as_slice()),
+            (
+                "data-checks.mjs",
+                include_bytes!("../../../../../harness/runtime-audit/data-checks.mjs").as_slice(),
+            ),
+            ("clipping-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/clipping-checks.mjs").as_slice()),
+            (
+                "selection-checks.mjs",
+                include_bytes!("../../../../../harness/runtime-audit/selection-checks.mjs").as_slice(),
+            ),
+            (
+                "markup-checks.mjs",
+                include_bytes!("../../../../../harness/runtime-audit/markup-checks.mjs").as_slice(),
+            ),
             (
                 "dev-environment.mjs",
                 include_bytes!("../../../../../harness/runtime-audit/dev-environment.mjs")
@@ -88,17 +104,12 @@ fn write_plan(
                 include_bytes!("../../../../../harness/runtime-audit/checks.mjs").as_slice(),
             ),
             (
-                "strip-figma-node-ids.mjs",
-                include_bytes!("../../../../../harness/runtime-audit/strip-figma-node-ids.mjs")
-                    .as_slice(),
-            ),
-            (
                 "package.json",
-                include_bytes!("../../../../../harness/runtime-audit/package.json").as_slice(),
+                include_bytes!("../../../../../harness/runtime-audit/runner-package.json").as_slice(),
             ),
             (
                 "package-lock.json",
-                include_bytes!("../../../../../harness/runtime-audit/package-lock.json").as_slice(),
+                include_bytes!("../../../../../harness/runtime-audit/runner-package-lock.json").as_slice(),
             ),
         ] {
             let requested = Path::new(directory).join(name);
@@ -234,7 +245,6 @@ fn ingest_references(
     let mut dimension_rows = Vec::new();
     let mut screen_rows = Vec::new();
     let mut findings = Vec::new();
-    let mut page_height_failed = false;
     let mut missing_nodes = Vec::new();
     let mut link_table = Vec::<Value>::new();
     let mut links = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
@@ -509,17 +519,7 @@ fn ingest_references(
                 continue;
             }
             screenshot_budget -= 1;
-            let mut capture_viewport = viewport.clone();
-            if screen.figma.as_ref().is_some_and(|figma| {
-                figma.drawn_widths.contains(&viewport.width)
-                    && figma
-                        .frames
-                        .iter()
-                        .any(|frame| frame.width == viewport.width && frame.height.is_some())
-            }) {
-                capture_viewport.height = 1;
-            }
-            match verify_screenshot(policy, &report_dir, shot, &capture_viewport) {
+            match verify_screenshot(policy, &report_dir, shot, viewport) {
                 Ok(verified) => {
                     screenshots_verified += 1;
                     if let Some(figma) = screen
@@ -527,41 +527,6 @@ fn ingest_references(
                         .as_ref()
                         .filter(|figma| figma.drawn_widths.contains(&viewport.width))
                     {
-                        if let Some(height) = figma
-                            .frames
-                            .iter()
-                            .find(|frame| frame.width == viewport.width)
-                            .and_then(|frame| frame.height)
-                            && (viewport.device_scale_factor - 1.0).abs() <= f64::EPSILON
-                            && verified.height < height
-                        {
-                            page_height_failed = true;
-                            let reason = format!(
-                                include_str!("../text/runtime_audit-page-height.md"),
-                                verified.width, verified.height, viewport.width, height
-                            );
-                            let mut issue = finding(
-                                screen,
-                                viewport,
-                                None,
-                                "page-visual",
-                                &reason,
-                                &json!({"captureHeight": verified.height, "frameHeight": height}),
-                                Some(&verified.path),
-                            );
-                            issue["kind"] = json!("page-height");
-                            issue["id"] =
-                                json!(comparison_id(screen, "page-height", "page", viewport.width));
-                            findings.push(issue);
-                            if let Some(row) = screen_rows.last_mut() {
-                                row["status"] = json!("fail");
-                                row["reasons"]
-                                    .as_array_mut()
-                                    .expect("screen reasons")
-                                    .push(json!(reason));
-                                row["columns"]["completeness"] = json!("fail");
-                            }
-                        }
                         drawn_width_shots.push((screen, figma.node_id.as_str(), verified));
                     }
                 }
@@ -604,7 +569,7 @@ fn ingest_references(
     }
     let planned = planned_items(&plan);
     let count = |status: &str| counts.get(status).copied().unwrap_or(0);
-    let verdict = if (count("fail") > 0 || page_height_failed) && !environment_invalid {
+    let verdict = if count("fail") > 0 && !environment_invalid {
         "fail"
     } else if count("pass") == planned && !environment_invalid && report["status"] == "completed" {
         "pass"

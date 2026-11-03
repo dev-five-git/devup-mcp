@@ -96,7 +96,8 @@ pub struct FigmaExportInput {
     pub component_name: Option<String>,
     #[serde(default)]
     pub include_diagnostics: bool,
-    /// Opt in to data-figma-node-id attributes for runtime design audits.
+    /// Legacy compatibility flag. Identity evidence stays in JSON sidecars;
+    /// generated application source never receives Figma node attributes.
     #[serde(default)]
     pub figma_node_ids: bool,
     #[serde(default = "default_scope")]
@@ -439,6 +440,19 @@ pub struct SectionCoverageInput {
     /// Asset references in the original generated output, including masks and backgrounds.
     #[serde(default)]
     pub asset_urls: Vec<String>,
+    /// Original export-side source mappings. They verify source structure, not DOM identity.
+    #[serde(default)]
+    pub element_mappings: Vec<SectionElementMapping>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SectionElementMapping {
+    pub node_id: String,
+    pub element_index: usize,
+    pub tag: String,
+    #[serde(default)]
+    pub source_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

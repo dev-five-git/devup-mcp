@@ -71,11 +71,17 @@ pub(super) async fn finalize_export_delivery(
         responsive_widths,
     } = input;
     result.insert("_defaultNodeId".into(), json!(default_node_id));
-    default_code_paths::apply(&mut result, &mut output_paths, project_root.as_deref(), output_policy);
+    default_code_paths::apply(
+        &mut result,
+        &mut output_paths,
+        project_root.as_deref(),
+        output_policy,
+    );
     result.remove("_defaultNodeId");
     for output in ["tsx", "componentTsx", "responsiveTsx"] {
         if output_paths.contains_key(output)
-            && let Some(code) = result.get(output).and_then(Value::as_str) {
+            && let Some(code) = result.get(output).and_then(Value::as_str)
+        {
             pending_text_outputs.insert(output.into(), code.into());
         }
     }
@@ -95,13 +101,35 @@ pub(super) async fn finalize_export_delivery(
             output_policy,
         )?;
     }
+    let mut registry_write = None;
+    let mut presentation_filters = BTreeMap::new();
     let replacements = if let Some(manifest) = &mut pending_asset_manifest {
-        reconcile_asset_paths(
+        let resolved = canonical_assets::reconcile(
             manifest,
             &mut asset_output_paths,
             asset_public_root.as_deref(),
+            project_root.as_deref(),
             output_policy,
-        )?
+            &result,
+        )?;
+        if resolved.registry["namingComplete"] == false {
+            let mut quarantined=asset_quarantine::retain(asset_quarantine::Request {
+                manifest,registry:&resolved.registry,artifact_id:&artifact.artifact_id,
+                policy:output_policy,public_root:asset_public_root.as_deref(),
+                project_root:project_root.as_deref(),recovery_arguments:&recovery_arguments,
+                write:!page_scaffold.as_ref().is_some_and(|options|!options.write),
+            })?;
+            if let Some(summary)=result.get("assetSummary") {
+                quarantined["assetSummary"]=summary.clone();
+                quarantined["assetSummary"]["manifestIncluded"]=json!(false);
+                quarantined["assetSummary"]["deliveryState"]=json!("quarantined");
+            }
+            return Ok(quarantined);
+        }
+        result.insert("assetRegistry".into(), resolved.registry);
+        registry_write = resolved.registry_write;
+        presentation_filters = resolved.filters;
+        resolved.replacements
     } else {
         BTreeMap::new()
     };
@@ -172,17 +200,22 @@ pub(super) async fn finalize_export_delivery(
         }
     }
     let mut value = Value::Object(std::mem::take(&mut result));
+    canonical_assets::apply_filters(&mut value, &presentation_filters);
     rewrite_result_asset_references(&mut value, &replacements);
     super::super::asset_guard::refresh_export_asset_urls(&mut value);
     audit_delivered_properties(&mut value);
     super::super::interactions::attach(&mut value, &payload.snapshot);
     attach_instance_overrides(&mut value, payload, &payload.snapshot.roots);
+    value["artifactId"] = json!(artifact.artifact_id);
+    super::super::behavior_contracts::attach(&mut value, &payload.snapshot);
+    super::super::development_contract::attach(&mut value);
     if let Some(root) = project_root.as_deref() {
         super::super::screen_plan::attach_component_width_plan(&mut value, root)?;
     }
     attach_diagnostic_screens(&mut value, &owners);
     super::super::verdict_scope::attach(&mut value);
     attach_verification_scope(&mut value, &responsive_widths);
+    canonical_assets::enforce_naming_review(&mut value);
     if strict && value["mappingComplete"] == false {
         return Err(DevupError::with_details(
             ErrorCode::DevupSnapshotUnsupported,
@@ -217,6 +250,13 @@ pub(super) async fn finalize_export_delivery(
             *contents = serde_json::to_string_pretty(&result[name]).unwrap_or_default();
         }
     }
+    for field in ["behaviorPlan", "developmentContract", "motionControllerTsx", "motionRuntime", "motionBindings"] {
+        if output_paths.contains_key(field)
+            && let Some(value) = result.get(field)
+        {
+            pending_text_outputs.insert(field.into(), value.as_str().map(str::to_owned).unwrap_or_else(|| serde_json::to_string_pretty(value).unwrap()));
+        }
+    }
     let mut planned_outputs = Vec::new();
     let mut supported_keys = Vec::new();
     if let Some(options) = &page_scaffold {
@@ -245,6 +285,11 @@ pub(super) async fn finalize_export_delivery(
         "imageAudit",
         "assetCssMap",
         "outline",
+        "behaviorPlan",
+        "motionControllerTsx",
+        "motionRuntime",
+        "motionBindings",
+        "developmentContract",
     ] {
         if result.contains_key(field) {
             supported_keys.push(field.to_owned());
@@ -294,6 +339,11 @@ pub(super) async fn finalize_export_delivery(
         if let Some(path) = output_paths.get(&output) {
             planned_outputs.push((output, output_policy.resolve(path)?, bytes));
         }
+    }
+    let mut registry_expected_hash = None;
+    if let Some((path, bytes, expected_hash)) = registry_write {
+        registry_expected_hash = expected_hash;
+        planned_outputs.push(("assetRegistry".into(), output_policy.resolve(&path)?, bytes));
     }
     if let Some(manifest) = pending_asset_manifest.as_ref() {
         for asset in &manifest.assets {
@@ -355,18 +405,10 @@ pub(super) async fn finalize_export_delivery(
     // shares a file, as the plugin has it - so several assets resolve
     // to one path. That is one write, not a collision. Only differing
     // bytes under one name are a mistake, and that is worth refusing.
-    // Two different drawings under one layer name land here too: the
-    // plugin names an asset after its layer, and a snapshot cannot
-    // tell two drawings of one name apart - only the exported bytes
-    // can. The first is written and the rest are reported, so the
-    // code still points at a file that exists and the caller learns
-    // which names hide more than one picture.
-    let fingerprint_path = planned_outputs
-        .iter()
-        .find(|(name, _, _)| name == "designFingerprints")
-        .map(|(_, target, _)| target.display_path().to_path_buf());
+    // Canonical reconciliation already names differing pictures separately.
+    // A remaining collision between different outputs must fail atomically.
     let mut staged_content: BTreeMap<String, String> = BTreeMap::new();
-    let mut shared_names: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    planned_outputs.sort_by_key(|(name,_,_)|if name.starts_with("asset:"){0}else if name=="assetRegistry"{2}else{1});
     for (name, target, bytes) in planned_outputs {
         let path = target.display_path().to_string_lossy().into_owned();
         let fingerprint = sha256_hex(&bytes);
@@ -375,27 +417,25 @@ pub(super) async fn finalize_export_delivery(
                 written_paths.insert(name, json!(path));
                 continue;
             }
-            Some(_)
-                if scaffold_requested
-                    || fingerprint_path.as_deref() == Some(target.display_path()) =>
-            {
+            Some(_) => {
                 return Err(DevupError::new(
                     ErrorCode::DevupInvalidInput,
                     format!("Output file collision: different outputs claim {path}."),
                     false,
                 ));
             }
-            Some(_) => {
-                let asset = name.strip_prefix("asset:").unwrap_or(&name).to_owned();
-                shared_names.entry(path).or_default().push(asset);
-                continue;
-            }
             None => {
                 staged_content.insert(path.clone(), fingerprint);
             }
         }
         written_paths.insert(name.clone(), json!(path));
-        transaction.stage(name, target, &bytes)?;
+        if name.starts_with("asset:") {
+            transaction.stage_asset(name, target, &bytes)?;
+        } else if name == "assetRegistry" {
+            transaction.stage_registry(name, target, &bytes, registry_expected_hash.clone())?;
+        } else {
+            transaction.stage(name, target, &bytes)?;
+        }
     }
     if manifest_requested && let Some(mut manifest) = pending_asset_manifest {
         asset_resource_outputs = projected_asset_outputs(&manifest)?;
@@ -418,20 +458,6 @@ pub(super) async fn finalize_export_delivery(
                     variant.data_base64 = None;
                 }
             }
-        }
-        for (path, others) in &shared_names {
-            manifest.diagnostics.push(Diagnostic {
-                code: "DEVUP_ASSET_NAME_SHARED".to_owned(),
-                message: format!(
-                    include_str!("../text/projection-project_operation_Diagnostic-6ab28a84.md"),
-                    others.len(),
-                    path = path
-                ),
-                severity: Some(DiagnosticSeverity::Warning),
-                resource_kind: Some("asset".to_owned()),
-                details: Some(json!({ "outputPath": path, "notWritten": others })),
-                ..Diagnostic::default()
-            });
         }
         let mut manifest = json!(manifest);
         if let Some(assets) = manifest["assets"].as_array_mut() {
@@ -499,8 +525,16 @@ pub(super) async fn finalize_export_delivery(
                     .get("outputPaths")
                     .cloned()
                     .unwrap_or_else(|| json!({}));
-                return Ok(json!({"status":"complete","written":true,
+                let written = paths.as_object().is_some_and(|paths| !paths.is_empty());
+                let note = "The selected response exceeded the delivery budget. Read the same artifact with nextAction before reviewing or implementing its outputs. Any listed output files were committed and remain available.";
+                return Ok(json!({"status":"partial","written":written,
+                    "deliveryState":"recovery-required",
                     "artifactId":artifact.artifact_id,"outputPaths":paths,
+                    "nextAction":next,
+                    "deliverable":{"isFinal":false,"recoveryRequired":true,"requestedOutputs":outputs,"note":note},
+                    "projectionIssues":[{"code":"DEVUP_EXPORT_RESPONSE_RECOVERY_REQUIRED",
+                        "message":note,"severity":"error","fidelityImpact":"failed","property":"output",
+                        "details":{"stage":"response-selection","classification":"delivery-incomplete","nextAction":next}}],
                     "responseTruncated":{"reason":error.message,"maxSelectedBytes":65536,"nextAction":next}}));
             }
         }
@@ -513,7 +547,11 @@ pub(super) async fn finalize_export_delivery(
     projected_outputs.extend(compact_details);
     if !response_selection.active() && project_root.is_some() {
         default_code_paths::omit_written(&mut result);
-        default_code_paths::compact_written(&mut result, &mut projected_outputs, &artifact.artifact_id)?;
+        default_code_paths::compact_written(
+            &mut result,
+            &mut projected_outputs,
+            &artifact.artifact_id,
+        )?;
     }
     let mut result = Value::Object(result);
     let attachment = apply_delivery(
@@ -535,7 +573,10 @@ pub(super) async fn finalize_export_delivery(
         return Err(error);
     }
     commit_delivery(attachment);
-    if let Some(object) = result.as_object_mut() { default_code_paths::omit_written(object); }
+    canonical_assets::enforce_naming_review(&mut result);
+    if let Some(object) = result.as_object_mut() {
+        default_code_paths::omit_written(object);
+    }
     if let Some(path) = result["outputPaths"].get("designFingerprints").cloned() {
         result["outputPathResults"]["committed"] = json!({"designFingerprints":path});
     }

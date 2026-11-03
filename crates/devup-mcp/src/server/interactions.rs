@@ -9,6 +9,8 @@ const MAX_CANDIDATES: usize = 128;
 const MAX_DETAILS: usize = 64;
 #[path = "interactions/marquee.rs"]
 mod marquee;
+#[path = "interactions/state_capture.rs"]
+mod state_capture;
 fn component_set_error(field: &str, error: &str) -> bool {
     matches!(field, "componentProperties" | "variantProperties")
         && (error.contains("Component set for node has existing errors")
@@ -323,6 +325,11 @@ pub(super) fn candidates(snapshot: &Snapshot, roots: &[String]) -> Vec<Interacti
         let mut truncated = false;
         let properties = bounded(&properties, 3, &mut truncated);
         let variants = bounded(&variants, 3, &mut truncated);
+        let mut states = json!({"componentProperties":properties,"variantProperties":variants,
+            "runtimeStateVerified":false,"captureTruncated":truncated});
+        if let Some(capture) = state_capture::for_candidate(snapshot, node) {
+            states["fullInteractiveStateCapture"] = capture;
+        }
         result.push(InteractiveCandidate {
             node_id: id.clone(),
             name: name.into(),
@@ -333,8 +340,7 @@ pub(super) fn candidates(snapshot: &Snapshot, roots: &[String]) -> Vec<Interacti
             target_resolved: false,
             unresolved_reasons: unresolved,
             prototype_actions,
-            states: json!({"componentProperties":properties,"variantProperties":variants,
-                "runtimeStateVerified":false,"captureTruncated":truncated}),
+            states,
         });
     }
     result
@@ -408,22 +414,9 @@ fn widget_composition(snapshot: &Snapshot, node: &RawNode) -> Option<&'static st
 }
 
 fn append_hints(result: &mut Value, data: &Value) {
-    let mut hints = String::new();
-    for candidate in result_candidates(data) {
-        let hint = json!({"nodeId":candidate["nodeId"],"role":candidate["role"],"prototypeActions":candidate["prototypeActions"],"states":candidate["states"],"targetResolved":false});
-        hints.push_str("\n// @devup-interaction ");
-        hints.push_str(
-            &hint
-                .to_string()
-                .replace('\u{2028}', "\\u2028")
-                .replace('\u{2029}', "\\u2029"),
-        );
-    }
-    for field in ["tsx", "componentTsx", "responsiveTsx"] {
-        if let Some(code) = result.get(field).and_then(Value::as_str).map(str::to_owned) {
-            result[field] = json!(format!("{code}{hints}"));
-        }
-    }
+    result["interactionHints"] = json!(result_candidates(data).iter().map(|candidate|
+        json!({"nodeId":candidate["nodeId"],"role":candidate["role"],"prototypeActions":candidate["prototypeActions"],"states":candidate["states"],"targetResolved":false})
+    ).collect::<Vec<_>>());
 }
 
 pub(super) fn evidence(snapshot: &Snapshot, roots: &[String]) -> Value {
@@ -545,7 +538,7 @@ pub(super) fn evidence(snapshot: &Snapshot, roots: &[String]) -> Value {
     shared.truncate(MAX_DETAILS);
     let mut evidence = json!({"interactiveCandidates":candidates,"sharedComponentCandidates":shared,"widgetCandidates":widgets,"stateAndIconDetails":details,
         "interactionEvidenceLimits":limits,
-        "interactionReadErrors":read_errors,"stateProjection":"Variants/prototype actions appear in @devup-interaction TSX comments and structured metadata. They do not implement runtime state/events or add native semantics automatically.",
+        "interactionReadErrors":read_errors,"stateProjection":"Variants/prototype actions are delivered as structured sidecar metadata only. They do not implement runtime state/events or add native semantics automatically.",
         "sharedComponentLimitations":"Only explicit master/set identity is grouped. Old snapshots without identity cannot establish shared components; no name match is treated as proof.",
         "interactionCoverage":{"candidateCount":total_candidates,"returnedCandidateCount":candidates.len(),"wiredCount":0,"runtimeVerified":false,"scope":"Design candidates only; code wiring must be measured after implementation."}});
     // Metadata stays bounded even when a capture contains large component text properties.

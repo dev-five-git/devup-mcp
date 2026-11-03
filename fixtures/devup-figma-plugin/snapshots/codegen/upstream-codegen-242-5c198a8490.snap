@@ -12,7 +12,7 @@ expression: actual
       flexDir="column"
       p="10px"
     >
-      <Image aspectRatio="1" boxSize="28px" src="/icons/cog.svg" />
+      <Image alt="cog" aspectRatio="1" boxSize="28px" src="/icons/cog.svg" />
     </Center>
   )
 }"

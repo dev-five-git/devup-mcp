@@ -10,10 +10,10 @@ mod tests {
         assert_eq!(
             with_host_safe_asset_paths(code),
             concat!(
-                "<Box maskImage=\"url(/icons/ic-round-arrow-left-b041d24e668d.svg)\" />\n",
-                "<Image src=\"/images/Frame-269-3e2af8571e3f.png\" />\n",
-                "<Box maskImage=\"url('/icons/Frame-287-cf31d759843d.svg')\" />\n",
-                "<Box maskImage=\"url(/icons/grommet-icons-language-d201f62b16f5.svg)\" />\n",
+                "<Box maskImage=\"url(/icons/ic-round-arrow-left.svg)\" />\n",
+                "<Image src=\"/images/frame-269.png\" />\n",
+                "<Box maskImage=\"url('/icons/frame-287.svg')\" />\n",
+                "<Box maskImage=\"url(/icons/grommet-icons-language.svg)\" />\n",
             )
         );
     }
@@ -22,17 +22,18 @@ mod tests {
     fn the_written_path_is_renamed_the_same_way_the_code_is() {
         assert_eq!(
             host_safe_asset_path("/icons/grommet-icons:language.svg"),
-            "/icons/grommet-icons-language-d201f62b16f5.svg"
+            "/icons/grommet-icons-language.svg"
         );
         assert_eq!(
             host_safe_asset_path("/images/Frame 269.png"),
-            "/images/Frame-269-3e2af8571e3f.png"
+            "/images/frame-269.png"
         );
     }
 }
 
 #[cfg(test)]
 mod w1_regressions {
+    include!("asset_quarantine_integration.rs");
     include!("w1_regressions.rs");
     include!("w1_regressions_r4_export_exposes_placement_contract_without_diagnostic.rs");
     include!("w1_regressions_original_source_variant_and_css_map_resources_recover_w.rs");

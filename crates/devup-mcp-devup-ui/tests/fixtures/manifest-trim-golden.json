@@ -540,5 +540,5 @@
       "fieldErrors": {}
     }
   ],
-  "expectedTsx": "import { Flex, Text } from \"@devup-ui/react\";\n\nexport function Fr0306체험하기() {\n  return (\n    <Flex alignItems=\"center\" bg=\"#005D67\" p=\"20px\" w=\"9605px\">\n      <Text\n        color=\"#FFF\"\n        fontFamily=\"Pretendard\"\n        fontSize=\"48px\"\n        fontWeight=\"700\"\n        letterSpacing=\"0em\"\n        lineHeight=\"normal\"\n        wordBreak=\"keep-all\"\n      >\n        [FR-03~06] 체험하기\n      </Text>\n    </Flex>\n  );\n}\n"
+  "expectedTsx": "import { Flex, Text } from \"@devup-ui/react\";\n\nexport function Fr0306체험하기() {\n  return (\n    <Flex alignItems=\"center\" bg=\"#005D67\" p=\"20px\" w=\"9605px\">\n      <Text\n        color=\"#FFF\"\n        fontFamily=\"Pretendard\"\n        fontSize=\"48px\"\n        fontWeight=\"700\"\n        letterSpacing=\"0em\"\n        lineHeight=\"normal\"\n        overflowWrap=\"break-word\"\n        whiteSpace=\"pre\"\n        wordBreak=\"keep-all\"\n      >\n        [FR-03~06] 체험하기\n      </Text>\n    </Flex>\n  );\n}\n"
 }

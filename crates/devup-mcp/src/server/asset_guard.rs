@@ -106,12 +106,38 @@ pub(super) fn coverage_violations(sources: &[(&str, &str)], expected: &[String])
         .filter(|id| !present.contains(id.as_str()))
         .map(|id| Violation {
             rule: COVERAGE_RULE,
-            severity: Severity::Error,
+            severity: if present.is_empty() { Severity::Warning } else { Severity::Error },
             byte_range: [0, 0],
             context: Map::from_iter([("nodeId".into(), json!(id))]),
-            message: format!("Captured section or asset {id} is missing from the supplied JSX identity coverage."),
-            suggestion: Some("Restore the generated section/image and its data-figma-node-id from the original export. Static identity coverage does not verify runtime visibility.".into()),
+            message: format!("Captured section or asset {id} has no verified source mapping in the supplied code."),
+            suggestion: Some("Supply the original export's elementMappings and file mapping; keep node metadata out of application JSX. Runtime visibility requires explicit semantic rendered targets.".into()),
         }).collect()
+}
+
+pub(super) fn mapped_coverage_violations(
+    sources: &[(&str, &str)],
+    expected: &[String],
+    mappings: &[super::tools::SectionElementMapping],
+) -> Vec<Violation> {
+    if mappings.is_empty() { return coverage_violations(sources, expected); }
+    expected.iter().collect::<BTreeSet<_>>().into_iter().filter_map(|id| {
+        let found = mappings.iter().filter(|entry| entry.node_id == *id).any(|entry| {
+            let matching = sources.iter().filter(|(file, _)| entry.source_file.as_deref().map_or(sources.len() == 1, |mapped| mapped == *file)).collect::<Vec<_>>();
+            matching.len() == 1 && matching.first().is_some_and(|(_, source)| {
+                devup_mcp_devup_ui::provenance::attributes::opening_elements(source).get(entry.element_index).is_some_and(|opening| {
+                    source[opening.start + 1..opening.end].split(|c: char| c.is_whitespace() || c == '/' || c == '>').next() == Some(entry.tag.as_str())
+                })
+            })
+        });
+        (!found).then(|| Violation {
+            rule: COVERAGE_RULE,
+            severity: Severity::Warning,
+            byte_range: [0, 0],
+            context: Map::from_iter([("nodeId".into(), json!(id)), ("verification".into(), json!("unverified"))]),
+            message: format!("Source structure for {id} cannot be established from its original file/element mapping."),
+            suggestion: Some("Update explicit source-file mappings after component extraction and verify semantic rendered targets. JSX order alone does not prove DOM identity.".into()),
+        })
+    }).collect()
 }
 
 /// Expected visible sections and assets come from the captured tree, even if
@@ -121,7 +147,7 @@ pub(super) fn export_coverage(
     root: &str,
     output: &mut devup_mcp_devup_ui::codegen::CodegenOutput,
     inline_instances: bool,
-    annotate: bool,
+    _annotate: bool,
 ) -> serde_json::Value {
     let mut scoped = snapshot.clone();
     scoped.roots = vec![root.into()];
@@ -170,39 +196,6 @@ pub(super) fn export_coverage(
         }
         pending.extend(view.child_ids().map(|child| (child, depth + 1)));
     }
-    if annotate {
-        devup_mcp_devup_ui::codegen::node_ids::annotate_node_ids(output, &wanted);
-        // Identity attributes are derived from captured IDs. Record that
-        // derivation so the final attribute audit can verify them too.
-        for attr in devup_mcp_devup_ui::provenance::attributes::generated_attributes(&output.tsx) {
-            if attr.name != "data-figma-node-id" {
-                continue;
-            }
-            let Some((_, value)) = attr.source.split_once('=') else {
-                continue;
-            };
-            let id = value.trim().trim_matches('"');
-            output
-                .source_map
-                .entries
-                .push(devup_mcp_devup_ui::provenance::ProvenanceEntry {
-                    generated_range: Some(devup_mcp_devup_ui::provenance::GeneratedRange {
-                        start: attr.start,
-                        end: attr.end,
-                    }),
-                    calculation: None,
-                    generated_property: Some(attr.source.clone()),
-                    json_pointer: None,
-                    node_id: Some(id.into()),
-                    property: Some("id".into()),
-                    variable_id: None,
-                    style_id: None,
-                    asset_id: None,
-                    resolution: "exact".into(),
-                    element_index: Some(attr.element),
-                });
-        }
-    }
     let node_ids = wanted.into_iter().collect::<Vec<_>>();
     let mapped = output
         .source_map
@@ -244,15 +237,18 @@ pub(super) fn export_coverage(
             ..Default::default()
         });
     }
-    if annotate {
-        let asset_urls = asset_urls(&output.tsx)
-            .into_iter()
-            .map(|(url, _)| url)
-            .collect::<BTreeSet<_>>();
-        json!({"nodeIds":node_ids,"assetUrls":asset_urls})
-    } else {
-        serde_json::Value::Null
+    let asset_urls = asset_urls(&output.tsx).into_iter().map(|(url, _)| url).collect::<BTreeSet<_>>();
+    let openings = devup_mcp_devup_ui::provenance::attributes::opening_elements(&output.tsx);
+    let mut mappings = Vec::new();
+    for entry in &output.source_map.entries {
+        let (Some(id), Some(index)) = (entry.node_id.as_ref(), entry.element_index) else { continue; };
+        if !node_ids.contains(id) { continue; }
+        let Some(opening) = openings.get(index) else { continue; };
+        let tag = output.tsx[opening.start + 1..opening.end].split(|c: char| c.is_whitespace() || c == '>' || c == '/').next().unwrap_or_default();
+        let row = json!({"nodeId":id,"elementIndex":index,"tag":tag});
+        if !mappings.contains(&row) { mappings.push(row); }
     }
+    json!({"nodeIds":node_ids,"assetUrls":asset_urls,"elementMappings":mappings,"identityStrategy":"source-map-sidecar","runtimeVerified":false})
 }
 
 /// Extensions treated as files a page serves from `public`.
@@ -511,7 +507,7 @@ mod tests {
         assert!(ids.contains(&"picture".into()), "{contract}");
         assert!(!ids.contains(&"hiddenPicture".into()));
         assert!(
-            coverage_violations(&[("", &output.tsx)], &ids).is_empty(),
+            mapped_coverage_violations(&[("", &output.tsx)], &ids, &serde_json::from_value::<Vec<crate::server::tools::SectionElementMapping>>(contract["elementMappings"].clone()).unwrap()).is_empty(),
             "{}",
             output.tsx
         );

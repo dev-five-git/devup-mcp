@@ -28,6 +28,7 @@ export function Wquw151Frame387935887() {
           letterSpacing="-0.02em"
           lineHeight="39px"
           overflow="hidden"
+          overflowWrap="break-word"
           textAlign="center"
           textOverflow="ellipsis"
           typography="h3"
@@ -45,7 +46,9 @@ export function Wquw151Frame387935887() {
               fontWeight="400"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXs"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               현재 적용된 문체 :
@@ -56,12 +59,14 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="29px"
+              overflowWrap="break-word"
               typography="bodySmSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               담담체
             </Text>
-            <Image aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
+            <Image alt="write" aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
           </Center>
           <VStack
             bg="$gray100"
@@ -77,6 +82,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="24px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="caption"
               wordBreak="keep-all"
@@ -99,7 +105,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="400"
                   letterSpacing="-0.01em"
                   lineHeight="26px"
+                  overflowWrap="break-word"
                   typography="bodyXs"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   AI 편집자에게 다듬기 맡기기
@@ -120,7 +128,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="400"
                   letterSpacing="-0.01em"
                   lineHeight="26px"
+                  overflowWrap="break-word"
                   typography="bodyXs"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   내 문장 최대한 유지하기
@@ -136,7 +146,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="26px"
+                overflowWrap="break-word"
                 typography="bodyXs"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 공개 설정 :
@@ -147,7 +159,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 나만 보기
@@ -193,6 +207,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="24px"
               overflow="hidden"
+              overflowWrap="break-word"
               textAlign="center"
               textOverflow="ellipsis"
               typography="caption"
@@ -213,6 +228,7 @@ export function Wquw151Frame387935887() {
             letterSpacing="-0.01em"
             lineHeight="22px"
             overflow="hidden"
+            overflowWrap="break-word"
             textOverflow="ellipsis"
             typography="captionSm"
             wordBreak="keep-all"
@@ -235,6 +251,7 @@ export function Wquw151Frame387935887() {
             letterSpacing="-0.01em"
             lineHeight="26px"
             typography="bodyXsSemibold"
+            whiteSpace="pre"
           >
             TIP
           </Text>
@@ -245,6 +262,7 @@ export function Wquw151Frame387935887() {
             letterSpacing="-0.01em"
             lineHeight="26px"
             overflow="hidden"
+            overflowWrap="break-word"
             textOverflow="ellipsis"
             typography="bodyXs"
             whiteSpace="pre-wrap"
@@ -289,20 +307,24 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               제목
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -318,6 +340,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.02em"
               lineHeight="31px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="h5"
               wordBreak="keep-all"
@@ -341,20 +364,24 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               1단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -369,6 +396,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="32px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="body"
               w="100%"
@@ -393,20 +421,24 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               2단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -421,6 +453,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="32px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="body"
               w="100%"
@@ -453,20 +486,24 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               3단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -481,6 +518,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="32px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="body"
               w="100%"
@@ -505,20 +543,24 @@ export function Wquw151Frame387935887() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="26px"
+              overflowWrap="break-word"
               typography="bodyXsSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               4단락
             </Text>
             <Flex alignItems="center" gap="6px">
-              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Image alt="write" aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
               <Text
                 color="$textLight"
                 fontSize="14px"
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="22px"
+                overflowWrap="break-word"
                 typography="captionSmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 수정
@@ -533,6 +575,7 @@ export function Wquw151Frame387935887() {
               letterSpacing="-0.01em"
               lineHeight="32px"
               overflow="hidden"
+              overflowWrap="break-word"
               textOverflow="ellipsis"
               typography="body"
               w="100%"
@@ -545,6 +588,7 @@ export function Wquw151Frame387935887() {
       </VStack>
       <Flex
         alignItems="center"
+        as="header"
         bg="$containerBackground"
         borderTop="solid 1px $border"
         bottom="0px"
@@ -563,7 +607,9 @@ export function Wquw151Frame387935887() {
             fontWeight="600"
             letterSpacing="-0.01em"
             lineHeight="31px"
+            overflowWrap="break-word"
             typography="bodySemibold"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             문체 변경
@@ -576,7 +622,9 @@ export function Wquw151Frame387935887() {
             fontWeight="600"
             letterSpacing="-0.01em"
             lineHeight="31px"
+            overflowWrap="break-word"
             typography="bodySemibold"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             검토 완료
@@ -613,7 +661,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="700"
                   letterSpacing="-0.02em"
                   lineHeight="28px"
+                  overflowWrap="break-word"
                   typography="h6"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   공개 설정
@@ -624,7 +674,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="400"
                   letterSpacing="-0.01em"
                   lineHeight="24px"
+                  overflowWrap="break-word"
                   typography="caption"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   작성하신 이야기를 누구와 함께 나눌지 선택해 주세요.
@@ -668,7 +720,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="600"
                   letterSpacing="-0.01em"
                   lineHeight="31px"
+                  overflowWrap="break-word"
                   typography="bodySemibold"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   동행인
@@ -680,6 +734,7 @@ export function Wquw151Frame387935887() {
                   letterSpacing="-0.01em"
                   lineHeight="24px"
                   overflow="hidden"
+                  overflowWrap="break-word"
                   textOverflow="ellipsis"
                   typography="caption"
                   wordBreak="keep-all"
@@ -706,7 +761,9 @@ export function Wquw151Frame387935887() {
                   fontWeight="400"
                   letterSpacing="-0.01em"
                   lineHeight="32px"
+                  overflowWrap="break-word"
                   typography="body"
+                  whiteSpace="pre"
                   wordBreak="keep-all"
                 >
                   나만 보기
@@ -718,6 +775,7 @@ export function Wquw151Frame387935887() {
                   letterSpacing="-0.01em"
                   lineHeight="24px"
                   overflow="hidden"
+                  overflowWrap="break-word"
                   textOverflow="ellipsis"
                   typography="caption"
                   wordBreak="keep-all"
@@ -727,6 +785,8 @@ export function Wquw151Frame387935887() {
               </VStack>
             </Flex>
           </VStack>
+    
+    
           <VStack borderTop="solid 1px $border" px="12px" py="20px">
             <VStack gap="4px">
               <Text
@@ -735,7 +795,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="700"
                 letterSpacing="-0.02em"
                 lineHeight="28px"
+                overflowWrap="break-word"
                 typography="h6"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 교정 설정
@@ -746,7 +808,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="26px"
+                overflowWrap="break-word"
                 typography="bodyXs"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 <Text fontWeight="600" typography="bodyXsSemibold">
@@ -774,7 +838,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="31px"
+                overflowWrap="break-word"
                 typography="bodySemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 AI 담당자와 함께 문체 다듬기
@@ -785,7 +851,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="24px"
+                overflowWrap="break-word"
                 typography="caption"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 AI 담당자가 문맥을 자연스럽게 수정해요
@@ -810,7 +878,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="32px"
+                overflowWrap="break-word"
                 typography="body"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 내 문장 그대로 맞춤법만 다듬기
@@ -821,7 +891,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="400"
                 letterSpacing="-0.01em"
                 lineHeight="24px"
+                overflowWrap="break-word"
                 typography="caption"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 입력하신 문장 그대로의 느낌을 담아내요
@@ -858,7 +930,9 @@ export function Wquw151Frame387935887() {
               fontWeight="700"
               letterSpacing="-0.02em"
               lineHeight="28px"
+              overflowWrap="break-word"
               typography="h6"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               글 다듬기 방식을 변경할까요?
@@ -871,6 +945,7 @@ export function Wquw151Frame387935887() {
                 letterSpacing="-0.01em"
                 lineHeight="29px"
                 overflow="hidden"
+                overflowWrap="break-word"
                 textAlign="center"
                 textOverflow="ellipsis"
                 typography="bodySm"
@@ -890,7 +965,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 취소
@@ -909,7 +986,9 @@ export function Wquw151Frame387935887() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 다시 교정하기

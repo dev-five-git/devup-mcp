@@ -155,14 +155,6 @@ fn r8_all_four_sizing_resolutions_have_semantic_mapping() {
             "accounted-for-implicit-flex-grow",
             "flex=\"1\"",
         ),
-        (
-            include_str!("../../../fixtures/r2/wquw-119-payload.json"),
-            "3997:46315",
-            "3997:46317",
-            "height",
-            "restored-hug-after-mask-child-folding",
-            "aspectRatio=\"320 / 48\"",
-        ),
     ] {
         let payload: devup_mcp_figma::CollectedPayload = serde_json::from_str(fixture).unwrap();
         let o = generate_component(
@@ -181,8 +173,54 @@ fn r8_all_four_sizing_resolutions_have_semantic_mapping() {
             .unwrap()
             .iter()
             .find(|e| e["nodeId"] == id && e["property"] == field && e["resolution"] == resolution)
-            .unwrap_or_else(|| panic!("missing {id} {field} {resolution}"));
+            .unwrap_or_else(|| {
+                panic!(
+                    "missing {id} {field} {resolution}: {:?}\n{}",
+                    map["entries"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|e| e["nodeId"] == id)
+                        .collect::<Vec<_>>(),
+                    o.tsx
+                )
+            });
         assert_eq!(e["generatedProperty"], generated, "{id} {field}");
         assert!(e.get("generatedRange").is_none());
     }
+}
+
+#[test]
+fn captured_hug_wrapper_keeps_its_actual_fixed_child_instead_of_becoming_an_asset() {
+    let payload: devup_mcp_figma::CollectedPayload =
+        serde_json::from_str(include_str!("../../../fixtures/r2/wquw-119-payload.json")).unwrap();
+    let parent = &payload.snapshot.nodes["3997:46317"].fields;
+    assert_eq!(parent["layoutSizingVertical"], "HUG");
+    assert_eq!(parent["childrenIds"], json!(["3997:46318"]));
+    assert_eq!(payload.snapshot.nodes["3997:46318"].fields["height"], 48);
+    let out = generate_component(
+        &payload.snapshot,
+        "3997:46315",
+        &CodegenOptions {
+            inline_instances: true,
+            ..Default::default()
+        }
+        .with_payload_tokens(&payload),
+    )
+    .unwrap();
+    let entry = out
+        .source_map
+        .entries
+        .iter()
+        .find(|e| e.node_id.as_deref() == Some("3997:46317") && e.property.is_none())
+        .unwrap();
+    let range = entry.generated_range.as_ref().unwrap();
+    let wrapper = &out.tsx[range.start..range.end];
+    let opening = wrapper.split('>').next().unwrap();
+    assert!(opening.contains("Center"));
+    assert!(!opening.contains("aspectRatio="));
+    assert!(!opening.contains("maskImage="));
+    assert!(wrapper.contains("h=\"48px\""));
+    assert!(wrapper.contains("w=\"127px\""));
+    assert!(wrapper.contains("maskImage=\"url(/icons/bi.svg)\""));
 }

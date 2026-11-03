@@ -1,0 +1,1 @@
+{"name":"devup-consumer-fixture","private":true,"type":"module","scripts":{"build":"vinext build","start":"vinext start"}}

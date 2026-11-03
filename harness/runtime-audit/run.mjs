@@ -16,6 +16,11 @@ import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './dev-environment.mjs';
+import { collectMarkup, evaluateMarkup } from './markup-checks.mjs';
+import { assertSelection } from './selection-checks.mjs';
+import { installMotionProbe, runMotionCheck } from './motion-checks.mjs';
+import { runDataBindingCheck } from './data-checks.mjs';
+import { sourceDigest } from './source-digest.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
@@ -251,58 +256,17 @@ async function clippedText(page, subject) {
   });
 }
 
-// Internal overflow can hide cards and navigation even when the page fits.
-export function observeClippedContent(page) {
-  return page.evaluate(() => {
-    const clipped = [];
-    // Headless Chromium hides every scrollbar (--hide-scrollbars), so a missing
-    // scrollbar gutter there says nothing about what a user sees. In that case
-    // only a scrollbar the page itself hid (scrollbar-width: none) counts.
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
-    (document.body ?? document.documentElement).append(probe);
-    const browserHidesScrollbars = probe.offsetWidth - probe.clientWidth === 0;
-    probe.remove();
-    for (const element of document.querySelectorAll('body *')) {
-      if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-      const style = getComputedStyle(element);
-      const box = element.getBoundingClientRect();
-      if (!box.width || !box.height) continue;
-      const horizontal = style.overflowX !== 'visible' && element.scrollWidth > element.clientWidth + 1;
-      const vertical = ['hidden','clip'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
-      if (!horizontal && !vertical) continue;
-      if (style.textOverflow === 'ellipsis' || (style.webkitLineClamp && style.webkitLineClamp !== 'none')) continue;
-      const gutter = element.offsetHeight - element.clientHeight - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth) > 2;
-      const scrollbar = gutter || (browserHidesScrollbars && style.scrollbarWidth !== 'none');
-      // A scroller is reachable content only when the user can see it scrolls.
-      if (!vertical && ['auto', 'scroll'].includes(style.overflowX) && scrollbar) continue;
-      if (element.closest('[aria-hidden="true"]')) continue;
-      const media = [...element.querySelectorAll('img, svg, video, canvas')];
-      const decorative = style.pointerEvents === 'none' && !element.textContent.trim()
-        && media.every((node) => node.tagName === 'IMG' ? node.getAttribute('alt') === '' : node.tagName.toLowerCase() === 'svg');
-      if (decorative) continue;
-      const animated = [element, ...element.querySelectorAll('*')].some((node) => {
-        const s = getComputedStyle(node);
-        return (s.animationName && s.animationName !== 'none') || (node.getAnimations?.().length ?? 0) > 0;
-      });
-      if (animated) continue;
-      const controls = element.parentElement?.querySelector('button[aria-label], [role="scrollbar"]');
-      if (horizontal && !vertical && element.dataset.auditCarousel === 'true' && (scrollbar || controls)) continue;
-      clipped.push({ name: element.id || `${element.tagName.toLowerCase()} "${element.textContent.trim().slice(0,60)}"`, horizontal, vertical });
-    }
-    return { clipped };
-  });
-}
+export {observeClippedContent} from './clipping-checks.mjs';
+import {observeClippedContent} from './clipping-checks.mjs';
 
 // What the rendered page holds of its frame. A node is found by the id it
 // carries itself, or, on a page merged from one frame per width, under this
 // width in its data-figma-node-ids map.
 export function observeCompleteness(page, completeness, width, subject) {
   const scope = subject ? locate(page, subject) : page.locator('body');
-  return scope.evaluate(async (root, { sections, images, width: drawnWidth }) => {
-    const find = (id) => document.querySelectorAll(
-      `[data-figma-node-id="${id}"], [data-figma-node-ids~="${drawnWidth}:${id}"]`,
-    );
+  return scope.evaluate(async (root, { sections, images, nodeSelectors, width: drawnWidth }) => {
+    const find = (id) => document.querySelectorAll(nodeSelectors[id]
+      ?? `[data-figma-node-id="${id}"], [data-figma-node-ids~="${drawnWidth}:${id}"]`);
     const shown = (element) => !element.checkVisibility
       || element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
     const describe = (id) => {
@@ -438,7 +402,7 @@ export function observeCompleteness(page, completeness, width, subject) {
       images: images.map(describe),
       texts,
     };
-  }, { sections: completeness.sections ?? [], images: completeness.images ?? [], width });
+  }, { sections: completeness.sections ?? [], images: completeness.images ?? [], nodeSelectors: completeness.nodeSelectors ?? {}, width });
 }
 
 // Numbered labels are grouped by their label form ("01" or "STEP 1") within
@@ -648,6 +612,12 @@ async function pageMetrics(page) {
     const bodyStyle = document.body ? getComputedStyle(document.body) : style;
     return {
       viewportWidth,
+      captureContext: {
+        innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        visualViewportScale: window.visualViewport?.scale ?? null,
+        rootCssZoom: Number.parseFloat(style.zoom), bodyCssZoom: Number.parseFloat(bodyStyle.zoom),
+      },
       documentWidth: document.documentElement.getBoundingClientRect().width,
       scrollWidth: document.documentElement.scrollWidth,
       maxRight,
@@ -809,10 +779,11 @@ async function checkExpectations(page, expect, timeout) {
   if (expect.visible) {
     await locate(page, expect.visible).first().waitFor({ state: 'visible', timeout });
   }
+  if (expect.selected) return { selected: await assertSelection(page, expect.selected, locate, timeout) };
   return null;
 }
 
-async function runViewport(browser, plan, viewport, out, deadline, references, readServerLog, linkCache = new Map()) {
+async function runViewport(browser, plan, viewport, out, deadline, references, readServerLog, linkCache = new Map(), auditBinding = {}) {
   const allowed = new Set(plan.allowedOrigins.map((origin) => new URL(origin).origin));
   const contextOptions = {
     viewport: { width: viewport.width, height: viewport.height },
@@ -828,6 +799,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
   const blocked = [];
   await guardOrigins(context, allowed, blocked);
   await context.addInitScript(VIEW_TRANSITION_PROBE);
+  await context.addInitScript(installMotionProbe, plan.screens.flatMap(screen => screen.checks.filter(check => check.kind === 'motion' && check.motion?.kind === 'count-up').map(check => check.motion)));
   const page = await context.newPage();
   observeDevServer(page, environmentErrors);
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
@@ -899,12 +871,19 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             }
           }
           for (const step of screen.steps ?? []) {
-            const target = locate(page, step.target);
             const timeout = step.timeoutMs ?? stepTimeout;
-            if (step.action === 'click') await target.click({ timeout });
-            else await target.fill(step.value, { timeout });
+            if (step.action === 'back') await page.goBack({ waitUntil: 'load', timeout });
+            else if (step.action === 'forward') await page.goForward({ waitUntil: 'load', timeout });
+            else if (step.action === 'reload') await page.reload({ waitUntil: 'load', timeout });
+            else {
+              const target = locate(page, step.target);
+              if (step.action === 'click') await target.click({ timeout });
+              else if (step.action === 'press') await target.press(step.value, { timeout });
+              else if (step.action === 'fill') await target.fill(step.value, { timeout });
+              else throw new Error(`unknown step action: ${step.action}`);
+            }
           }
-          await checkExpectations(page, screen.expect, stepTimeout);
+          record.expectationEvidence = await checkExpectations(page, screen.expect, stepTimeout);
           await waitReady(page, plan, stepTimeout);
         } catch (error) {
           const failure = classifyStepError(error);
@@ -919,6 +898,11 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
         record.frozenAnimations = await freezeAnimations(page);
         const layoutBefore = await layoutFingerprint(page);
         const metrics = await pageMetrics(page);
+        record.captureContext = metrics.captureContext;
+        if ([metrics.captureContext.visualViewportScale, metrics.captureContext.rootCssZoom, metrics.captureContext.bodyCssZoom]
+          .some((value) => !Number.isFinite(value) || value !== 1)) {
+          environmentErrors.push({ kind: 'capture-calibration-unverified', message: 'Visual viewport/CSS zoom is not unit scale; logical geometry and PNG scale require independent calibration' });
+        }
         if (metrics.viewportWidth !== viewport.width) {
           environmentErrors.push({ kind: 'viewport-mismatch', message: `innerWidth ${metrics.viewportWidth} for a ${viewport.width}px viewport` });
         }
@@ -937,6 +921,20 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'links-resolve') continue;
           try {
+          if (check.kind === 'data-binding') {
+            record.checks.push({ ...item, ...await runDataBindingCheck(check, page, { out, viewport, ...auditBinding }) });
+            continue;
+          }
+          if (check.kind === 'motion') {
+            await restoreAnimations(page);
+            try { record.checks.push({ ...item, ...await runMotionCheck(page, check.motion) }); }
+            finally { await freezeAnimations(page); }
+            continue;
+          }
+          if (check.kind === 'markup') {
+            record.checks.push({ ...item, ...evaluateMarkup(await page.evaluate(collectMarkup)) });
+            continue;
+          }
           if (check.kind === 'page-health') {
             const text = await page.evaluate(() => (document.body ? document.body.innerText : ''));
             const errors = environmentErrors
@@ -953,8 +951,8 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             continue;
           }
           if (check.kind === 'no-clipped-content') {
-            const observed = await observeClippedContent(page);
-            record.checks.push({ ...item, status: observed.clipped.length ? 'fail' : 'pass', reason: observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
+            const observed = await observeClippedContent(page, check.allowedMarquees ?? []);
+            record.checks.push({ ...item, status: observed.clipped.length || observed.invalidExemptions?.length ? 'fail' : 'pass', reason: observed.invalidExemptions?.length ? 'invalid intentional marquee exemption' : observed.clipped.length ? `content cut off: ${observed.clipped.map((item) => item.name).join('; ')}` : 'no hidden internal content', measured: observed });
             continue;
           }
           if (check.kind === 'sequence-order') {
@@ -1032,12 +1030,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'rendered-completeness') {
             const observed = await observeCompleteness(page, check.completeness, viewport.width);
-            const frame = screen.figma?.frames?.find((frame) => frame.width === viewport.width);
             const result = evaluateRenderedCompleteness(check.completeness, observed);
-            if (frame?.height && observed.pageHeight < frame.height) {
-              result.status = 'fail';
-              result.reason = `the page is ${observed.pageHeight}px tall, shorter than the ${frame.height}px drawn frame`;
-            }
             record.checks.push({ ...item, ...result });
             continue;
           }
@@ -1077,13 +1070,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
         }
         const name = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}.png`;
-        const frame = screen.figma?.drawnWidths?.includes(viewport.width)
-          ? screen.figma.frames?.find((frame) => frame.width === viewport.width)
-          : undefined;
-        const captureHeight = frame?.height ? Math.min(metrics.fullHeight, frame.height) : metrics.fullHeight;
+        // Preserve the naturally rendered page. Figma frame height is not a
+        // browser viewport or permission to crop away additional content.
         const bytes = await page.screenshot({
           fullPage: true,
-          clip: { x: 0, y: 0, width: metrics.viewportWidth, height: captureHeight },
           animations: 'allow',
           caret: 'hide',
         });
@@ -1184,6 +1174,8 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     kind: REPORT_KIND,
     planId: document.planId,
     planSha256: sha256(planBytes),
+    sourceDigest: null,
+    sourceVerification: { requested: Boolean(plan.sourceDigest), unchanged: false, planMatched: false },
     status: 'running',
     startedAt: new Date().toISOString(),
     executor: { name: 'devup-runtime-audit', node: process.version, playwright: playwrightVersion },
@@ -1204,12 +1196,20 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     aborted = true;
   };
   process.once('SIGINT', onSignal);
-  const browser = await chromium.launch();
-  report.executor.browser = { name: 'chromium', version: browser.version() };
+  let browser;
   try {
+    if(plan.sourceDigest) {
+      if(typeof plan.projectRoot!=='string'||!plan.projectRoot) throw new Error('Source-bound browser plans require projectRoot');
+      const before=await sourceDigest(plan.projectRoot);
+      report.sourceDigest=before.sourceDigest;
+      Object.assign(report.sourceVerification,{projectRoot:plan.projectRoot,beforeDigest:before.sourceDigest,planMatched:before.sourceDigest===plan.sourceDigest});
+      if(!report.sourceVerification.planMatched)throw new Error('Project sources differ from the bound plan before browser execution');
+    }
+    browser=await chromium.launch();
+    report.executor.browser = { name: 'chromium', version: browser.version() };
     for (const viewport of plan.viewports) {
       if (aborted || Date.now() > deadline) break;
-      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], readServerLog, linkCache));
+      report.runs.push(await runViewport(browser, plan, viewport, outDir, deadline, document.dimensionReferences ?? [], readServerLog, linkCache, { planId: document.planId, planSha256: sha256(planBytes), sourceDigest: plan.sourceDigest }));
     }
     const ranEverything = report.runs.length === plan.viewports.length
       && report.runs.every((run) => run.screens.every((screen) => screen.status === 'completed'));
@@ -1219,7 +1219,14 @@ export async function runPlan({ plan: planPath, out, maxMinutes, serverLog }) {
     report.error = String(error?.message ?? error);
   } finally {
     process.off('SIGINT', onSignal);
-    await browser.close();
+    if(browser)await browser.close();
+    if(plan.sourceDigest&&report.sourceVerification.beforeDigest) {
+      try {
+        const after=await sourceDigest(plan.projectRoot);
+        Object.assign(report.sourceVerification,{afterDigest:after.sourceDigest,unchanged:after.sourceDigest===report.sourceVerification.beforeDigest});
+        if(!report.sourceVerification.unchanged){report.status='aborted';report.error='Project sources changed during browser execution';}
+      } catch(error) {report.status='aborted';report.error=`Cannot recheck project sources: ${error.message}`;}
+    }
     await writeReport();
   }
   return report;

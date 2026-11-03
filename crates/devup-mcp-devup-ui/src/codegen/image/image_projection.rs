@@ -649,11 +649,10 @@ pub(super) fn apply_image_props(props: &mut Vec<Prop>, mapping: &Value) {
             string_prop(props, name, v);
         }
     }
-    for name in ["width", "height"] {
-        if let Some(v) = mapping["intrinsicAttributes"][name].as_f64() {
-            string_prop(props, name, number(v));
-        }
-    }
+    // DevupUI consumes width/height as styling aliases, not native img
+    // attributes. Unitless source pixel sizes would override measured w/h
+    // (and are spacing-scaled). Keep intrinsic sizes in the asset CSS map;
+    // only captured display dimensions belong on this component.
     for name in ["srcSet", "sizes"] {
         if let Some(v) = mapping[name].as_str() {
             string_prop(props, name, v);

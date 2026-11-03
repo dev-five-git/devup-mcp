@@ -4,10 +4,13 @@ fn bind_text_properties(
     tree: &mut Tree,
     dimensions: &[Definition],
 ) -> BTreeMap<String, String> {
-    let mut used = dimensions.iter().map(|definition| definition.name.clone())
+    let mut used = dimensions
+        .iter()
+        .map(|definition| definition.name.clone())
         .collect::<BTreeSet<_>>();
     let mut properties = BTreeMap::new();
-    for (name, definition) in set.typed_view()
+    for (name, definition) in set
+        .typed_view()
         .value("componentPropertyDefinitions")
         .and_then(Value::as_object)
         .into_iter()
@@ -22,13 +25,21 @@ fn bind_text_properties(
             suffix += 1;
         }
         used.insert(property.clone());
-        properties.insert(name.clone(), (property, definition["defaultValue"].to_string()));
+        let default = definition["defaultValue"].as_str().map_or_else(
+            || definition["defaultValue"].to_string(),
+            |value| {
+                serde_json::to_string(&super::text::normalize_render_characters(value)).unwrap()
+            },
+        );
+        properties.insert(name.clone(), (property, default));
     }
     let mut defaults = properties.values().cloned().collect::<BTreeMap<_, _>>();
     let mut fallback_index = 0;
     let mut pending = vec![tree];
     while let Some(node) = pending.pop() {
-        if let Some((name, _)) = snapshot.nodes.get(&node.node_id)
+        if let Some((name, _)) = snapshot
+            .nodes
+            .get(&node.node_id)
             .and_then(|raw| raw.typed_view().value("componentPropertyReferences"))
             .and_then(|references| references.get("characters"))
             .and_then(Value::as_str)
@@ -39,11 +50,19 @@ fn bind_text_properties(
             && raw.node_type == "TEXT"
         {
             let layer = raw.typed_view().name().unwrap_or_default();
-            let base = if layer.is_ascii() && layer.chars().any(|character| character.is_ascii_alphabetic()) {
-                let mut parts = layer.split(|character: char| !character.is_ascii_alphanumeric())
+            let base = if layer.is_ascii()
+                && layer
+                    .chars()
+                    .any(|character| character.is_ascii_alphabetic())
+            {
+                let mut parts = layer
+                    .split(|character: char| !character.is_ascii_alphanumeric())
                     .filter(|part| !part.is_empty());
                 let mut name = parts.next().unwrap_or_default().to_owned();
-                if name.chars().all(|character| !character.is_ascii_lowercase()) {
+                if name
+                    .chars()
+                    .all(|character| !character.is_ascii_lowercase())
+                {
                     name.make_ascii_lowercase();
                 } else if let Some(first) = name.get_mut(..1) {
                     first.make_ascii_lowercase();
@@ -65,22 +84,70 @@ fn bind_text_properties(
             };
             let mut name = base.clone();
             let mut suffix = 2;
-            while used.contains(&name) || matches!(name.as_str(),
-                "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger" |
-                "default" | "delete" | "do" | "else" | "enum" | "export" | "extends" |
-                "false" | "finally" | "for" | "function" | "if" | "import" | "in" |
-                "instanceof" | "new" | "null" | "return" | "super" | "switch" | "this" |
-                "throw" | "true" | "try" | "typeof" | "var" | "void" | "while" | "with" |
-                "let" | "yield" | "await" | "implements" | "interface" | "package" |
-                "private" | "protected" | "public" | "static" | "eval" | "arguments") {
+            while used.contains(&name)
+                || matches!(
+                    name.as_str(),
+                    "break"
+                        | "case"
+                        | "catch"
+                        | "class"
+                        | "const"
+                        | "continue"
+                        | "debugger"
+                        | "default"
+                        | "delete"
+                        | "do"
+                        | "else"
+                        | "enum"
+                        | "export"
+                        | "extends"
+                        | "false"
+                        | "finally"
+                        | "for"
+                        | "function"
+                        | "if"
+                        | "import"
+                        | "in"
+                        | "instanceof"
+                        | "new"
+                        | "null"
+                        | "return"
+                        | "super"
+                        | "switch"
+                        | "this"
+                        | "throw"
+                        | "true"
+                        | "try"
+                        | "typeof"
+                        | "var"
+                        | "void"
+                        | "while"
+                        | "with"
+                        | "let"
+                        | "yield"
+                        | "await"
+                        | "implements"
+                        | "interface"
+                        | "package"
+                        | "private"
+                        | "protected"
+                        | "public"
+                        | "static"
+                        | "eval"
+                        | "arguments"
+                )
+            {
                 name = format!("{base}{suffix}");
                 suffix += 1;
             }
             used.insert(name.clone());
             let characters = raw.typed_view().string("characters").unwrap_or_default();
             let default = match node.content.as_deref() {
-                Some(content) if content.starts_with("{{") && content.ends_with('}') => content[1..content.len()-1].to_owned(),
-                _ => serde_json::to_string(characters).unwrap_or_default(),
+                Some(content) if content.starts_with("{{") && content.ends_with('}') => {
+                    content[1..content.len() - 1].to_owned()
+                }
+                _ => serde_json::to_string(&super::text::normalize_render_characters(characters))
+                    .unwrap_or_default(),
             };
             defaults.insert(name.clone(), default);
             node.content = Some(format!("{{{name}}}"));

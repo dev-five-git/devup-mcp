@@ -65,13 +65,16 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
     if outputs
         .iter()
         .any(|output| output == "tsx" || output == "responsiveTsx")
-        && let Some(mut merged) = merge(
+        && let Some(merged) = merge(
             &responsive_snapshot,
             &CodegenOptions {
                 asset_policies: asset_policies.clone(),
                 component_name: component_name_for_components.clone(),
                 include_diagnostics,
-                inline_instances: false,
+                // `tsx` explicitly requests expanded instances. Keep the same
+                // contract in its responsive companion so concrete instance
+                // text/layout overrides cannot disappear behind a bare call.
+                inline_instances: outputs.iter().any(|output| output == "tsx"),
                 root_layout,
                 asset_names_per_node,
                 ..CodegenOptions::default()
@@ -115,19 +118,21 @@ pub(super) fn project_responsive_output(input: ResponsiveOutput<'_>) -> Responsi
                 "Two frames occupy the same breakpoint slot. Request tsx separately, or select one frame per breakpoint slot.",
             ));
         }
+        let openings = devup_mcp_devup_ui::provenance::attributes::opening_elements(&merged.tsx);
+        let source_structure_verified = openings.len() == merged.elements.len();
+        let identities = merged.elements.iter().enumerate().filter(|_| source_structure_verified).map(|(index, element)| json!({"elementIndex":index,"ids":element.ids.iter().map(|(width,id)|json!({"width":width,"nodeId":id})).collect::<Vec<_>>(),"hiddenAt":element.hidden_at})).collect::<Vec<_>>();
+        result.insert("sourceIdentity".into(), json!({"strategy":"source-map-sidecar","attributesWritten":false,"sourceStructureVerified":source_structure_verified,"runtimeVerified":false,"responsive":identities}));
         if theme_options.figma_node_ids {
-            let written = devup_mcp_devup_ui::codegen::node_ids::annotate_merged(&mut merged);
-            let ids = result.entry("figmaNodeIds").or_insert_with(
-                || json!({"attribute": devup_mcp_devup_ui::codegen::node_ids::NODE_ID_ATTRIBUTE}),
-            );
-            ids["perWidthAttribute"] =
-                json!(devup_mcp_devup_ui::codegen::node_ids::NODE_IDS_ATTRIBUTE);
-            ids["responsive"] = json!(written);
-            ids["responsiveFormat"] = json!(include_str!(
-                "../text/projection-project_operation-8a156710.md"
-            ));
+            result.insert("figmaNodeIds".into(), result["sourceIdentity"].clone());
         }
         let module = merged.module(&name);
+        attach_overlay_anchor_delivery(
+            &responsive_snapshot,
+            &responsive_snapshot.roots,
+            &module,
+            "responsiveTsx",
+            &mut result,
+        );
         // The responsive tree builder does not run the ordinary
         // finalizer. Preserve each breakpoint's source limitations.
         let mut breakpoint_fidelity = Vec::new();

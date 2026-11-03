@@ -116,6 +116,7 @@ fn array_text(value: &Value) -> String {
 pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
     match kind {
         "page-health" => "runtime-error",
+        "markup" => "accessibility",
         "image-loaded" | "stale-resources" => "asset-mismatch",
         "no-low-contrast-text" | "native-appearance" => "section-visual",
         "rendered-completeness" => "page-visual",
@@ -133,6 +134,7 @@ pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
 /// element where the executor reported one.
 pub(crate) fn fix_hint(class: &str, kind: &str, measured: &Value) -> String {
     match class {
+        "accessibility" => "Inspect the measured landmark counts, headings and missingAlt entries. Use semantic HTML, one h1, ordered heading levels, document language and appropriate image alternatives. Review small target exceptions separately.".to_owned(),
         "runtime-error" => include_str!("../text/runtime_audit-fix_hint-3a12f919.md").to_owned(),
         "overflow" if kind == "no-clipped-text" => {
             include_str!("../text/runtime_audit-fix_hint-b3941912.md").to_owned()

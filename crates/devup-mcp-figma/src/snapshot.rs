@@ -188,6 +188,10 @@ impl<'a> TypedNode<'a> {
         self.value(field).and_then(Value::as_f64)
     }
 
+    pub fn field_error(&self, field: &str) -> Option<&'a str> {
+        self.node.field_errors.get(field).map(String::as_str)
+    }
+
     pub fn bool(&self, field: &str) -> Option<bool> {
         self.value(field).and_then(Value::as_bool)
     }

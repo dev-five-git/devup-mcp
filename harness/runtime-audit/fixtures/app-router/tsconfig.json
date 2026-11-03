@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ESNext","module":"ESNext","moduleResolution":"bundler","jsx":"react-jsx","strict":true,"skipLibCheck":true,"noEmit":true,"esModuleInterop":true,"lib":["ESNext","DOM","DOM.Iterable"],"types":["node","vinext/types"]},"include":["src/**/*.ts","src/**/*.tsx","df/**/*.d.ts"]}

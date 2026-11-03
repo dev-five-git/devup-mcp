@@ -14,6 +14,7 @@ expression: actual
       letterSpacing="-0.04em"
       lineHeight="30px"
       my="0px"
+      overflowWrap="break-word"
       pl="1.5em"
       wordBreak="keep-all"
     >

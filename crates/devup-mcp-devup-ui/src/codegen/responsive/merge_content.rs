@@ -1,5 +1,3 @@
-
-
 /// What a text says across the widths.
 ///
 /// Words are not a style prop and have no array to go into, so the widths
@@ -146,7 +144,10 @@ fn merge_children(
     precedence: &Precedence,
     context: &mut MergeContext<'_>,
 ) -> Vec<Tree> {
+    let reconciled = reconcile_child_wrappers(by_slot, context);
+    let by_slot = reconciled.as_ref().unwrap_or(by_slot);
     let maps = align_children(by_slot, context);
+    let captured_orders = captured_child_orders(by_slot, &maps, context);
     let orders = maps
         .iter()
         .flatten()
@@ -167,54 +168,95 @@ fn merge_children(
             .unwrap_or_default();
 
         for index in 0..count {
-            let mut children: BySlot<Tree> = std::array::from_fn(|slot| {
-                bucket(slot).and_then(|list| list.get(index).cloned().cloned())
+            let children: BySlot<Tree> = std::array::from_fn(|slot| {
+                let mut child = bucket(slot).and_then(|list| list.get(index).cloned().cloned())?;
+                if let Some(order) = captured_orders.as_ref().and_then(|orders| orders[slot].as_ref()).and_then(|orders| orders.get(&key)) {
+                    child.props.insert("order".into(), order.to_string());
+                }
+                Some(child)
             });
-            // A layer hidden at every width that has it is drawn at none, and
-            // `tsx` leaves it out — with its asset references, which a hidden
-            // layer has none of to deliver. A copy hidden everywhere would
-            // say nothing but `display: none`.
-            if children.iter().flatten().all(|child| {
-                child
-                    .props
-                    .get("display")
-                    .is_some_and(|value| value == "none")
-            }) {
-                continue;
-            }
-            if (0..SLOTS).any(|slot| by_slot[slot].is_some() && children[slot].is_none()) {
-                for child in children.iter_mut().flatten() {
-                    if child.component == "Image" {
-                        // A present source must restore visibility even when
-                        // it is absent on both sides of this drawn slot.
-                        child
-                            .props
-                            .entry("display".to_owned())
-                            .or_insert_with(|| natural_display("Image").to_owned());
-                    }
-                }
-            }
-            // A width that does not draw this child is given a copy of the
-            // first one that does — first in the Section's order — hidden. The
-            // copies then merge like anything else: the `display` array falls
-            // out of the ordinary prop merge rather than from a branch of its
-            // own, and so do the copy's other values, which is why the choice
-            // of width to copy shows in the output.
-            if let Some(shown) =
-                first_slot(&children, precedence).and_then(|slot| children[slot].clone())
+            let snapshot = context.snapshot;
+            for mut children in instance_text_branches(children, snapshot)
+                .into_iter()
+                .flat_map(typography_branches)
+                .flat_map(|children| literal_text_branches(children, snapshot))
             {
-                for slot in 0..SLOTS {
-                    if by_slot[slot].is_some() && children[slot].is_none() {
-                        let mut hidden = shown.clone();
-                        hidden.props.insert("display".to_owned(), "none".to_owned());
-                        children[slot] = Some(hidden);
+                // A layer hidden at every width that has it is drawn at none, and
+                // `tsx` leaves it out — with its asset references, which a hidden
+                // layer has none of to deliver. A copy hidden everywhere would
+                // say nothing but `display: none`.
+                if children.iter().flatten().all(|child| {
+                    child
+                        .props
+                        .get("display")
+                        .is_some_and(|value| value == "none")
+                }) {
+                    continue;
+                }
+                if (0..SLOTS).any(|slot| by_slot[slot].is_some() && children[slot].is_none()) {
+                    for child in children.iter_mut().flatten() {
+                        if child.component == "Image" {
+                            // A present source must restore visibility even when
+                            // it is absent on both sides of this drawn slot.
+                            child
+                                .props
+                                .entry("display".to_owned())
+                                .or_insert_with(|| natural_display("Image").to_owned());
+                        }
                     }
                 }
+                // A width that does not draw this child is given a copy of the
+                // first one that does — first in the Section's order — hidden. The
+                // copies then merge like anything else: the `display` array falls
+                // out of the ordinary prop merge rather than from a branch of its
+                // own, and so do the copy's other values, which is why the choice
+                // of width to copy shows in the output.
+                if let Some(shown) =
+                    first_slot(&children, precedence).and_then(|slot| children[slot].clone())
+                {
+                    for slot in 0..SLOTS {
+                        if by_slot[slot].is_some() && children[slot].is_none() {
+                            let mut hidden = shown.clone();
+                            hidden.props.insert("display".to_owned(), "none".to_owned());
+                            children[slot] = Some(hidden);
+                        }
+                    }
+                }
+                merged.extend(merge_trees(&children, precedence, context));
             }
-            merged.extend(merge_trees(&children, precedence, context));
         }
     }
     merged
+}
+
+// typography is a scalar token, not a CSS property. Separate captured Text
+// nodes keep each token's complete style without inventing responsive fonts.
+fn typography_branches(children: BySlot<Tree>) -> Vec<BySlot<Tree>> {
+    if children
+        .iter()
+        .flatten()
+        .any(|child| child.component != "Text" || child.is_component)
+    {
+        return vec![children];
+    }
+    let tokens = children
+        .iter()
+        .flatten()
+        .map(|child| child.props.get("typography").cloned())
+        .collect::<BTreeSet<_>>();
+    if tokens.len() < 2 {
+        return vec![children];
+    }
+    tokens
+        .into_iter()
+        .map(|token| {
+            std::array::from_fn(|slot| {
+                children[slot]
+                    .clone()
+                    .filter(|child| child.props.get("typography").cloned() == token)
+            })
+        })
+        .collect()
 }
 
 /// Write a merged tree as JSX, in the house style: props sorted, spread over
@@ -262,10 +304,7 @@ fn render_merged(tree: &Tree, depth: usize) -> String {
     // A shape spelled out in place of the component it came from still says
     // which component that was, or a reader has nothing to go on when the
     // change belongs upstream.
-    let comment = match &tree.leading_comment {
-        Some(comment) => format!("{indent}{{/* {comment} */}}\n"),
-        None => String::new(),
-    };
+    let comment = String::new();
     let component = &tree.component;
     if children.is_empty() {
         if multiline {
@@ -407,15 +446,28 @@ pub fn merge_confirmed_breakpoints(
     snapshot: &Snapshot,
     options: &CodegenOptions,
 ) -> Result<Option<MergedScreen>, DevupError> {
-    let widths = snapshot.roots.iter().filter_map(|id| {
-        Some(("confirmed", snapshot.nodes.get(id)?.typed_view().number("width")?))
-    }).collect::<Vec<_>>();
+    let widths = snapshot
+        .roots
+        .iter()
+        .filter_map(|id| {
+            Some((
+                "confirmed",
+                snapshot.nodes.get(id)?.typed_view().number("width")?,
+            ))
+        })
+        .collect::<Vec<_>>();
     if widths.len() != snapshot.roots.len() || !breakpoint_family_is_possible(&widths) {
         return Ok(None);
     }
-    let found = snapshot.roots.iter().enumerate().map(|(rank, id)| Breakpoint {
-        rank, node_id: id.clone(),
-    }).collect::<Vec<_>>();
+    let found = snapshot
+        .roots
+        .iter()
+        .enumerate()
+        .map(|(rank, id)| Breakpoint {
+            rank,
+            node_id: id.clone(),
+        })
+        .collect::<Vec<_>>();
     merge_discovered_breakpoints(snapshot, options, &found)
 }
 
@@ -448,7 +500,11 @@ fn merge_discovered_breakpoints(
         // the slot; reporting the clash is left to the caller, which knows the
         // names, rather than silently dropping a width here.
         if by_slot[slot].is_none() {
-            let mut tree = project_tree_keeping_instances(snapshot, node, options, true)?;
+            let mut tree = if options.inline_instances {
+                project_tree(snapshot, node, options, true)?
+            } else {
+                project_tree_keeping_instances(snapshot, node, options, true)?
+            };
             restore_implied_display(&mut tree);
             by_slot[slot] = Some(tree);
             roots[slot] = Some(breakpoint.node_id.clone());
@@ -464,7 +520,13 @@ fn merge_discovered_breakpoints(
         }
     }
     slots.sort_unstable();
-    let mut context = MergeContext { snapshot, notes: Vec::new(), diagnostics: Vec::new(), slot_widths };
+    let mut context = MergeContext {
+        snapshot,
+        length_tokens: &options.length_tokens,
+        notes: Vec::new(),
+        diagnostics: Vec::new(),
+        slot_widths,
+    };
     let Some(mut tree) = merge_trees(&by_slot, &precedence, &mut context) else {
         return Ok(None);
     };
@@ -476,11 +538,7 @@ fn merge_discovered_breakpoints(
         .get("w")
         .and_then(|value| slot_values(value))
         .is_some_and(|values| {
-            values.len() > 1
-                && values
-                    .iter()
-                    .flatten()
-                    .all(|value| value.ends_with("px"))
+            values.len() > 1 && values.iter().flatten().all(|value| value.ends_with("px"))
         });
     if root_fluid {
         tree.props.remove("w");
@@ -488,6 +546,11 @@ fn merge_discovered_breakpoints(
     let mut components = BTreeSet::new();
     collect_components(&tree, &mut components);
     let tsx = render_merged(&tree, 2);
+    for root in roots.iter().flatten() {
+        context
+            .diagnostics
+            .extend(super::overlay_anchors::diagnostics(snapshot, root, &tsx));
+    }
     let (contract, gaps) = verify_merge(snapshot, options, &roots, &tree, &tsx, root_fluid);
     let elements = merged_elements(&tree, &slot_widths);
     Ok(Some(MergedScreen {
@@ -525,7 +588,7 @@ fn merged_elements(tree: &Tree, slot_widths: &BySlot<u32>) -> Vec<MergedElement>
                     continue;
                 };
                 match placed.tree.slots.get(slot).cloned().flatten() {
-                    Some((node, _)) if placed.shown[slot] => ids.push((*width, node)),
+                    Some((node, _)) if placed.shown[slot] && contents_wrapper_source(&node).is_none() => ids.push((*width, node)),
                     _ if !placed.shown[slot] => hidden_at.push(*width),
                     // Shown with no node of its own at that width: nothing
                     // in that frame to compare it with.
@@ -607,25 +670,10 @@ fn slot_values(written: &str) -> Option<Vec<Option<String>>> {
     {
         return Some(vec![Some(value.to_owned())]);
     }
-    let mut rest = written
-        .strip_prefix("={[")?
-        .strip_suffix("]}")?
-        .trim_start();
-    let mut values = Vec::new();
-    while !rest.is_empty() {
-        if let Some(after) = rest.strip_prefix("null") {
-            values.push(None);
-            rest = after;
-        } else {
-            let after = rest.strip_prefix('"')?;
-            let end = after.find('"')?;
-            values.push(Some(after[..end].to_owned()));
-            rest = &after[end + 1..];
-        }
-        rest = rest.trim_start();
-        rest = rest.strip_prefix(',').unwrap_or(rest).trim_start();
-    }
-    Some(values)
+    // Arrays are JS string/null literals serialized as JSON. Decode their
+    // escapes before comparing with scalar JSX values (whose backslashes are
+    // literal), including CSS escaped identifiers and quoted font names.
+    serde_json::from_str(written.strip_prefix("={")?.strip_suffix('}')?).ok()
 }
 
 /// What devup-ui applies at a slot: the last value at or below it.
@@ -793,6 +841,13 @@ fn verify_merge(
                     let check = WidthCheck {
                         snapshot,
                         slot,
+                        css_slot: css_length_slot(
+                            snapshot.nodes[root]
+                                .typed_view()
+                                .number("width")
+                                .unwrap_or_default(),
+                        ),
+                        length_tokens: &options.length_tokens,
                         placed: &placed,
                         tags: &tags,
                         attributes: &attributes,
@@ -830,9 +885,17 @@ fn verify_merge(
         .iter()
         .zip(&ok)
         .map(|(attribute, verified)| {
-            json!({"elementIndex":attribute.element,"tag":attribute.tag,
-                "nodeId":aligned.then(|| placed[attribute.element].tree.node_id.as_str()),
-                "generatedProperty":attribute.source,"verified":verified})
+            let mut entry = json!({"elementIndex":attribute.element,"tag":attribute.tag,
+                "nodeId":aligned.then(|| placed[attribute.element].tree.node_id.as_str()).filter(|id| contents_wrapper_source(id).is_none()),
+                "generatedProperty":attribute.source,"verified":verified});
+            if attribute.name == "order" && aligned {
+                entry["derivedSource"] = json!(captured_order_provenance(snapshot, placed[attribute.element].tree));
+            }
+            if aligned {
+                let wrapper_sources = derived_wrapper_provenance(placed[attribute.element].tree);
+                if !wrapper_sources.is_empty() { entry["derivedTopology"] = json!(wrapper_sources); }
+            }
+            entry
         })
         .collect();
     (contract, gaps)
@@ -841,6 +904,8 @@ fn verify_merge(
 struct WidthCheck<'a> {
     snapshot: &'a Snapshot,
     slot: usize,
+    css_slot: usize,
+    length_tokens: &'a BTreeMap<String, super::component::LengthToken>,
     placed: &'a [Placed<'a>],
     tags: &'a [String],
     attributes: &'a [GeneratedAttribute],

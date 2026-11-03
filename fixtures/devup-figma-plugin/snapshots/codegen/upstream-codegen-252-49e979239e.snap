@@ -51,6 +51,7 @@ expression: actual
               fontWeight="700"
               letterSpacing="0.04em"
               lineHeight="30px"
+              whiteSpace="pre"
             >
               Under Construction
             </Text>
@@ -61,6 +62,7 @@ expression: actual
               fontWeight="700"
               letterSpacing="-0.02em"
               lineHeight="53px"
+              overflowWrap="break-word"
               textAlign="center"
               w="100%"
               whiteSpace="pre-wrap"
@@ -77,6 +79,7 @@ expression: actual
               fontWeight="400"
               letterSpacing="-0.03em"
               lineHeight="34px"
+              overflowWrap="break-word"
               textAlign="center"
               w="100%"
               whiteSpace="pre-wrap"
@@ -107,13 +110,28 @@ expression: actual
             fontWeight="700"
             letterSpacing="-0.02em"
             lineHeight="27px"
+            overflowWrap="break-word"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             제주국제관악제 최신 소식 확인하기
           </Text>
           <Flex gap="30px">
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/instagram-15713420-1.svg" />
-            <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/facebook-1384053-1.svg" />
+    
+            <Image
+              alt="instagram_15713420 1"
+              aspectRatio="1"
+              borderRadius="4px"
+              boxSize="32px"
+              src="/icons/instagram-15713420-1.svg"
+            />
+            <Image
+              alt="facebook_1384053 1"
+              aspectRatio="1"
+              borderRadius="4px"
+              boxSize="32px"
+              src="/icons/facebook-1384053-1.svg"
+            />
             <Box
               aspectRatio="1"
               bg="#FFF"
@@ -122,8 +140,9 @@ expression: actual
               overflow="hidden"
               pos="relative"
             >
-              <Image boxSize="32px" src="/icons/youtube-3991722-1-layer-2.svg" />
+              <Image alt="Layer 2" boxSize="32px" src="/icons/youtube-3991722-1-layer-2.svg" />
             </Box>
+    
           </Flex>
           <Text
             color="$text"
@@ -132,7 +151,9 @@ expression: actual
             fontWeight="500"
             letterSpacing="-0.02em"
             lineHeight="27px"
+            overflowWrap="break-word"
             textAlign="center"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             문의 : 064-722-8704 / <br />bandfestival@hanmail.net

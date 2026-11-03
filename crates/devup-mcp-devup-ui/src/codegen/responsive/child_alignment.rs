@@ -1,5 +1,6 @@
 struct MergeContext<'a> {
     snapshot: &'a Snapshot,
+    length_tokens: &'a BTreeMap<String, super::component::LengthToken>,
     notes: Vec<Unrepresented>,
     diagnostics: Vec<devup_mcp_figma::Diagnostic>,
     slot_widths: BySlot<u32>,

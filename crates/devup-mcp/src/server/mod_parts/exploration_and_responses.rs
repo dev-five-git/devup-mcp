@@ -66,6 +66,8 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
 mod coerce_args;
 #[path = "../handlers/devup_feature_trace.rs"]
 mod devup_feature_trace_handler;
+#[path = "../handlers/devup_source_sync.rs"]
+mod devup_source_sync_handler;
 #[path = "../handlers/devup_figma_auth.rs"]
 mod devup_figma_auth_handler;
 #[path = "../handlers/devup_figma_explore.rs"]
@@ -88,6 +90,8 @@ mod devup_screen_plan_handler;
 mod devup_skills_handler;
 #[path = "../handlers/devup_stack_diff.rs"]
 mod devup_stack_diff_handler;
+#[path = "../handlers/devup_assets.rs"]
+mod devup_assets_handler;
 #[path = "../handlers/devup_ui_validate.rs"]
 mod devup_ui_validate_handler;
 #[path = "../handlers/devup_visual_compare.rs"]
@@ -104,8 +108,10 @@ impl DevupServer {
             + Self::devup_project_context_router()
             + Self::devup_ui_validate_router()
             + Self::devup_stack_diff_router()
+            + Self::devup_assets_router()
             + Self::devup_visual_compare_router()
             + Self::devup_feature_trace_router()
+            + Self::devup_source_sync_router()
             + Self::devup_runtime_audit_router()
             + Self::devup_project_plan_router()
             + Self::devup_screen_plan_router()
@@ -348,6 +354,7 @@ fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex
 const CODE_SKILLS: [&str; 2] = ["devup-ui", "devfive-frontend"];
 
 fn with_skill_gap(mut result: Value, lookup: &skills::Lookup) -> Value {
+    development_contract::attach(&mut result);
     if let Some(gap) = skill_gap(CODE_SKILLS.into_iter(), lookup, CODE_GAP_WHY) {
         result["skillGap"] = gap;
     }
@@ -421,6 +428,7 @@ fn skill_gap<'a>(
 /// has no use for the vespera skill, and naming it there is the noise that
 /// teaches a reader to skip the field.
 fn with_context_skill_gap(mut result: Value, scope: &str, lookup: &skills::Lookup) -> Value {
+    development_contract::attach(&mut result);
     let found = |key: &str| {
         // `all` nests one object per scope; a single scope answers at the top
         // level. Both say `found`.

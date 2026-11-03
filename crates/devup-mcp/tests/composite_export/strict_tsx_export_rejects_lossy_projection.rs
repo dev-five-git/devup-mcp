@@ -329,6 +329,21 @@ async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
     let mut paused = call(&client, "devup_figma_export", args.clone()).await?;
     if timeout_first {
         assert_eq!(paused["assetJob"]["state"], "running");
+        // The initial one-second reply can beat scheduling the second read.
+        // Start its deadline before advancing the paused clock; advancing
+        // first otherwise schedules the read after the entire timeout window.
+        for _ in 0..100 {
+            if upstream.second_asset.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+            paused = call(
+                &client,
+                "devup_figma_export",
+                json!({"jobId":paused["assetJob"]["jobId"]}),
+            ).await?;
+        }
+        assert_eq!(upstream.second_asset.load(Ordering::SeqCst), 1);
         let timeout_ms = paused["exportJob"]["calls"]
             .as_array()
             .unwrap()

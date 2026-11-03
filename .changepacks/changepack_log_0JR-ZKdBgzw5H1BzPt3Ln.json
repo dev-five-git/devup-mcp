@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Add executable motion controllers and measured browser/data verification, source-bound staged completion, guarded TSX regeneration and semantic asset migrations with resumable behavior coverage and App Router CI integration",
+  "date": "2026-11-03T16:06:15.072881700Z"
+}

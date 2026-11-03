@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "Preserve Figma responsive layout, nested length tokens, per-mode text metrics, live asset boundaries, variants and dropdown anchors; diagnose scoped asset recovery; validate real API binding flow and viewport/zoom/DPR-calibrated runtime evidence without forcing screenshot dimensions",
+  "date": "2026-11-02T09:37:31.181235800Z"
+}

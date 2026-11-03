@@ -516,7 +516,14 @@ pub fn generate_inlined_component_instance(
         .iter()
         .map(|(key, value)| format!(" {key}=\"{value}\""))
         .collect::<String>();
-    output.tsx = format!("{{/* <{name}{usage} /> */}}\n{}", output.tsx);
+    output.diagnostics.push(Diagnostic {
+        code: "DEVUP_CODEGEN_COMPONENT_USAGE".into(),
+        node_id: Some(root.id.clone()),
+        message: "The inlined component's selected usage is preserved in metadata.".into(),
+        severity: Some(DiagnosticSeverity::Info),
+        details: Some(serde_json::json!({"componentUsage":format!("<{name}{usage} />")})),
+        ..Diagnostic::default()
+    });
     finalize_codegen_output(output, &projected, options, &selected.id)
 }
 

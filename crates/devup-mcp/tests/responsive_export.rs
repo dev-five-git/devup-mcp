@@ -145,18 +145,31 @@ impl FigmaUpstream for TwoWidths {
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         match call {
-            ReadToolCall::Snapshot { .. } => {
+            ReadToolCall::Snapshot {
+                script: devup_mcp_figma::BuiltinScript::SectionIndex,
+                node_id,
+                ..
+            } => Ok(UpstreamResult {
+                raw: json!({"fileKey":"FileKey123","version":"v1","rootIds":[node_id],"nodes":[
+                    {"id":node_id,"type":"SECTION","fields":{"name":"notice board","childrenIds":["1:10","1:20"],"visible":true,"projectionTruncated":false,"absoluteBoundingBox":{"x":0,"y":0,"width":2200,"height":1000}}},
+                    {"id":"1:10","type":"FRAME","fields":{"name":"mobile","parentId":node_id,"childrenIds":[],"visible":true,"directChildCount":1,"subtreeNodeCount":4,"estimatedSerializedBytes":3000,"absoluteBoundingBox":{"x":0,"y":0,"width":360,"height":800}}},
+                    {"id":"1:20","type":"FRAME","fields":{"name":"desktop","parentId":node_id,"childrenIds":[],"visible":true,"directChildCount":3,"subtreeNodeCount":6,"estimatedSerializedBytes":5000,"absoluteBoundingBox":{"x":400,"y":0,"width":1920,"height":800}}}
+                ],"diagnostics":[]}),
+            }),
+            ReadToolCall::Snapshot {
+                node_id, root_ids, ..
+            } => {
                 let mut nodes = width("1:10", "mobile", 360, 16, 20, false);
                 nodes.extend(width("1:20", "desktop", 1920, 40, 30, true));
                 let node_count = nodes.len();
                 let mut envelope = json!({
                     "kind": "devupFastSnapshotEnvelope",
                     "schemaVersion": 1,
-                    "source": {"fileKey": "FileKey123", "rootId": "1:20"},
+                    "source": {"fileKey": "FileKey123", "rootId": node_id},
                     "snapshot": {
                         "fileKey": "FileKey123",
                         "version": "v1",
-                        "rootIds": ["1:10", "1:20"],
+                        "rootIds": root_ids.unwrap_or_else(||vec!["1:10".into(),"1:20".into()]),
                         "nodes": nodes,
                         "diagnostics": []
                     },
@@ -216,7 +229,12 @@ impl FigmaUpstream for TwoWidths {
 }
 
 async fn export(arguments: Value) -> anyhow::Result<Value> {
-    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), Arc::new(TwoWidths)));
+    let services = Services::new(Arc::new(ConnectedAuth), Arc::new(TwoWidths));
+    let server = if let Some(root) = arguments["projectRoot"].as_str() {
+        DevupServer::with_output_roots(services, vec![std::path::PathBuf::from(root)])?
+    } else {
+        DevupServer::new(services)
+    };
     let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -346,6 +364,47 @@ async fn the_page_is_named_after_its_section_when_the_caller_gives_no_name() -> 
             .is_some_and(|module| module.contains("export default function NoticeBoardPage() {")),
         "{result:#?}"
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn confirmed_monorepo_allows_tsx_companion_with_the_complete_responsive_group()
+-> anyhow::Result<()> {
+    struct Root(std::path::PathBuf);
+    impl Drop for Root {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let root = Root(std::env::temp_dir().join(format!(
+        "devup-responsive-monorepo-{:016x}",
+        rand::random::<u64>()
+    )));
+    let app = root.0.join("apps/front");
+    std::fs::create_dir_all(&app)?;
+    std::fs::create_dir_all(root.0.join(".devup"))?;
+    std::fs::write(
+        root.0.join(".devup/screen-plan.json"),
+        serde_json::to_vec(&json!({
+            "kind":"devup-screen-plan","schemaVersion":1,"planId":"sp-responsive-monorepo","status":"confirmed",
+            "source":{"nodeId":"1:20","url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-20"},
+            "routes":[{"url":"/","screen":"1:20","nodeIds":["1:10","1:20"],"drawnWidths":[360,1920],
+                "implementation":"page","app":"apps/front","file":"apps/front/src/app/page.tsx"}]
+        }))?,
+    )?;
+    let result=export(json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=0-1",
+        "projectRoot":app,"frameIds":["1:10","1:20"],"outputs":["tsx","responsiveTsx","assetManifest"],"delivery":"inline"})).await?;
+    assert_ne!(result["status"], "responsive_required", "{result:#?}");
+    assert_ne!(
+        result["status"], "responsive_grouping_required",
+        "{result:#?}"
+    );
+    assert!(
+        result["responsiveTsx"].is_string(),
+        "{}",
+        json!({"keys":result.as_object().map(|result| result.keys().collect::<Vec<_>>()),"responsiveTsx":result["responsiveTsx"],"outputResults":result["outputResults"],"failures":result["failures"]})
+    );
+    assert_eq!(result["responsiveSlots"].as_array().map(Vec::len), Some(2));
     Ok(())
 }
 

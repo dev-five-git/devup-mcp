@@ -13,7 +13,9 @@ fn multi_width_export_redirects_single_width_code_before_collection() {
     assert!(responsive_required(fixture.root(), &["10:3".into()], &["tsx".into()]).unwrap().is_none());
     assert!(responsive_required(fixture.root(), &["10:1".into()], &["outline".into()]).unwrap().is_none());
     assert!(responsive_required(fixture.root(), &["10:1".into()], &["responsiveTsx".into()]).unwrap().is_some());
-    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_some());
+    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_none());
+    assert!(responsive_required(fixture.root(), &["10:1".into()], &["responsiveTsx".into(), "tsx".into()]).unwrap().is_some());
+    assert!(responsive_required(fixture.root(), &["10:1".into(), "10:2".into()], &["tsx".into()]).unwrap().is_some());
 }
 
 #[test]
@@ -53,6 +55,9 @@ fn status_detects_collapsed_removed_and_added_styles_without_identity_attributes
     let export = &report["rows"][0]["generatedExport"];
     assert_eq!(export["responsive"], true);
     let findings = array(&export["generatedDrift"]["findings"]);
+    assert_eq!(export["generatedDrift"]["state"],"unverified");
+    assert_eq!(export["generatedDrift"]["candidateOnly"],true);
+    assert!(!array(&export["generatedDrift"]["unresolved"]).is_empty());
     assert!(findings.iter().any(|finding| finding["kind"] == "responsive-array-collapsed" && finding["prop"] == "w"));
     assert!(findings.iter().any(|finding| finding["kind"] == "prop-removed" && finding["prop"] == "gap"));
     assert!(findings.iter().any(|finding| finding["kind"] == "style-added" && finding["prop"] == "h"));

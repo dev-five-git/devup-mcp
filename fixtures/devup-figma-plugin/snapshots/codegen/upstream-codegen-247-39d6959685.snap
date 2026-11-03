@@ -13,8 +13,10 @@ expression: actual
       fontWeight="400"
       letterSpacing="-0.05em"
       lineHeight="90px"
+      overflowWrap="break-word"
       paintOrder="stroke fill"
       textShadow="0 0 12px #7C70FF, 0 10px 24px #FFC9FE66"
+      whiteSpace="pre"
       wordBreak="keep-all"
     >
       데브파이브

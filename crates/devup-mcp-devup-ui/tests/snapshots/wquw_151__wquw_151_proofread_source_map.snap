@@ -209,9 +209,23 @@ expression: output.source_map
       "elementIndex": 2
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35520",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 2
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35520",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 2
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35520",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 2
     },
@@ -374,9 +388,30 @@ expression: output.source_map
       "elementIndex": 6
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35523",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 6
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35523",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 6
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35523",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 6
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35523",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 6
     },
@@ -455,9 +490,30 @@ expression: output.source_map
       "elementIndex": 7
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35524",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 7
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35524",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 7
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35524",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 7
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35524",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 7
     },
@@ -664,9 +720,30 @@ expression: output.source_map
       "elementIndex": 11
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35528",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 11
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35528",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 11
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35528",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 11
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35528",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 11
     },
@@ -745,9 +822,30 @@ expression: output.source_map
       "elementIndex": 12
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35529",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 12
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35529",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 12
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35529",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 12
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35529",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 12
     },
@@ -1065,9 +1163,23 @@ expression: output.source_map
       "elementIndex": 17
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35535",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 17
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35535",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 17
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35535",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 17
     },
@@ -1175,9 +1287,23 @@ expression: output.source_map
       "elementIndex": 22
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35536",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 22
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35536",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 22
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35536",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 22
     },
@@ -1334,6 +1460,13 @@ expression: output.source_map
       "elementIndex": 24
     },
     {
+      "generatedProperty": "whiteSpace=\"pre\"",
+      "nodeId": "3879:35538",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 24
+    },
+    {
       "generatedProperty": "children",
       "nodeId": "3879:35538",
       "property": "characters",
@@ -1415,9 +1548,23 @@ expression: output.source_map
       "elementIndex": 25
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35539",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 25
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35539",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 25
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35539",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 25
     },
@@ -1724,9 +1871,30 @@ expression: output.source_map
       "elementIndex": 32
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35545;1690:32933",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 32
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 32
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 32
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 32
     },
@@ -1869,9 +2037,30 @@ expression: output.source_map
       "elementIndex": 35
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35545;1690:32947",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 35
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 35
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 35
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 35
     },
@@ -2007,9 +2196,23 @@ expression: output.source_map
       "elementIndex": 37
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35547",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 37
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35547",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 37
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35547",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 37
     },
@@ -2173,9 +2376,30 @@ expression: output.source_map
       "elementIndex": 40
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35549;1690:32933",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 40
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 40
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 40
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 40
     },
@@ -2318,9 +2542,30 @@ expression: output.source_map
       "elementIndex": 43
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35549;1690:32947",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 43
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 43
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 43
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 43
     },
@@ -2463,9 +2708,23 @@ expression: output.source_map
       "elementIndex": 45
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35551",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 45
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35551",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 45
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35551",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 45
     },
@@ -2629,9 +2888,30 @@ expression: output.source_map
       "elementIndex": 50
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35553;1690:32933",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 50
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 50
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 50
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 50
     },
@@ -2774,9 +3054,30 @@ expression: output.source_map
       "elementIndex": 53
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35553;1690:32947",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 53
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 53
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 53
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 53
     },
@@ -2918,9 +3219,23 @@ expression: output.source_map
       "elementIndex": 55
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35555",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 55
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35555",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 55
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35555",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 55
     },
@@ -3168,9 +3483,30 @@ expression: output.source_map
       "elementIndex": 68
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35557;1690:32933",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 68
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 68
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 68
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 68
     },
@@ -3313,9 +3649,30 @@ expression: output.source_map
       "elementIndex": 71
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35557;1690:32947",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 71
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 71
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 71
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 71
     },
@@ -3458,9 +3815,23 @@ expression: output.source_map
       "elementIndex": 73
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35559",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 73
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35559",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 73
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35559",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 73
     },
@@ -3624,9 +3995,30 @@ expression: output.source_map
       "elementIndex": 84
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35561;1690:32933",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 84
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 84
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 84
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 84
     },
@@ -3769,9 +4161,30 @@ expression: output.source_map
       "elementIndex": 87
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "I3879:35561;1690:32947",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 87
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 87
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 87
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 87
     },
@@ -3914,9 +4327,23 @@ expression: output.source_map
       "elementIndex": 89
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "wordBreak=\"keep-all\"",
       "nodeId": "3879:35563",
-      "property": "characters",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 89
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35563",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 89
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35563",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 89
     },
@@ -4167,9 +4594,30 @@ expression: output.source_map
       "elementIndex": 98
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35566",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 98
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35566",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 98
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35566",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 98
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35566",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 98
     },
@@ -4296,9 +4744,30 @@ expression: output.source_map
       "elementIndex": 100
     },
     {
-      "generatedProperty": "children",
+      "generatedProperty": "whiteSpace=\"pre\"",
       "nodeId": "3879:35568",
-      "property": "characters",
+      "property": "textAutoResize",
+      "resolution": "derived-intrinsic-text-width",
+      "elementIndex": 100
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35568",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 100
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35568",
+      "property": "textAutoResize",
+      "resolution": "raw-fallback",
+      "elementIndex": 100
+    },
+    {
+      "generatedProperty": "wordBreak=\"keep-all\"",
+      "nodeId": "3879:35568",
+      "property": "width",
       "resolution": "raw-fallback",
       "elementIndex": 100
     },
@@ -4484,6 +4953,8 @@ expression: output.source_map
       "derived-lone-child-center": "Horizontal/vertical SPACE_BETWEEN becomes center for exactly one visible non-ABSOLUTE child; child membership, visibility and positioning determine the count. This mapping does not claim pixel parity.",
       "derived-single-edge-outside-stroke": "One solid, square-cornered OUTSIDE edge on a non-asset auto-layout node paints as a zero-blur translated box shadow without consuming layout space; side weights and stroke paint determine the translation and color. Existing effects are composed after the stroke. This is a stroke projection, not an assertion that Figma supplied a shadow effect, a claim about exported-asset composition, or a claim of pixel parity.",
       "derived-hard-break-whitespace": "Source spaces adjacent to explicit line breaks select pre-wrap for non-list, unclamped text whose inline width is fixed and height is automatic. Characters come from the node or collected styled segments. This preserves source whitespace without changing Korean keep-all; it does not claim intrinsic HUG sizing, glyph parity or identical wrapping.",
+      "derived-wrapped-ascii-whitespace": "Captured fixed-inline-width HEIGHT text uses pre-wrap to retain authored repeated/edge ASCII spaces and soft wrapping. Lists, tabs, clamps and unknown/HUG widths are excluded.",
+      "derived-intrinsic-text-width": "Captured WIDTH_AND_HEIGHT text uses whiteSpace=pre to retain its intrinsic unwrapped width, spaces, and explicit breaks; clamped/list text is excluded.",
       "verified-explicit-dimension": "Error-free source = emitted px.",
       "verified-layout-sizing": "FIXED/FILL/layoutGrow to dimension/flex.",
       "accounted-for-content-sizing": "textAutoResize omission; pixels unmeasured.",

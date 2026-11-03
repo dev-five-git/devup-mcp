@@ -49,6 +49,8 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
         return leaf_asset_kind(snapshot, node, nested);
     }
 
+    if devup_mcp_figma::single_child_layout_must_remain_live(snapshot, node) { return None; }
+
     if child_ids.len() == 1 {
         if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
             .into_iter()

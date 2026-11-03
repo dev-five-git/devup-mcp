@@ -70,6 +70,8 @@ export function Button({ size, variant, text1 = "참가 신청하기" }: ButtonP
         fontWeight="500"
         letterSpacing="-0.04em"
         lineHeight="normal"
+        overflowWrap="break-word"
+        whiteSpace="pre"
         wordBreak="keep-all"
       >
         {text1}

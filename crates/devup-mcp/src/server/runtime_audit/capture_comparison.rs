@@ -25,7 +25,7 @@ fn capture_comparison(
     let mut blockers = Vec::new();
     if (viewport.device_scale_factor - 1.0).abs() > f64::EPSILON {
         blockers.push(format!(
-            "Captured at deviceScaleFactor {}; the native render is at scale 1.",
+            "Declared DPR {} does not establish logical-to-PNG scale; independent capture/reference calibration is missing, so strict pixels remain inconclusive.",
             viewport.device_scale_factor
         ));
     }
@@ -51,7 +51,7 @@ fn capture_comparison(
         },
         "ifItFails": {"class": class, "fixHint": fix_hint(class, "capture", &Value::Null)},
         "blockers": blockers,
-        "note": "A size mismatch with the native render is reported as dimensions, not pixels: fix the element's size (its bounds check says by how much) and compare again.",
+        "note": "Incompatible PNG dimensions make strict pixels inconclusive. Inspect capture scale/scope and compare logical element bounds separately; do not infer a layout error from raster dimensions or resize/crop to force a match.",
     })
 }
 
@@ -82,6 +82,23 @@ fn visual_comparison(
         "environment.devupUiVersion",
         "environment.fontManifest",
     ];
+    let capture_context = report["runs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|run| {
+            run["viewport"]["width"] == viewport.width
+                && run["viewport"]["height"] == viewport.height
+        })
+        .and_then(|run| run["screens"].as_array())
+        .and_then(|screens| screens.iter().find(|row| row["id"] == screen.id))
+        .map(|row| row["captureContext"].clone())
+        .filter(Value::is_object);
+    if let Some(context) = capture_context {
+        environment["captureContext"] = context;
+    } else {
+        must_add.push("environment.captureContext");
+    }
     let browser = &report["executor"]["browser"];
     match (browser["name"].as_str(), browser["version"].as_str()) {
         (Some(name), Some(version)) => {
@@ -107,7 +124,7 @@ fn visual_comparison(
     let mut blockers = Vec::new();
     if (viewport.device_scale_factor - 1.0).abs() > f64::EPSILON {
         blockers.push(format!(
-            "Captured at deviceScaleFactor {}; the Figma reference is at scale 1, so plan this width at 1.",
+            "Declared DPR {} does not establish logical-to-PNG scale; independent capture/reference calibration is missing, so strict pixels remain inconclusive.",
             viewport.device_scale_factor
         ));
     }
@@ -186,6 +203,10 @@ pub struct CompletenessInput {
     /// a non-empty box, an <img> decoded.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub images: Vec<String>,
+    /// Consumer-declared CSS selectors for nodes rendered without Figma
+    /// attributes. Missing or ambiguous matches never count as present.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub node_selectors: BTreeMap<String, String>,
     /// Lowest contrast ratio text may have against the background painted
     /// behind it; default 1.5, below which text cannot be seen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -196,6 +217,20 @@ pub struct CompletenessInput {
 pub(crate) const MAX_COMPLETENESS_NODES: usize = 200;
 
 fn validate_completeness(completeness: &CompletenessInput) -> Result<(), DevupError> {
+    if completeness.node_selectors.len() > MAX_COMPLETENESS_NODES * 2 {
+        return Err(invalid(
+            "completeness.nodeSelectors exceeds the node limit.",
+        ));
+    }
+    for (id, selector) in &completeness.node_selectors {
+        bounded_text("completeness.nodeSelectors node", id)?;
+        bounded_text("completeness.nodeSelectors selector", selector)?;
+        if !completeness.sections.contains(id) && !completeness.images.contains(id) {
+            return Err(invalid(
+                "completeness.nodeSelectors must name a listed section or image.",
+            ));
+        }
+    }
     if !completeness.frame_height.is_finite()
         || completeness.frame_height <= 0.0
         || completeness.frame_height > 100_000.0

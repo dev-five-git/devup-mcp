@@ -1,6 +1,7 @@
 //! Projection, evidence, asset reconciliation and delivery.
 // Sections retain the original namespace and visibility.
 include!("projection/setup.rs");
+pub(super) fn semantic_asset_name(path: &str) -> bool { canonical_assets::meaningful_name(path) }
 include!("projection/asset_paths.rs");
 include!("projection/resource_outputs.rs");
 include!("projection/resource_delivery.rs");
@@ -13,6 +14,7 @@ include!("projection/artifact_metadata.rs");
 include!("projection/verification_scope.rs");
 include!("projection/diagnostics.rs");
 include!("projection/component_projection.rs");
+include!("projection/overlay_anchor_delivery.rs");
 include!("projection/instance_overrides.rs");
 include!("projection/completion.rs");
 include!("projection/diagnostic_screens.rs");

@@ -13,8 +13,10 @@ expression: actual
       fontWeight="400"
       letterSpacing="-0.02em"
       lineHeight="normal"
+      overflowWrap="break-word"
       paintOrder="stroke fill"
       textShadow="0 0 12px #7C70FF"
+      whiteSpace="pre"
       wordBreak="keep-all"
     >
       홈페이지와 앱 제작

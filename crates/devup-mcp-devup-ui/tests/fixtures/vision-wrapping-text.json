@@ -1,0 +1,248 @@
+{
+  "fileKey": "K2kUnxGgvooAJwCQiVTb7g",
+  "version": null,
+  "roots": [
+    "I44:3228;44:3621",
+    "I44:3238;44:3704"
+  ],
+  "nodes": {
+    "I44:3228;44:3621": {
+      "id": "I44:3228;44:3621",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I44:3228;44:3617",
+        "absoluteBoundingBox": {
+          "height": 46,
+          "width": 240,
+          "x": 24104,
+          "y": 2311
+        },
+        "absoluteRenderBounds": {
+          "height": 36.155029296875,
+          "width": 226.763671875,
+          "x": 24110.595703125,
+          "y": 2315.955078125
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:955",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "통증을 줄이는 데 그치지 않고, 관절 기능의 회복과 더 나은 일상을 목표로 합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 15,
+        "height": 46,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 150
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "통증 완화를 넘어, 손상된 관절의 기능 회복과 삶의 질 향상을 목표로 합니다.",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            73
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAlignHorizontal": "CENTER",
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 240,
+        "x": 0,
+        "y": 73,
+        "styledTextSegments": [
+          {
+            "characters": "통증을 줄이는 데 그치지 않고, 관절 기능의 회복과 더 나은 일상을 목표로 합니다.",
+            "end": 46,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:e4c7b7dacbd4e73f6c967cfc38e87b24df7d8775,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "I44:3238;44:3704": {
+      "id": "I44:3238;44:3704",
+      "type": "TEXT",
+      "fields": {
+        "parentId": "I44:3238;44:3702",
+        "absoluteBoundingBox": {
+          "height": 52,
+          "width": 260,
+          "x": 24124,
+          "y": 4083
+        },
+        "absoluteRenderBounds": {
+          "height": 40.112060546875,
+          "width": 248.140625,
+          "x": 24124.607421875,
+          "y": 4089.072021484375
+        },
+        "boundVariables": {
+          "fills": [
+            {
+              "id": "VariableID:9:348",
+              "type": "VARIABLE_ALIAS"
+            }
+          ],
+          "fontSize": [
+            {
+              "id": "VariableID:18:951",
+              "type": "VARIABLE_ALIAS"
+            }
+          ]
+        },
+        "characters": "기술 경쟁력을 바탕으로 해외 시장에 진출해 글로벌 바이오 기업으로 성장합니다.",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:9:348",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.3176470696926117,
+              "g": 0.250980406999588,
+              "r": 0.21568627655506137
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "fontName": {
+          "family": "SUIT",
+          "style": "Regular"
+        },
+        "fontSize": 16,
+        "height": 52,
+        "layoutAlign": "STRETCH",
+        "layoutGrow": 0,
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": -2
+        },
+        "lineHeight": {
+          "unit": "PERCENT",
+          "value": 160.0000023841858
+        },
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "콘드로스페로이드 접착고정 기술로 장기 생착과 연골재생 극대화",
+        "opacity": 1,
+        "relativeTransform": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            40
+          ]
+        ],
+        "strokeAlign": "OUTSIDE",
+        "strokeWeight": 1,
+        "textAutoResize": "HEIGHT",
+        "textStyleId": "S:cfcbc71ecd9536404e6fe4dfeb971ce6261df4c3,",
+        "textTruncation": "DISABLED",
+        "visible": true,
+        "width": 260,
+        "x": 0,
+        "y": 40,
+        "styledTextSegments": [
+          {
+            "characters": "기술 경쟁력을 바탕으로 해외 시장에 진출해 글로벌 바이오 기업으로 성장합니다.",
+            "end": 43,
+            "fillStyleId": "",
+            "fontWeight": 400,
+            "hyperlink": null,
+            "indentation": 0,
+            "listOptions": {
+              "type": "NONE"
+            },
+            "start": 0,
+            "textStyleId": "S:cfcbc71ecd9536404e6fe4dfeb971ce6261df4c3,"
+          }
+        ]
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

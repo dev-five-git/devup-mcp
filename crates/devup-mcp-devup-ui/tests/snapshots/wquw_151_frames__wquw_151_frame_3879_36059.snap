@@ -15,22 +15,25 @@ export function Wquw151Frame387936059() {
     >
       <Flex
         alignItems="center"
+        as="header"
         h="66px"
         justifyContent="space-between"
         overflow="hidden"
         py="8px"
         w="360px"
       >
-        <Box
-          aspectRatio="1"
-          bg="$caption"
-          h="100%"
-          maskImage="url(/icons/header-frame-26086041.svg)"
-          maskPos="center"
-          maskRepeat="no-repeat"
-          maskSize="contain"
-          w="50px"
-        />
+        <Center aspectRatio="1" h="100%" w="50px">
+          <Box
+            aspectRatio="1"
+            bg="$caption"
+            boxSize="32px"
+            maskImage="url(/icons/icons.svg)"
+            maskPos="center"
+            maskRepeat="no-repeat"
+            maskSize="contain"
+            transform="rotate(180deg)"
+          />
+        </Center>
         <Center h="100%" px="20px">
           <Flex alignItems="center" gap="6px">
             <Box
@@ -48,7 +51,9 @@ export function Wquw151Frame387936059() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="24px"
+              overflowWrap="break-word"
               typography="captionSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               초기화
@@ -70,6 +75,7 @@ export function Wquw151Frame387936059() {
           letterSpacing="-0.02em"
           lineHeight="34px"
           overflow="hidden"
+          overflowWrap="break-word"
           textOverflow="ellipsis"
           typography="h4"
           w="100%"
@@ -100,7 +106,9 @@ export function Wquw151Frame387936059() {
             fontWeight="600"
             letterSpacing="-0.01em"
             lineHeight="26px"
+            overflowWrap="break-word"
             typography="bodyXsSemibold"
+            whiteSpace="pre"
             wordBreak="keep-all"
           >
             이야기가 막힐 때 눌러보세요
@@ -114,6 +122,7 @@ export function Wquw151Frame387936059() {
           letterSpacing="-0.02em"
           lineHeight="31px"
           overflow="hidden"
+          overflowWrap="break-word"
           textOverflow="ellipsis"
           typography="recordText"
           w="100%"
@@ -129,12 +138,20 @@ export function Wquw151Frame387936059() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="24px"
+              overflowWrap="break-word"
               typography="captionSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               직접 입력
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
+            <Image
+              alt="플레이 버튼"
+              aspectRatio="1"
+              boxShadow="0 4px 32px 0 #46608740"
+              boxSize="60px"
+              src="/icons/a-story-f-record-recording-image.svg"
+            />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
@@ -143,12 +160,20 @@ export function Wquw151Frame387936059() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="24px"
+              overflowWrap="break-word"
               typography="captionSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               녹음하기
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/a-story-f-record-recording-image.svg" />
+            <Image
+              alt="플레이 버튼"
+              aspectRatio="1"
+              boxShadow="0 4px 32px 0 #46608740"
+              boxSize="80px"
+              src="/icons/a-story-f-record-recording-image.svg"
+            />
           </Center>
           <Center flexDir="column" gap="8px">
             <Text
@@ -157,12 +182,20 @@ export function Wquw151Frame387936059() {
               fontWeight="600"
               letterSpacing="-0.01em"
               lineHeight="24px"
+              overflowWrap="break-word"
               typography="captionSemibold"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               작성 완료
             </Text>
-            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/a-story-f-record-recording-image.svg" />
+            <Image
+              alt="플레이 버튼"
+              aspectRatio="1"
+              boxShadow="0 4px 32px 0 #46608740"
+              boxSize="60px"
+              src="/icons/a-story-f-record-recording-image.svg"
+            />
           </Center>
         </Flex>
         <Text
@@ -171,7 +204,9 @@ export function Wquw151Frame387936059() {
           fontWeight="600"
           letterSpacing="-0.01em"
           lineHeight="26px"
+          overflowWrap="break-word"
           typography="bodyXsSemibold"
+          whiteSpace="pre"
           wordBreak="keep-all"
         >
           임시 저장하고 다음에 이어서 하기
@@ -205,7 +240,9 @@ export function Wquw151Frame387936059() {
               fontWeight="700"
               letterSpacing="-0.02em"
               lineHeight="28px"
+              overflowWrap="break-word"
               typography="h6"
+              whiteSpace="pre"
               wordBreak="keep-all"
             >
               이야기 다듬기 시작
@@ -218,6 +255,7 @@ export function Wquw151Frame387936059() {
                 letterSpacing="-0.01em"
                 lineHeight="29px"
                 overflow="hidden"
+                overflowWrap="break-word"
                 textAlign="center"
                 textOverflow="ellipsis"
                 typography="bodySm"
@@ -241,6 +279,7 @@ export function Wquw151Frame387936059() {
                   letterSpacing="-0.01em"
                   lineHeight="24px"
                   overflow="hidden"
+                  overflowWrap="break-word"
                   textOverflow="ellipsis"
                   typography="caption"
                   wordBreak="keep-all"
@@ -263,7 +302,9 @@ export function Wquw151Frame387936059() {
                       fontWeight="400"
                       letterSpacing="-0.01em"
                       lineHeight="26px"
+                      overflowWrap="break-word"
                       typography="bodyXs"
+                      whiteSpace="pre"
                       wordBreak="keep-all"
                     >
                       AI 담당자와 함께 문체 다듬기
@@ -284,7 +325,9 @@ export function Wquw151Frame387936059() {
                       fontWeight="400"
                       letterSpacing="-0.01em"
                       lineHeight="26px"
+                      overflowWrap="break-word"
                       typography="bodyXs"
+                      whiteSpace="pre"
                       wordBreak="keep-all"
                     >
                       내 문장 그대로 맞춤법만 다듬기
@@ -302,7 +345,9 @@ export function Wquw151Frame387936059() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 더 이야기 할게요
@@ -321,7 +366,9 @@ export function Wquw151Frame387936059() {
                 fontWeight="600"
                 letterSpacing="-0.01em"
                 lineHeight="29px"
+                overflowWrap="break-word"
                 typography="bodySmSemibold"
+                whiteSpace="pre"
                 wordBreak="keep-all"
               >
                 마무리 할게요

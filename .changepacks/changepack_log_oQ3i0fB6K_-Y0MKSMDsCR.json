@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Ship ChondroGen feedback across pure responsive TSX, Korean wrapping, semantic shared assets, interaction and data contracts, installed guidance, and browser state, viewport and API verification",
+  "date": "2026-11-03T14:07:22.957100700Z"
+}

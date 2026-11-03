@@ -71,9 +71,9 @@ function serve() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-test('tall drawn frames clip the main screenshot and short pages fail completeness', async () => {
+test('natural full pages preserve viewport calibration and explicit completeness thresholds', async () => {
   const server = createServer((request, response) => {
-    const height = request.url === '/short' ? 5900 : 6174;
+    const height = request.url === '/missing' ? 1000 : request.url === '/short' ? 5900 : 6174;
     response.writeHead(200, { 'content-type': 'text/html' }).end(`<body style="margin:0;height:${height}px;background:#123456"></body>`);
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -83,19 +83,20 @@ test('tall drawn frames clip the main screenshot and short pages fail completene
     const plan = join(out, 'plan.json');
     await writeFile(plan, JSON.stringify({ schemaVersion: 1, kind: 'devup-runtime-audit-plan', planId: 'tall', plan: {
       baseUrl, allowedOrigins: [baseUrl], viewports: [{ width: 1440, height: 900 }],
-      screens: ['tall', 'short'].map((id) => ({ id, routePath: `/${id}`,
+      screens: ['tall', 'short', 'missing'].map((id) => ({ id, routePath: `/${id}`,
         figma: { nodeId: 'home', drawnWidths: [1440], frames: [{ width: 1440, height: 5953, nodeId: 'home' }] },
         checks: [{ kind: 'rendered-completeness', completeness: { frameHeight: 5953 } }],
       })),
     } }));
     const report = await runPlan({ plan, out, maxMinutes: 1 });
-    const [tall, short] = report.runs[0].screens;
+    const [tall, short, missing] = report.runs[0].screens;
     const bytes = await readFile(join(out, tall.screenshot.path));
     assert.equal(bytes.readUInt32BE(16), 1440);
-    assert.equal(bytes.readUInt32BE(20), 5953);
-    assert.equal(tall.checks[0].status, 'pass');
-    assert.equal(short.checks[0].status, 'fail');
-    assert.match(short.checks[0].reason, /5900.*5953/);
+    assert.equal(bytes.readUInt32BE(20), 6174, 'never crop natural content to the reference height');
+    assert.notEqual(short.checks[0].status, 'fail', '5900 is within the explicit 90% completeness threshold');
+    assert.equal(missing.checks[0].status, 'fail', 'a real explicit logical completeness threshold still fails');
+    assert.match(missing.checks[0].reason, /1000.*5953/);
+    assert.deepEqual(tall.captureContext, { innerWidth: 1440, innerHeight: 900, devicePixelRatio: 1, visualViewportScale: 1, rootCssZoom: 1, bodyCssZoom: 1 });
     const shortBytes = await readFile(join(out, short.screenshot.path));
     assert.equal(shortBytes.readUInt32BE(20), 5900);
   } finally {

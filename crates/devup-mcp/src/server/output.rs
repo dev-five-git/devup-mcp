@@ -55,6 +55,10 @@ pub struct OutputTransaction {
 }
 
 struct StagedOutput {
+    staged_fingerprint: FileFingerprint,
+    remove_only: bool,
+    immutable: bool,
+    registry_hash: Option<Option<String>>,
     name: String,
     target: OutputTarget,
     temp_path: PathBuf,
@@ -63,7 +67,7 @@ struct StagedOutput {
     replaced: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct FileFingerprint {
     bytes: u64,
     sha256: [u8; 32],
@@ -181,6 +185,46 @@ impl OutputTransaction {
         self.no_clobber = true;
     }
 
+    /// Public assets may be reused byte-for-byte, but are never overwritten.
+    pub fn stage_asset(
+        &mut self,
+        name: impl Into<String>,
+        target: OutputTarget,
+        contents: &[u8],
+    ) -> Result<(), DevupError> {
+        self.stage(name, target, contents)?;
+        self.staged.last_mut().expect("staged asset").immutable = true;
+        Ok(())
+    }
+
+    /// Registry updates are allowed during scaffold creation, but refuse stale state.
+    pub fn stage_registry(
+        &mut self,
+        name: impl Into<String>,
+        target: OutputTarget,
+        contents: &[u8],
+        expected_hash: Option<String>,
+    ) -> Result<(), DevupError> {
+        self.stage(name, target, contents)?;
+        self.staged
+            .last_mut()
+            .expect("staged registry")
+            .registry_hash = Some(expected_hash);
+        Ok(())
+    }
+
+    /// Guarded deletion participates in the same backup/rollback transaction as writes.
+    pub fn stage_remove(
+        &mut self,
+        name: impl Into<String>,
+        target: OutputTarget,
+        expected_hash: String,
+    ) -> Result<(), DevupError> {
+        self.stage_registry(name, target, b"", Some(expected_hash))?;
+        self.staged.last_mut().expect("staged removal").remove_only = true;
+        Ok(())
+    }
+
     pub fn stage(
         &mut self,
         name: impl Into<String>,
@@ -219,6 +263,13 @@ impl OutputTransaction {
         }
         drop(file);
         self.staged.push(StagedOutput {
+            staged_fingerprint: FileFingerprint {
+                bytes: contents.len() as u64,
+                sha256: Sha256::digest(contents).into(),
+            },
+            remove_only: false,
+            immutable: false,
+            registry_hash: None,
             name: name.into(),
             target,
             temp_path,
@@ -250,7 +301,7 @@ impl OutputTransaction {
                         "The output target must be a regular file or not exist yet.",
                     ));
                 }
-                Ok(_) if self.no_clobber => {
+                Ok(_) if self.no_clobber && !output.immutable && output.registry_hash.is_none() => {
                     return Err(transaction_error(format!(
                         "Scaffold file collision: {} already exists.",
                         output.target.display_path.display()
@@ -262,6 +313,28 @@ impl OutputTransaction {
                     return Err(transaction_error(format!(
                         "Cannot inspect the output target: {error}"
                     )));
+                }
+            }
+            if let Some(expected) = &output.registry_hash {
+                let actual = match fingerprint(&output.target.root, &output.target.relative_path) {
+                    Ok(value) => Some(
+                        value
+                            .sha256
+                            .iter()
+                            .map(|byte| format!("{byte:02x}"))
+                            .collect::<String>(),
+                    ),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(error) => {
+                        return Err(transaction_error(format!(
+                            "Cannot inspect asset registry: {error}"
+                        )));
+                    }
+                };
+                if &actual != expected {
+                    return Err(transaction_error(
+                        "Asset registry changed during export; retry against its current state.",
+                    ));
                 }
             }
         }
@@ -299,10 +372,13 @@ impl OutputTransaction {
     fn replace_all(&mut self, hook: &mut impl CommitHook) -> std::io::Result<()> {
         let mut replaced = 0;
         for output in &mut self.staged {
-            if self.no_clobber {
+            if (self.no_clobber && output.registry_hash.is_none())
+                || output.immutable
+                || output.registry_hash == Some(None)
+            {
                 // Hard-link publication is atomic create-if-absent, unlike exists+rename.
                 // The staging sibling is on the same filesystem and inside the held capability.
-                output
+                let publication = output
                     .target
                     .root
                     .dir
@@ -319,7 +395,31 @@ impl OutputTransaction {
                                 output.target.display_path.display()
                             ),
                         )
-                    })?;
+                    });
+                if let Err(error) = publication {
+                    if output.immutable
+                        && error.kind() == std::io::ErrorKind::AlreadyExists
+                        && output
+                            .target
+                            .root
+                            .dir
+                            .symlink_metadata(&output.target.relative_path)?
+                            .is_file()
+                        && !output
+                            .target
+                            .root
+                            .dir
+                            .symlink_metadata(&output.target.relative_path)?
+                            .file_type()
+                            .is_symlink()
+                        && fingerprint(&output.target.root, &output.target.relative_path)?
+                            == fingerprint(&output.target.root, &output.temp_path)?
+                    {
+                        output.target.root.dir.remove_file(&output.temp_path)?;
+                        continue;
+                    }
+                    return Err(error);
+                }
                 output.replaced = true;
                 output.target.root.dir.remove_file(&output.temp_path)?;
                 replaced += 1;
@@ -335,6 +435,18 @@ impl OutputTransaction {
             {
                 let backup_path = unique_sibling(&output.target.relative_path, "bak");
                 let fingerprint = fingerprint(&output.target.root, &output.target.relative_path)?;
+                if let Some(Some(expected)) = &output.registry_hash {
+                    let actual = fingerprint
+                        .sha256
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    if &actual != expected {
+                        return Err(std::io::Error::other(
+                            "Guarded output changed during transaction commit",
+                        ));
+                    }
+                }
                 output.target.root.dir.rename(
                     &output.target.relative_path,
                     &output.target.root.dir,
@@ -342,13 +454,25 @@ impl OutputTransaction {
                 )?;
                 output.backup_path = Some(backup_path);
                 output.backup_fingerprint = Some(fingerprint);
+                verify_fingerprint(
+                    &output.target.root,
+                    output.backup_path.as_ref().unwrap(),
+                    output.backup_fingerprint.as_ref().unwrap(),
+                )?;
             }
-            output.target.root.dir.rename(
+            if output.remove_only {
+                output.target.root.dir.remove_file(&output.temp_path)?;
+                replaced += 1;
+                hook.after_replacement(replaced)?;
+                continue;
+            }
+            output.target.root.dir.hard_link(
                 &output.temp_path,
                 &output.target.root.dir,
                 &output.target.relative_path,
             )?;
             output.replaced = true;
+            output.target.root.dir.remove_file(&output.temp_path)?;
             replaced += 1;
             hook.after_replacement(replaced)?;
         }
@@ -361,11 +485,19 @@ impl OutputTransaction {
             let target_path = output.target.display_path.to_string_lossy().into_owned();
             let mut replacement_removed = true;
             if output.replaced {
-                if let Err(error) = output
-                    .target
-                    .root
-                    .dir
-                    .remove_file(&output.target.relative_path)
+                let remove = verify_fingerprint(
+                    &output.target.root,
+                    &output.target.relative_path,
+                    &output.staged_fingerprint,
+                )
+                .and_then(|()| {
+                    output
+                        .target
+                        .root
+                        .dir
+                        .remove_file(&output.target.relative_path)
+                });
+                if let Err(error) = remove
                     && error.kind() != std::io::ErrorKind::NotFound
                 {
                     replacement_removed = false;
@@ -680,261 +812,5 @@ fn unique_sibling(target: &Path, kind: &str) -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{fs, io, path::PathBuf};
-
-    use super::{CommitHook, OutputPolicy, OutputTransaction};
-
-    struct FailAfterFirstReplacement;
-
-    impl CommitHook for FailAfterFirstReplacement {
-        fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
-            if replaced == 1 {
-                Err(io::Error::other("injected replacement failure"))
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    struct FailCommitAndRestore;
-
-    impl CommitHook for FailCommitAndRestore {
-        fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
-            if replaced == 1 {
-                Err(io::Error::other("injected commit failure"))
-            } else {
-                Ok(())
-            }
-        }
-
-        fn before_restore(&mut self, _backup: &std::path::Path) -> io::Result<()> {
-            Err(io::Error::other("injected restore failure"))
-        }
-    }
-
-    fn unique_root() -> anyhow::Result<PathBuf> {
-        // Clock precision can make concurrent fixtures share a timestamp.
-        // Reserve each root exclusively instead of reusing an existing directory.
-        for _ in 0..32 {
-            let path = std::env::temp_dir().join(format!(
-                "devup-mcp-transaction-rollback-{}-{:032x}",
-                std::process::id(),
-                rand::random::<u128>()
-            ));
-            match fs::create_dir(&path) {
-                Ok(()) => return Ok(path),
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error.into()),
-            }
-        }
-        Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "No exclusive fixture root available",
-        )
-        .into())
-    }
-
-    #[test]
-    fn concurrent_fixture_roots_remain_distinct() -> anyhow::Result<()> {
-        let barrier = std::sync::Arc::new(std::sync::Barrier::new(16));
-        let workers = (0..16)
-            .map(|_| {
-                let barrier = barrier.clone();
-                std::thread::spawn(move || {
-                    (0..32)
-                        .map(|_| {
-                            barrier.wait();
-                            unique_root()
-                        })
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect::<Vec<_>>();
-        let mut roots = std::collections::BTreeSet::new();
-        for worker in workers {
-            for root in worker.join().expect("fixture allocator worker panicked") {
-                assert!(
-                    roots.insert(root?),
-                    "concurrent fixtures reused a directory"
-                );
-            }
-        }
-        assert_eq!(roots.len(), 512);
-        for root in roots {
-            fs::remove_dir(root)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn reports_canonical_paths_from_a_noncanonical_root_before_and_after_write()
-    -> anyhow::Result<()> {
-        let root = unique_root()?;
-        fs::create_dir(root.join("child"))?;
-        let alias = root.join("child").join("..");
-        let canonical = crate::test_paths::canonical(&root);
-        assert_ne!(alias, canonical);
-        assert_eq!(crate::test_paths::canonical(&alias), canonical);
-
-        let expected = canonical.join("nested").join("Component.tsx");
-        assert!(!expected.exists());
-        let policy = OutputPolicy::from_roots(vec![alias.clone()])?;
-        // Alias parent components and traversal rejection are covered
-        // separately in tests/output_policy.rs with explicit prefix fixtures.
-        let absolute = policy.resolve(expected.to_str().unwrap())?;
-        let relative = policy.resolve("nested/Component.tsx")?;
-        assert_eq!(absolute.display_path(), expected);
-        assert_eq!(relative.display_path(), expected);
-        let mut transaction = OutputTransaction::new();
-        transaction.stage("tsx", absolute, b"canonical output")?;
-        let written = transaction.commit()?;
-        assert_eq!(written["tsx"], expected.to_string_lossy());
-        assert_eq!(fs::read(&expected)?, b"canonical output");
-        drop(relative);
-        drop(policy);
-        fs::remove_dir_all(root)?;
-        Ok(())
-    }
-
-    #[test]
-    fn restores_every_original_after_a_runtime_commit_failure() -> anyhow::Result<()> {
-        let root = unique_root()?;
-        fs::write(root.join("first.txt"), b"old-first")?;
-        fs::write(root.join("second.txt"), b"old-second")?;
-        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
-        let mut transaction = OutputTransaction::new();
-        transaction.stage("first", policy.resolve("first.txt")?, b"new-first")?;
-        transaction.stage("second", policy.resolve("second.txt")?, b"new-second")?;
-
-        let error = transaction
-            .commit_with_hook(&mut FailAfterFirstReplacement)
-            .expect_err("the injected failure must abort the transaction");
-
-        assert!(error.message.contains("commit"));
-        assert_eq!(fs::read(root.join("first.txt"))?, b"old-first");
-        assert_eq!(fs::read(root.join("second.txt"))?, b"old-second");
-        let internal_files = fs::read_dir(&root)?
-            .filter_map(Result::ok)
-            .filter_map(|entry| entry.file_name().into_string().ok())
-            .filter(|name| name.starts_with(".devup-"))
-            .collect::<Vec<_>>();
-        assert!(internal_files.is_empty(), "stale files: {internal_files:?}");
-
-        drop(transaction);
-        drop(policy);
-        fs::remove_dir_all(root)?;
-        Ok(())
-    }
-
-    #[test]
-    fn w7_no_clobber_refuses_a_late_collision_and_rolls_back_published_files() -> anyhow::Result<()>
-    {
-        struct CreateCollision(PathBuf);
-        impl CommitHook for CreateCollision {
-            fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
-                if replaced == 1 {
-                    fs::write(self.0.join("second.tsx"), b"concurrent original")?;
-                }
-                Ok(())
-            }
-        }
-        let root = std::env::temp_dir().join(format!(
-            "devup-w7-transaction-{:016x}",
-            rand::random::<u64>()
-        ));
-        fs::create_dir(&root)?;
-        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
-        let mut transaction = OutputTransaction::new();
-        transaction.refuse_existing();
-        transaction.stage("page", policy.resolve("first.tsx")?, b"new page")?;
-        transaction.stage("screen", policy.resolve("second.tsx")?, b"new screen")?;
-        let error = transaction
-            .commit_with_hook(&mut CreateCollision(root.clone()))
-            .unwrap_err();
-        assert!(error.message.contains("second.tsx"));
-        assert!(!root.join("first.tsx").exists());
-        assert_eq!(fs::read(root.join("second.tsx"))?, b"concurrent original");
-        drop(transaction);
-        assert_eq!(fs::read_dir(&root)?.count(), 1);
-        drop(policy);
-        fs::remove_dir_all(root)?;
-        Ok(())
-    }
-
-    #[test]
-    fn w7_later_scaffold_file_failure_restores_originals_in_reverse_order() -> anyhow::Result<()> {
-        struct FailSecond(Vec<String>);
-        impl CommitHook for FailSecond {
-            fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
-                if replaced == 2 {
-                    Err(io::Error::other("later scaffold failure"))
-                } else {
-                    Ok(())
-                }
-            }
-            fn before_restore(&mut self, backup: &std::path::Path) -> io::Result<()> {
-                self.0.push(backup.to_string_lossy().into_owned());
-                Ok(())
-            }
-        }
-        let root = std::env::temp_dir().join(format!(
-            "devup-w7-transaction-{:016x}",
-            rand::random::<u64>()
-        ));
-        fs::create_dir(&root)?;
-        let page = "src/app/proofread/page.tsx";
-        let screen = "components/pages/proofread/Proofread.tsx";
-        for name in [page, screen] {
-            fs::create_dir_all(root.join(name).parent().unwrap())?;
-            fs::write(root.join(name), name)?;
-        }
-        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
-        let mut transaction = OutputTransaction::new();
-        transaction.stage("pageScaffold:page", policy.resolve(page)?, b"new page")?;
-        transaction.stage(
-            "pageScaffold:component",
-            policy.resolve(screen)?,
-            b"new screen",
-        )?;
-        let mut hook = FailSecond(Vec::new());
-        assert!(transaction.commit_with_hook(&mut hook).is_err());
-        for name in [page, screen] {
-            assert_eq!(fs::read_to_string(root.join(name))?, name);
-        }
-        assert!(hook.0[0].contains("components"));
-        assert!(hook.0[1].contains("src"));
-        drop(transaction);
-        drop(policy);
-        fs::remove_dir_all(root)?;
-        Ok(())
-    }
-
-    #[test]
-    fn reports_and_retains_a_backup_when_rollback_restoration_fails() -> anyhow::Result<()> {
-        let root = unique_root()?;
-        fs::write(root.join("first.txt"), b"old-first")?;
-        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
-        let mut transaction = OutputTransaction::new();
-        transaction.stage("first", policy.resolve("first.txt")?, b"new-first")?;
-
-        let error = transaction
-            .commit_with_hook(&mut FailCommitAndRestore)
-            .expect_err("the injected rollback failure must be reported");
-
-        assert_eq!(error.details["phase"], "rollback");
-        assert_eq!(error.details["rollback"]["complete"], false);
-        let recovery_path = error.details["rollback"]["recoveryPaths"][0]
-            .as_str()
-            .expect("retained backup path");
-        assert!(std::path::Path::new(recovery_path).exists());
-        assert_eq!(fs::read(recovery_path)?, b"old-first");
-        assert!(!root.join("first.txt").exists());
-
-        fs::remove_file(recovery_path)?;
-        drop(transaction);
-        drop(policy);
-        fs::remove_dir_all(root)?;
-        Ok(())
-    }
-}
+#[path = "output_tests.rs"]
+mod tests;

@@ -41,4 +41,5 @@ include!("screen_plan/plan_route_group.rs");
 include!("screen_plan/state_variants.rs");
 include!("screen_plan/lookup.rs");
 include!("screen_plan/component_width.rs");
+include!("screen_plan/responsive_groups.rs");
 include!("screen_plan/responsive_contract.rs");

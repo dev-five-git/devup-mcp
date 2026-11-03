@@ -1,1 +1,1 @@
-Sections, cards and assets are found by data-figma-node-id, which devup_figma_export writes into a project's TSX. A check whose element is missing reports missingNodes; re-export with projectRoot.
+Source node and responsive-width identity mappings remain in JSON sidecars. Generated TSX never carries Figma node attributes, including debug exports. Runtime audits use explicit semantic targets; unavailable mappings are unverified, not silently passed.

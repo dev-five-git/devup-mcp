@@ -19,8 +19,10 @@ const NOT_NODE_FIELDS: &[&str] = &[
     "childrenIds",
     "styledTextSegments",
     "mainComponentId", // Written by component_identity_helpers.js using getMainComponentAsync.
+    "mainComponentName", // Written by component_identity_helpers.js from the resolved main component.
     "mainComponentSetId", // Written by component_identity_helpers.js from the main component parent.
     "componentId",        // REST snapshot identity alias; not a synchronous plugin node property.
+    "preserveRatio", // Legacy REST-only aspect lock; plugin snapshots use captured targetAspectRatio.
     "nodeScreenIds", // Computed by section_index.js from visited ancestry, not a Figma property.
     "navigationContentWidth", // Computed from visible child widths by explore.js/section_index.js; not a Figma property.
     // Envelope, pagination and probe records, not nodes.

@@ -177,7 +177,31 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     preserved_nodes.sort();
     assert_eq!(preserved_nodes, ["3879:35520", "3879:35535", "3879:35539"]);
     assert_eq!(output.fidelity_report.impacts.failed, 0);
-    assert_eq!(output.fidelity_report.impacts.approximated, 0);
+    // This historical capture predates the explicit stroke-layout flag. Never
+    // manufacture false or erase the resulting approximation diagnostics.
+    let uncertain = output
+        .diagnostics
+        .iter()
+        .filter(|d| d.fidelity_impact == Some(devup_mcp_figma::FidelityImpact::Approximated))
+        .collect::<Vec<_>>();
+    let mut ids = uncertain
+        .iter()
+        .map(|d| {
+            assert_eq!(d.code, "DEVUP_CODEGEN_STROKE_LAYOUT_UNVERIFIED");
+            assert_eq!(d.property.as_deref(), Some("strokesIncludedInLayout"));
+            d.node_id.as_deref().unwrap()
+        })
+        .collect::<Vec<_>>();
+    ids.sort();
+    assert_eq!(ids, ["3879:35526", "3879:35533", "3879:35565"]);
+    for id in &ids {
+        assert!(
+            !payload.snapshot.nodes[*id]
+                .fields
+                .contains_key("strokesIncludedInLayout")
+        );
+    }
+    assert_eq!(output.fidelity_report.impacts.approximated, 3);
     assert!(!output.fidelity_report.strict_compatible());
     let fill_issue = output
         .diagnostics
@@ -228,8 +252,26 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     insta::assert_snapshot!("wquw_151_proofread_devup_ui", output.tsx);
     insta::assert_snapshot!("wquw_151_proofread_devup_ui_embedded", embedded.tsx);
     insta::assert_json_snapshot!("wquw_151_proofread_used_tokens", output.used_tokens);
-    insta::assert_json_snapshot!("wquw_151_proofread_diagnostics", json!(output.diagnostics));
+    let mut diagnostics = json!(output.diagnostics);
+    stable_diagnostic_numbers(&mut diagnostics);
+    insta::assert_json_snapshot!("wquw_151_proofread_diagnostics", diagnostics);
     insta::assert_json_snapshot!("wquw_151_proofread_source_map", output.source_map);
+}
+
+// Dependency feature unification can enable serde_json's float_roundtrip
+// parser. Keep evidence snapshots stable across both parsers at subpixel
+// precision; production diagnostics and all direct numeric assertions stay raw.
+fn stable_diagnostic_numbers(value: &mut Value) {
+    match value {
+        Value::Array(values) => values.iter_mut().for_each(stable_diagnostic_numbers),
+        Value::Object(values) => values.values_mut().for_each(stable_diagnostic_numbers),
+        Value::Number(number) if number.is_f64() => {
+            if let Some(number) = number.as_f64() {
+                *value = json!((number * 1e12).round() / 1e12);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn component_root_opening(tsx: &str) -> &str {
