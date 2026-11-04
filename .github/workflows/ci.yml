@@ -9,8 +9,8 @@ name: CI
 #      comments the detected packs; `changepack-required` makes it a gate.
 #   2. On push to main with pending changepacks, the action opens an
 #      "Update Versions" pull request that runs `changepacks update`.
-#   3. Merging that PR leaves no changepacks, so the action cuts tags and
-#      *draft* releases and reports them in `pending_releases`.
+#   3. With no changepacks left, packaging/release.py resolves the inherited
+#      workspace version to the canonical MCP tag and prepares a draft.
 #   4. `build` compiles every MCP binary for all three platforms and uploads
 #      them onto those drafts.
 #   5. `bundle` collects those same three binaries back into one `.mcpb`
@@ -199,6 +199,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-insta --version 1.48.0 --locked
       - run: cargo fmt --all -- --check
+      # Platform-independent Git/API suite; macOS images ship only `python3`.
+      - name: Test canonical workspace release delivery
+        if: matrix.os == 'ubuntu-latest'
+        run: python3 packaging/test_release.py
       - run: node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs harness/runtime-audit/test/checks.test.mjs
       # `plugin/dist/` is committed so a user can import the plugin into Figma
       # without running a build. That only stays true if the committed bundle
@@ -275,6 +279,15 @@ jobs:
           else
             echo "superseded=false" >> "$GITHUB_OUTPUT"
           fi
+      # Must run before the action: after opening the Update Versions PR it
+      # leaves HEAD on changepacks/main with the logs consumed, and prepare
+      # refuses any checkout other than the workflow commit.
+      - name: Prepare canonical MCP draft release
+        id: release
+        if: steps.freshness.outputs.superseded == 'false' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 packaging/release.py prepare
       - uses: dtolnay/rust-toolchain@1.98.0
         if: steps.freshness.outputs.superseded == 'false' && github.ref == 'refs/heads/main'
       # The upstream action stages and commits immediately after its update,
@@ -313,11 +326,15 @@ jobs:
           DEVUP_RELEASE_LOCK_SYNC: ${{ github.ref == 'refs/heads/main' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          create_release: true
+          # Version inheritance can emit Cargo.toml rather than the crate path.
+          # Own draft creation above so updates keep the tag older clients use,
+          # and nothing becomes public before its binaries and bundle exist.
+          create_release: false
     outputs:
       changepacks: ${{ steps.changepacks.outputs.changepacks }}
-      release_assets_urls: ${{ steps.changepacks.outputs.release_assets_urls }}
-      pending_releases: ${{ steps.changepacks.outputs.pending_releases }}
+      release_assets_urls: ${{ steps.release.outputs.release_assets_urls }}
+      pending_releases: ${{ steps.release.outputs.pending_releases }}
+      release_sha: ${{ steps.release.outputs.release_sha }}
 
   build:
     name: build (${{ matrix.os }})
@@ -349,6 +366,12 @@ jobs:
             ext: ""
     steps:
       - uses: actions/checkout@v7
+      - name: Retain this workflow's release delivery helper
+        shell: bash
+        run: cp packaging/release.py "$RUNNER_TEMP/mcp-release.py"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.changepacks.outputs.release_sha }}
       - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
       - name: Build release binaries
@@ -363,7 +386,7 @@ jobs:
           # Explicit release identity remains deterministic. R5 synchronizes
           # Cargo.lock in the version commit, preventing the old automatic
           # Cargo rewrite that made released binaries report <sha>-dirty.
-          DEVUP_MCP_BUILD_ID: ${{ github.sha }}
+          DEVUP_MCP_BUILD_ID: ${{ needs.changepacks.outputs.release_sha }}
         run: |
           set -euo pipefail
           for target in $TARGETS; do
@@ -396,33 +419,20 @@ jobs:
           path: dist/devup-mcp-${{ matrix.suffix }}${{ matrix.ext }}
           if-no-files-found: error
           retention-days: 1
+      # macOS images ship only `python3` and Windows only `python`; the helper
+      # needs 3.11+ under one name on all three runners.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
       - name: Upload binaries onto the draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET_URLS: ${{ needs.changepacks.outputs.release_assets_urls }}
+          PENDING_RELEASES: ${{ needs.changepacks.outputs.pending_releases }}
         run: |
           set -euo pipefail
-          # release_assets_urls maps project path -> asset upload URL. The
-          # binaries belong to the devup-mcp crate; the library crates get
-          # their own releases with no assets.
-          upload="$(printf '%s' "$ASSET_URLS" \
-            | jq -r '.["crates/devup-mcp/Cargo.toml"] // empty')"
-          if [ -z "$upload" ]; then
-            echo "no asset upload URL for crates/devup-mcp/Cargo.toml" >&2
-            printf '%s\n' "$ASSET_URLS" >&2
-            exit 1
-          fi
-          # Drop the RFC 6570 template suffix, e.g. "{?name,label}".
-          upload="${upload%%\{*}"
           for file in dist/*; do
-            name="$(basename "$file")"
-            echo "uploading $name"
-            curl --fail-with-body -sS -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file" \
-              "${upload}?name=${name}" >/dev/null
+            python "$RUNNER_TEMP/mcp-release.py" upload --file "$file"
           done
 
   # Six loose binaries make a user pick the right file for their machine and
@@ -441,6 +451,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Retain this workflow's release delivery helper
+        shell: bash
+        run: cp packaging/release.py "$RUNNER_TEMP/mcp-release.py"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.changepacks.outputs.release_sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -513,24 +529,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET_URLS: ${{ needs.changepacks.outputs.release_assets_urls }}
+          PENDING_RELEASES: ${{ needs.changepacks.outputs.pending_releases }}
         run: |
           set -euo pipefail
-          upload="$(printf '%s' "$ASSET_URLS" \
-            | jq -r '.["crates/devup-mcp/Cargo.toml"] // empty')"
-          if [ -z "$upload" ]; then
-            echo "no asset upload URL for crates/devup-mcp/Cargo.toml" >&2
-            printf '%s\n' "$ASSET_URLS" >&2
-            exit 1
-          fi
-          # Drop the RFC 6570 template suffix, e.g. "{?name,label}".
-          upload="${upload%%\{*}"
-          echo "uploading $MCPB_FILE"
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"$MCPB_FILE" \
-            "${upload}?name=${MCPB_FILE}" >/dev/null
+          python3 "$RUNNER_TEMP/mcp-release.py" upload --file "$MCPB_FILE"
 
   finalize:
     name: finalize release
@@ -540,10 +542,9 @@ jobs:
       && needs.changepacks.outputs.pending_releases != '{}'
     runs-on: ubuntu-latest
     steps:
-      # Finalize-only: the action neither installs changepacks nor touches the
-      # repository here, so no checkout is needed. Running it after `build`
-      # is what guarantees a published release always has its binaries.
-      - uses: changepacks/action@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          finalize_releases: ${{ needs.changepacks.outputs.pending_releases }}
+      - uses: actions/checkout@v7
+      - name: Verify all release assets before publishing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PENDING_RELEASES: ${{ needs.changepacks.outputs.pending_releases }}
+        run: python3 packaging/release.py finalize
