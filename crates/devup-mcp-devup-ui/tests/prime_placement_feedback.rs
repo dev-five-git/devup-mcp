@@ -25,6 +25,7 @@ fn absolute_rectangle_retains_both_measured_axes_inside_a_frame() {
 fn detached_render_root_retains_fill_even_when_snapshot_roots_are_different() {
     let mut snapshot = snapshot();
     snapshot.nodes.remove("row");
+    snapshot.roots = vec!["card".into()];
     let output = generate_component(
         &snapshot,
         "title",
@@ -74,6 +75,7 @@ fn component_reference_reports_the_parent_allocation_that_it_cannot_apply() {
 fn mixed_axis_detached_fill_is_preserved_without_a_maximum() {
     let mut snapshot = snapshot();
     snapshot.nodes.remove("row");
+    snapshot.roots = vec!["card".into()];
     let title = snapshot.nodes.get_mut("title").unwrap();
     title
         .fields

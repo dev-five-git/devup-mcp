@@ -593,12 +593,12 @@ import { VStack, Text } from '@devup-ui/react'
 import { ItemList } from '@/components/pages/items/ItemList'
 
 export default async function ItemsPage() {
-  const { data, error } = await api.get('/items')
-  if (error) throw error
+  const result = await api.get('/items')
+  if (result.isError) throw new Error('Unable to load items')
   return (
     <VStack as="main">
       <Text as="h1" m="0">Items</Text>
-      <ItemList items={data} />
+      <ItemList items={result.data} />
     </VStack>
   )
 }
@@ -613,7 +613,7 @@ export function DataList() {
   if (isPending) return <Loading />
   if (isError) return <ErrorMessage />
   
-  return <ItemList items={data} />
+  return <ItemList items={result.data} />
 }
 ```
 
