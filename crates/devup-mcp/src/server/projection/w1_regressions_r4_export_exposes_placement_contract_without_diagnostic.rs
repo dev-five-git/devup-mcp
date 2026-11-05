@@ -958,6 +958,7 @@ async fn original_source_variants_css_and_public_files_share_actual_byte_paths()
         output_paths.insert("assetCssMap".into(), css.to_string_lossy().into());
     }
     let value = project(original_source_payload(), op).await.unwrap();
+    assert!(root.join(".devup/public-assets.json").is_file(), "Each fixture must own its registry; never share the temp directory's sibling registry.");
     let asset = &value["assetManifest"]["assets"][0];
     let path = asset["path"].as_str().unwrap();
     assert_eq!(path, "/images/source.webp");
