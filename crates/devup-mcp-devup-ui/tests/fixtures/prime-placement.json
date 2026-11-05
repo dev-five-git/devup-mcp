@@ -1,0 +1,132 @@
+{
+  "fileKey": "prime-placement-feedback",
+  "roots": [
+    "row"
+  ],
+  "diagnostics": [],
+  "nodes": {
+    "row": {
+      "id": "row",
+      "type": "FRAME",
+      "fields": {
+        "name": "RenderFixture",
+        "parentType": "FRAME",
+        "width": 980,
+        "height": 250,
+        "layoutMode": "HORIZONTAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 40,
+        "childrenIds": [
+          "title",
+          "card"
+        ],
+        "inferredAutoLayout": {
+          "layoutMode": "HORIZONTAL",
+          "itemSpacing": 40
+        }
+      }
+    },
+    "title": {
+      "id": "title",
+      "type": "INSTANCE",
+      "fields": {
+        "name": "StepTitle",
+        "parentId": "row",
+        "width": 420,
+        "height": 94,
+        "maxWidth": 420,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "itemSpacing": 12,
+        "childrenIds": [
+          "title-content"
+        ],
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL",
+          "itemSpacing": 12
+        }
+      }
+    },
+    "title-content": {
+      "id": "title-content",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "title",
+        "width": 120,
+        "height": 94,
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.1,
+              "g": 0.1,
+              "b": 0.1
+            }
+          }
+        ]
+      }
+    },
+    "card": {
+      "id": "card",
+      "type": "FRAME",
+      "fields": {
+        "name": "StepCard",
+        "parentId": "row",
+        "width": 520,
+        "height": 218,
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "layoutPositioning": "AUTO",
+        "childrenIds": [
+          "marker"
+        ],
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.97,
+              "g": 0.97,
+              "b": 0.98
+            }
+          }
+        ],
+        "inferredAutoLayout": {
+          "layoutMode": "VERTICAL"
+        }
+      }
+    },
+    "marker": {
+      "id": "marker",
+      "type": "RECTANGLE",
+      "fields": {
+        "name": "Rectangle 37",
+        "parentId": "card",
+        "width": 16,
+        "height": 16,
+        "x": -48,
+        "y": 32,
+        "layoutPositioning": "ABSOLUTE",
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 1000,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.3176470588235294,
+              "g": 0.23529411764705882,
+              "b": 0.9333333333333333
+            }
+          }
+        ]
+      }
+    }
+  }
+}

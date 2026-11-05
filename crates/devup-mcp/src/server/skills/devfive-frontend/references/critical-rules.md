@@ -154,7 +154,8 @@ export default function LoginPage() { ... }
 // app/(auth)/dashboard/page.tsx
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { DashboardContent } from '@/components/pages/dashboard/DashboardContent'
+import { DashboardSummary } from '@/components/pages/dashboard/DashboardSummary'
+import { RecentActivity } from '@/components/pages/dashboard/RecentActivity'
 
 export default function DashboardPage() {
   return (
@@ -162,7 +163,11 @@ export default function DashboardPage() {
       <Sidebar />           {/* Server Component */}
       <VStack flex={1}>
         <Header />          {/* Server Component */}
-        <DashboardContent /> {/* Server Component */}
+        <VStack as="section">
+        <Text as="h1" m="0">Dashboard</Text>
+        <DashboardSummary />
+        <RecentActivity />
+      </VStack>
       </VStack>
     </Flex>
   )

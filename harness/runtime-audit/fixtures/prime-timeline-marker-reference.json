@@ -1,0 +1,25 @@
+{
+  "source": "native Figma section reference, never rendered from the implementation",
+  "fileKey": "YVPOYYXZJpOayp0QlCdIVT",
+  "sectionNodeId": "83:11902",
+  "nodeId": "I83:11959;83:13420",
+  "figmaUrl": "https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT?node-id=83-11902",
+  "originalDimensions": {
+    "width": 1440,
+    "height": 2213
+  },
+  "originalSha256": "097220ab395c666e8eada2f4be691cfa0009ebecb1fd103b84df314b0f3a5a3e",
+  "crop": {
+    "x": 642,
+    "y": 303,
+    "width": 16,
+    "height": 16
+  },
+  "cropSha256": "086e25b880497d953c2ddbe110b153f1159483d43796ce0677cc24e07b4f91a0",
+  "scope": "Marker paint only; independent browser assertions cover parent allocation and fixed dimensions. This is not a whole-page visual baseline.",
+  "comparison": {
+    "maxChangedRatio": 0.03,
+    "channelTolerance": 32,
+    "reason": "16px native Figma vs Chromium circle edges differ by up to 30/255 per channel; all 60 nonidentical pixels lie at radii 7.38..8.51px from the 7.5px pixel centre, with zero interior changes. Wrong fill and square shape must still fail."
+  }
+}

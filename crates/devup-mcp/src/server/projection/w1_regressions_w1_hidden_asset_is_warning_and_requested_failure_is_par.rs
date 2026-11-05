@@ -467,7 +467,7 @@ async fn w7_scaffold_assets_match_public_paths_and_preview_has_no_asset_writes()
     let preview_files = preview["pageScaffold"]["files"].as_array().unwrap();
     assert_eq!(
         preview_files.len(),
-        3,
+        2,
         "identical captured bytes reuse one asset"
     );
     if let PendingOperation::Export {
@@ -482,11 +482,14 @@ async fn w7_scaffold_assets_match_public_paths_and_preview_has_no_asset_writes()
     assert_eq!(preview_files, files);
     let code = files
         .iter()
-        .find(|f| f["path"].as_str().unwrap().contains("components"))
+        .find(|f| f["path"].as_str().unwrap().ends_with("page.tsx"))
         .unwrap()["content"]
         .as_str()
         .unwrap();
     assert!(code.contains("/icons/actual.png"), "{code}");
+    assert!(code.contains("export default function"), "{code}");
+    assert!(!code.contains("components/pages"), "{code}");
+    assert!(!root.join("components/pages").exists());
     for file in files {
         let expected = if file["encoding"] == "base64" {
             STANDARD.decode(file["content"].as_str().unwrap()).unwrap()
@@ -540,7 +543,7 @@ async fn w7_frame_scaffold_uses_frame_output_key_and_rejects_multi_route_guess()
             .as_array()
             .unwrap()
             .len(),
-        2
+        1
     );
     assert!(
         value["outputPathResults"]["supportedKeys"]

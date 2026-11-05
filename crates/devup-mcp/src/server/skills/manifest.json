@@ -51,13 +51,13 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 27157,
-          "sha256": "9088379e6d51fedde1f6178f78e09cb6e7a36854b4ab98c6f1078db05d059445"
+          "bytes": 29204,
+          "sha256": "7f8212adf5979ee6b1668c11d12fbb2804544fe874618f05ebb17d8decbb3b46"
         },
         {
           "path": "references/critical-rules.md",
-          "bytes": 57175,
-          "sha256": "3b7694f5db108407e0b4e3736cc3018b4c72951596eb1e4feab3123a3a4d3549"
+          "bytes": 57345,
+          "sha256": "35b3c66d5d6ddc6911085003cb9d5f795f7c9456c97714c4ae40323a7c42cc33"
         },
         {
           "path": "references/anti-patterns.md",
@@ -76,8 +76,8 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 9896,
-          "sha256": "4cfd9bfd755a88853421de5fddf6f8f564dda8c19b0549c9a03707f17a919428"
+          "bytes": 14776,
+          "sha256": "87ac07731333ddc01eecac9ae44b62987bc03817b737121b3733602cab2d31fe"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",
@@ -94,8 +94,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 42556,
-          "sha256": "cb6ec7010a91502e0d432a359db3267e2e56d24ec60177d4765f64f99250c20d"
+          "bytes": 44189,
+          "sha256": "3fa8507a53f19fb36911a02ab8a2ef1c2e1eddbe0bbbb4d3e4d5099573a92630"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -112,8 +112,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 21804,
-          "sha256": "f4e8601dff53896f9cecbaea7c0a8d7391443984f18829639b8ada74053dc540"
+          "bytes": 23437,
+          "sha256": "cbccf3bf99cb7fa63df07dc40593b532b7c6bb52ef79c554e09aa8dbe325d211"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

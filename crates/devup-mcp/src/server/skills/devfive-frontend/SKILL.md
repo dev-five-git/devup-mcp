@@ -14,6 +14,29 @@ description: |
   coding convention, DevFive, puzzle-fit, girok-space
 ---
 
+## Required page, API and verification boundaries
+
+- Route pages must contain their actual page structure and data preparation in
+  `app/**/page.tsx`. `components/pages/<page>/` contains page-local partials only.
+  Never delegate the entire page to one component, including through artificial
+  wrappers, fragments, providers or a shared header around a page proxy.
+- Every application API call must use devup-api, including server reads, server
+  actions and uploads. Native `fetch`, another HTTP client and custom transports
+  are not substitutes. Before reporting a missing capability, use DCU to update
+  the relevant dependencies, reinstall, verify the resolved versions, and rerun
+  a minimal reproduction. Preserve the real API/schema contract, including null.
+  If the required capability is still missing, document a concrete devup-api
+  feature request and stop the affected implementation. Continue independent
+  authorized page work. Posting externally requires explicit authorization.
+- Run functional E2E and Figma reference visual tests together for UI changes.
+  Do not create expected screenshots from the implementation under test. Cover
+  every changed section at desktop/mobile widths and captured error, selected,
+  expanded and disabled states. A passing initial screenshot is insufficient.
+  Keep the actual, Figma reference, diff, threshold and renderer/font/zoom context.
+- Diagnosis and feedback files do not complete an authorized fix. Apply the fix,
+  rerun both kinds of browser verification, and report any remaining scope.
+  A missing API, reference or render environment stays explicitly unverified.
+
 # DevFive Frontend Coding Conventions
 
 Before wiring generated screens, read [delivery-quality](references/delivery-quality.md).
@@ -503,7 +526,9 @@ export function Button({ variant, children }: ButtonProps) {
 
 import { Suspense } from 'react'
 import { Header } from '@/components/layout/Header'
-import { MyPageContent } from '@/components/pages/my-page/MyPageContent'
+import { ProfileCard } from '@/components/pages/my-page/ProfileCard'
+import { ActivityList } from '@/components/pages/my-page/ActivityList'
+import { VStack, Text } from '@devup-ui/react'
 import { Loading } from '@/components/common/Loading'
 
 export default function MyPagePage() {  // Name must end with Page
@@ -511,7 +536,11 @@ export default function MyPagePage() {  // Name must end with Page
     <VStack>
       <Header title="My Page" />
       <Suspense fallback={<Loading />}>
-        <MyPageContent />
+        <VStack as="section">
+          <Text as="h2" m="0">Recent activity</Text>
+          <ProfileCard />
+          <ActivityList />
+        </VStack>
       </Suspense>
     </VStack>
   )
@@ -558,15 +587,20 @@ export function useToastContext() {
 ## API Integration
 
 ```tsx
-// Server Component - direct fetch (recommended)
-async function getData() {
-  const res = await fetch('https://api.example.com/data')
-  return res.json()
-}
+// Server Component - configured, generated devup-api client
+import { api } from '@/api'
+import { VStack, Text } from '@devup-ui/react'
+import { ItemList } from '@/components/pages/items/ItemList'
 
-export default async function DataPage() {
-  const data = await getData()
-  return <DataDisplay data={data} />
+export default async function ItemsPage() {
+  const { data, error } = await api.get('/items')
+  if (error) throw error
+  return (
+    <VStack as="main">
+      <Text as="h1" m="0">Items</Text>
+      <ItemList items={data} />
+    </VStack>
+  )
 }
 
 // Client Component - react-query

@@ -2,6 +2,37 @@ use super::*;
 fn snapshot(metric: bool) -> devup_mcp_figma::Snapshot {
     serde_json::from_value(json!({"fileKey":"completion-fixture","roots":["root"],"nodes":if metric{json!({"root":{"id":"root","type":"FRAME","fields":{"name":"Statistics","childrenIds":["metric"]}},"metric":{"id":"metric","type":"TEXT","fields":{"name":"Metric","characters":"3 patents"}}})}else{json!({"root":{"id":"root","type":"FRAME","fields":{"name":"Home","childrenIds":[]}}})},"diagnostics":[]})).unwrap()
 }
+
+#[tokio::test]
+async fn completion_recomputes_pixels_and_rejects_local_baselines_and_missing_environment() {
+    // Synthetic PNGs exercise the evidence gate, not real design fidelity.
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let (root, policy, _) = fixture();
+    let store = ArtifactStore::default();
+    let white = STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg==").unwrap();
+    let black = STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==").unwrap();
+    let mut payload = super::super::artifacts::w3_tests::payload();
+    payload.reference_png = Some(devup_mcp_figma::ReferencePng {
+        mime_type:"image/png".into(),data_base64:STANDARD.encode(&white),
+        byte_length:white.len(),sha256:hash(&white),note:None,
+    });
+    let artifact = store.insert(super::super::artifacts::ArtifactRequestKey::from_collection(&super::super::artifacts::w3_tests::request()),payload).await.unwrap();
+    let actual = root.join(".devup/actual.png");
+    std::fs::write(&actual,&white).unwrap();
+    let observed = json!({"schemaVersion":1,"actualPng":actual,"viewport":{"width":1,"height":1,"deviceScaleFactor":1},"captureContext":{"innerWidth":1,"innerHeight":1,"devicePixelRatio":1,"visualViewportScale":1,"rootCssZoom":1,"bodyCssZoom":1},"environmentStatus":"valid","renderer":{"name":"playwright-chromium","version":"test"},"os":"test","locale":"en-US","timezone":"UTC"});
+    let env = serde_json::from_value(json!({"tsxResource":{"uri":"devup://artifact/test/tsx","sha256":"a".repeat(64)},"themePath":"devup.json","assetDirectory":"public/images","devupUiVersion":"test","fontManifest":[{"family":"Test","sha256":"b".repeat(64)}]})).unwrap();
+    let mut comparison = json!({"id":"home-page-1","nodeId":"1:1","screenshot":{"sha256":hash(&white)},"class":"page-visual","routePath":"/","viewport":{"width":1},"blockers":[],"call":{"arguments":{"actual":actual,"reference":{"artifactId":artifact.artifact_id},"threshold":0,"environment":observed}}});
+    assert_eq!(verify_visual(&comparison,Some(&env),&policy,&store).await["verdict"],"pass");
+    assert_eq!(verify_visual(&comparison,None,&policy,&store).await["verdict"],"inconclusive");
+    std::fs::write(&actual,&black).unwrap();
+    assert_eq!(verify_visual(&comparison,Some(&env),&policy,&store).await["verdict"],"inconclusive");
+    comparison["screenshot"]["sha256"] = json!(hash(&black));
+    assert_eq!(verify_visual(&comparison,Some(&env),&policy,&store).await["verdict"],"fail");
+    comparison["call"]["arguments"]["reference"] = json!({"path":actual});
+    assert_eq!(verify_visual(&comparison,Some(&env),&policy,&store).await["verdict"],"inconclusive");
+    drop(artifact);drop(store);drop(policy);
+    std::fs::remove_dir_all(root).unwrap();
+}
 fn signed_plan() -> Value {
     let mut result = json!({"artifactId":"fixture-artifact","nodeId":"root"});
     super::super::behavior_contracts::attach(&mut result, &snapshot(false));
@@ -32,6 +63,7 @@ fn fixture() -> (std::path::PathBuf, OutputPolicy, CompletionInput) {
         project_root: root.to_string_lossy().into_owned(),
         audits: vec![],
         check_receipt_path: None,
+        visual_environments: BTreeMap::new(),
         data_plan_path: None,
         data_receipt_path: None,
         static_bindings: BTreeMap::new(),
@@ -53,7 +85,7 @@ async fn generated_source_never_implies_application_completion() {
             .as_array()
             .unwrap()
             .len(),
-        4
+        5
     );
     drop(policy);
     std::fs::remove_dir_all(root).unwrap();
@@ -62,7 +94,7 @@ async fn generated_source_never_implies_application_completion() {
 async fn build_receipts_bind_current_source_and_cannot_replace_browser_or_data_proof() {
     let (root, policy, mut input) = fixture();
     let (digest, _) = source_digest(&root, &policy).unwrap();
-    let commands = ["build", "lint", "typecheck", "test"]
+    let commands = ["build", "lint", "typecheck", "test", "e2e"]
         .map(|name| json!({"name":name,"command":["bun","run",name],"exitCode":0}));
     let checks = json!({"kind":"devup-project-check-receipt","schemaVersion":1,"sourceDigest":digest,"sourceChanged":false,"checks":commands});
     let path = root.join(".devup/checks.json");
@@ -250,11 +282,11 @@ async fn unsigned_inventory_is_rebuilt_only_from_a_retained_capture() {
 }
 
 #[tokio::test]
-async fn bound_synthetic_receipts_advance_stages_and_source_changes_revoke_completion() {
+async fn source_bound_static_checks_cannot_replace_figma_visuals() {
     let (root, policy, mut input) = fixture();
     let store = ArtifactStore::default();
     let (digest, _) = source_digest(&root, &policy).unwrap();
-    let commands = ["build", "lint", "typecheck", "test"]
+    let commands = ["build", "lint", "typecheck", "test", "e2e"]
         .map(|name| json!({"name":name,"command":["bun","run",name],"exitCode":0}));
     let checks = root.join(".devup/checks.json");
     std::fs::write(&checks,serde_json::to_vec(&json!({"kind":"devup-project-check-receipt","schemaVersion":1,"sourceDigest":digest,"sourceChanged":false,"checks":commands})).unwrap()).unwrap();
@@ -293,12 +325,34 @@ async fn bound_synthetic_receipts_advance_stages_and_source_changes_revoke_compl
         report_path: report_path.to_string_lossy().into(),
     });
     let result = write(&input, &policy, &store, None).await.unwrap();
+    assert_eq!(result["stage"], "implemented", "{result}");
+    assert_eq!(result["blockers"]["missingVisualComparisons"], json!([["/",360]]));
+    // Once both the observed E2E command and a native Figma comparison exist,
+    // the same source-bound evidence can advance all completion stages.
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let mut payload = super::super::artifacts::w3_tests::payload();
+    payload.reference_png = Some(devup_mcp_figma::ReferencePng {
+        mime_type: "image/png".into(), data_base64: STANDARD.encode(&png),
+        byte_length: png.len(), sha256: hash(&png), note: None,
+    });
+    let artifact = store.insert(super::super::artifacts::ArtifactRequestKey::from_collection(&super::super::artifacts::w3_tests::request()), payload).await.unwrap();
+    let mut planned: Value = serde_json::from_slice(&std::fs::read(&plan_path).unwrap()).unwrap();
+    planned["plan"]["screens"][0]["figma"] = json!({"nodeId":"root","drawnWidths":[360],"frames":[{"width":360,"height":100,"nodeId":"1:1","artifactId":artifact.artifact_id}]});
+    let rewritten = super::super::runtime_audit::create_plan(serde_json::from_value(planned["plan"].clone()).unwrap(), &policy, Some(&plan_path.to_string_lossy()), None, &store).await.unwrap();
+    let mut report = report;
+    report["planId"] = rewritten["planId"].clone();
+    report["planSha256"] = json!(hash(&std::fs::read(&plan_path).unwrap()));
+    report["runs"][0]["screens"][0]["captureContext"] = json!({"innerWidth":360,"innerHeight":100,"devicePixelRatio":1,"visualViewportScale":1,"rootCssZoom":1,"bodyCssZoom":1});
+    report["executor"] = json!({"browser":{"name":"chromium","version":"test"}});
+    report["environment"] = json!({"os":"test","locale":"en-US","timezone":"UTC"});
+    std::fs::write(&report_path, report.to_string()).unwrap();
+    let ingested = super::super::runtime_audit::ingest_with_artifacts(&policy, &plan_path.to_string_lossy(), &report_path.to_string_lossy(), &store).await.unwrap();
+    let comparison_id = ingested["visualComparisons"][0]["id"].as_str().unwrap().to_owned();
+    input.visual_environments.insert(comparison_id, serde_json::from_value(json!({"tsxResource":{"uri":"devup://artifact/test/tsx","sha256":"a".repeat(64)},"themePath":"devup.json","assetDirectory":"public/images","devupUiVersion":"test","fontManifest":[{"family":"Test","sha256":"b".repeat(64)}]})).unwrap());
+    let result = write(&input, &policy, &store, None).await.unwrap();
     assert_eq!(result["stage"], "data-verified", "{result}");
+    assert_eq!(refresh(&input.project_root, &policy, &store).await.unwrap()["done"], true);
     assert_eq!(result["dataVerificationScope"], "not-required");
-    assert_eq!(
-        refresh(&input.project_root, &policy, &store).await.unwrap()["done"],
-        true
-    );
     // A syntactically present but unsigned empty inventory cannot remove all
     // data/motion obligations and turn a generated fixture into a done project.
     let record_path = root.join(".devup/exports/home.json");
