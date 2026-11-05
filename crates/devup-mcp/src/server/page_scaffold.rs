@@ -187,17 +187,10 @@ pub(crate) fn attach(
     devup_mcp_devup_ui::validation::validate_tsx(&page)?;
     let mut files = Vec::new();
     let mut planned = Vec::new();
-    for (suffix, path, content) in [
-        (
-            "page",
-            root.join("src/app").join(route).join("page.tsx"),
-            page,
-        ),
-    ] {
-        let target = policy.resolve(&path.to_string_lossy())?;
-        files.push(json!({"path":target.display_path(),"content":content,"encoding":"utf8"}));
-        planned.push((format!("{key}:{suffix}"), target, content.into_bytes()));
-    }
+    let path = root.join("src/app").join(route).join("page.tsx");
+    let target = policy.resolve(&path.to_string_lossy())?;
+    files.push(json!({"path":target.display_path(),"content":page,"encoding":"utf8"}));
+    planned.push((format!("{key}:page"), target, page.into_bytes()));
     let mut unavailable = Vec::new();
     if let Some(manifest) = manifest {
         for asset in &manifest.assets {
