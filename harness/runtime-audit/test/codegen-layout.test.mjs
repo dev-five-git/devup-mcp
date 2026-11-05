@@ -58,13 +58,20 @@ test('Prime caller allocation and absolute marker survive compilation and match 
   const compared=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',actual,'--diff',diff,...comparisonArgs],{encoding:'utf8',windowsHide:true});
   assert.equal(compared.status,0,compared.stdout+compared.stderr);
   await marker.evaluate(element=>element.style.backgroundColor='#00ff00');
-  await marker.screenshot({path:actual});
-  const wrong=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',actual,...comparisonArgs],{encoding:'utf8',windowsHide:true});
+  const wrongColor=join(dir,'prime-marker-wrong-color.png');
+  await marker.screenshot({path:wrongColor});
+  const wrong=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',wrongColor,...comparisonArgs],{encoding:'utf8',windowsHide:true});
   assert.equal(wrong.status,1,'wrong marker paint must fail the same Figma comparison');
   await marker.evaluate(element=>{element.style.backgroundColor='#513cee';element.style.borderRadius='0';});
-  await marker.screenshot({path:actual});
-  const square=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',actual,...comparisonArgs],{encoding:'utf8',windowsHide:true});
+  const wrongShape=join(dir,'prime-marker-wrong-shape.png');
+  await marker.screenshot({path:wrongShape});
+  const square=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',wrongShape,...comparisonArgs],{encoding:'utf8',windowsHide:true});
   assert.equal(square.status,1,'wrong shape must fail despite the edge antialiasing tolerance');
+  await writeFile(join(dir,'prime-marker-visual-report.json'),JSON.stringify({
+   provenance,paths:{reference,actual,diff,wrongColor,wrongShape},
+   actualSha256:createHash('sha256').update(await readFile(actual)).digest('hex'),
+   correct:JSON.parse(compared.stdout),wrongColor:JSON.parse(wrong.stdout),wrongShape:JSON.parse(square.stdout),
+  },null,2));
   await page.close();
  },{reset:true});
 });
