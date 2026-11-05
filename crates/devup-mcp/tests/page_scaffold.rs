@@ -178,7 +178,7 @@ fn files(value: &Value) -> &Vec<Value> {
 async fn w7_preview_is_default_and_writes_nothing() {
     let dir = temp_dir().unwrap();
     let value = export(dir.path(), args(dir.path())).await;
-    assert_eq!(files(&value).len(), 2);
+    assert_eq!(files(&value).len(), 1);
     assert_eq!(value["pageScaffold"]["mode"], "preview");
     assert_eq!(
         value["outputPathResults"]["pathKinds"]["pageScaffold"],
@@ -194,7 +194,7 @@ async fn w7_explicit_write_matches_manifest_exactly() {
     let mut input = args(dir.path());
     input["pageScaffold"]["write"] = json!(true);
     let value = export(dir.path(), input).await;
-    assert_eq!(files(&value).len(), 2);
+    assert_eq!(files(&value).len(), 1);
     for file in files(&value) {
         assert_eq!(
             std::fs::read_to_string(file["path"].as_str().unwrap()).unwrap(),
@@ -203,10 +203,7 @@ async fn w7_explicit_write_matches_manifest_exactly() {
     }
     assert_eq!(
         written_files(dir.path()),
-        std::collections::BTreeSet::from([
-            dir.path().join("src/app/proofread/page.tsx"),
-            dir.path().join("components/pages/proofread/Proofread.tsx"),
-        ])
+        std::collections::BTreeSet::from([dir.path().join("src/app/proofread/page.tsx"),])
     );
     assert_eq!(value["pageScaffold"]["collisionPolicy"], "refuse-existing");
 }
@@ -251,7 +248,7 @@ async fn w7_out_of_root_refused_before_writes() {
     assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
 }
 #[tokio::test]
-async fn w7_page_shell_and_named_screen_have_no_inferred_client_boundary() {
+async fn w7_route_owns_the_screen_body_without_an_inferred_client_boundary() {
     let dir = temp_dir().unwrap();
     let value = export(dir.path(), args(dir.path())).await;
     let files = files(&value);
@@ -265,17 +262,12 @@ async fn w7_page_shell_and_named_screen_have_no_inferred_client_boundary() {
             .unwrap()
             .contains("export default function ProofreadPage()")
     );
-    let screen = files
-        .iter()
-        .find(|f| f["path"].as_str().unwrap().ends_with("Proofread.tsx"))
-        .unwrap();
-    assert!(!screen["path"].as_str().unwrap().contains("src/app"));
-    assert!(
-        screen["content"]
-            .as_str()
-            .unwrap()
-            .contains("export function Proofread()")
-    );
+    assert_eq!(files.len(), 1);
+    let source = page["content"].as_str().unwrap();
+    assert!(!source.contains("components/pages"), "{source}");
+    assert!(!source.contains("return <Proofread />"), "{source}");
+    assert!(source.contains("return ("), "{source}");
+    devup_mcp_devup_ui::validation::validate_tsx(source).unwrap();
     for file in files {
         assert!(!file["content"].as_str().unwrap().contains("use client"));
     }
@@ -308,7 +300,7 @@ async fn w7_unsupported_output_key_is_reported_without_writing() {
     let mut input = args(dir.path());
     input["outputPaths"]["frame:unknown:pageScaffold"] = json!(dir.path().join("ignored"));
     let value = export(dir.path(), input).await;
-    assert_eq!(files(&value).len(), 2);
+    assert_eq!(files(&value).len(), 1);
     assert!(
         value["outputPathResults"]["supportedKeys"]
             .as_array()
@@ -401,7 +393,7 @@ async fn w7_explicit_overwrite_preserves_unrelated_files() {
     input["pageScaffold"]["write"] = json!(true);
     input["pageScaffold"]["overwrite"] = json!(true);
     let value = export(dir.path(), input).await;
-    assert_eq!(files(&value).len(), 2);
+    assert_eq!(files(&value).len(), 1);
     assert!(
         std::fs::read_to_string(page)
             .unwrap()
