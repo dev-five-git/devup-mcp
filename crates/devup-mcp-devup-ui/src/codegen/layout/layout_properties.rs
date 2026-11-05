@@ -95,10 +95,18 @@ pub(super) fn push_layout_props(
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
         if export.is_some() {
             // Sized above, by the export.
-        } else if let Some((w, h)) = fixed_native_ellipse_size(&view, component, is_asset)
-            .or_else(|| fixed_native_rectangle_size(&view, component, is_asset)) {
+        } else if let Some((w, h)) = fixed_native_ellipse_size(&view, component, is_asset) {
             width = Some(px(w));
             height = Some(px(h));
+        } else if let Some((w, h)) = fixed_native_rectangle_size(&view, component, is_asset) {
+            // Keep the existing full-parent overlay relationship on matching
+            // axes. A smaller, intrinsically empty shape needs its own extent.
+            let spans = |axis: &str, extent: f64| parent.is_some_and(|p| {
+                let p = p.typed_view();
+                p.field_error(axis).is_none() && p.number(axis) == Some(extent)
+            });
+            width = Some(if spans("width", w) { "100%".into() } else { px(w) });
+            height = Some(if spans("height", h) { "100%".into() } else { px(h) });
         } else if component == "Text" {
             width = own_width.map(px);
             height = Some("100%".to_owned());

@@ -34,7 +34,7 @@ all three categories by changing the generator.
 | 025 | Require clean release fixtures and checking actual archive identity/dependencies; stale tarballs or dry runs are insufficient. |
 | 026 | Resolution record for published devup-api and the application's migration; no new MCP defect. |
 | 027 | Retain detached FILL width; expose unapplied reference root sizing as an approximated placement contract. Preserve instance HUG cross-axis alignment. Consumers still must apply the typed caller contract or inline the instance. |
-| 028 | Measured native absolute rectangles retain both axes, including shapes with omitted layoutSizing fields. Read errors and fluid/stretch/scale constraints do not receive this repair. |
+| 028 | Measured native absolute rectangles retain both axes, including shapes with omitted layoutSizing fields. Read errors and fluid/stretch/scale constraints do not receive this repair; matching full-parent overlay axes retain their previous percentage relationship. |
 | 029 | Explicitly prohibit hiding painted empty absolute nodes by a broad cleanup heuristic. The reported destructive postprocessor belongs to the application, not this MCP source. |
 | 030 | Every workflow requires completing an authorized fix and rerunning functional/Figma visual checks; recording a diagnosis is not completion. |
 
@@ -62,3 +62,9 @@ Full-page blend fidelity, framework watcher behavior, final application token
 assembly and downstream API/release publication still require their own exact
 application/runtime evidence. Passing this PR does not assert that every
 screen or external package has been fixed.
+
+The earlier ChondroGen generator default that infers keep-all from Korean text
+is still present. Item 016 changes the workflow instruction here; replacing
+that generator policy needs a separate source-line/native-reference regression
+and must preserve explicit user/theme policies. It is not claimed resolved by
+the marker crop or the page ownership changes in this PR.

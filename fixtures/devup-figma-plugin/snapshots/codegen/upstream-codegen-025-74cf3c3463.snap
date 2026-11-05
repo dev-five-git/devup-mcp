@@ -5,7 +5,7 @@ expression: actual
 
 "<VStack pos="relative">
   <Box
-    h="100%"
+    boxSize="100px"
     left="300px"
     pos="absolute"
     top="50%"

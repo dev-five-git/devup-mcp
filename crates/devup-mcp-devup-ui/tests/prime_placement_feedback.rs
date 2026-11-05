@@ -130,3 +130,21 @@ fn rectangle_repair_does_not_override_fluid_constraints_or_failed_reads() {
         );
     }
 }
+
+#[test]
+fn full_parent_rectangle_keeps_its_existing_overlay_relationship() {
+    let mut snapshot = snapshot();
+    let marker = snapshot.nodes.get_mut("marker").unwrap();
+    marker.fields.insert("width".into(), json!(520));
+    marker.fields.insert("height".into(), json!(218));
+    let output = generate_component(
+        &snapshot,
+        "card",
+        &CodegenOptions {
+            inline_instances: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(output.tsx.contains("boxSize=\"100%\""), "{}", output.tsx);
+}
