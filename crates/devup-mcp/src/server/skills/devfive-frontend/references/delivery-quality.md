@@ -206,3 +206,23 @@ PR creation, merge and release publication are distinct outcomes. For release
 work use a clean fixture, the actual package archive paths and archive contents
 (name, version and internal dependencies). Never accept stale tarballs, dry-run
 output or a retry of a pinned old release source as proof of a current release.
+
+## Concurrent projects and split-screen desktop
+
+Another running project is not a desktop-wide lock. When authorized projects
+need GUI work, use OS split-screen with separate visible Figma/browser windows
+and continue them side by side. Keep each project's workspace, terminal, server
+port and browser context distinct. Do not close, minimize or replace another
+project's working window, server or Bridge plugin to make room.
+
+Before each input or capture, verify the target window identity and bounds,
+plus its URL/port or Figma file/page. Recheck coordinates after tiling. Coordinate
+only conflicting mouse/keyboard input in short batches, not the entire project.
+A real tool lock or permission error blocks its affected operation; report that
+exact error, respect the lock and continue independent work. Do not invent a
+single-project restriction or claim to bypass a tool-enforced lock.
+
+Keep functional E2E and Figma visual tests paired. Desktop pane size does not
+replace the agreed CSS viewport, DPR or zoom. If the required capture viewport
+cannot fit onscreen, use an independent automated browser context at that size;
+do not change application layout, CSS zoom or thresholds to make a pane match.

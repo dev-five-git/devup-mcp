@@ -13,8 +13,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 5866,
-          "sha256": "e16941efe87d21f466868fd7112c0298728f80360b5aa1b80c97a6cd8c29f649"
+          "bytes": 7128,
+          "sha256": "5333792035e3c2bc1b00f91195687914801980f9015fb5f316c69b1834b1cd06"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/figma-bridge-setup",
@@ -51,8 +51,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 29246,
-          "sha256": "ccf84b2e0d99bad692a6625e07ef765dec6f712e37a6ed76a58800c16536466d"
+          "bytes": 30455,
+          "sha256": "21ba16688d97ff24a6a5d2352af5ad611a9ad5813c9e9d4301f07b64ac38648d"
         },
         {
           "path": "references/critical-rules.md",
@@ -76,8 +76,8 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 14776,
-          "sha256": "87ac07731333ddc01eecac9ae44b62987bc03817b737121b3733602cab2d31fe"
+          "bytes": 15985,
+          "sha256": "aaadb68606fe7aac6d3cdc52bf27c80f95d5de6c23ed7ed49ad2d0b4057d451e"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",
@@ -94,8 +94,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 44189,
-          "sha256": "3fa8507a53f19fb36911a02ab8a2ef1c2e1eddbe0bbbb4d3e4d5099573a92630"
+          "bytes": 45398,
+          "sha256": "90ced638e1f3ad023bf991bc69872fae18933431cb3f5302f023cb716156bbe4"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -112,8 +112,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 23437,
-          "sha256": "cbccf3bf99cb7fa63df07dc40593b532b7c6bb52ef79c554e09aa8dbe325d211"
+          "bytes": 24646,
+          "sha256": "41e42e8aa489c4d8b51fcfbe02fa6cc53a72dfdab2713cd284b656666c41c58d"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

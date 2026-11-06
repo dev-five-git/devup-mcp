@@ -11,6 +11,25 @@ process inspection; use computer use for desktop menus, tabs and file dialogs.
 If computer use is unavailable, report the exact blocked step. Don't claim a
 connection from a running process alone.
 
+## Concurrent projects and split-screen desktop
+
+Another running project is not a desktop-wide lock. Use OS split-screen with
+separate visible Figma/browser windows; keep other projects, servers and plugins
+running. Give each project its own workspace, port and browser context. Verify
+the target window identity/bounds and file/page before each input or capture;
+coordinate only conflicting mouse/keyboard input in short batches.
+
+For several attached Bridge files, supply the intended file URL/identity on
+reads and verify its page/selection and a small node read. Do not rely on the
+single-plugin selection shortcut. A real tool lock, permission error or ambiguous
+file identity blocks that operation only: report the exact error, respect the
+restriction and continue independent work. Never infer a global project lock
+or stop another project merely because its window is already in use.
+
+Keep browser visual captures at their agreed CSS viewport, DPR and zoom. Use
+an independent automated context when the reference viewport cannot fit in a
+desktop pane; do not alter layout or zoom to force a comparison.
+
 1. Call `devup_figma_auth` with `action: "status"`. Read `paths.bridge`, its
    host PID and commit/buildId, and `server.commit`/`server.buildId`. A matching
    version alone doesn't prove a matching build. Missing host identity is
@@ -23,9 +42,10 @@ connection from a running process alone.
    `brew install --cask figma`, or https://www.figma.com/downloads/.
    Direct means `devup_figma_auth` login and the real Figma URL. If no question
    tool exists, leave the choice unresolved and report the limitation.
-3. Launch Figma, foreground its window and open the supplied file URL in the
-   desktop app. With computer use, click the target file tab, navigate to the
-   target page and select the intended frame/Section. Don't guess a file key.
+3. Launch Figma and open the supplied file URL in the desktop app. If another
+   project uses Figma, open a separate window and tile them with OS split-screen.
+   Focus only the intended window for its input batch. Click its file tab,
+   navigate to the target page and select the intended frame/Section. Don't guess a file key.
    Let the user handle any sign-in, OTP or permission prompt you can't complete.
 4. If Devup Bridge isn't registered, locate the actual downloaded repository's
    `plugin/manifest.json` and `plugin/dist/` bundle. In Figma choose
@@ -33,8 +53,9 @@ connection from a running process alone.
    manifest. Don't invent a local path or rebuild an unchanged shipped bundle.
    Run **Plugins > Development > Devup Bridge** in the target file and leave
    its window open.
-5. If `attachedFiles[].inView` is false, use computer use to restore and
-   foreground Figma, then click that file's tab. Keep it visible during reads.
+5. If `attachedFiles[].inView` is false, restore the intended Figma window in
+   its split-screen pane, then click that file's tab. Keep it visible during
+   reads without hiding another project's window.
    Call status again and verify the file, current page, selection and `inView`.
 6. For a mismatched/legacy relay host, inspect the reported PID, executable
    path and owning client before changing anything. Restart/update that client's

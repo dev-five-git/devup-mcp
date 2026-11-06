@@ -1,6 +1,6 @@
 # Prime feedback audit
 
-Reviewed the application's `.feedback/001` through `030` against main
+Reviewed the application's `.feedback/001` through `031` against main
 `0c6073e` (MCP 0.20.0). The records mix generator defects, integration mistakes
 and resolved upstream API/release problems. This change does not claim to fix
 all three categories by changing the generator.
@@ -37,6 +37,7 @@ all three categories by changing the generator.
 | 028 | Measured native absolute rectangles retain both axes, including shapes with omitted layoutSizing fields. Read errors and fluid/stretch/scale constraints do not receive this repair; matching full-parent overlay axes retain their previous percentage relationship. |
 | 029 | Explicitly prohibit hiding painted empty absolute nodes by a broad cleanup heuristic. The reported destructive postprocessor belongs to the application, not this MCP source. |
 | 030 | Every workflow requires completing an authorized fix and rerunning functional/Figma visual checks; recording a diagnosis is not completion. |
+| 031 | Another active project is not a desktop-wide lock. Use OS split-screen and separate windows/ports/browser contexts; coordinate only contended input, respect actual tool locks and preserve capture viewport/DPR/zoom. Ship this in bootstrap instructions, the guide and Bridge/frontend skills. |
 
 ## Regression evidence and limits
 
@@ -68,3 +69,9 @@ is still present. Item 016 changes the workflow instruction here; replacing
 that generator policy needs a separate source-line/native-reference regression
 and must preserve explicit user/theme policies. It is not claimed resolved by
 the marker crop or the page ownership changes in this PR.
+
+The user confirmed that split-screen desktop work is possible. Item 031 is a
+shipped instruction change; this update does not claim a new live GUI
+concurrency experiment. Existing skill-install/digest and bootstrap/guide
+delivery checks verify that the rule reaches clients. The 1,500-byte bootstrap
+instruction limit is retained.
