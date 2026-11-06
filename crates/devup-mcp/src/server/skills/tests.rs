@@ -6,6 +6,18 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     #[test]
+    fn prime_feedback_boundaries_are_carried_in_every_frontend_entry_point() {
+        for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
+            let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;
+            for required in ["app/**/page.tsx", "page-local partials", "Every application API call must use devup-api", "stop the affected implementation", "Continue independent", "functional E2E and Figma reference visual tests together", "Do not create expected screenshots from the implementation under test"] {
+                assert!(text.contains(required), "{name}: {required}");
+            }
+            assert!(!text.contains("direct fetch (recommended)"));
+            assert!(!text.contains("<MyPageContent />"));
+        }
+    }
+
+    #[test]
     fn formatter_ownership_warning_is_carried_in_every_frontend_workflow() {
         for name in ["devup", "devup-implementation-plan", "devfive-frontend"] {
             let text = EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1[0].1;

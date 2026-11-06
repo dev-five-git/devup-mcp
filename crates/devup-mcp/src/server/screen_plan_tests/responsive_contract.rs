@@ -27,7 +27,10 @@ fn responsive_scaffold_uses_the_merged_module_instead_of_the_first_frame() {
     super::super::projection::page_scaffold::attach(&mut result,
         &super::super::projection::page_scaffold::PageScaffoldOptions { route: "/".into(), write: false, overwrite: false },
         &paths, None, &BTreeMap::new(), &fixture.policy(), false).unwrap();
-    assert!(array(&result["pageScaffold"]["files"]).iter().any(|file| file["content"] == code));
+    let files = array(&result["pageScaffold"]["files"]);
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0]["content"], code.replacen("export function Main(", "export default function MainPage(", 1));
+    assert!(files[0]["path"].as_str().unwrap().ends_with("page.tsx"));
 }
 
 #[test]

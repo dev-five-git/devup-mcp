@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {preparedBinaries,renderFixture} from '../prepared-binaries.mjs';
-await preparedBinaries();
+const binaries=await preparedBinaries();
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {mkdir, mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -25,13 +27,54 @@ async function rendered(snapshot, verify, { responsive = false, assets = [], res
     await writeFile(join(dir,'main.tsx'),`${reset?"import {resetCss} from '@devup-ui/reset-css';resetCss();":''}import {createRoot} from 'react-dom/client';import {RenderFixture} from './Generated';createRoot(document.getElementById('root')).render(<RenderFixture/>);`);
     const config={root:dir,configFile:false,logLevel:'error',plugins:[DevupUI()],build:{outDir:'dist'},preview:{host:'127.0.0.1',port:0}};
     await build(config); server=await preview(config); browser=await chromium.launch();
-    await verify(browser,`http://127.0.0.1:${server.httpServer.address().port}`);
+    await verify(browser,`http://127.0.0.1:${server.httpServer.address().port}`,dir);
   } finally {
     if(browser) await browser.close();
     if(server) await new Promise((done)=>server.httpServer.close(done));
-    await rm(dir,{recursive:true,force:true});
+    if(!process.env.DEVUP_KEEP_RENDER_EVIDENCE) await rm(dir,{recursive:true,force:true});
   }
 }
+
+test('Prime caller allocation and absolute marker survive compilation and match the native Figma marker', {timeout:360000}, async()=> {
+ const reference=join(harness,'fixtures/prime-timeline-marker-reference.png');
+ const provenance=JSON.parse(await readFile(join(harness,'fixtures/prime-timeline-marker-reference.json'),'utf8'));
+ assert.equal(createHash('sha256').update(await readFile(reference)).digest('hex'),provenance.cropSha256);
+ await rendered(join(repo,'crates/devup-mcp-devup-ui/tests/fixtures/prime-placement.json'),async(browser,url,dir)=> {
+  const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});
+  await page.goto(url);await page.evaluate(()=>document.fonts.ready);
+  const title=page.locator('[data-figma-node-id="title"]');
+  const card=page.locator('[data-figma-node-id="card"]');
+  const marker=page.locator('[data-figma-node-id="marker"]');
+  for(const width of [1440,980,1440]) {
+   await page.setViewportSize({width,height:900});
+   const boxes=await Promise.all([title,card,marker].map(element=>element.boundingBox()));
+   assert.deepEqual(boxes.map(({width,height})=>({width,height})),[{width:420,height:94},{width:520,height:218},{width:16,height:16}]);
+   assert.equal(boxes[1].x-boxes[0].x-boxes[0].width,40);
+   assert.equal(boxes[2].x-boxes[1].x,-48);
+  }
+  const actual=join(dir,'prime-marker-actual.png'),diff=join(dir,'prime-marker-diff.png');
+  const comparisonArgs=['--max-changed-ratio',String(provenance.comparison.maxChangedRatio),'--channel-tolerance',String(provenance.comparison.channelTolerance)];
+  await marker.screenshot({path:actual});
+  const compared=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',actual,'--diff',diff,...comparisonArgs],{encoding:'utf8',windowsHide:true});
+  assert.equal(compared.status,0,compared.stdout+compared.stderr);
+  await marker.evaluate(element=>element.style.backgroundColor='#00ff00');
+  const wrongColor=join(dir,'prime-marker-wrong-color.png');
+  await marker.screenshot({path:wrongColor});
+  const wrong=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',wrongColor,...comparisonArgs],{encoding:'utf8',windowsHide:true});
+  assert.equal(wrong.status,1,'wrong marker paint must fail the same Figma comparison');
+  await marker.evaluate(element=>{element.style.backgroundColor='#513cee';element.style.borderRadius='0';});
+  const wrongShape=join(dir,'prime-marker-wrong-shape.png');
+  await marker.screenshot({path:wrongShape});
+  const square=spawnSync(binaries.visual,['compare','--reference',reference,'--actual',wrongShape,...comparisonArgs],{encoding:'utf8',windowsHide:true});
+  assert.equal(square.status,1,'wrong shape must fail despite the edge antialiasing tolerance');
+  await writeFile(join(dir,'prime-marker-visual-report.json'),JSON.stringify({
+   provenance,paths:{reference,actual,diff,wrongColor,wrongShape},
+   actualSha256:createHash('sha256').update(await readFile(actual)).digest('hex'),
+   correct:JSON.parse(compared.stdout),wrongColor:JSON.parse(wrong.stdout),wrongShape:JSON.parse(square.stdout),
+  },null,2));
+  await page.close();
+ },{reset:true});
+});
 
 test('generated staggered grid keeps drawn geometry and reads 01 02 03 04 at 390', {timeout:360000}, async()=> {
   await rendered(join(repo,'crates/devup-mcp-devup-ui/tests/fixtures/staggered-sequence.json'), async(browser,url)=> {

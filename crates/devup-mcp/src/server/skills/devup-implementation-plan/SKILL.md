@@ -113,6 +113,49 @@ items; never claim completion from split or command generation alone.
 
 
 
+## Concurrent projects and split-screen desktop
+
+Another running project is not a desktop-wide lock. When authorized projects
+need GUI work, use OS split-screen with separate visible Figma/browser windows
+and continue them side by side. Keep each project's workspace, terminal, server
+port and browser context distinct. Do not close, minimize or replace another
+project's working window, server or Bridge plugin to make room.
+
+Before each input or capture, verify the target window identity and bounds,
+plus its URL/port or Figma file/page. Recheck coordinates after tiling. Coordinate
+only conflicting mouse/keyboard input in short batches, not the entire project.
+A real tool lock or permission error blocks its affected operation; report that
+exact error, respect the lock and continue independent work. Do not invent a
+single-project restriction or claim to bypass a tool-enforced lock.
+
+Keep functional E2E and Figma visual tests paired. Desktop pane size does not
+replace the agreed CSS viewport, DPR or zoom. If the required capture viewport
+cannot fit onscreen, use an independent automated browser context at that size;
+do not change application layout, CSS zoom or thresholds to make a pane match.
+
+## Required page, API and verification boundaries
+
+- Route pages must contain their actual page structure and data preparation in
+  `app/**/page.tsx`. `components/pages/<page>/` contains page-local partials only.
+  Never delegate the entire page to one component, including through artificial
+  wrappers, fragments, providers or a shared header around a page proxy.
+- Every application API call must use devup-api, including server reads, server
+  actions and uploads. Native `fetch`, another HTTP client and custom transports
+  are not substitutes. Before reporting a missing capability, use DCU to update
+  the relevant dependencies, reinstall, verify the resolved versions, and rerun
+  a minimal reproduction. Preserve the real API/schema contract, including null.
+  If the required capability is still missing, document a concrete devup-api
+  feature request and stop the affected implementation. Continue independent
+  authorized page work. Posting externally requires explicit authorization.
+- Run functional E2E and Figma reference visual tests together for UI changes.
+  Do not create expected screenshots from the implementation under test. Cover
+  every changed section at desktop/mobile widths and captured error, selected,
+  expanded and disabled states. A passing initial screenshot is insufficient.
+  Keep the actual, Figma reference, diff, threshold and renderer/font/zoom context.
+- Diagnosis and feedback files do not complete an authorized fix. Apply the fix,
+  rerun both kinds of browser verification, and report any remaining scope.
+  A missing API, reference or render environment stays explicitly unverified.
+
 # Screen plan first, confirm once, then implement
 
 A design handed over as "implement this" is several screens, and each one has

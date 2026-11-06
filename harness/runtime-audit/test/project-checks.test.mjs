@@ -17,3 +17,16 @@ test('project command evidence records real failure and rejects stale source',as
     await assert.rejects(recordProjectChecks({projectRoot:dir,checks:[{name:'build',command:[]}]}));
   }finally{await rm(dir,{recursive:true,force:true});}
 });
+
+test('functional e2e command has separate observed evidence from unit tests',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'devup-e2e-receipt-'));
+  try{
+    await writeFile(join(dir,'package.json'),'{}');
+    const receipt=await recordProjectChecks({projectRoot:dir,checks:[
+      {name:'test',command:[process.execPath,'-e','process.exit(0)']},
+      {name:'e2e',command:[process.execPath,'-e','process.exit(9)']},
+    ]});
+    assert.deepEqual(receipt.checks.map(({name,exitCode})=>({name,exitCode})),[{name:'test',exitCode:0},{name:'e2e',exitCode:9}]);
+    assert.equal(receipt.sourceChanged,false);
+  }finally{await rm(dir,{recursive:true,force:true});}
+});

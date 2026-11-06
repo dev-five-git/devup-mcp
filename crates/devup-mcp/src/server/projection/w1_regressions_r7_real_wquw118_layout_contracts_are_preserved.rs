@@ -662,6 +662,15 @@ async fn project(
     payload: CollectedPayload,
     operation: PendingOperation,
 ) -> Result<Value, DevupError> {
+    // A temp-wide policy allowed parallel fixtures to write the same sibling
+    // .devup/public-assets.json. Confine self-contained public fixtures so the
+    // production registry guard selects their own private metadata directory.
+    let policy_root = match &operation {
+        PendingOperation::Export { asset_public_root: Some(root), output_paths, asset_output_paths, .. }
+            if root.is_dir() && output_paths.values().chain(asset_output_paths.values())
+                .all(|path| std::path::Path::new(path).starts_with(root)) => root.clone(),
+        _ => std::env::temp_dir(),
+    };
     let store = ArtifactStore::default();
     let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
         payload.target.clone(),
@@ -673,7 +682,7 @@ async fn project(
         &artifact.payload,
         "fixture",
         &artifact,
-        &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+        &OutputPolicy::from_roots(vec![policy_root]).unwrap(),
         &store,
     )
     .await

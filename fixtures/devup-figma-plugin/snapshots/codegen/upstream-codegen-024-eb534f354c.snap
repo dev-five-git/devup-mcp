@@ -4,5 +4,11 @@ expression: actual
 ---
 
 "<Flex pos="relative">
-  <Box bottom="0px" h="100%" left="50px" pos="absolute" />
+  <Box
+    bottom="0px"
+    h="50px"
+    left="50px"
+    pos="absolute"
+    w="100px"
+  />
 </Flex>"

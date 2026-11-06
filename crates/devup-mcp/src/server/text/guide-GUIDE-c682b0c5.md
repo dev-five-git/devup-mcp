@@ -1,5 +1,27 @@
 # Using devup-mcp
 
+## Concurrent projects and split-screen desktop
+
+Another running project is not a desktop-wide lock. When authorized projects
+need GUI work, use OS split-screen with separate visible Figma/browser windows
+and continue them side by side. Keep each project's workspace, terminal, server
+port and browser context distinct. Do not close, minimize or replace another
+project's working window, server or Bridge plugin to make room.
+
+Before each input or capture, verify the target window identity and bounds,
+plus its URL/port or Figma file/page. Recheck coordinates after tiling. Coordinate
+only conflicting mouse/keyboard input in short batches, not the entire project.
+A real tool lock or permission error blocks its affected operation; report that
+exact error, respect the lock and continue independent work. Do not invent a
+single-project restriction or claim to bypass a tool-enforced lock.
+
+Keep functional E2E and Figma visual tests paired. Desktop pane size does not
+replace the agreed CSS viewport, DPR or zoom. If the required capture viewport
+cannot fit onscreen, use an independent automated browser context at that size;
+do not change application layout, CSS zoom or thresholds to make a pane match.
+
+## Design and implementation
+
 When replacing an inlined instance with a shared component, carry over every `instanceOverrides` entry through a new variant or prop, or explicitly report it as unresolved. `DEVUP_CODEGEN_INSTANCE_OVERRIDE` is a required review item; structured instanceOverrides sidecars retain its evidence without metadata comments in TSX. A missing captured value or master is unresolved, never evidence that an override is safe to discard.
 
 For a confirmed URL with multiple drawn widths, `responsiveTsx` is the deliverable. Use all sibling frameIds in width order from screen-plan status or `responsiveRequired.nextAction`. Never start from single-width `tsx` or `componentTsx` for that page or its sections. Only wire links, events and data; never change layout values, collapse responsive arrays, or add fixed heights or layout wrappers to approximate the design. `generatedExport.generatedDrift` reports heuristic layout changes against recorded generated styles with source paths and confidence; missing mappings are unverified, not a pass.

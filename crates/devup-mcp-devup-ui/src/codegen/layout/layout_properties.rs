@@ -24,7 +24,7 @@ pub(super) fn push_layout_props(
             .child_ids()
             .any(|child| child == node.id)
     });
-    let is_root = snapshot.roots.iter().any(|root| root == &node.id);
+    let is_root = is_render_root || snapshot.roots.iter().any(|root| root == &node.id);
     // The parent of a collected root sits outside the collected subtree, so it
     // cannot be looked up and the node's recorded parent type is the only
     // account of it. Without that fallback a screen read as having no parent at
@@ -98,6 +98,15 @@ pub(super) fn push_layout_props(
         } else if let Some((w, h)) = fixed_native_ellipse_size(&view, component, is_asset) {
             width = Some(px(w));
             height = Some(px(h));
+        } else if let Some((w, h)) = fixed_native_rectangle_size(&view, component, is_asset) {
+            // Keep the existing full-parent overlay relationship on matching
+            // axes. A smaller, intrinsically empty shape needs its own extent.
+            let spans = |axis: &str, extent: f64| parent.is_some_and(|p| {
+                let p = p.typed_view();
+                p.field_error(axis).is_none() && p.number(axis) == Some(extent)
+            });
+            width = Some(if spans("width", w) { "100%".into() } else { px(w) });
+            height = Some(if spans("height", h) { "100%".into() } else { px(h) });
         } else if component == "Text" {
             width = own_width.map(px);
             height = Some("100%".to_owned());
@@ -306,6 +315,12 @@ pub(super) fn push_layout_props(
             width = Some("100%".to_owned());
             height = Some("100%".to_owned());
         }
+    }
+
+    // A selected FILL root can have a FIXED opposite axis, so it may have
+    // taken the mixed-sizing branch before reaching the root branch above.
+    if is_render_root && !embedded_root && !absolute && !is_page_root && fill_w && width.is_none() {
+        width = Some("100%".into());
     }
 
     // A canvas with positioned children is their coordinate system, not just
@@ -686,7 +701,8 @@ pub(super) fn push_layout_props(
             && let (Some(own), Some(room)) =
                 (view.number(size), inner_extent(parent, size, near, far))
             && own + 0.5 < room
-            && a_wider_box_would_show(&view, across_is_horizontal)
+            && (view.node_type() == "INSTANCE"
+                || a_wider_box_would_show(&view, across_is_horizontal))
         {
             string_prop(props, "alignSelf", "flex-start");
         }

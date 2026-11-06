@@ -136,7 +136,11 @@ async fn export(arguments: Value) -> anyhow::Result<Value> {
 
 /// A project whose `devup.json` names this colour something else entirely.
 fn project_naming_it_brand() -> anyhow::Result<PathBuf> {
-    let root = std::env::temp_dir().join(format!("devup-f3-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!(
+        "devup-f3-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
     fs::create_dir_all(&root)?;
     fs::write(root.join("package.json"), r#"{"name":"fixture"}"#)?;
     fs::write(

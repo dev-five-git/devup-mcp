@@ -10,10 +10,10 @@ export async function recordProjectChecks({projectRoot,checks,out}){
   const root=await realpath(resolve(projectRoot));
   const names=new Set();
   if(!Array.isArray(checks)||checks.length>12||checks.some(check=>{
-    if(!['build','lint','typecheck','test'].includes(check.name)||names.has(check.name)) return true;
+    if(!['build','lint','typecheck','test','e2e'].includes(check.name)||names.has(check.name)) return true;
     names.add(check.name);
     return !Array.isArray(check.command)||!check.command.length||check.command.length>64||check.command.some(arg=>typeof arg!=='string'||arg.includes('\0'));
-  })) throw new Error('Checks require unique build/lint/typecheck/test names and explicit command argv arrays');
+  })) throw new Error('Checks require unique build/lint/typecheck/test/e2e names and explicit command argv arrays');
   const before=await sourceDigest(root),results=[];
   for(const check of checks){
     const startedAt=new Date().toISOString();let exitCode=0,stderr='';

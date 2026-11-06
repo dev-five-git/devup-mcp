@@ -15,11 +15,13 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    `motionRuntime` and `motionBindings` outputs. Fill semantic selectors and real
    API values, then mount the shared controller once in the persistent layout.
    Generated controller code is executable; unresolved bindings remain explicit.
-3. Run actual build, lint, typecheck and test commands through the emitted
+3. Run actual build, lint, typecheck, unit test and functional E2E commands through the emitted
    `record-project-checks.mjs`, passing a JSON config with `projectRoot` and
    `checks: [{name:"build",command:["bun","run","build"]}, ...]`. The resulting
    `.devup/checks.json` records exits against a complete source/public asset
    digest; failed commands or source changes invalidate the implementation stage.
+   Use separate `test` and `e2e` names; a unit test receipt cannot replace the
+   functional E2E run. Run E2E with Figma reference visual tests for UI changes.
 4. Create browser plans with explicit `projectRoot` so the server computes
    `plan.sourceDigest` from current files. Screen-plan `auditPlan` also binds this
    digest automatically. The runner independently hashes `plan.projectRoot`
@@ -31,6 +33,14 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    behavior candidate ID on the applicable planned viewport/screen/check index
    and observed intermediate behavior. Selected paint alone
    does not prove a sliding indicator or a complete step cycle.
+   Include the exact Figma frame artifact for every drawn width. Completion
+   reruns the ingested `visualComparisons` against cached native Figma PNGs;
+   it never accepts a caller verdict or a path to an implementation baseline.
+   Missing, failed or inconclusive comparisons block browser completion.
+   Supply consumer-only renderer fields in `visualEnvironments`, keyed by
+   comparison ID (tsxResource, themePath, assetDirectory, devupUiVersion and
+   fontManifest). Observed viewport, capture context, renderer and actual PNG
+   stay bound to the audited run. Retain actual/reference/diff and thresholds.
 5. Operational data uses a typed `data-binding` check with actual OpenAPI/model
    anchors, exact exported binding IDs (`nodeId::role`), explicit aggregate and
    landing/list/detail selectors. The runner requires an isolated disposable DB,
@@ -42,7 +52,7 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    SQL is a reviewable artifact, not proof that a live migration was applied.
 6. Call action `completion` with `completion: {projectRoot, routes, widths,
    checkReceiptPath, audits:[{planPath,reportPath}], dataPlanPath,
-   dataReceiptPath, behaviorPlanPaths}`. For inferred presentation values that are
+   dataReceiptPath, behaviorPlanPaths, visualEnvironments}`. For inferred presentation values that are
    explicitly static, record an individual `staticBindings` explanation keyed by
    binding ID. A blanket success boolean cannot waive required evidence.
 

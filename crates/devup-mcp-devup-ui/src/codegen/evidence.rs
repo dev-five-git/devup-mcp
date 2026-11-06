@@ -316,6 +316,13 @@ pub(super) fn placement_contract(
         requirements
             .push(include_str!("../text/evidence-placement_contract-adba181a.md").to_owned());
     }
+    if parent.is_none()
+        && ["layoutSizingHorizontal", "layoutSizingVertical"]
+            .iter()
+            .any(|axis| view.string(axis) == Some("FILL"))
+    {
+        requirements.push("This detached FILL root needs its original parent's layout direction and allocation. maxW/maxH alone do not allocate space. Restore the caller's flex/grid sizing from instanceOverrides or collect the containing parent; verify the assembled component in the browser.".into());
+    }
     if vertical_fill
         && (embedded
             || !view.number("height").is_some_and(|h| {

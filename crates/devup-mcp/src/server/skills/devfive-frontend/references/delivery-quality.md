@@ -20,8 +20,10 @@ binary ships this document in its usage resource and skill installation.
   Do not invent tokens from matching numbers. Collapse equal `pl/pr` to `px`,
   `pt/pb` to `py`, and matching margin pairs, only when precedence is unchanged.
   Verify computed styles at each breakpoint after changing token syntax.
-- Korean sentences use `wordBreak="keep-all"` and normal wrapping. Do not fix
-  word splitting with `nowrap`; handle long URLs or single tokens explicitly.
+- Preserve Figma line breaks and measured wrapping at each captured width.
+  Do not apply `wordBreak="keep-all"` solely because text is Korean. Explicit
+  line breaks, font metrics and available width take precedence over a language
+  heuristic; verify automatic wrapping against the native Figma reference.
 
 ## Shared server shells and usable controls
 
@@ -136,3 +138,91 @@ does not establish runtime completion. Report verified and unverified scopes.
 - Use devup_assets inventory/plan/apply/rollback for public assets and exact source/seed references. Anonymous exports remain private and withhold public/code writes until semantically named. Persisted URL SQL is an artifact requiring separate execution evidence.
 - Run devup_runtime_audit completion after real build/lint/typecheck/tests and bound browser/data audits. Generated source, wired implementation, browser verification and actual DB verification are distinct stages. Source changes invalidate stale receipts. Read the completion section in devup://guide/usage for the exact input and runner commands.
 - The repository CI runs the complete browser/production App Router consumer gate on Linux through its existing checks.test.mjs entry. Rust fixture/visual binaries are prepared once before browser timers start; source fingerprints prevent stale binary reuse.
+
+## Required page, API and verification boundaries
+
+- Route pages must contain their actual page structure and data preparation in
+  `app/**/page.tsx`. `components/pages/<page>/` contains page-local partials only.
+  Never delegate the entire page to one component, including through artificial
+  wrappers, fragments, providers or a shared header around a page proxy.
+- Every application API call must use devup-api, including server reads, server
+  actions and uploads. Native `fetch`, another HTTP client and custom transports
+  are not substitutes. Before reporting a missing capability, use DCU to update
+  the relevant dependencies, reinstall, verify the resolved versions, and rerun
+  a minimal reproduction. Preserve the real API/schema contract, including null.
+  If the required capability is still missing, document a concrete devup-api
+  feature request and stop the affected implementation. Continue independent
+  authorized page work. Posting externally requires explicit authorization.
+- Run functional E2E and Figma reference visual tests together for UI changes.
+  Do not create expected screenshots from the implementation under test. Cover
+  every changed section at desktop/mobile widths and captured error, selected,
+  expanded and disabled states. A passing initial screenshot is insufficient.
+  Keep the actual, Figma reference, diff, threshold and renderer/font/zoom context.
+- Diagnosis and feedback files do not complete an authorized fix. Apply the fix,
+  rerun both kinds of browser verification, and report any remaining scope.
+  A missing API, reference or render environment stays explicitly unverified.
+
+## Assembly must preserve visible geometry
+
+- A detached component needs its caller allocation as well as its internal
+  styles. Apply `instanceOverrides.generatedProps` and
+  `DEVUP_CODEGEN_INSTANCE_PLACEMENT_CONTRACT.requiredRootProps` to the actual
+  typed component root, or inline the captured instance. `maxW` alone does not
+  allocate FILL width. Do not silently discard root props when replacing a
+  reference with a separately exported component. Measure both siblings in their
+  assembled parent (Prime: 420px title, 40px gap, 520px cards in a 980px row).
+- Preserve painted empty nodes. A childless absolute Box may draw a progress
+  rule, dot, background, border, mask, image or effect. Never hide/delete it
+  using only its position, width, tag or lack of text. Check paint, visibility,
+  opacity and captured source identity first. Measure tiny decorations too.
+- Semantic `h1`/`h2`/`h3`, native inputs and buttons can change browser defaults.
+  Verify/reset computed margins, appearance and box sizing. Test input bounds,
+  focus and ARIA before and after validation messages. Shared button wrappers
+  must preserve the caller's width and alignment in every usage.
+- Compare blur/crop/blend against the composed backdrop; a negative z-index or
+  isolation can change multiply into white. Preserve intentional baked effects
+  explicitly and retain pixel evidence for lossy image/absolute fallbacks.
+- Resolve assets by source node/paint/asset identity, never the first matching
+  placeholder filename. Keep collisions blocked. Validate tokens against the
+  final assembled JSX, including instance exports, rather than the page alone.
+  Distinguish hidden library masters from visible instances and overrides.
+- Source/AST preservation, compiler compatibility, behavior, geometry and pixels
+  are separate checks. Run the installed Devup UI transform plus real build;
+  do not cast away compiler failures. Diagnose generated-CSS HMR reloads with
+  server logs and a production render before changing unrelated page geometry.
+- Large resources need bounded chunk/hash recovery; asset acquisition, public
+  path projection and actual file writes are separate evidence. Check path,
+  bytes, digest and blocked-write reason; do not treat a response as a saved file.
+- Intentional backend-dependent design exceptions (such as unavailable CAPTCHA)
+  must be listed separately from unrelated layout regressions. Do not invent a
+  working control or claim API persistence from local state.
+
+## Dependency and delivery evidence
+
+Verify latest resolved package versions and a minimal reproducer before declaring
+an upstream capability missing. Use the exact CI runtime, restore global mocks,
+check exit status and required coverage, and verify remote checks after pushing.
+PR creation, merge and release publication are distinct outcomes. For release
+work use a clean fixture, the actual package archive paths and archive contents
+(name, version and internal dependencies). Never accept stale tarballs, dry-run
+output or a retry of a pinned old release source as proof of a current release.
+
+## Concurrent projects and split-screen desktop
+
+Another running project is not a desktop-wide lock. When authorized projects
+need GUI work, use OS split-screen with separate visible Figma/browser windows
+and continue them side by side. Keep each project's workspace, terminal, server
+port and browser context distinct. Do not close, minimize or replace another
+project's working window, server or Bridge plugin to make room.
+
+Before each input or capture, verify the target window identity and bounds,
+plus its URL/port or Figma file/page. Recheck coordinates after tiling. Coordinate
+only conflicting mouse/keyboard input in short batches, not the entire project.
+A real tool lock or permission error blocks its affected operation; report that
+exact error, respect the lock and continue independent work. Do not invent a
+single-project restriction or claim to bypass a tool-enforced lock.
+
+Keep functional E2E and Figma visual tests paired. Desktop pane size does not
+replace the agreed CSS viewport, DPR or zoom. If the required capture viewport
+cannot fit onscreen, use an independent automated browser context at that size;
+do not change application layout, CSS zoom or thresholds to make a pane match.

@@ -109,6 +109,32 @@ fn render_node(
         let attributes = properties.iter().map(|(name, value)| {
             format!(" {name}={{{}}}", serde_json::to_string(value).unwrap())
         }).collect::<String>();
+        // A reference only passes variant props. Its master component cannot
+        // reproduce an instance's parent allocation by itself. Keep that loss
+        // actionable instead of treating a named reference as layout evidence.
+        let mut placement_props = Vec::new();
+        layout::push_layout_props(snapshot, node, "Box", &mut placement_props,
+            context.root_layout, depth == 0, context.width_policy.as_ref(), false);
+        let placement_props: serde_json::Map<String, serde_json::Value> = placement_props.into_iter()
+            .filter(|(name, _)| matches!(name.as_str(), "w" | "h" | "boxSize" | "minW" | "maxW" | "minH" | "maxH" | "flex" | "flexShrink" | "alignSelf" | "gridColumn" | "gridRow"))
+            .map(|(name, PropValue::String(value))| (name, serde_json::Value::String(value))).collect();
+        if !placement_props.is_empty() {
+            context.diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_INSTANCE_PLACEMENT_CONTRACT".into(),
+                node_id: Some(node.id.clone()),
+                severity: Some(DiagnosticSeverity::Warning),
+                fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
+                message: "Component reference does not apply the instance's caller sizing; preserve its root placement contract during assembly.".into(),
+                details: Some(serde_json::json!({
+                    "component":component,"parentId":view.string("parentId"),
+                    "requiredRootProps":placement_props,
+                    "sourceSize":{"width":view.number("width"),"height":view.number("height")},
+                    "appliedToReference":false,
+                    "nextAction":"Apply these props to the actual component root through typed layout props or inline the captured instance. Do not add unsupported props to a component or assume maxW allocates width. Verify the assembled parent/child bounds alongside the Figma reference visual test."
+                })),
+                ..Diagnostic::default()
+            });
+        }
         let content = main_property.unwrap_or_else(|| format!("<{component}{attributes} />"));
         let expression = if let Some(visible) = visible_property {
             format!("{{{visible} && {content}}}")

@@ -99,3 +99,15 @@ of one component-usage inspection comment. Source case JSON, upstream identity
 and coverage inventory are unchanged. Only the affected snapshot checksums are
 updated; complete outputs still compare byte for byte. These changes do not
 assert new pixel measurements of every pinned upstream screen.
+
+### Prime absolute rectangle feedback (2026-11-06)
+
+Codegen goldens 022?025 now retain measured absolute RECTANGLE dimensions
+rather than an omitted width and parent-relative height. These are the four
+synthetic small-shape cases previously kept for plugin byte parity. The native
+Figma Prime marker crop and compiled-browser regression demonstrate the same
+primitive failure (16x16 becoming 0x218). This is not new pixel evidence for
+every legacy fixture. Full-parent overlays (021 and 191), fluid constraints and
+read-error cases retain their previous policy. Original case JSON and upstream
+identity are unchanged; only four reviewed code snapshots and their
+LF-normalized checksums change. No expected image is regenerated from code.

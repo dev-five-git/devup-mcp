@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "Preserve caller sizing and absolute rectangle geometry, emit route-owned pages, and require functional E2E plus native Figma visual evidence for completion. Teach split-screen concurrent desktop work with isolated project windows, inputs and visual-test viewports.",
+  "date": "2026-11-05T16:51:25.331465500Z"
+}

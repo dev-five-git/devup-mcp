@@ -24,6 +24,11 @@ pub struct CompletionInput {
     pub audits: Vec<AuditPair>,
     #[serde(default)]
     pub check_receipt_path: Option<String>,
+    /// Missing consumer-only renderer fields, keyed by the ingest comparison ID.
+    /// Actual PNG, reference, threshold and observed capture context stay bound
+    /// to the audit. Completion reruns comparisons; caller verdicts are not used.
+    #[serde(default)]
+    pub visual_environments: BTreeMap<String, super::visual_compare::VisualEnvironment>,
     #[serde(default)]
     pub data_plan_path: Option<String>,
     #[serde(default)]
@@ -55,6 +60,48 @@ fn is_motion(candidate: &Value) -> bool {
                 | "section-entrance"
         )
     )
+}
+
+async fn verify_visual(
+    comparison: &Value,
+    environment: Option<&super::visual_compare::VisualEnvironment>,
+    policy: &OutputPolicy,
+    artifacts: &ArtifactStore,
+) -> Value {
+    let mut args = comparison["call"]["arguments"].clone();
+    // A local file, including the implementation's own screenshot, cannot be
+    // supplied as a replacement baseline to the completion gate.
+    if args["reference"]["artifactId"].as_str().is_none_or(|id| id.starts_with('<'))
+        || args["reference"].get("path").is_some()
+        || comparison["blockers"].as_array().is_some_and(|v| !v.is_empty())
+    {
+        return json!({"id":comparison["id"],"verdict":"inconclusive","reason":"A valid Figma artifact and compatible capture are required."});
+    }
+    if let Some(environment) = environment {
+        let observed = args["environment"].clone();
+        args["environment"] = serde_json::to_value(environment).unwrap_or(Value::Null);
+        if let Some(observed) = observed.as_object() {
+            for (key, value) in observed {
+                args["environment"][key] = value.clone();
+            }
+        }
+    }
+    let result = match serde_json::from_value::<super::tools::VisualCompareInput>(args) {
+        Ok(input) => super::visual_compare::compare(input, policy, artifacts).await,
+        Err(_) => return json!({"id":comparison["id"],"verdict":"inconclusive","reason":"Invalid visual comparison input."}),
+    };
+    match result {
+        Ok(result) => {
+            let reference_node = result["reference"]["nodeId"].as_str()
+                .or_else(|| result["reference"]["target"]["nodeId"].as_str());
+            let bound = comparison["screenshot"]["sha256"].as_str().is_some()
+                && comparison["screenshot"]["sha256"] == result["actual"]["sha256"]
+                && reference_node.is_some()
+                && reference_node == comparison["nodeId"].as_str();
+            json!({"id":comparison["id"],"routePath":comparison["routePath"],"viewport":comparison["viewport"],"class":comparison["class"],"evidenceBound":bound,"result":result,"verdict":if bound {result["verdict"].clone()} else {json!("inconclusive")}})
+        },
+        Err(error) => json!({"id":comparison["id"],"verdict":"inconclusive","reason":error.message}),
+    }
 }
 fn complete_inventory_for(plan: &Value, record: &Value, scope: Option<&str>) -> bool {
     super::behavior_contracts::verified_coverage_inventory(plan).is_some()
@@ -304,6 +351,7 @@ pub(super) async fn evaluate(
         || input.widths.len() > 8
         || input.widths.iter().any(|w| *w == 0 || *w > 4096)
         || input.audits.len() > 60
+        || input.visual_environments.len() > 1000
         || input.behavior_plan_paths.len() > 1000
         || input.routes.len() > 1000
         || input.static_bindings.len() > 10000
@@ -392,7 +440,7 @@ pub(super) async fn evaluate(
             && r["schemaVersion"] == 1
     });
     let mut missing_checks = Vec::new();
-    for required in ["build", "lint", "typecheck", "test"] {
+    for required in ["build", "lint", "typecheck", "test", "e2e"] {
         let passing = checked
             && checks.as_ref().is_some_and(|r| {
                 values(r, "checks").any(|c| {
@@ -413,6 +461,9 @@ pub(super) async fn evaluate(
         routes.extend(values(&plan, "routes").filter_map(|r| r["url"].as_str().map(str::to_owned)));
     }
     let mut covered = BTreeSet::new();
+    let mut required_visual = BTreeSet::new();
+    let mut visual_covered = BTreeSet::new();
+    let mut visual_results = Vec::new();
     let mut motion_covered = BTreeSet::new();
     let mut audit_results = Vec::new();
     let mut audit_ok = !input.audits.is_empty();
@@ -438,10 +489,27 @@ pub(super) async fn evaluate(
             && ingested["integrity"]["planFileHashMatches"] == true;
         audit_ok &= pass;
         if pass {
+            for comparison in values(&ingested, "visualComparisons") {
+                let result = verify_visual(comparison,
+                    comparison["id"].as_str().and_then(|id| input.visual_environments.get(id)),
+                    policy, artifacts).await;
+                let visual_pass = result["verdict"] == "pass";
+                audit_ok &= visual_pass;
+                if visual_pass && comparison["class"] == "page-visual"
+                    && let (Some(route), Some(width)) = (comparison["routePath"].as_str(), comparison["viewport"]["width"].as_u64())
+                {
+                    visual_covered.insert((route.to_owned(), width as u32));
+                }
+                visual_results.push(result);
+            }
             for screen in values(&plan["plan"], "screens") {
                 if let Some(route) = screen["routePath"].as_str() {
                     for viewport in values(&plan["plan"], "viewports") {
                         if let Some(width) = viewport["width"].as_u64() {
+                            let drawn = screen["figma"]["drawnWidths"].as_array();
+                            if drawn.is_none_or(|v| v.is_empty() || v.iter().any(|w| w.as_u64() == Some(width))) {
+                                required_visual.insert((route.to_owned(), width as u32));
+                            }
                             let kinds = values(screen, "checks")
                                 .filter(|check| {
                                     check["widths"].as_array().is_none_or(|v| {
@@ -480,11 +548,14 @@ pub(super) async fn evaluate(
         .difference(&motion_covered)
         .cloned()
         .collect::<Vec<_>>();
+    let missing_visual = required_visual.difference(&visual_covered).cloned().collect::<Vec<_>>();
     let browser_verified = implemented
         && audit_ok
         && !routes.is_empty()
         && missing_routes.is_empty()
-        && missing_motion.is_empty();
+        && missing_motion.is_empty()
+        && !required_visual.is_empty()
+        && missing_visual.is_empty();
     let mut data = json!({"sourceMatched":false,"apiVerified":false,"dbVerified":false,"coveredBindingIds":[]});
     if let (Some(plan_path), Some(receipt_path)) = (&input.data_plan_path, &input.data_receipt_path)
     {
@@ -537,8 +608,8 @@ pub(super) async fn evaluate(
         json!({"kind":"devup-completion-receipt","schemaVersion":1,"sourceDigest":source_digest,"sourceFileCount":files.len(),"sourceScope":"project-source-and-public-assets","stage":stage,"done":data_verified,"reportAllowed":data_verified,
         "stages":{"generated":generated,"implemented":implemented,"browserVerified":browser_verified,"dataVerified":data_verified},
         "requiredMotionIds":required_motion,"requiredBindingIds":required_bindings,"staticBindingDecisions":input.static_bindings,
-        "blockers":{"incompleteBehaviorCoverage":truncated,"missingChecks":missing_checks,"missingRoutesOrWidths":missing_routes,"missingMotion":missing_motion,"missingBindings":missing_bindings},
-        "audits":audit_results,"dataEvidence":data,"dataVerificationScope":if required_bindings.is_empty(){"not-required"}else{"isolated-database-snapshots"},"input":input,
+        "blockers":{"incompleteBehaviorCoverage":truncated,"missingChecks":missing_checks,"missingRoutesOrWidths":missing_routes,"missingVisualComparisons":missing_visual,"missingMotion":missing_motion,"missingBindings":missing_bindings},
+        "audits":audit_results,"visualResults":visual_results,"dataEvidence":data,"dataVerificationScope":if required_bindings.is_empty(){"not-required"}else{"isolated-database-snapshots"},"input":input,
         "trust":"Command exits, browser measurements and SQL rows are executor-observed; source digests, plan/report bindings and referenced artifact hashes are independently rechecked. A generated export or a caller success boolean never establishes application completion."}),
     )
 }

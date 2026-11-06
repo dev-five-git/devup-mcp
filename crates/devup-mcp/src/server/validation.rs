@@ -225,6 +225,14 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
             ));
         }
         if !debug && DIAGNOSIS_OUTPUTS.contains(&output.as_str()) {
+            let mut recovery_outputs = outputs.to_vec();
+            // A debug toggle alone led to a second projection error. Include
+            // source-map code and used-only theme dependencies in one retry.
+            for required in ["tsx", "sourceMap", "devupJson"] {
+                if !recovery_outputs.iter().any(|output| output == required) {
+                    recovery_outputs.push(required.into());
+                }
+            }
             return Err(DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
                 format!(
@@ -233,8 +241,9 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
                 ),
                 false,
                 json!({"stage":"preflight","nextAction":{"tool":"devup_figma_export",
-                    "arguments":{"debug":true},
-                    "how":"Repeat the same call with debug: true. Pair rawSnapshot with sourceMap, and reuse cache.artifactId for later projections instead of re-collecting."}}),
+                    "preserveOtherArguments":true,
+                    "arguments":{"debug":true,"outputs":recovery_outputs},
+                    "how":"Merge these arguments into the original call, preserving its target and theme options. This recipe includes sourceMap's code output and used-only devupJson dependencies. Reuse cache.artifactId for later projections instead of re-collecting."}}),
             ));
         }
     }
@@ -652,6 +661,18 @@ pub(super) fn public_asset_url(
 #[cfg(test)]
 mod p3_tests {
     use super::*;
+    #[test]
+    fn diagnosis_retry_includes_code_map_and_theme_dependencies() {
+        let error = validate_outputs(&["rawSnapshot".into()], false).unwrap_err();
+        let action = &error.details["nextAction"];
+        assert_eq!(action["preserveOtherArguments"], true);
+        assert_eq!(action["arguments"]["debug"], true);
+        let outputs: Vec<String> = serde_json::from_value(action["arguments"]["outputs"].clone()).unwrap();
+        for dependency in ["rawSnapshot", "tsx", "sourceMap", "devupJson"] {
+            assert!(outputs.iter().any(|output| output == dependency));
+        }
+        validate_outputs(&outputs, true).unwrap();
+    }
     #[test]
     fn webp_options_are_validated_and_paths_use_the_actual_codec_extension() {
         let base = json!({"assetId":"sample:fills:0","format":"webp","quality":0,"lossless":true,"outputPath":"images/sample.png"});

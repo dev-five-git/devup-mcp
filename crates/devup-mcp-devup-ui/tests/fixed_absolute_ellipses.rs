@@ -88,7 +88,7 @@ fn fluid_unknown_and_unreadable_geometry_do_not_gain_fixed_shape_sizes() {
 }
 
 #[test]
-fn relative_ellipse_and_other_shape_paths_keep_their_existing_sizing() {
+fn relative_ellipses_keep_their_path_and_absolute_rectangles_preserve_measured_axes() {
     for positioning in [json!("AUTO"), json!({"$unsupported":"unknown"})] {
         let mut snapshot = source("I44:2832;44:3209");
         snapshot
@@ -107,5 +107,5 @@ fn relative_ellipse_and_other_shape_paths_keep_their_existing_sizing() {
         .unwrap()
         .node_type = "RECTANGLE".into();
     let output = render(&snapshot);
-    assert!(!output.contains("boxSize=\"48px\""), "{output}");
+    assert!(output.contains("boxSize=\"48px\""), "{output}");
 }

@@ -167,7 +167,8 @@ pub(crate) fn attach(
     let code = carrier.get("responsiveTsx").or_else(|| carrier.get("tsx")).and_then(Value::as_str).ok_or_else(|| {
         invalid("pageScaffold has no generated screen; inspect projection failures.")
     })?;
-    // The existing generator emits one named function. Do not split its JSX or infer hooks.
+    // Keep the actual generated body in the route. Renaming its export does
+    // not split JSX, introduce a proxy component or infer client boundaries.
     let name = code
         .lines()
         .find_map(|line| line.strip_prefix("export function "))
@@ -179,39 +180,17 @@ pub(crate) fn attach(
     } else {
         format!("{name}Page")
     };
-    let page_name = if page_name == name {
-        format!("{name}ShellPage")
-    } else {
-        page_name
-    };
-    let relative = Path::new("components/pages")
-        .join(route)
-        .join(format!("{name}.tsx"));
-    let import = format!(
-        "{}{}",
-        "../".repeat(2 + route.split('/').filter(|s| !s.is_empty()).count()),
-        relative
-            .to_string_lossy()
-            .replace('\\', "/")
-            .trim_end_matches(".tsx")
+    let page = code.replacen(
+        &format!("export function {name}("),
+        &format!("export default function {page_name}("), 1,
     );
-    let page = format!(
-        "import {{ {name} }} from \"{import}\";\n\nexport default function {page_name}() {{\n  return <{name} />;\n}}\n"
-    );
+    devup_mcp_devup_ui::validation::validate_tsx(&page)?;
     let mut files = Vec::new();
     let mut planned = Vec::new();
-    for (suffix, path, content) in [
-        (
-            "page",
-            root.join("src/app").join(route).join("page.tsx"),
-            page,
-        ),
-        ("component", root.join(relative), code.to_owned()),
-    ] {
-        let target = policy.resolve(&path.to_string_lossy())?;
-        files.push(json!({"path":target.display_path(),"content":content,"encoding":"utf8"}));
-        planned.push((format!("{key}:{suffix}"), target, content.into_bytes()));
-    }
+    let path = root.join("src/app").join(route).join("page.tsx");
+    let target = policy.resolve(&path.to_string_lossy())?;
+    files.push(json!({"path":target.display_path(),"content":page,"encoding":"utf8"}));
+    planned.push((format!("{key}:page"), target, page.into_bytes()));
     let mut unavailable = Vec::new();
     if let Some(manifest) = manifest {
         for asset in &manifest.assets {
@@ -249,7 +228,7 @@ pub(crate) fn attach(
         "files":files,"unavailableAssets":unavailable,
         "unresolvedDecisions":[
             {"kind":"client-boundary","reason":"State, events and browser API ownership are not in Figma; a human or validator must choose any client boundary."},
-            {"kind":"component-decomposition","reason":"Further component boundaries and reuse require application context; only the page shell and one screen were emitted."}
+            {"kind":"component-decomposition","reason":"Further component boundaries and reuse require application context; the actual screen body was emitted in app/**/page.tsx; components/pages is for page-local partials only."}
         ]}));
     if let Some(output) = carrier
         .get_mut("outputResults")
@@ -285,7 +264,6 @@ pub(crate) fn committed_paths(result: &Map<String, Value>, written: &mut Map<Str
         &result["frames"][0]["pageScaffold"]
     };
     if written.remove(&format!("{key}:page")).is_some() {
-        written.remove(&format!("{key}:component"));
         written.insert(key, scaffold["projectRoot"].clone());
     }
 }
