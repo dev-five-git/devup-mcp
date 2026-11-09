@@ -25,9 +25,9 @@ mod wrapping_policy_tests {
     }
 
     fn value_of<'a>(props: &'a [Prop], key: &str) -> Option<&'a str> {
-        props.iter().find(|(name, _)| name == key).and_then(|(_, value)| match value {
-            PropValue::String(value) => Some(value.as_str()),
-            _ => None,
+        props.iter().find(|(name, _)| name == key).map(|(_, value)| {
+            let PropValue::String(value) = value;
+            value.as_str()
         })
     }
 

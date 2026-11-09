@@ -75,3 +75,37 @@ shipped instruction change; this update does not claim a new live GUI
 concurrency experiment. Existing skill-install/digest and bootstrap/guide
 delivery checks verify that the rule reaches clients. The 1,500-byte bootstrap
 instruction limit is retained.
+
+## Follow-up (2026-11-10)
+
+This follow-up implements the remaining MCP-scope items after PR #119 and the
+user's binding decision on Korean wrapping. It supersedes the 002 and 016 rows
+above where they differ.
+
+| Feedback | Change in this follow-up |
+| --- | --- |
+| 002 | Semantic `h1`–`h6` conversion now emits `my="0px"` unless the node already has a margin (`m`/`my`/`mt`/`mb`), with a verified semantic-stage property derivation. The browser regression compiles the installed Devup UI without a reset stylesheet and measures a generated `h2` margin of 0px. |
+| 006 | Extra image fills are named `{stem}--fill-{index}` (0-based, as in `{nodeId}:fills:{index}`). Every stem is kebab-case with collapsed hyphens, so this suffix cannot collide with the `-2`/`-3` name of a different asset (previously fill 2 and the second same-named asset were both `stem-2.png`). The one-placeholder/two-pictures refusal now lists the conflicting assets, nodes, image hashes and canonical paths; it recommends `assetNamesPerNode:true` only when the hashes differ. For a shared imageHash (named deliberately as one file, with or without that flag) it points to separate exports or sourceMap nodeId/assetId binding. Existing collision guards and the shared-hash naming test are unchanged. |
+| 007 | Every `devupJson` response carries `devupJsonScope` (`complete-theme`, `used-tokens` or `additions-only`). Missing-only adds `devupJsonMerge` (target file, deep-merge/add-missing-keys strategy, instruction). A missing-only `devupJson` output path named `devup.json` is refused before any Figma call because it would replace the project theme. |
+| 008 | `componentSetVariants` reports per-variant `visible` and `allVariantsHidden`. When every variant of an exported COMPONENT_SET (or a single master) is hidden, the response adds `DEVUP_HIDDEN_MASTER_EXPORT` with the hidden variant ids, visible instances found in the snapshot and a next action: export the visible page INSTANCE with its overrides. |
+| 011 | Asset job rows report `fileFacts` (exists, bytes, sha256 read from disk) for each projected path, `outputPathRedirected` when the file lives at a canonical path rather than the requested one, and a `fileStateReason` for every `not-written` row: missing after a blocked or rolled-back write, different bytes kept by the collision guard, quarantine, failed transaction, no acquisition or a duplicate. Grayscale reuse of a colour original is reported as written and redirected, not as not-written. |
+| 014 | Guidance only: validation messages must not take a native input's width (flex-basis/minW contract, message on its own row); E2E must trigger the error and assert input bounds, visibility, focus and message. |
+| 016 | Decision: Korean keeps word boundaries. Generated Korean text keeps `wordBreak="keep-all"` and `overflowWrap="break-word"` and adds `textWrap="pretty"` against large trailing gaps. Text with `whiteSpace` `pre`/`nowrap` gets no `textWrap`, because the shorthand resets `text-wrap-mode` and would re-enable wrapping. Explicit local/theme `textWrap` wins. The shipped guidance now states this policy: a diff caused only by Figma's mid-word Korean break is a documented policy difference, and the native Figma reference is never overwritten to pass. The `korean-word-boundary` validation rule's next action matches. |
+| 032 | Guidance only: report CI failures by actual stage with the original message. Keep local pass, remote CI pass, push/permission rejection and transient external HTTP errors (for example setup-bun 504) as separate evidence. On a rejected push, finish independent work, leave an applicable patch and state the constraint. |
+| axe-core 4.14 | Guidance only: a minor bump promoted `label-content-name-mismatch` (WCAG 2.5.3) to wcag21a. Drop redundant `aria-label`s that repeat visible text (including `aria-hidden` split-letter copies), make remaining labels contain the visible text verbatim and use sr-only text for extra hints. Fix components; never disable the rule. |
+
+Evidence: Rust regressions cover the textWrap policy (including pre/nowrap and
+explicit policies), heading margins with verified derivations, fill/dedupe path
+uniqueness, both ambiguous-placeholder recoveries, theme scope markers and the
+devup.json write refusal, hidden-master warnings (unit and full projection) and
+per-path asset facts/reasons including grayscale reuse. Seven pinned plugin
+goldens add exactly fifteen `textWrap="pretty"` lines; the 151 frame snapshots
+add only `textWrap` lines and their property evidence. The harness browser
+regression compiles with the installed Devup UI and checks computed
+`word-break: keep-all`, `text-wrap-style: pretty`, a `nowrap` mode for
+intrinsic-width text, line ends on word boundaries and a 0px `h2` margin.
+
+Out of scope, unchanged: 005 (general blend/backdrop compositor), 009 (Devup UI
+compiler transform of polymorphic Link), 013 (Vite watcher/HMR behavior) and
+029 (the application's destructive postprocessor). These belong to other
+components or the application and still need their own evidence.
