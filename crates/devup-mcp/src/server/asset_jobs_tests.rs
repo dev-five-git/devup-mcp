@@ -451,3 +451,120 @@ fn r39_node_request_adopts_written_source_fill_evidence() {
     assert_eq!(response["exportJob"]["assetProgress"]["total"], 1);
     std::fs::remove_file(path).unwrap();
 }
+
+fn finished_job(paths: BTreeMap<String, String>, assets: Vec<Value>) -> AssetJob {
+    AssetJob {
+        id: "facts".into(),
+        key: "facts".into(),
+        budget: json!({}),
+        started: Instant::now(),
+        resume: Notify::new(),
+        cancellation: Notify::new(),
+        cancelled: std::sync::atomic::AtomicBool::new(false),
+        delivery: Default::default(),
+        paths,
+        state: Mutex::new(JobState {
+            state: "running",
+            stage: "projection-and-write",
+            calls: vec![],
+            completed_calls: 0,
+            error: None,
+            result: None,
+            finished: None,
+            assets,
+        }),
+    }
+}
+
+fn sha(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Feedback 011: every output path reports what is on disk, and an unwritten
+/// row says why instead of only `not-written`.
+#[test]
+fn feedback_output_paths_report_disk_facts_and_unwritten_reasons() {
+    let dir = std::env::temp_dir().join(format!("devup-f011-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let written = dir.join("hero.png").to_string_lossy().to_string();
+    std::fs::write(&written, b"hero bytes").unwrap();
+    let collided = dir.join("shared.png").to_string_lossy().to_string();
+    std::fs::write(&collided, b"someone else").unwrap();
+    let missing = dir.join("missing.png").to_string_lossy().to_string();
+    let quarantined = dir.join("anonymous.png").to_string_lossy().to_string();
+    let job = finished_job(
+        BTreeMap::from([
+            ("hero".into(), written.clone()),
+            ("collided".into(), collided.clone()),
+            ("missing".into(), missing.clone()),
+        ]),
+        vec![
+            json!({"assetId":"hero","status":"exported","sha256":sha(b"hero bytes")}),
+            json!({"assetId":"collided","status":"exported","sha256":sha(b"mine")}),
+            json!({"assetId":"missing","status":"exported","sha256":sha(b"lost")}),
+        ],
+    );
+    job.finish(Ok(json!({"outputPaths":{
+        "asset:hero":written,"asset:collided":collided,"asset:missing":missing}})));
+    let response = job.response().unwrap();
+    let rows = response["exportJob"]["assets"].as_array().unwrap();
+    assert_eq!(rows[0]["fileState"], "written");
+    assert_eq!(rows[0]["fileFacts"]["exists"], true);
+    assert_eq!(rows[0]["fileFacts"]["bytes"], 10);
+    assert_eq!(rows[0]["fileFacts"]["sha256"], sha(b"hero bytes"));
+    assert_eq!(rows[0]["outputPathRedirected"], false);
+    assert!(rows[0].get("fileStateReason").is_none());
+    assert_eq!(rows[1]["fileState"], "not-written");
+    assert_eq!(rows[1]["fileFacts"]["sha256"], sha(b"someone else"));
+    assert!(rows[1]["fileStateReason"].as_str().unwrap().contains("different bytes"));
+    assert_eq!(rows[2]["fileState"], "not-written");
+    assert_eq!(rows[2]["fileFacts"]["exists"], false);
+    assert!(rows[2]["fileStateReason"].as_str().unwrap().contains("does not exist"));
+
+    // A quarantined projection publishes nothing; the reason says so.
+    let job = finished_job(
+        BTreeMap::from([("anonymous".into(), quarantined.clone())]),
+        vec![json!({"assetId":"anonymous","status":"exported","sha256":sha(b"x")})],
+    );
+    job.finish(Ok(json!({"status":"review-required","assetQuarantine":{"state":"review-required"},"outputPaths":{}})));
+    let row = &job.response().unwrap()["exportJob"]["assets"][0];
+    assert_eq!(row["fileState"], "not-written");
+    assert!(row["fileStateReason"].as_str().unwrap().starts_with("Quarantined"));
+    assert_eq!(row["requestedPathFacts"]["exists"], false);
+
+    // A failed projection rolled back its transaction.
+    let job = finished_job(
+        BTreeMap::from([("rolled".into(), missing.clone())]),
+        vec![json!({"assetId":"rolled","status":"exported","sha256":sha(b"x")})],
+    );
+    job.finish(Err(DevupError::new(ErrorCode::DevupInvalidInput, "refused", false)));
+    let failed = job.response().unwrap_err();
+    let row = &failed.details["exportJob"]["assets"][0];
+    assert_eq!(row["fileState"], "not-written");
+    assert!(row["fileStateReason"].as_str().unwrap().contains("rolled back"));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// A derived grayscale reuses its colour original's file: that is a written,
+/// redirected path, not a false not-written.
+#[test]
+fn feedback_grayscale_reuse_is_written_at_a_redirected_path() {
+    let dir = std::env::temp_dir().join(format!("devup-f011-gray-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let color = dir.join("logo.png").to_string_lossy().to_string();
+    std::fs::write(&color, b"colour original").unwrap();
+    let requested = dir.join("logo-muted.png").to_string_lossy().to_string();
+    let job = finished_job(
+        BTreeMap::from([("gray".into(), requested)]),
+        vec![json!({"assetId":"gray","status":"exported"})],
+    );
+    // The projected manifest carries the delivered (canonical) hash.
+    job.finish(Ok(json!({
+        "assetManifest":{"assets":[{"assetId":"gray","status":"exported","sha256":sha(b"colour original")}]},
+        "outputPaths":{"asset:gray":color}})));
+    let row = &job.response().unwrap()["exportJob"]["assets"][0];
+    assert_eq!(row["fileState"], "written", "{row:#}");
+    assert_eq!(row["outputPathRedirected"], true);
+    assert!(row.get("fileStateReason").is_none());
+    std::fs::remove_dir_all(dir).unwrap();
+}
