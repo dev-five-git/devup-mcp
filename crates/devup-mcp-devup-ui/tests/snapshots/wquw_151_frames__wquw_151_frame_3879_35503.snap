@@ -66,6 +66,7 @@ export function Wquw151Frame387935503() {
             overflowWrap="break-word"
             textAlign="center"
             textOverflow="ellipsis"
+            textWrap="pretty"
             typography="mainPraiseXs"
             whiteSpace="pre-wrap"
             wordBreak="keep-all"
