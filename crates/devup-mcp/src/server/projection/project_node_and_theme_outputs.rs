@@ -220,6 +220,14 @@ pub(super) fn project_node_and_theme_outputs(
         }
     }
 
+    if (keep_tsx || scaffold_requested || outputs.iter().any(|output| output == "componentTsx"))
+        && !section_tsx_projected
+        && let Some(node_id) = payload.target.node_id.as_deref()
+        && let Some(warning) = hidden_master_warning(&payload.snapshot, node_id)
+    {
+        warnings.push(warning);
+    }
+
     if outputs.iter().any(|output| output == "devupJson") {
         let variables = payload.variables.as_ref().ok_or_else(|| unavailable_output(payload, "devupJson",
         "No variable/style resources were collected. Re-collect from the URL with devupJson in outputs and the desired scope."))?;
@@ -309,15 +317,90 @@ fn component_set_variants(snapshot: &devup_mcp_figma::Snapshot, node_id: &str) -
                 "nodeId": node.id,
                 "name": node.typed_view().name(),
                 "variantProperties": node.typed_view().value("variantProperties"),
+                "visible": !hidden(set) && !hidden(node),
             })
         })
         .collect();
+    let all_hidden = !variants.is_empty() && variants.iter().all(|v| v["visible"] == false);
     Some(json!({
         "nodeId": node_id,
         "variantCount": variants.len(),
         "defaultVariant": view.value("defaultVariant").and_then(|v| v.get("name")),
         "variants": variants,
+        "allVariantsHidden": all_hidden,
         "note": "This node is a component set. Export a single variant by nodeId to get that variant's own tsx.",
+    }))
+}
+
+fn hidden(node: &devup_mcp_figma::RawNode) -> bool {
+    node.typed_view().bool("visible") == Some(false)
+}
+
+/// A library master can be hidden on its own page while every placed instance
+/// is visible. Its generated code is then `display="none"` at every variant
+/// and breakpoint, which looks like a finished component but renders nothing
+/// and carries none of the page's text/visibility overrides.
+fn hidden_master_warning(snapshot: &devup_mcp_figma::Snapshot, node_id: &str) -> Option<Value> {
+    let node = snapshot.nodes.get(node_id)?;
+    let view = node.typed_view();
+    let (hidden_ids, total) = match view.node_type() {
+        "COMPONENT_SET" => {
+            let variants = view
+                .child_ids()
+                .filter_map(|id| snapshot.nodes.get(id))
+                .filter(|child| child.typed_view().node_type() == "COMPONENT")
+                .collect::<Vec<_>>();
+            let hidden_ids = variants
+                .iter()
+                .filter(|variant| hidden(node) || hidden(variant))
+                .map(|variant| variant.id.clone())
+                .collect::<Vec<_>>();
+            (hidden_ids, variants.len())
+        }
+        "COMPONENT" => {
+            let set_hidden = view
+                .string("parentId")
+                .and_then(|id| snapshot.nodes.get(id))
+                .is_some_and(|parent| {
+                    parent.typed_view().node_type() == "COMPONENT_SET" && hidden(parent)
+                });
+            let ids = if hidden(node) || set_hidden {
+                vec![node.id.clone()]
+            } else {
+                Vec::new()
+            };
+            (ids, 1)
+        }
+        _ => return None,
+    };
+    if total == 0 || hidden_ids.len() != total {
+        return None;
+    }
+    let instances = snapshot
+        .nodes
+        .values()
+        .filter(|other| {
+            let other = other.typed_view();
+            other.node_type() == "INSTANCE"
+                && (other
+                    .string("mainComponentId")
+                    .is_some_and(|id| id == node_id || hidden_ids.iter().any(|h| h == id))
+                    || other.string("mainComponentSetId") == Some(node_id))
+        })
+        .map(|instance| instance.id.clone())
+        .collect::<Vec<_>>();
+    Some(json!({
+        "code": "DEVUP_HIDDEN_MASTER_EXPORT",
+        "severity": "warning",
+        "nodeId": node_id,
+        "message": "Every variant of this exported master is hidden in Figma, so its generated code renders display=\"none\" at every variant and breakpoint. It is not usable screen code.",
+        "details": {
+            "nodeType": view.node_type(),
+            "hiddenVariantIds": hidden_ids,
+            "variantCount": total,
+            "visibleInstanceIdsInSnapshot": instances,
+            "nextAction": "Export the visible page INSTANCE that uses this component (its own node id, which carries its text/visibility/variant overrides) instead of the hidden master. Do not delete display=\"none\" by hand to make the master appear."
+        }
     }))
 }
 
@@ -341,5 +424,45 @@ mod r32_tests {
         assert_eq!(summary["defaultVariant"], "State=Default");
         assert_eq!(summary["variants"][1]["nodeId"], "1:2");
         assert!(component_set_variants(&snapshot, "1:1").is_none());
+        assert_eq!(summary["allVariantsHidden"], false);
+        assert_eq!(summary["variants"][0]["visible"], true);
+        assert!(hidden_master_warning(&snapshot, "1:0").is_none());
+        assert!(hidden_master_warning(&snapshot, "1:1").is_none());
+    }
+
+    fn master(set_visible: bool, variants_visible: [bool; 2]) -> devup_mcp_figma::Snapshot {
+        serde_json::from_value(json!({
+            "fileKey": "k", "version": null, "roots": ["1:0"], "diagnostics": [],
+            "nodes": {
+                "1:0": {"id":"1:0","type":"COMPONENT_SET","fields":{"name":"Card","visible":set_visible,"childrenIds":["1:1","1:2"]}},
+                "1:1": {"id":"1:1","type":"COMPONENT","fields":{"name":"Breakpoint=Desktop","parentId":"1:0","visible":variants_visible[0],"variantProperties":{"Breakpoint":"Desktop"}}},
+                "1:2": {"id":"1:2","type":"COMPONENT","fields":{"name":"Breakpoint=Mobile","parentId":"1:0","visible":variants_visible[1],"variantProperties":{"Breakpoint":"Mobile"}}},
+                "9:1": {"id":"9:1","type":"INSTANCE","fields":{"name":"Card","mainComponentId":"1:2"}}
+            }
+        }))
+        .unwrap()
+    }
+
+    /// Feedback 008: a master hidden at every variant/breakpoint is flagged and
+    /// the agent is sent to the visible page instance.
+    #[test]
+    fn all_hidden_master_variants_warn_and_point_to_the_visible_instance() {
+        for snapshot in [master(true, [false, false]), master(false, [true, true])] {
+            let summary = component_set_variants(&snapshot, "1:0").unwrap();
+            assert_eq!(summary["allVariantsHidden"], true);
+            assert_eq!(summary["variants"][1]["visible"], false);
+            let warning = hidden_master_warning(&snapshot, "1:0").unwrap();
+            assert_eq!(warning["code"], "DEVUP_HIDDEN_MASTER_EXPORT");
+            assert_eq!(warning["details"]["hiddenVariantIds"], json!(["1:1", "1:2"]));
+            assert_eq!(warning["details"]["visibleInstanceIdsInSnapshot"], json!(["9:1"]));
+            assert!(warning["details"]["nextAction"].as_str().unwrap().contains("INSTANCE"));
+            // A single variant export of a hidden master is flagged as well.
+            assert!(hidden_master_warning(&snapshot, "1:2").is_some());
+        }
+        let partly = master(true, [false, true]);
+        assert_eq!(component_set_variants(&partly, "1:0").unwrap()["allVariantsHidden"], false);
+        assert!(hidden_master_warning(&partly, "1:0").is_none());
+        assert!(hidden_master_warning(&partly, "1:2").is_none());
+        assert!(hidden_master_warning(&partly, "1:1").is_some());
     }
 }
