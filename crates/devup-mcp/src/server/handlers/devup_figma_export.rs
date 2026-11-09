@@ -213,6 +213,11 @@ impl DevupServer {
             input.project_root.as_deref(),
         )
         .map_err(to_mcp_error)?;
+        projection::theme_export::validate_output_path(
+            &input.devup_json_mode,
+            input.output_paths.get("devupJson").map(String::as_str),
+        )
+        .map_err(to_mcp_error)?;
         if asset_public_root.is_some()
             && !web_ready_images
             && input.page_scaffold.is_none()

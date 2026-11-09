@@ -203,8 +203,43 @@ async fn feedback_theme_missing_only_preserves_project_and_reports_conflict() {
     assert_eq!(result["themeDiff"]["existingTypographyConflicts"][0]["token"], "body");
     assert_eq!(result["themeDiff"]["visualFidelity"], "unverified");
     assert_eq!(result["quality"]["theme"], "conflicted");
+    // Feedback 007: the additions-only fragment says so and how to merge it.
+    assert_eq!(result["devupJsonMode"], "missing-only");
+    assert_eq!(result["devupJsonScope"], "additions-only");
+    assert_eq!(result["devupJsonMerge"]["strategy"], "deep-merge-add-missing-keys");
+    assert_eq!(result["devupJsonMerge"]["existingValuesPreserved"], true);
+    assert_eq!(result["devupJsonMerge"]["projectFileWritten"], false);
+    assert!(result["devupJsonMerge"]["target"].as_str().unwrap().ends_with("/devup.json"));
+    assert!(result["devupJsonMerge"]["instruction"].as_str().unwrap().contains("never use it as the whole theme"));
     assert_eq!(std::fs::read_to_string(directory.join("devup.json")).unwrap(), original);
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[tokio::test]
+async fn feedback_theme_full_and_used_only_exports_state_their_scope() {
+    for (mode, scope) in [("full", "complete-theme"), ("used-only", "used-tokens")] {
+        let mut op = operation(&["tsx", "devupJson"]);
+        if let PendingOperation::Export { theme_options, .. } = &mut op {
+            theme_options.mode = mode.into();
+        }
+        let result = project(feedback_theme_payload(), op).await.unwrap();
+        assert_eq!(result["devupJsonScope"], scope, "{mode}");
+        assert!(result.get("devupJsonMerge").is_none(), "{mode}");
+    }
+}
+
+#[test]
+fn feedback_theme_missing_only_fragment_cannot_be_saved_as_devup_json() {
+    use theme_export::validate_output_path;
+    for path in ["/p/devup.json", r"C:\p\Devup.JSON", "devup.json"] {
+        let refused = validate_output_path("missing-only", Some(path)).unwrap_err();
+        assert_eq!(refused.details["devupJsonScope"], "additions-only", "{path}");
+        assert!(refused.details["nextAction"].as_str().unwrap().contains("deep-merge"));
+    }
+    assert!(validate_output_path("missing-only", Some("/p/devup.additions.json")).is_ok());
+    assert!(validate_output_path("missing-only", None).is_ok());
+    assert!(validate_output_path("full", Some("/p/devup.json")).is_ok());
+    assert!(validate_output_path("used-only", Some("/p/devup.json")).is_ok());
 }
 
 fn feedback_responsive_section() -> CollectedPayload {
