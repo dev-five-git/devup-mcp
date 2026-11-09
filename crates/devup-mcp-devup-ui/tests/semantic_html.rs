@@ -157,3 +157,61 @@ fn responsive_inlining_retains_concrete_text_and_style_overrides() {
     }
     assert!(expanded.referenced_components().is_empty());
 }
+
+#[test]
+fn semantic_headings_reset_user_agent_block_margins() {
+    let nodes = json!({
+        "page":{"id":"page","type":"FRAME","fields":{"name":"Screen","childrenIds":["h1","h2","body"],"layoutMode":"VERTICAL"}},
+        "h1":{"id":"h1","type":"TEXT","fields":{"name":"Page title","characters":"Research","fontSize":48}},
+        "h2":{"id":"h2","type":"TEXT","fields":{"name":"Heading 2","characters":"Results","fontSize":40}},
+        "body":{"id":"body","type":"TEXT","fields":{"name":"Body","characters":"Plain copy","fontSize":16}}
+    });
+    let output = generate_component(
+        &snapshot(nodes, json!(["page"])),
+        "page",
+        &CodegenOptions::default(),
+    )
+    .unwrap();
+    for tag in ["h1", "h2"] {
+        // Formatted JSX puts props on separate lines; inspect the element's
+        // whole opening-tag prop block (from `<` up to the closing `>`).
+        let marker = format!("as=\"{tag}\"");
+        let at = output
+            .tsx
+            .find(&marker)
+            .unwrap_or_else(|| panic!("{}", output.tsx));
+        let start = output.tsx[..at].rfind('<').unwrap();
+        let end = at + output.tsx[at..].find('>').unwrap();
+        let element = &output.tsx[start..end];
+        assert!(element.contains("my=\"0px\""), "{tag}: {}", output.tsx);
+    }
+    assert_eq!(
+        output.tsx.matches("my=\"0px\"").count(),
+        2,
+        "{}",
+        output.tsx
+    );
+    // The reset is not a silent addition: each emitted margin carries a
+    // verified source derivation from the semantic stage.
+    let derived = output
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == "DEVUP_CODEGEN_PROPERTY_EVIDENCE"
+                && d.details.as_ref().is_some_and(|details| {
+                    details["generatedProperty"] == "my=\"0px\""
+                        && details["stage"] == "semantic"
+                        && details["propertyMappingVerified"] == true
+                })
+        })
+        .count();
+    assert_eq!(derived, 2, "{:?}", output.diagnostics);
+    assert!(
+        !output
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"),
+        "{:?}",
+        output.diagnostics
+    );
+}

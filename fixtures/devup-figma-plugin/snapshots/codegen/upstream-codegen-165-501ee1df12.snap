@@ -15,6 +15,7 @@ expression: actual
         letterSpacing="-0.04em"
         lineHeight="28px"
         overflowWrap="break-word"
+        textWrap="pretty"
         wordBreak="keep-all"
       >
         <Text color="$primary">
@@ -30,6 +31,7 @@ expression: actual
         letterSpacing="-0.06em"
         lineHeight="26px"
         overflowWrap="break-word"
+        textWrap="pretty"
         whiteSpace="pre-wrap"
         wordBreak="keep-all"
       >

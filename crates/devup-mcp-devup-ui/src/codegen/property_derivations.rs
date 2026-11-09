@@ -126,6 +126,7 @@ pub(crate) fn property_derivations(
             "flexShrink" => (vec!["layoutSizingHorizontal", "layoutSizingVertical", "layoutGrow", "parentId", "width", "height"],
                 "push_layout_props: preserve the fixed primary-axis size in the parent flex layout by disabling shrink."),
             "wordBreak" | "overflowWrap" => (vec!["characters", "styledTextSegments", "width"], "Korean captured text uses keep-all word boundaries and break-word emergency wrapping for a token wider than its container; explicit local/theme policies are preserved."),
+            "textWrap" => (vec!["characters", "textAutoResize", "maxLines", "width"], "Korean soft-wrapping text adds textWrap pretty beside keep-all so line breaks stay on word boundaries without large trailing gaps; it is omitted for whiteSpace pre/nowrap (text-wrap would re-enable wrapping) and for explicit local/theme textWrap."),
             "boxShadow" if style::asset_kind(snapshot, node).is_none() && style::single_outside_stroke(&node.typed_view()).is_some() =>
                 (vec!["strokes", "strokeAlign", "strokeTopWeight", "strokeRightWeight", "strokeBottomWeight", "strokeLeftWeight", "effects"],
                 include_str!("../text/property_derivations-property_derivations-f4103b4e.md")),
@@ -154,6 +155,7 @@ pub(crate) fn property_derivations(
             "whiteSpace" if text::preserves_hard_break_spaces(&node.typed_view()) => (vec!["characters", "styledTextSegments", "textAutoResize", "maxLines"], include_str!("../text/property_derivations-property_derivations-2ec1244f.md")),
             "textDecoration" => (vec!["textDecoration", "styledTextSegments"], "Text UNDERLINE/STRIKETHROUGH maps to underline/line-through."),
             "textTransform" => (vec!["textCase", "styledTextSegments"], "Text case projection follows push_text_props."),
+            "my" if *stage == "semantic" => (vec!["name", "parentId"], "A named heading layer becomes an HTML heading; its user-agent block margins are reset to 0px because the drawn Figma text has no such margin."),
             "as" | "alt" if *stage == "semantic" => (vec!["name", "parentId"], "Explicit semantic layer/component names choose a non-visual HTML tag; descriptive asset names supply alt text and generic shape/icon names use empty alt. Variant roots use the named parent component set."),
             "as" | "my" => (vec!["styledTextSegments", "listOptions", "paragraphSpacing"], "Text list/paragraph projection uses the emitted semantic tag and spacing policy."),
             "animationName" | "animationDuration" | "animationTimingFunction" | "animationFillMode" | "animationDelay" | "animationIterationCount" =>

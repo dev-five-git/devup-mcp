@@ -117,5 +117,18 @@ pub(super) fn push_semantic_props(
     };
     if let Some(tag) = tag {
         string_prop(props, "as", tag);
+        // Headings carry user-agent block margins (e.g. ~0.67em on h1) that the
+        // drawn Figma text never had; neutralize them unless a margin is drawn.
+        if is_heading(tag)
+            && !props
+                .iter()
+                .any(|(name, _)| matches!(name.as_str(), "m" | "my" | "mt" | "mb"))
+        {
+            string_prop(props, "my", "0px");
+        }
     }
+}
+
+fn is_heading(tag: &str) -> bool {
+    matches!(tag, "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
 }

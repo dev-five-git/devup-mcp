@@ -20,10 +20,14 @@ binary ships this document in its usage resource and skill installation.
   Do not invent tokens from matching numbers. Collapse equal `pl/pr` to `px`,
   `pt/pb` to `py`, and matching margin pairs, only when precedence is unchanged.
   Verify computed styles at each breakpoint after changing token syntax.
-- Preserve Figma line breaks and measured wrapping at each captured width.
-  Do not apply `wordBreak="keep-all"` solely because text is Korean. Explicit
-  line breaks, font metrics and available width take precedence over a language
-  heuristic; verify automatic wrapping against the native Figma reference.
+- Korean text keeps word boundaries: `wordBreak="keep-all"` plus
+  `textWrap="pretty"` (rebalances lines so keep-all leaves no large trailing
+  gap) and `overflowWrap="break-word"` for an overlong token. Never use
+  `wordBreak="normal"` on Korean copy. Explicit Figma line breaks are still
+  preserved, `pre`/`nowrap` text gets no `textWrap`, and explicit theme/local
+  wrapping props win. A visual diff caused only by Figma breaking inside a
+  Korean word is an intentional, documented policy difference: record it, and
+  never overwrite the native Figma reference to make the comparison pass.
 
 ## Shared server shells and usable controls
 
@@ -179,6 +183,11 @@ does not establish runtime completion. Report verified and unverified scopes.
   Verify/reset computed margins, appearance and box sizing. Test input bounds,
   focus and ARIA before and after validation messages. Shared button wrappers
   must preserve the caller's width and alignment in every usage.
+- A validation message added beside a native input must not take its width:
+  `flex="1"` becomes `flex-basis: 0%` and a 100%-basis message can collapse the
+  input to 0px. Keep an explicit width contract (input `flexBasis`/`minW`,
+  message on its own row). E2E must trigger the real error, then assert input
+  bounds (width > 0), visibility, focus and the message text in that state.
 - Compare blur/crop/blend against the composed backdrop; a negative z-index or
   isolation can change multiply into white. Preserve intentional baked effects
   explicitly and retain pixel evidence for lossy image/absolute fallbacks.
@@ -206,6 +215,23 @@ PR creation, merge and release publication are distinct outcomes. For release
 work use a clean fixture, the actual package archive paths and archive contents
 (name, version and internal dependencies). Never accept stale tarballs, dry-run
 output or a retry of a pinned old release source as proof of a current release.
+
+Report a CI failure by the stage that actually failed (setup, install, build,
+typecheck, unit, E2E) with its original message. Local pass, remote CI pass, a
+push/permission rejection and a transient external HTTP error (for example
+`setup-bun` returning 504 before any build ran) are separate evidence; one
+never stands in for another. When a push is rejected, finish the independent
+work, leave an applicable patch (`git apply --check`), state the constraint and
+do not bypass it with other credentials.
+
+A dependency minor bump can enable new accessibility rules: axe-core 4.14
+promoted `label-content-name-mismatch` (WCAG 2.5.3 Label in Name) to wcag21a.
+Visible text includes `aria-hidden` split-letter animation copies, so an
+`aria-label` that merely repeats the button text fails. Drop redundant
+`aria-label`s (the name then comes from content minus `aria-hidden` parts);
+make any remaining label contain the visible text verbatim ("1 페이지", not
+"1페이지"; "KOR, 언어 선택"); put extra hints such as "(새 창에서 열림)" in
+sr-only text. Fix the components; never disable or downgrade the rule.
 
 ## Concurrent projects and split-screen desktop
 

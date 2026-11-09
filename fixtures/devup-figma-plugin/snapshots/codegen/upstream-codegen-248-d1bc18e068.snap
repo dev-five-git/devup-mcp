@@ -16,6 +16,7 @@ expression: actual
       my="0px"
       overflowWrap="break-word"
       pl="1.5em"
+      textWrap="pretty"
       wordBreak="keep-all"
     >
       <li>

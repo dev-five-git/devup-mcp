@@ -67,6 +67,7 @@ fn generates_deterministic_devup_ui_tsx() {
             "        fontSize=\"16px\"\n",
             "        lineHeight=\"24px\"\n",
             "        overflowWrap=\"break-word\"\n",
+            "        textWrap=\"pretty\"\n",
             "        wordBreak=\"keep-all\"\n",
             "      >\n",
             "        안녕 {\"<\"}Devup{\">\"}\n",
