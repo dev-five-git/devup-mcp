@@ -8,7 +8,7 @@
 /// `{nodeId}:fills:{index}`, so the reference keeps the node's name and, past
 /// the first fill, its index — a lone fill keeps the plain
 /// `/images/{name}.png` the `<Image>` element already emits, so the two agree
-/// on the same asset.
+/// on the same asset. See `fill_file_stem` for the extra-fill suffix.
 fn image_fill_source(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -18,8 +18,8 @@ fn image_fill_source(
     let source = if fill_index == 0 {
         asset_source(snapshot, node, "images", "png", per_node)
     } else {
-        let stem = asset_stem(snapshot, node, per_node);
-        format!("/images/{stem}-{fill_index}.png")
+        let stem = fill_file_stem(&asset_stem(snapshot, node, per_node), fill_index);
+        format!("/images/{stem}.png")
     };
     if source.contains(' ') {
         format!("'{source}'")
@@ -64,8 +64,21 @@ pub fn asset_path(snapshot: &Snapshot, node_id: &str, per_node: bool) -> Option<
     Some(asset_source(snapshot, node, folder, extension, per_node))
 }
 
+/// The file stem for a node's extra image fill (`fill_index > 0`):
+/// `{stem}--fill-{fill_index}`, with the same 0-based index as the manifest's
+/// `{nodeId}:fills:{index}`.
+///
+/// A plain `-{index}` suffix collided with the `-2`, `-3` that `asset_stem`
+/// gives a different asset sharing the base name: fill 2 of `hero` and the
+/// second `hero` asset were both `hero-2.png`. Every stem is kebab-case with
+/// hyphens collapsed, so no stem (deduplicated or not) contains `--`, and an
+/// extra-fill path cannot equal any other asset's path.
+fn fill_file_stem(stem: &str, fill_index: usize) -> String {
+    format!("{stem}--fill-{fill_index}")
+}
+
 /// Where the code draws one of a node's image fills from: `/images/x.png`
-/// for the first fill and `/images/x-2.png` past it, the same name
+/// for the first fill and `/images/x--fill-1.png` for the second, the same name
 /// `image_fill_source` writes into the code but without the quoting a CSS
 /// `url()` puts around a name with a space in it.
 ///
@@ -85,7 +98,7 @@ pub fn image_fill_path(
     Some(if fill_index == 0 {
         format!("/images/{stem}.png")
     } else {
-        format!("/images/{stem}-{fill_index}.png")
+        format!("/images/{}.png", fill_file_stem(&stem, fill_index))
     })
 }
 

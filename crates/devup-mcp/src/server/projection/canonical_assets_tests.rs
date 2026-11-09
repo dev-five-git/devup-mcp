@@ -524,3 +524,57 @@ fn derived_filters_only_touch_the_exact_asset_url() {
     );
     assert_eq!(value["tsx"].as_str().unwrap().matches("filter=").count(), 1);
 }
+
+fn hashed(id: &str, node: &str, hash: &str, body: &[u8]) -> devup_mcp_figma::AssetManifestEntry {
+    let mut entry = asset(id, "/images/hero.png", body, "png");
+    entry.node_id = node.into();
+    entry.image_hash = Some(hash.into());
+    entry
+}
+
+/// Feedback 006: one placeholder that resolves to two pictures is refused, and
+/// the recovery must be one that can work for those assets.
+#[test]
+fn ambiguous_placeholder_from_a_shared_image_hash_does_not_recommend_per_node_names() {
+    let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+    let mut shared = manifest(vec![
+        hashed("1:1:fills:0", "1:1", "same", b"crop top"),
+        hashed("1:2:fills:0", "1:2", "same", b"crop bottom"),
+    ]);
+    let refused = reconcile(&mut shared, &mut BTreeMap::new(), None, None, &policy, &result("<Image src=\"/images/hero.png\" />"))
+        .err()
+        .expect("a placeholder with two pictures is refused");
+    assert!(!refused.message.contains("assetNamesPerNode:true"), "{}", refused.message);
+    assert_eq!(refused.details["reason"], "ambiguous-code-placeholder");
+    assert_eq!(refused.details["placeholder"], "/images/hero.png");
+    assert_eq!(refused.details["sharedImageHash"], true);
+    assert_eq!(refused.details["recoveryArguments"], Value::Null);
+    let conflicts = refused.details["conflicts"].as_array().unwrap();
+    assert_eq!(conflicts.len(), 2);
+    assert_eq!(conflicts[0]["nodeId"], "1:1");
+    assert_eq!(conflicts[1]["nodeId"], "1:2");
+    assert_ne!(conflicts[0]["canonicalPath"], conflicts[1]["canonicalPath"]);
+    assert!(refused.details["nextAction"].as_str().unwrap().contains("sourceMap"));
+
+    let mut distinct = manifest(vec![
+        hashed("1:1:fills:0", "1:1", "photo-a", b"first photo"),
+        hashed("1:2:fills:0", "1:2", "photo-b", b"second photo"),
+    ]);
+    let refused = reconcile(&mut distinct, &mut BTreeMap::new(), None, None, &policy, &result("<Image src=\"/images/hero.png\" />"))
+        .err()
+        .expect("a placeholder with two pictures is refused");
+    assert!(refused.message.contains("assetNamesPerNode:true"), "{}", refused.message);
+    assert_eq!(refused.details["sharedImageHash"], false);
+    assert_eq!(refused.details["recoveryArguments"], json!({"assetNamesPerNode":true}));
+}
+
+#[test]
+fn identical_pictures_behind_one_placeholder_are_not_refused() {
+    let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+    let mut same = manifest(vec![
+        hashed("1:1:fills:0", "1:1", "same", b"one picture"),
+        hashed("1:2:fills:0", "1:2", "same", b"one picture"),
+    ]);
+    reconcile(&mut same, &mut BTreeMap::new(), None, None, &policy, &result("<Image src=\"/images/hero.png\" />")).unwrap();
+    assert_eq!(same.assets[0].path, same.assets[1].path);
+}
