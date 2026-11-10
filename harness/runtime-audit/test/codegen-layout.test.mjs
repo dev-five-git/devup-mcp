@@ -268,3 +268,46 @@ test('Korean keep-all with textWrap pretty compiles, and generated headings rese
   await page.close();
  });
 });
+
+test('a multiply decoration behind a transparent wrapper composites against the gradient owner (feedback 005)', {timeout:360000}, async()=> {
+ // Mirrors the Prime SEO-GEO contact banner, instance 32:1929: gradient owner
+ // > transparent content wrapper > multiply decoration sent behind the title.
+ const snapshot={fileKey:'prime-blend',version:null,roots:['root'],diagnostics:[],nodes:{
+  root:{id:'root',type:'FRAME',fields:{name:'RenderFixture',width:400,height:300,layoutMode:'VERTICAL',
+   layoutSizingHorizontal:'FIXED',layoutSizingVertical:'HUG',paddingTop:64,paddingRight:0,paddingBottom:48,paddingLeft:0,clipsContent:true,childrenIds:['content'],
+   inferredAutoLayout:{layoutMode:'VERTICAL',paddingTop:64,paddingRight:0,paddingBottom:48,paddingLeft:0},
+   fills:[{type:'GRADIENT_LINEAR',gradientTransform:[[0,1,0],[-1,0,1]],gradientStops:[
+    {position:0,color:{r:0.267,g:0.114,b:0.878,a:1}},{position:1,color:{r:0.447,g:0.306,b:1,a:1}}]}]}},
+  content:{id:'content',type:'FRAME',fields:{name:'Content',parentId:'root',width:400,height:188,layoutMode:'VERTICAL',
+   layoutSizingHorizontal:'FILL',layoutSizingVertical:'HUG',itemSpacing:36,inferredAutoLayout:{layoutMode:'VERTICAL',itemSpacing:36},
+   fills:[],childrenIds:['blob','title']}},
+  blob:{id:'blob',type:'RECTANGLE',fields:{name:'Glass blob',parentId:'content',x:-80,y:-83,width:230,height:247,
+   layoutPositioning:'ABSOLUTE',blendMode:'MULTIPLY',constraints:{horizontal:'MIN',vertical:'MIN'},
+   fills:[{type:'SOLID',color:{r:0.8,g:0.8,b:0.85}}]}},
+  title:{id:'title',type:'TEXT',fields:{name:'Title',parentId:'content',characters:'Talk to us',width:400,height:52,fontSize:40,
+   textAutoResize:'HEIGHT',layoutSizingHorizontal:'FILL',fills:[{type:'SOLID',color:{r:1,g:1,b:1}}]}},
+ }};
+ await rendered(snapshot,async(browser,url)=> {
+  const page=await browser.newPage({viewport:{width:400,height:400},deviceScaleFactor:1});
+  await page.goto(url);await page.evaluate(()=>document.fonts.ready);
+  // Inside the decoration, below the title: (35,150) on the page.
+  const pixel=async()=>{
+   const png=(await page.screenshot({clip:{x:35,y:150,width:1,height:1}})).toString('base64');
+   return page.evaluate(async(data)=>{const image=new Image();image.src=`data:image/png;base64,${data}`;await image.decode();
+    const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;const context=canvas.getContext('2d');
+    context.drawImage(image,0,0);return [...context.getImageData(0,0,1,1).data.slice(0,3)];},png);
+  };
+  const owner=page.locator('[data-figma-node-id="root"]'),wrapper=page.locator('[data-figma-node-id="content"]');
+  assert.equal(await owner.evaluate(element=>getComputedStyle(element).zIndex),'0');
+  assert.equal(await wrapper.evaluate(element=>getComputedStyle(element).zIndex),'auto');
+  // Multiplied into the purple gradient, as Figma draws it.
+  const blended=await pixel();
+  assert.ok(blended[0]<150&&blended[1]<150&&blended[2]>blended[0],`decoration must be multiplied into the gradient: ${blended}`);
+  // Control: the context on the transparent wrapper (the former output)
+  // composites against nothing and leaves the light blob the check rejects.
+  await wrapper.evaluate(element=>{element.style.zIndex='0';});
+  const isolated=await pixel();
+  assert.ok(isolated[0]>190&&isolated[1]>190,`control must show the unblended blob: ${isolated}`);
+  await page.close();
+ });
+});
