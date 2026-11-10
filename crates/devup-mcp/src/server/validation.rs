@@ -21,8 +21,9 @@ pub(crate) const AUTH_ACTIONS: [&str; 5] = ["status", "login", "logout", "config
 
 /// `status` reads the workspace and writes nothing. `install` writes the
 /// vendored documents for the embedded skills; it can never install an
-/// external one, because those bytes are not devup-mcp's to ship.
-pub(crate) const SKILL_ACTIONS: [&str; 2] = ["status", "install"];
+/// external one, because those bytes are not devup-mcp's to ship. `retro`
+/// reads what a session retrospective needs and writes nothing.
+pub(crate) const SKILL_ACTIONS: [&str; 3] = ["status", "install", "retro"];
 
 pub(crate) const COLLECTION_SCOPES: [&str; 3] = ["node", "page", "file"];
 

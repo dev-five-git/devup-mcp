@@ -108,6 +108,10 @@ const EMBEDDED: &[(&str, Documents)] = &[
         &[("SKILL.md", include_str!("devup/SKILL.md"))],
     ),
     (
+        RETRO_NAME,
+        &[("SKILL.md", include_str!(concat!(retro_name!(), "/SKILL.md")))],
+    ),
+    (
         "changepacks",
         &[("SKILL.md", include_str!("changepacks/SKILL.md"))],
     ),

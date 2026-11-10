@@ -125,6 +125,24 @@
       "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup"
     },
     {
+      "name": "devup-retro",
+      "origin": "own",
+      "title": "/devup-retro: turn a session's follow-up prompts into devup-mcp improvement prompts",
+      "description": "Session retrospective: lists every follow-up prompt the user had to write after devup-mcp's work, classifies each by the surface that should have prevented it, asks the user to confirm, then prints ready-to-paste improvement prompts.",
+      "usedFor": "A correction the user types after an export or a validation is the best evidence of a devup-mcp gap, and it is lost when the session ends. This is the one word to type when the work is finished: review, confirm, prompts - nothing is written before the user confirms, and nothing is listed that the user did not actually ask for.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devup-retro",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 10021,
+          "sha256": "a307ae31c9272fa921c193cfb522a2f3ac99d73eeb9c2fed174c9614a0b692d3"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-retro",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-retro"
+    },
+    {
       "name": "changepacks",
       "origin": "embedded",
       "title": "changepacks conventions",

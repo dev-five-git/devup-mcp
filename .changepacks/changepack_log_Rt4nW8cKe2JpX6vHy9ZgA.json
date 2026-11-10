@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Add the /devup-retro command: a session retrospective that lists the follow-up prompts the user had to write after devup-mcp's work, classifies each by the surface that should have prevented it, asks the user to confirm, and then prints ready-to-paste improvement prompts (optionally saved as .feedback records). Ships as the devup-retro skill (Claude Code /devup-retro, OpenCode command file), as an MCP prompt of the same name for workspaces without the skill, and with a read-only devup_skills action `retro` that returns the installed build, this process's devup-mcp call log with timestamps, the surface list and the .feedback folder state.",
+  "date": "2026-11-10T00:00:00.000000000Z"
+}

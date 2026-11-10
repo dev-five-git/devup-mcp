@@ -432,6 +432,8 @@ pub struct DevupServer {
     /// not run through, and the skill roots would silently go back to
     /// guessing.
     client_name: std::sync::Arc<std::sync::OnceLock<String>>,
+    /// The calls this process served, for `devup_skills` action `retro`.
+    call_log: skills::CallLog,
 }
 
 impl DevupServer {
@@ -462,6 +464,7 @@ impl DevupServer {
             artifacts: ArtifactStore::default(),
             output_policy: OutputPolicy::from_roots(roots)?,
             client_name: std::sync::Arc::new(std::sync::OnceLock::new()),
+            call_log: skills::CallLog::default(),
         })
     }
 

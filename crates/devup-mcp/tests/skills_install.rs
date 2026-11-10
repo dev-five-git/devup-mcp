@@ -142,6 +142,7 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
             "devfive-frontend",
             "devup-implementation-plan",
             "devup",
+            "devup-retro",
             "figma-bridge-setup",
         ]
         .contains(&entry["name"].as_str().unwrap())
