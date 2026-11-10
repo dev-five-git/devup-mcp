@@ -105,7 +105,13 @@ regression compiles with the installed Devup UI and checks computed
 `word-break: keep-all`, `text-wrap-style: pretty`, a `nowrap` mode for
 intrinsic-width text, line ends on word boundaries and a 0px `h2` margin.
 
-Out of scope, unchanged: 005 (general blend/backdrop compositor), 009 (Devup UI
-compiler transform of polymorphic Link), 013 (Vite watcher/HMR behavior) and
-029 (the application's destructive postprocessor). These belong to other
-components or the application and still need their own evidence.
+Out of scope, unchanged: 013 (Vite watcher/HMR behavior) and 029 (the
+application's destructive postprocessor). These belong to other components or
+the application and still need their own evidence.
+
+### 005 and 009 resolved (2026-11-10)
+
+| Item | Resolution |
+|---|---|
+| 005 | Fixed in devup-mcp codegen. The devup-ui investigation (main 675f7e20) showed Devup UI emits `mix-blend-mode`, `filter`, `z-index`, `isolation`, `position` and `transform` faithfully: Chromium screenshots are byte-identical to the plain-CSS equivalent. The defect was where codegen opened the stacking context. In the SEO-GEO contact banner (instance 32:1929, decorations I32:1929;32:1876 and I32:1929;32:1877) the transparent content wrapper inside the gradient owner received `pos="relative" zIndex="0"`, so the `multiply` decorations with `zIndex="-1"` composited against a transparent backdrop and drew white blobs (center pixel 224,224,224 instead of 77,44,208). A blended negative-z child of a wrapper that paints nothing and opens no context of its own (no fill, stroke, effect, opacity, blend, rotation or own negative z-index) now has its stacking context on the nearest ancestor that paints the backdrop, provided nothing in that ancestor is drawn before it. The wrapper keeps `pos="relative"` for the decoration's coordinates. Unblended negative-z children, wrappers with their own fill and earlier painted siblings keep the existing containment. Rust regressions cover the lift and all three fallbacks; the harness compiles the fixture with the installed Devup UI and samples the decoration pixel (multiplied into the purple gradient), with a control that moves the context back to the wrapper and must show the light blob. |
+| 009 | No MCP change. The polymorphic Link transform was a Devup UI compiler bug, fixed in `@devup-ui/wasm` 1.0.82 (devup-ui PR #681). |

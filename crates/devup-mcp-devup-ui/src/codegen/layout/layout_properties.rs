@@ -735,17 +735,23 @@ pub(super) fn push_layout_props(
     // A node that is itself positioned is already that ancestor, and saying
     // `relative` over its `absolute` would put it back in flow: the join-us
     // group of circles, pinned at -277,-187, took 1,102px of the page.
-    if containing_block && (!absolute || embedded_root) {
+    // A transparent wrapper's blended negative-z children composite against
+    // the backdrop its painting ancestor draws, so that ancestor holds their
+    // stacking context instead (see `blend_backdrop.rs`).
+    let lifted_blend_context = hosts_lifted_blend_context(snapshot, node);
+    if (containing_block || lifted_blend_context) && (!absolute || embedded_root) {
         string_prop(props, "pos", "relative");
     }
     // Position (relative or absolute) establishes a containing block, but
     // needs an explicit z-index to contain negative-z children above its own
     // background. Keep an existing z-index that places this entire subtree.
-    if containing_block
-        && !props.iter().any(|(name, _)| name == "zIndex")
-        && view
-            .child_ids()
-            .any(|child| sits_behind_in_flow_siblings(snapshot, node, child))
+    if !props.iter().any(|(name, _)| name == "zIndex")
+        && (lifted_blend_context
+            || (containing_block
+                && blend_context_host(snapshot, node).is_none()
+                && view
+                    .child_ids()
+                    .any(|child| sits_behind_in_flow_siblings(snapshot, node, child))))
     {
         string_prop(props, "zIndex", "0");
     }

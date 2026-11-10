@@ -9,3 +9,4 @@ include!("layout/reading_order.rs");
 
 include!("layout/fixed_rows.rs");
 include!("layout/suspicious_values.rs");
+include!("layout/blend_backdrop.rs");
