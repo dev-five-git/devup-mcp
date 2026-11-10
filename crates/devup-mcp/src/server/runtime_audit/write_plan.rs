@@ -72,6 +72,7 @@ fn write_plan(
             ("source-digest.mjs", include_bytes!("../../../../../harness/runtime-audit/source-digest.mjs").as_slice()),
             ("record-project-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/record-project-checks.mjs").as_slice()),
             ("motion-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/motion-checks.mjs").as_slice()),
+            ("reveal-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/reveal-checks.mjs").as_slice()),
             (
                 "data-checks.mjs",
                 include_bytes!("../../../../../harness/runtime-audit/data-checks.mjs").as_slice(),
@@ -245,6 +246,7 @@ fn ingest_references(
     let mut dimension_rows = Vec::new();
     let mut screen_rows = Vec::new();
     let mut findings = Vec::new();
+    let mut motion_rows = Vec::new();
     let mut missing_nodes = Vec::new();
     let mut link_table = Vec::<Value>::new();
     let mut links = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
@@ -431,6 +433,9 @@ fn ingest_references(
                     .and_then(Value::as_str)
                     .unwrap_or_default();
                 judged.push((status, check));
+                if check.kind == "motion" {
+                    motion_rows.push(motion_evidence_row(policy, &report_dir, &MotionCheckAt { screen: &screen.id, viewport, index, check, item, status }));
+                }
                 if status == "fail" {
                     findings.push(finding(
                         screen,
@@ -612,6 +617,7 @@ fn ingest_references(
         "figmaReferences": figma,
         "visualComparisons": visual_comparisons,
         "findings": findings,
+        "motionEvidence": motion_evidence_summary(motion_rows),
         "missingNodes": missing_nodes,
         "links": links,
         "linkTable": link_table,

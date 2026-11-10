@@ -16,7 +16,6 @@ export type MotionBinding = {
   locale?: string;
   durationMs?: number;
   pixelsPerSecond?: number;
-  distancePx?: number;
   respectReducedMotion?: boolean;
 };
 
@@ -179,24 +178,30 @@ function slidingHighlight(root: ParentNode, binding: MotionBinding) {
 
 export function mountMotion(root: ParentNode, bindings: MotionBinding[]) {
   const active = new Map<MotionBinding, {node: HTMLElement; dependencies: HTMLElement[]; cleanup: () => void}>();
+  // Entrances are static CSS (Reveal.tsx): keyframes on a view timeline. The
+  // only script they ever need is this marker, and only for a group on a
+  // clock (data-reveal="timed") or a browser without view timelines. It sets
+  // data-reveal-state once and never animates anything itself.
   const reveals = bindings.filter(binding => binding.kind === 'section-entrance');
-  const seen = new WeakSet<Element>(), observed = new WeakSet<Element>(), unreported = new WeakSet<Element>(), revealAnimations = new Set<Animation>();
+  const state = 'data-reveal-state', considered = new WeakSet<Element>(), pending = new Set<HTMLElement>();
+  const scrollLinked = typeof CSS !== 'undefined' && CSS.supports('animation-timeline: view()');
+  const settle = (node: HTMLElement, value: 'in' | 'shown') => { pending.delete(node); revealObserver.unobserve(node); node.setAttribute(state, value); };
   const revealObserver = new IntersectionObserver(entries => entries.forEach(entry => {
-    const node = entry.target as HTMLElement, first = unreported.delete(node);
-    if (!entry.isIntersecting) return;
-    const binding = reveals.find(binding => node.matches(binding.target));
-    if (!binding || seen.has(node) || !visible(node)) return;
-    seen.add(node); revealObserver.unobserve(node);
-    // Already on screen when observation began (first viewport, reload or
-    // back/forward at a restored scroll position, client navigation): the
-    // reader is looking at it, so hiding it to replay an entrance is a flash.
-    if (first) return;
-    if (!reduced(binding) && !node.contains(document.activeElement)) trackedAnimation(node,[
-      { opacity: 0, transform: `translateY(${binding.distancePx ?? 24}px)` }, { opacity: 1, transform: 'translateY(0)' },
-    ], { duration: duration(binding, 600), easing: 'ease-out' },revealAnimations);
+    if (entry.isIntersecting) settle(entry.target as HTMLElement, 'in');
   }));
+  const consider = (binding: MotionBinding, node: HTMLElement) => {
+    if (considered.has(node)) return;
+    considered.add(node);
+    if (scrollLinked && node.dataset.reveal !== 'timed' || reduced(binding) || node.hasAttribute(state)) return;
+    // Only content still below the viewport may start hidden. What is on
+    // screen when this attaches (first viewport, reload or back/forward at a
+    // restored scroll position, client navigation), what was already passed
+    // and what holds focus stays exactly as rendered: hiding it would flash.
+    if (!visible(node) || node.getBoundingClientRect().top < innerHeight || node.contains(document.activeElement)) return;
+    node.setAttribute(state, 'pending'); pending.add(node); revealObserver.observe(node);
+  };
   const refresh = () => {
-    reveals.forEach(binding => elements(root, binding.target).filter(node => !seen.has(node) && !observed.has(node)).forEach(node => { observed.add(node); unreported.add(node); revealObserver.observe(node); }));
+    reveals.forEach(binding => elements(root, binding.target).forEach(node => consider(binding, node)));
     for (const binding of bindings) {
       if (binding.kind === 'section-entrance') continue;
       const found = elements(root, binding.target), previous = active.get(binding);
@@ -226,14 +231,18 @@ export function mountMotion(root: ParentNode, bindings: MotionBinding[]) {
       }
     }
   };
-  const focus = (event: Event) => revealAnimations.forEach(animation => {
-    const node = (animation.effect as KeyframeEffect)?.target;
-    if (node instanceof Element && event.target instanceof Node && node.contains(event.target)) animation.cancel();
-  });
+  // Keyboard focus is never hidden or moved: a block that receives focus is
+  // shown at once in its final place, whether it was waiting or mid-entrance.
+  const focus = (event: Event) => {
+    if (!(event.target instanceof Element)) return;
+    for (let node = event.target.closest<HTMLElement>(`[${state}]`); node; node = node.parentElement?.closest<HTMLElement>(`[${state}]`) ?? null) settle(node, 'shown');
+  };
   const mutations = new MutationObserver(refresh);
   const cleanup = () => {
     mutations.disconnect(); revealObserver.disconnect(); root.removeEventListener('focusin', focus);
-    [...active.values()].reverse().forEach(entry => entry.cleanup()); active.clear(); revealAnimations.forEach(animation => animation.cancel());
+    [...active.values()].reverse().forEach(entry => entry.cleanup()); active.clear();
+    // Nothing stays hidden once the marker is gone.
+    pending.forEach(node => node.removeAttribute(state)); pending.clear();
   };
   try { refresh(); mutations.observe(root, { childList: true, subtree: true }); root.addEventListener('focusin', focus); }
   catch (error) { cleanup(); throw error; }

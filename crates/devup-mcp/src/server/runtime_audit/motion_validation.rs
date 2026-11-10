@@ -46,42 +46,52 @@ fn validate_motion(value: Option<&Value>) -> Result<(), DevupError> {
         return Err(invalid("count-up motion needs finite finalValue"));
     }
     // Reveal scenarios each reload the page and replay one situation. They
-    // are named exactly, so a typo cannot silently run nothing.
+    // are named exactly, so a typo cannot silently run nothing. With no list
+    // every scenario runs.
+    let semantic = |key: &str| -> Result<Option<&str>, DevupError> {
+        let Some(selector) = value.get(key) else {
+            return Ok(None);
+        };
+        let selector = selector
+            .as_str()
+            .filter(|selector| !selector.is_empty() && !selector.contains("data-figma") && !selector.contains("data-source-node"))
+            .ok_or_else(|| invalid(format!("motion.{key} requires a semantic selector")))?;
+        bounded_text(&format!("motion.{key}"), selector)?;
+        Ok(Some(selector))
+    };
+    // What a reveal alone accepts: the animated items of a group, the
+    // progress line, the control to focus and the link to leave the page by.
+    let reveal_only = ["scenarios", "items", "progress", "focus", "navigate", "settleMs", "maxStepMs", "maxSpanMs", "maxTotalMs", "syncToleranceMs", "progressMs"];
+    if kind != "reveal" && let Some(key) = reveal_only.iter().find(|key| value.get(**key).is_some()) {
+        return Err(invalid(format!("motion.{key} is for reveal only")));
+    }
+    let (items, progress, _focus, navigate) = (semantic("items")?, semantic("progress")?, semantic("focus")?, semantic("navigate")?);
     if let Some(scenarios) = value.get("scenarios") {
-        let known = ["fast-scroll", "reload", "history", "image-delay", "image-failure", "focus", "progress-sync"];
-        let valid = kind == "reveal"
-            && scenarios.as_array().is_some_and(|items| {
-                items.len() <= known.len()
-                    && items.iter().all(|item| item.as_str().is_some_and(|name| known.contains(&name)))
-            });
+        let valid = scenarios.as_array().is_some_and(|items| {
+            items.len() <= REVEAL_SCENARIOS.len()
+                && items.iter().all(|item| item.as_str().is_some_and(|name| REVEAL_SCENARIOS.contains(&name)))
+        });
         if !valid {
-            return Err(invalid(
-                "motion.scenarios is for reveal only and takes fast-scroll, reload, history, image-delay, image-failure, focus or progress-sync",
-            ));
+            return Err(invalid(format!("motion.scenarios takes {}", REVEAL_SCENARIOS.join(", "))));
         }
-        // The line and its items are named, never guessed.
-        if scenarios.as_array().is_some_and(|items| items.iter().any(|item| item == "progress-sync")) {
-            for key in ["progress", "items"] {
-                let selector = value[key]
-                    .as_str()
-                    .filter(|selector| !selector.is_empty() && !selector.contains("data-figma") && !selector.contains("data-source-node"))
-                    .ok_or_else(|| invalid(format!("progress-sync requires a semantic motion.{key} selector")))?;
-                bounded_text(&format!("motion.{key}"), selector)?;
+        // A scenario named explicitly must be observable: its selectors are
+        // required, never guessed.
+        let named = |name: &str| scenarios.as_array().is_some_and(|items| items.iter().any(|item| item == name));
+        for (scenario, key, present) in [
+            ("progress-sync", "progress", progress.is_some()),
+            ("progress-sync", "items", items.is_some()),
+            ("stagger", "items", items.is_some()),
+            ("client-nav", "navigate", navigate.is_some()),
+        ] {
+            if named(scenario) && !present {
+                return Err(invalid(format!("{scenario} requires a semantic motion.{key} selector")));
             }
         }
     }
-    if let Some(focus) = value.get("focus") {
-        let selector = focus
-            .as_str()
-            .filter(|selector| !selector.is_empty() && !selector.contains("data-figma") && !selector.contains("data-source-node"))
-            .ok_or_else(|| invalid("motion.focus requires a semantic selector"))?;
-        bounded_text("motion.focus", selector)?;
-    }
-    if value
-        .get("settleMs")
-        .is_some_and(|value| value.as_u64().is_none_or(|ms| ms > 10_000))
-    {
-        return Err(invalid("motion.settleMs must be 0..10000"));
+    for (key, max) in [("settleMs", 10_000), ("maxStepMs", 10_000), ("maxSpanMs", 60_000), ("maxTotalMs", 60_000), ("syncToleranceMs", 10_000), ("progressMs", 60_000)] {
+        if value.get(key).is_some_and(|value| value.as_u64().is_none_or(|ms| ms > max)) {
+            return Err(invalid(format!("motion.{key} must be 0..{max}")));
+        }
     }
     if value.get("resizeWidth").is_some_and(|value| {
         value
@@ -114,18 +124,31 @@ mod motion_contract_tests {
             assert!(validate_motion(Some(&changed)).is_err(), "{changed}");
         }
         assert!(validate_motion(None).is_err());
-        let reveal = json!({"kind":"reveal","candidateId":"section-entrance:1","target":"#news","scenarios":["fast-scroll","reload","history","image-delay","image-failure","focus"],"focus":"a[href]","settleMs":400});
+        let reveal = json!({"kind":"reveal","candidateId":"section-entrance:1","target":"#news","scenarios":["fast-scroll","reload","history","bfcache","image-delay","image-failure","focus","reduced-motion","no-script"],"focus":"a[href]","settleMs":400});
         assert!(validate_motion(Some(&reveal)).is_ok());
-        let timeline = json!({"kind":"reveal","candidateId":"section-entrance:2","target":"#history","scenarios":["progress-sync"],"progress":".line","items":"li"});
+        // No list: every scenario runs, and the selectors that some of them
+        // need are optional (the scenario is then not-applicable or unverified).
+        let every = json!({"kind":"reveal","candidateId":"section-entrance:1","target":"#news","navigate":"nav a[href='/about']"});
+        assert!(validate_motion(Some(&every)).is_ok());
+        let timeline = json!({"kind":"reveal","candidateId":"section-entrance:2","target":"#history","scenarios":["progress-sync","stagger"],"progress":".line","items":"li","maxStepMs":400,"maxSpanMs":900,"maxTotalMs":1400,"syncToleranceMs":150});
         assert!(validate_motion(Some(&timeline)).is_ok());
+        let group = json!({"kind":"reveal","candidateId":"section-entrance:3","target":"#cards","items":".card","scenarios":["stagger","client-nav"],"navigate":"#about"});
+        assert!(validate_motion(Some(&group)).is_ok());
+        assert_eq!(REVEAL_SCENARIOS.len(), 12);
         for patch in [
             json!({"scenarios":["fast-scrol"]}),
             json!({"scenarios":["progress-sync"]}),
             json!({"scenarios":["progress-sync"],"progress":".line","items":"[data-figma-node-id]"}),
+            json!({"scenarios":["stagger"]}),
+            json!({"scenarios":["client-nav"]}),
             json!({"scenarios":"focus"}),
             json!({"kind":"tabs","links":"a","indicator":"i","next":"a"}),
             json!({"focus":"[data-figma-node-id]"}),
+            json!({"navigate":"[data-source-node]"}),
+            json!({"items":""}),
             json!({"settleMs":60_000}),
+            json!({"maxStepMs":-1}),
+            json!({"maxTotalMs":600_000}),
         ] {
             let mut changed = reveal.clone();
             for (key, value) in patch.as_object().unwrap() {

@@ -37,7 +37,11 @@ capture alone does not prove missing content. `minHeightRatio` remains an explic
 logical completeness condition; no hidden exact-frame-height override is applied.
 
 Geometry and captures pause running animations at `currentTime = 0` and disable
-CSS transitions after scroll reveals settle. The runner restores motion before
+CSS transitions after scroll reveals settle. An entrance on a view timeline
+(`animation-timeline: view()`) is bound to scroll position, not to a clock: it
+is not waited for, and it is cancelled rather than paused, so every block shows
+its resting style instead of the hidden first frame a full-page capture would
+otherwise catch below the fold (`frozenAnimations.scrollLinkedCount`). The runner restores motion before
 interaction and view-transition checks, without changing reduced-motion media
 preferences. Each screen reports `frozenAnimations` with unique target count,
 selectors and animation count. Ingest exposes this as executor-declared evidence,

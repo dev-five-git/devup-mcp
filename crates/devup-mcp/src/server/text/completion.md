@@ -15,6 +15,8 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    `motionRuntime` and `motionBindings` outputs. Fill semantic selectors and real
    API values, then mount the shared controller once in the persistent layout.
    Generated controller code is executable; unresolved bindings remain explicit.
+   Entrances are static CSS: use the supplied `revealTsx` (Devup UI keyframes on
+   a view timeline) around each section's content group; no animation library.
 3. Run actual build, lint, typecheck, unit test and functional E2E commands through the emitted
    `record-project-checks.mjs`, passing a JSON config with `projectRoot` and
    `checks: [{name:"build",command:["bun","run","build"]}, ...]`. The resulting
@@ -32,7 +34,10 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    markup and rendered completeness. Motion checks additionally require the exact
    behavior candidate ID on the applicable planned viewport/screen/check index
    and observed intermediate behavior. Selected paint alone
-   does not prove a sliding indicator or a complete step cycle.
+   does not prove a sliding indicator or a complete step cycle. An entrance
+   (`reveal`) is covered only by a passing check at a mobile (<=767px) and a
+   desktop (>=1024px) width; an inconclusive check, where a scenario could not
+   be observed, covers nothing (`motionEvidence` lists what is unverified).
    Include the exact Figma frame artifact for every drawn width. Completion
    reruns the ingested `visualComparisons` against cached native Figma PNGs;
    it never accepts a caller verdict or a path to an implementation baseline.

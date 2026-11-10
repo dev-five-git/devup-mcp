@@ -220,6 +220,27 @@ fn motion_coverage_joins_exact_planned_viewport_screen_index_and_candidate() {
     assert!(planned_motion_coverage(&plan, &report).is_empty());
 }
 
+/// An entrance is covered by a passing reveal check at a mobile and at a
+/// desktop width; one width, a tablet width or an inconclusive check is not.
+#[test]
+fn a_reveal_candidate_needs_passing_checks_at_mobile_and_desktop() {
+    let viewport = |width: u32| json!({"width":width,"height":800,"deviceScaleFactor":1});
+    let run = |width: u32, status: &str| json!({"viewport":viewport(width),"screens":[{"id":"home","status":"completed","checks":[{"index":0,"kind":"motion","status":status,"measured":{"candidateId":"section-entrance:news"}}]}]});
+    let plan = |widths: &[u32]| json!({"plan":{"viewports":widths.iter().map(|width| viewport(*width)).collect::<Vec<_>>(),"screens":[{"id":"home","checks":[{"kind":"motion","motion":{"kind":"reveal","candidateId":"section-entrance:news"}}]}]}});
+    let covered = BTreeSet::from(["section-entrance:news".to_owned()]);
+    assert_eq!(planned_motion_coverage(&plan(&[390, 1440]), &json!({"runs":[run(390, "pass"), run(1440, "pass")]})), covered);
+    for runs in [
+        json!([run(1440, "pass")]),
+        json!([run(390, "pass")]),
+        json!([run(390, "pass"), run(858, "pass")]),
+        // What could not be observed is unverified, not covered.
+        json!([run(390, "pass"), run(1440, "inconclusive")]),
+        json!([run(390, "fail"), run(1440, "pass")]),
+    ] {
+        assert!(planned_motion_coverage(&plan(&[390, 858, 1440]), &json!({"runs":runs})).is_empty(), "{runs}");
+    }
+}
+
 #[tokio::test]
 async fn unsigned_inventory_is_rebuilt_only_from_a_retained_capture() {
     use devup_mcp_figma::{
