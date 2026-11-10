@@ -422,3 +422,16 @@ with evidence after `maxFixAttempts` as incomplete.
 
 Before reporting done, run the runtime audit for every confirmed URL at every required width (default 1440/1100/858/390), read the report, fix failures and rerun until every cell passes. Missing cells are not-run and block completion. At drawn widths require rendered completeness and page, section and asset visual comparisons. Check sequence-order and section-layout at every width.
 Ask known site, structure and URL decisions up front in one runtime question call, not per-section rounds. New user-owned decisions after confirm still use the question tool. Show evidence first; keep table approval separate from individual decisions in the same call. Use headers up to 30 characters and two to four options, recommended first and labelled "(Recommended)". Never ask for numbers in chat. Record the chosen answer, decision id, affected model/endpoint/file and rationale with existing defer/assume actions; do not invent an ask action. Update source models and re-confirm ERD changes before dependent work. Without a question tool, report the limitation and leave the decision unresolved. Workers escalate to the supervisor; continue independent work while answers are pending.
+
+## After the work: /devup-retro
+
+When a piece of devup-mcp work is finished, `/devup-retro` (the `devup-retro`
+skill, or the MCP prompt of the same name where the skill is not installed)
+turns the session's follow-up prompts into improvement prompts for devup-mcp.
+Three phases, never merged: review the conversation from the first devup-mcp
+call and list only corrections the user actually wrote, each with its quote,
+evidence and the surface that should have prevented it; ask the user to confirm
+the list; only then print one ready-to-paste prompt per surface. Start with
+`devup_skills` action `retro`: it returns this build, the calls this process
+served with timestamps, the surface list and the project's `.feedback/` state,
+and writes nothing. Nothing is written before the user confirms.

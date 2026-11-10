@@ -28,7 +28,7 @@
 //! that copy is moved forward.
 //!
 //! `own` skills are written here, in this repository - devfive-frontend,
-//! devup-implementation-plan and devup. There
+//! devup-implementation-plan, devup and devup-retro. There
 //! is no upstream to vendor from and nothing for the refresh script to compare
 //! against, so they pin no commit; this repository's own history is their
 //! provenance. They are otherwise installed exactly like an embedded skill,
@@ -47,6 +47,10 @@
 //! ever exported a screen.
 
 // Source sections share this module to preserve privacy and test names.
+// First: it defines the macro the catalog spells an embedded path with.
+include!("skills/commands.rs");
 include!("skills/catalog.rs");
 include!("skills/installation.rs");
+include!("skills/retro.rs");
 include!("skills/tests.rs");
+include!("skills/retro_tests.rs");

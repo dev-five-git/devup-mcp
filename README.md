@@ -17,7 +17,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: Figma에 닿는 **두 경로**(브리지 플러그인·direct OAuth)를 함께 보고(`status`) — 붙어 있는 플러그인의 파일·현재 페이지·선택까지. 그 밖에 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 참조 데이터까지 붙인 `doctor`. **로그인을 요청하기 전에 `status`부터 부르세요** — 플러그인이 붙어 있으면 로그인은 필요 없습니다
-- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다. 어느 디렉터리인지는 `clientInfo`로 판별한 런타임이 정하고, `projectRoot`로 어느 프로젝트인지 지정합니다
+- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다. 어느 디렉터리인지는 `clientInfo`로 판별한 런타임이 정하고, `projectRoot`로 어느 프로젝트인지 지정합니다 `retro`는 작업 뒤 회고 명령 `/devup-retro`가 쓰는 읽기 전용 액션입니다(아래 “작업 뒤 회고” 참고).
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
@@ -1106,6 +1106,14 @@ DevupUI가 audit 속성을 기본으로 제거하며 `DEVUP_AUDIT=1`이면 유�
 최신 스택이 기본입니다: Next App Router를 vinext(Vite)로 실행하고, bun workspaces(`apps/*`), devup-ui, oxlint(eslint-plugin-devup), 최신 버전. `vinext` 의존성·`vinext` 스크립트·vinext를 import하는 `vite.config`가 있으면 `next` 의존성이 없어도 App Router 앱으로 보고, `devup_project_context`의 ui/routes가 앱별 `frameworks`를 알려 줍니다. 구현 전에는 묻지 않고 저장소 루트에서 `bunx @dependency-check-updates/cli -d -u --rm`(-d: 루트 아래 모든 manifest, -u: 복구 가능한 일괄 적용, --rm: 각 manifest 옆의 lockfile·설치 디렉터리 삭제 — Cargo.lock·target/ 포함) → `bun install` → build·lint·typecheck를 하고, 라이브러리 API는 기억이 아니라 현재 문서를 봅니다. 결과는 `assume`의 `dependencyUpdate`로 남기고 `status`에 dependencies 줄로 나옵니다. 앱이 없으면 `dev-five-git/service-template`에서 시작하고(이름·구성만 질문), `next` CLI 프로젝트에는 "Migrate to vinext (Recommended) / Keep next"를 한 번 묻습니다. 설정 파일의 `framework`·`updateDependencies: false`로 미리 답할 수 있습니다.
 
 명시적 시작점 `/devup [figma url] [notes]`: `devup_skills install`이 `devup` 스킬을 다른 스킬과 함께 쓰고(Claude Code는 프로젝트 스킬을 같은 이름의 슬래시 명령으로 제공하므로 `.claude/skills/devup/SKILL.md`가 곧 `/devup`), OpenCode에는 `.opencode/command/devup.md`도 씁니다. 명령 위치가 검증되지 않은 다른 런타임은 지원하지 않는다고 보고합니다. `devup_skills status`의 `command`가 설치 여부를 알려 줍니다. `/devup` 없이도 Figma로 페이지나 사이트를 만들어 달라는 요청이면 같은 흐름을 시작합니다.
+
+작업 뒤 회고 `/devup-retro [범위 또는 메모]`: devup-mcp로 한 작업이 끝난 뒤 한 번 입력하면, devup-mcp가 처음 호출된 시점부터 지금까지의 대화에서 사용자가 결과를 고치거나 마무리하려고 직접 써야 했던 후속 프롬프트(“애니메이션을 추가해야 함”, “UI가 잘못됐어”, 간격·너비, 한글 줄바꿈, 누락된 상태, 잘못된 에셋, 실행하지 않은 테스트, 틀린 CI 증거 등)를 모읍니다. 세 단계이며 합치지 않습니다.
+
+1. **review**: 항목마다 사용자 프롬프트 원문 인용, 무엇이 잘못됐는지, 증거(파일·노드·도구 출력), 그리고 그것을 막았어야 할 surface 하나(`codegen`, `export-output`, `validation-rule`, `runtime-audit`, `skill-guidance`, `bootstrap-instructions`, `project-plan-intake`, `out-of-scope:devup-ui|app|figma-data`)를 적습니다. 사용자 프롬프트 증거가 없는 항목은 넣지 않고, 설치된 버전에서 이미 고쳐진 항목은 `fixed-in-installed`/`fixed-not-installed`/`already-recorded`로 표시합니다(릴리스 노트를 읽지 못하면 `unverified`).
+2. **confirm**: 목록을 표로 보여 주고 질문 도구로 `OK / Edit items / Drop items / Cancel`을 묻습니다. 확인 전에는 아무것도 쓰지 않고 개선 프롬프트도 출력하지 않습니다. 프로젝트에 `.feedback/` 폴더가 있을 때만 기록 저장 여부를 함께 묻습니다.
+3. **prompts**: `OK` 뒤에 surface별로 붙여 넣을 수 있는 devup-mcp 개선 프롬프트를 사용자 언어로 출력합니다. 각 프롬프트는 목표, 구체적 필수 동작, 수용 기준·회귀 테스트, 범위 경계를 가집니다. 저장을 선택했다면 `.feedback/`의 기존 형식·번호·index를 그대로 따라 항목별 기록을 추가합니다.
+
+`/devup`과 같은 경로로 배포됩니다: `devup_skills install`이 `devup-retro` 스킬을 쓰고(Claude Code에서는 `.claude/skills/devup-retro/SKILL.md`가 곧 `/devup-retro`, Codex 등은 `.agents/skills`에서 이름으로 로드), OpenCode에는 스킬 본문으로 만든 `.opencode/command/devup-retro.md`도 씁니다. 설치하지 않은 워크스페이스에서는 MCP 프롬프트 `devup-retro`(인자 `scope`, `language`, 둘 다 선택; Claude Code에서는 `/mcp__<서버 이름>__devup-retro`)로 같은 본문을 받습니다. `devup_skills`의 `retro` 액션은 읽기 전용으로 설치된 빌드(`server`), 이 서버 프로세스가 처리한 devup-mcp 호출 기록(`callLog`: 도구·action·outputs·시각·성공 여부, 최대 200개, 인자 내용과 결과는 보관하지 않으며 재연결하면 비워짐), surface 목록, `.feedback/` 상태(`nextNumber`, index, 최근 기록)를 돌려줍니다. 명령 이름은 `crates/devup-mcp/src/server/skills/commands.rs`의 `retro_name!` 한 곳에서 정합니다.
 
 질문 도구에 호출당 개수 제한이 없으면(OpenCode `question`) 평평한 `questions` 목록을 한 번에 묻고, 제한이 있으면(Claude Code `AskUserQuestion`: 4) `maxQuestionsPerRound`(기본 4)로 나눈 `questionRounds`를 연달아 묻습니다.
 

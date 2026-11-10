@@ -28,9 +28,10 @@ impl DevupServer {
                 result["state"] = skills::report(&lookup);
                 Ok(tool_result(result))
             }
+            "retro" => Ok(tool_result(skills::retro_report(&lookup, &self.call_log))),
             other => Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupInvalidInput,
-                format!("action must be status or install, not {other}."),
+                format!("action must be status, install or retro, not {other}."),
                 false,
             ))),
         }
