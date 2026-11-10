@@ -16,3 +16,4 @@ include!("ui_validate_response/section_coverage.rs");
 include!("ui_validate_response/summary_and_paths.rs");
 include!("ui_validate_response/effective_attributes.rs");
 include!("ui_validate_response/monorepo_token_scopes.rs");
+include!("ui_validate_response/monorepo_single_tsx_owner.rs");
