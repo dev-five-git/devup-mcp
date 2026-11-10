@@ -1,5 +1,18 @@
 use super::*;
 
+impl DevupServer {
+    /// Adds the /devup-retro offer to a result that marks completion. Called
+    /// only by the tools whose result can mean "the work is finished".
+    pub(super) fn offer_retro(&self, result: &mut Value, project_root: Option<&str>, complete: bool) {
+        let lookup = skills::Lookup::new(
+            project_root,
+            self.output_policy.primary_root(),
+            self.client_name(),
+        );
+        skills::offer_retro(result, &lookup, complete);
+    }
+}
+
 #[tool_router(router = devup_skills_router, vis = "pub(super)")]
 impl DevupServer {
     #[tool(

@@ -267,6 +267,12 @@ Then run `bun run build`, `bun run lint`, `bun tsc --noEmit`
     width (health, geometry, page, section, asset, interaction, screenshot,
     diffs), unresolved findings with evidence, pending decisions taken,
     assumptions, design fixes, exclusions, defaults and the dependencies line.
+    Then offer the retrospective once, in the user's language:
+    "작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?"
+    (otherwise "The work is complete. Shall I run /devup-retro to turn this session's follow-up prompts into devup-mcp improvements?";
+    `/mcp__<server>__devup-retro` when the skill is not installed). Only when
+    the work is complete, never after an intermediate call or a failure, and
+    never run it unasked.
 
 Hard rules: visually verify every screen, section and asset at every drawn
 width; never stop to wait, reorder the work; done = every required cell passes;

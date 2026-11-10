@@ -184,6 +184,8 @@ async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow
             .is_none()
     );
     assert!(bytes < 15 * 1024, "reply is {bytes} bytes");
+    // An export is the first step, not the end of the work: no retro offer.
+    assert!(result.get("nextSuggestedAction").is_none());
     // The budget is a wall only if nothing can be added before hitting it.
     // #124 had 31 bytes left and renamed two contract identifiers instead of
     // adding them. Standing prose now lives in the guide (contract meanings,
@@ -200,7 +202,7 @@ async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow
     let contract = &result["developmentContract"];
     assert_eq!(
         contract["requirements"].as_array().map(Vec::len),
-        Some(20),
+        Some(21),
         "{contract}"
     );
     assert_eq!(

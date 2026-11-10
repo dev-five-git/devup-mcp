@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Offer /devup-retro when devup-mcp work is complete: the final completion report ends with one question in the user's language (\"작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?\"). The rule is contract identifier offer-devup-retro-in-final-report (developmentContract v5) and is stated in delivery-quality, the devfive-frontend, devup and devup-implementation-plan skills and the usage guide; results that mark completion (runtime-audit completion reportAllowed, screen-plan status reportAllowed, stack-diff zero drift on every layer) carry nextSuggestedAction with the ready message and the invocation that works in the workspace. Never on intermediate or failing results, never run unasked.",
+  "date": "2026-11-10T00:00:00.000000000Z"
+}

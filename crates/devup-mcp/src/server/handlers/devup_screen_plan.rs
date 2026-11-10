@@ -47,6 +47,9 @@ impl DevupServer {
         {
             prefer_bridge_reference_calls(&mut result);
         }
+        // Status is done only after application completion was re-evaluated.
+        let complete = skills::marks_completion("devup_screen_plan", &input.action, &result);
+        self.offer_retro(&mut result, input.project_root.as_deref(), complete);
         Ok(tool_result(result))
     }
 }

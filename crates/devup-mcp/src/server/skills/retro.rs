@@ -367,3 +367,67 @@ pub fn retro_prompt_result(
     let title = find_by_name(RETRO_NAME).map_or(RETRO_NAME, |skill| &skill.record.title);
     Some(rmcp::model::GetPromptResult::new(vec![message]).with_description(title).into())
 }
+
+/// What the agent says at the end of its final completion report, once.
+///
+/// The retrospective only improves anything if it is run, and the moment it
+/// is worth running is the one where the user is about to leave. The server
+/// cannot speak to the user, so a tool result that marks completion carries
+/// the sentence for the agent to say - with the command, never instead of the
+/// user's decision to run it.
+pub const RETRO_OFFER_KO: &str =
+    "작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 {} 를 실행할까요?";
+pub const RETRO_OFFER_EN: &str =
+    "The work is complete. Shall I run {} to turn this session's follow-up prompts into devup-mcp improvements?";
+pub const RETRO_OFFER_FIELD: &str = "nextSuggestedAction";
+
+/// How the command is typed in this workspace: the slash command when the
+/// skill is installed, otherwise the MCP prompt as Claude Code names it.
+pub fn retro_invocation(lookup: &Lookup) -> String {
+    if lookup.installed_paths(RETRO_NAME).is_empty() {
+        format!("/mcp__devup-mcp__{RETRO_NAME}")
+    } else {
+        format!("/{RETRO_NAME}")
+    }
+}
+
+/// Attaches the offer to a result that marks completion, and only to one.
+/// `complete` is the caller's own completion flag; an intermediate or failing
+/// result gets nothing, so the offer cannot become a line on every reply.
+pub fn offer_retro(result: &mut serde_json::Value, lookup: &Lookup, complete: bool) {
+    if !complete || !result.is_object() {
+        return;
+    }
+    let invocation = retro_invocation(lookup);
+    result[RETRO_OFFER_FIELD] = serde_json::json!({
+        "id": RETRO_NAME,
+        "invocation": invocation,
+        "skillInstalled": invocation == format!("/{RETRO_NAME}"),
+        "message": {
+            "ko": RETRO_OFFER_KO.replace("{}", &invocation),
+            "en": RETRO_OFFER_EN.replace("{}", &invocation),
+        },
+        "when": "final-completion-report",
+        "how": "End the final completion report for this task with this one question, in the \
+                user's language. Ask once per completed task: not after an intermediate call, a \
+                failure or an unresolved item, and not again if already asked. Never run it \
+                yourself; run it only when the user says yes. /mcp__devup-mcp__ assumes the \
+                server is registered as devup-mcp; use the client's own server name.",
+    });
+}
+
+/// Whether a tool result says the work is finished: the one place the three
+/// completion signals are spelled, so a handler cannot offer on anything else.
+///
+/// `devup_figma_export` is deliberately absent. `deliverable.isFinal` grades
+/// generated source and is the first step of the work, not its end.
+pub fn marks_completion(tool: &str, action: &str, result: &serde_json::Value) -> bool {
+    match (tool, action) {
+        ("devup_runtime_audit", "completion") => {
+            result["kind"] == "devup-completion-receipt" && result["reportAllowed"] == true
+        }
+        ("devup_screen_plan", "status") => result["completion"]["reportAllowed"] == true,
+        ("devup_stack_diff", _) => super::stack_diff::is_zero_drift(result),
+        _ => false,
+    }
+}

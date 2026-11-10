@@ -372,6 +372,9 @@ async fn source_bound_static_checks_cannot_replace_figma_visuals() {
     input.visual_environments.insert(comparison_id, serde_json::from_value(json!({"tsxResource":{"uri":"devup://artifact/test/tsx","sha256":"a".repeat(64)},"themePath":"devup.json","assetDirectory":"public/images","devupUiVersion":"test","fontManifest":[{"family":"Test","sha256":"b".repeat(64)}]})).unwrap());
     let result = write(&input, &policy, &store, None).await.unwrap();
     assert_eq!(result["stage"], "data-verified", "{result}");
+    // The one receipt that may be reported is the one that carries the offer.
+    assert!(super::super::skills::marks_completion("devup_runtime_audit", "completion", &result));
+    assert!(!super::super::skills::marks_completion("devup_runtime_audit", "ingest", &result));
     assert_eq!(refresh(&input.project_root, &policy, &store).await.unwrap()["done"], true);
     assert_eq!(result["dataVerificationScope"], "not-required");
     // A syntactically present but unsigned empty inventory cannot remove all

@@ -435,3 +435,10 @@ the list; only then print one ready-to-paste prompt per surface. Start with
 `devup_skills` action `retro`: it returns this build, the calls this process
 served with timestamps, the surface list and the project's `.feedback/` state,
 and writes nothing. Nothing is written before the user confirms.
+
+Offer it: end the final completion report with one question in the user's
+language, "작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?" or
+"The work is complete. Shall I run /devup-retro to turn this session's follow-up prompts into devup-mcp improvements?"
+(`/mcp__<server>__devup-retro` when the skill is not installed). Once per
+completed task, only on completion, never run unasked; completion-state tool
+results carry the sentence as `nextSuggestedAction`.
