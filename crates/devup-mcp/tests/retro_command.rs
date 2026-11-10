@@ -22,7 +22,9 @@ fn scratch(label: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!("devup-retro-it-{label}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).expect("scratch workspace");
-    path
+    // The server canonicalises its write root; on macOS the temp directory is
+    // a symlink, and a projectRoot spelled through it is outside that root.
+    dunce::canonicalize(&path).expect("canonical scratch workspace")
 }
 
 async fn session<F, T>(workspace: &Path, body: F) -> anyhow::Result<T>
@@ -212,11 +214,12 @@ async fn retro_reports_the_served_calls_and_the_feedback_folder_and_writes_nothi
         assert_eq!(retro["feedback"]["records"][0]["status"], "상태: open");
 
         // One install makes it a command, next to /devup.
-        call(
+        let installed = call(
             client,
             json!({"action": "install", "names": [NAME], "projectRoot": root}),
         )
         .await?;
+        assert_eq!(installed["installed"][0]["name"], NAME, "{installed}");
         let after = call(client, json!({"action": "retro", "projectRoot": root})).await?;
         assert_eq!(after["command"]["installed"], true, "{after}");
         assert_eq!(after["skill"]["installed"], true);
