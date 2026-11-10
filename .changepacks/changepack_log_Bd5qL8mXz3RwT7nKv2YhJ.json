@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Open a blended negative-z decoration's stacking context on the ancestor that paints its backdrop, so multiply decorations inside a transparent wrapper composite against the gradient instead of turning white.",
-  "date": "2026-11-10T00:00:00.000000000Z"
-}

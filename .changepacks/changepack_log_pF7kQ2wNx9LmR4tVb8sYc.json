@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Patch"
-  },
-  "note": "Keep Korean word boundaries with textWrap pretty, reset generated heading margins, keep extra-fill asset paths distinct, label missing-only devupJson as additions-only, flag hidden component masters, and report on-disk facts for every asset output path.",
-  "date": "2026-11-10T00:00:00.000000000Z"
-}
