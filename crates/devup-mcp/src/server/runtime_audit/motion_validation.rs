@@ -45,6 +45,44 @@ fn validate_motion(value: Option<&Value>) -> Result<(), DevupError> {
     {
         return Err(invalid("count-up motion needs finite finalValue"));
     }
+    // Reveal scenarios each reload the page and replay one situation. They
+    // are named exactly, so a typo cannot silently run nothing.
+    if let Some(scenarios) = value.get("scenarios") {
+        let known = ["fast-scroll", "reload", "history", "image-delay", "image-failure", "focus", "progress-sync"];
+        let valid = kind == "reveal"
+            && scenarios.as_array().is_some_and(|items| {
+                items.len() <= known.len()
+                    && items.iter().all(|item| item.as_str().is_some_and(|name| known.contains(&name)))
+            });
+        if !valid {
+            return Err(invalid(
+                "motion.scenarios is for reveal only and takes fast-scroll, reload, history, image-delay, image-failure, focus or progress-sync",
+            ));
+        }
+        // The line and its items are named, never guessed.
+        if scenarios.as_array().is_some_and(|items| items.iter().any(|item| item == "progress-sync")) {
+            for key in ["progress", "items"] {
+                let selector = value[key]
+                    .as_str()
+                    .filter(|selector| !selector.is_empty() && !selector.contains("data-figma") && !selector.contains("data-source-node"))
+                    .ok_or_else(|| invalid(format!("progress-sync requires a semantic motion.{key} selector")))?;
+                bounded_text(&format!("motion.{key}"), selector)?;
+            }
+        }
+    }
+    if let Some(focus) = value.get("focus") {
+        let selector = focus
+            .as_str()
+            .filter(|selector| !selector.is_empty() && !selector.contains("data-figma") && !selector.contains("data-source-node"))
+            .ok_or_else(|| invalid("motion.focus requires a semantic selector"))?;
+        bounded_text("motion.focus", selector)?;
+    }
+    if value
+        .get("settleMs")
+        .is_some_and(|value| value.as_u64().is_none_or(|ms| ms > 10_000))
+    {
+        return Err(invalid("motion.settleMs must be 0..10000"));
+    }
     if value.get("resizeWidth").is_some_and(|value| {
         value
             .as_u64()
@@ -76,5 +114,24 @@ mod motion_contract_tests {
             assert!(validate_motion(Some(&changed)).is_err(), "{changed}");
         }
         assert!(validate_motion(None).is_err());
+        let reveal = json!({"kind":"reveal","candidateId":"section-entrance:1","target":"#news","scenarios":["fast-scroll","reload","history","image-delay","image-failure","focus"],"focus":"a[href]","settleMs":400});
+        assert!(validate_motion(Some(&reveal)).is_ok());
+        let timeline = json!({"kind":"reveal","candidateId":"section-entrance:2","target":"#history","scenarios":["progress-sync"],"progress":".line","items":"li"});
+        assert!(validate_motion(Some(&timeline)).is_ok());
+        for patch in [
+            json!({"scenarios":["fast-scrol"]}),
+            json!({"scenarios":["progress-sync"]}),
+            json!({"scenarios":["progress-sync"],"progress":".line","items":"[data-figma-node-id]"}),
+            json!({"scenarios":"focus"}),
+            json!({"kind":"tabs","links":"a","indicator":"i","next":"a"}),
+            json!({"focus":"[data-figma-node-id]"}),
+            json!({"settleMs":60_000}),
+        ] {
+            let mut changed = reveal.clone();
+            for (key, value) in patch.as_object().unwrap() {
+                changed[key] = value.clone();
+            }
+            assert!(validate_motion(Some(&changed)).is_err(), "{changed}");
+        }
     }
 }
