@@ -12,7 +12,9 @@ When a page contains a supported motion candidate, its export includes:
   Component that mounts and cleans up the page's shared DOM controllers.
 - `motionRuntime` / resource `motion-runtime.ts`: seamless left marquee,
   once-on-entry integer/decimal CountUp, progress-complete/advance/wrap with manual
-  reset, persistent route-tab indicator, and shared section entrance observation.
+  reset, persistent route-tab indicator, and the state marker for section
+  entrances. The entrance itself is static CSS since `keyframes-motion.md`:
+  `revealTsx` / resource `Reveal.tsx`, Devup UI keyframes on a view timeline.
 - `motionBindings` / resource `motion-bindings.json`: candidate IDs, captured
   values/precision/units/prefixes and required semantic selector bindings.
 
@@ -33,7 +35,8 @@ is the default; an explicit continuous-playback requirement can set
 `respectReducedMotion: false`. CountUp reserves the final responsive text width
 and exposes the final accessible value. Marquee repeats are inert and hidden
 from assistive technology. Reveals preserve visible server/no-JS content, share
-one section observer, support inserted route content, and cancel on focus.
+one section observer, support inserted route content, and show a focused block
+at once. See `keyframes-motion.md` for the keyframes form and its checks.
 
 ## Actual motion checks
 
