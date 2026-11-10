@@ -78,6 +78,7 @@ expression: actual
         letterSpacing="-0.04em"
         lineHeight="22px"
         overflowWrap="break-word"
+        textWrap="pretty"
         whiteSpace="pre-wrap"
         wordBreak="keep-all"
       >

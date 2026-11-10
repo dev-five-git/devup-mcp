@@ -76,8 +76,8 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 15985,
-          "sha256": "aaadb68606fe7aac6d3cdc52bf27c80f95d5de6c23ed7ed49ad2d0b4057d451e"
+          "bytes": 17775,
+          "sha256": "cf25b0dfef30dc2cdf106a353c396bc2fbb15673ada487fefad988b1a1f3a029"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",

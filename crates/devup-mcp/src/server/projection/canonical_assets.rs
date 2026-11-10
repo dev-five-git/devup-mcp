@@ -41,6 +41,55 @@ fn error(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupInvalidInput, message, false)
 }
 
+/// The first asset that claimed a code placeholder in this projection.
+struct PlaceholderOwner {
+    asset_id: String,
+    node_id: String,
+    image_hash: Option<String>,
+    path: String,
+}
+
+/// One code placeholder resolved to two different canonical pictures.
+///
+/// Per-node naming only separates placeholders that come from different
+/// image hashes: nodes sharing one Figma imageHash deliberately share a name,
+/// with or without `assetNamesPerNode`, so recommending that flag there sends
+/// the caller into a retry that reproduces the same refusal. The recovery is
+/// chosen from the conflicting assets themselves.
+fn ambiguous_placeholder(
+    placeholder: &str,
+    first: Option<&PlaceholderOwner>,
+    second: &PlaceholderOwner,
+) -> DevupError {
+    let shared_hash = first.is_some_and(|first| {
+        first.image_hash.is_some() && first.image_hash == second.image_hash
+    });
+    let conflicts = first
+        .into_iter()
+        .chain([second])
+        .map(|owner| json!({"assetId":owner.asset_id,"nodeId":owner.node_id,"imageHash":owner.image_hash,"canonicalPath":owner.path}))
+        .collect::<Vec<_>>();
+    let (message, next_action, recovery) = if shared_hash {
+        (
+            "One code placeholder identifies different pictures rendered from one shared Figma imageHash (different crop, size or effects). assetNamesPerNode cannot separate them because naming follows the shared image; no files were written.",
+            "Export the conflicting nodes in separate calls, each with its own assetRequests.outputPath, or bind each element's src from its sourceMap nodeId/assetId to the listed canonicalPath. Do not reuse the first matching placeholder for both.",
+            Value::Null,
+        )
+    } else {
+        (
+            "One code placeholder identifies different pictures. Re-export with assetNamesPerNode:true; no files were written.",
+            "Re-export with assetNamesPerNode:true so each node receives its own placeholder.",
+            json!({"assetNamesPerNode":true}),
+        )
+    };
+    DevupError::with_details(
+        ErrorCode::DevupInvalidInput,
+        message,
+        false,
+        json!({"reason":"ambiguous-code-placeholder","placeholder":placeholder,"sharedImageHash":shared_hash,"conflicts":conflicts,"recoveryArguments":recovery,"nextAction":next_action}),
+    )
+}
+
 pub(super) fn meaningful_name(path: &str) -> bool {
     let decoded = super::super::mask_guard::percent_decode(path);
     let path = decoded.as_str();
@@ -353,6 +402,7 @@ pub(super) fn reconcile(
     }
     captures.sort_by_key(|(_, _, identity, _, _)| identity.filter.is_some());
     let mut replacements = BTreeMap::new();
+    let mut owners = BTreeMap::<String, PlaceholderOwner>::new();
     let mut naming_review = Vec::new();
     let mut filters = BTreeMap::new();
     let mut bytes_by_path = BTreeMap::<String, Vec<u8>>::new();
@@ -489,13 +539,18 @@ pub(super) fn reconcile(
             (path, acquired)
         };
         let previous = asset.sha256.clone();
+        let owner = PlaceholderOwner {
+            asset_id: asset.asset_id.clone(),
+            node_id: asset.node_id.clone(),
+            image_hash: asset.image_hash.clone(),
+            path: path.clone(),
+        };
         if let Some(prior) = replacements.insert(old.clone(), path.clone())
             && prior != path
         {
-            return Err(error(
-                "One code placeholder identifies different pictures. Re-export with assetNamesPerNode:true; no files were written.",
-            ));
+            return Err(ambiguous_placeholder(&old, owners.get(&old), &owner));
         }
+        owners.entry(old.clone()).or_insert(owner);
         if !asset.variants.is_empty() {
             replacements.insert(
                 asset_policy::variant_path(&old),

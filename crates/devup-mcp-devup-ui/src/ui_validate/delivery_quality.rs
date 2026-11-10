@@ -121,7 +121,7 @@ impl<'a> Visit<'a> for Collector<'_> {
                     && matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name=="wordBreak")
                     && literal(attribute, self.source).as_deref()==Some("normal") {
                     self.findings.push(site::violation(self.source, attribute.span, "korean-word-boundary", Severity::Warning,
-                        "Korean content explicitly uses wordBreak normal and can split within a word.".into(), "Use keep-all with normal wrapping; separately handle long URLs and tokens."));
+                        "Korean content explicitly uses wordBreak normal and can split within a word.".into(), "Use keep-all with textWrap pretty so lines break on word boundaries without large trailing gaps; handle long URLs and tokens with overflowWrap break-word."));
                 }
             }
         }

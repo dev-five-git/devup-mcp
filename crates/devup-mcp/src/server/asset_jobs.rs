@@ -37,9 +37,53 @@ const COMPACT_ASSET_FIELDS: &[&str] = &[
     "requestedOutputPath",
     "fileState",
     "fileStateReason",
+    "fileFacts",
+    "outputPathRedirected",
+    "requestedPathFacts",
     "suggestedFilename",
     "duplicateOf",
 ];
+
+/// What is actually on disk at `path`: existence, byte count and sha256.
+fn file_facts(path: &str) -> Value {
+    match std::fs::read(path) {
+        Ok(bytes) => json!({
+            "path": path,
+            "exists": true,
+            "bytes": bytes.len(),
+            "sha256": Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        }),
+        Err(_) => json!({"path": path, "exists": false, "bytes": null, "sha256": null}),
+    }
+}
+
+fn same_path(left: &str, right: &str) -> bool {
+    let normalize = |path: &str| {
+        let path = path.replace('\\', "/");
+        if cfg!(windows) { path.to_lowercase() } else { path }
+    };
+    normalize(left) == normalize(right)
+}
+
+/// Why a requested output path received no file, from the job's own outcome.
+fn unwritten_reason(asset: &Value, result: Option<&Result<Value, DevupError>>) -> String {
+    match result {
+        Some(Err(error)) => format!(
+            "The projection-and-write stage failed ({:?}); the output transaction was rolled back and wrote nothing.",
+            error.code
+        ),
+        Some(Ok(value)) if value.get("assetQuarantine").is_some() => "Quarantined: asset naming review is required, so no public file was written. Follow nextAction with descriptive assetRequests.outputPath values.".to_owned(),
+        _ if asset["status"] != "exported" => format!(
+            "Not acquired ({}), so there were no bytes to write.",
+            asset["errorCode"].as_str().unwrap_or("no export")
+        ),
+        _ if asset.get("duplicateOf").is_some() => format!(
+            "Identical bytes to {}; they are delivered once at that asset's path.",
+            asset["duplicateOf"].as_str().unwrap_or_default()
+        ),
+        _ => "Acquired, but the projection mapped no output file to this asset (for example a hidden or excluded node). See outputPathResults and assetSummary.".to_owned(),
+    }
+}
 
 #[derive(Clone, Default)]
 pub(super) struct AssetJobs(Arc<Mutex<BTreeMap<String, Arc<AssetJob>>>>);
@@ -366,13 +410,27 @@ impl AssetJob {
                 asset["outputPath"] = json!(path);
                 // A path can be shared by conflicting assets. The export hash,
                 // not the manifest's path alone, proves which bytes were written.
-                let written = std::fs::read(path).ok().is_some_and(|bytes| {
-                    let hash = Sha256::digest(bytes)
-                        .iter()
-                        .map(|b| format!("{b:02x}"))
-                        .collect::<String>();
-                    asset["sha256"].as_str() == Some(&hash)
-                });
+                let facts = file_facts(path);
+                let written = facts["sha256"].is_string() && asset["sha256"] == facts["sha256"];
+                let requested = asset["assetId"]
+                    .as_str()
+                    .and_then(|id| self.paths.get(id));
+                if let Some(requested) = requested {
+                    // Identical bytes share one canonical file, and a derived
+                    // grayscale reuses its colour original: the file can live
+                    // at a path other than the one requested.
+                    asset["outputPathRedirected"] = json!(!same_path(requested, path));
+                }
+                if !written {
+                    asset["fileStateReason"] = json!(if facts["exists"] == false {
+                        "The projected file does not exist: the write was blocked or rolled back, so this asset's bytes are not on disk."
+                    } else if asset["sha256"].is_string() {
+                        "A file exists at the projected path with different bytes (another asset or an existing file kept by the collision guard); this asset's bytes are not there."
+                    } else {
+                        "This asset has no acquired sha256 to compare with the file on disk, so the write is unproven."
+                    });
+                }
+                asset["fileFacts"] = facts;
                 asset["fileState"] = json!(if written { "written" } else { "not-written" });
             }
         }
@@ -489,6 +547,12 @@ impl AssetJob {
                     } else {
                         "pending"
                     });
+                    if asset["fileState"] == "not-written" {
+                        asset["fileStateReason"] = json!(unwritten_reason(&asset, state.result.as_ref()));
+                        if let Some(path) = path {
+                            asset["requestedPathFacts"] = file_facts(path);
+                        }
+                    }
                     // Bytes are held until the whole job is projected, so an
                     // exported asset reads `pending` until then; say so.
                     if asset["fileState"] == "pending" {

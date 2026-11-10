@@ -214,3 +214,57 @@ test('reconciled title and summary render once and preserve parent layout throug
   await page.close();
  },{responsive:true,reset:true});
 });
+
+test('Korean keep-all with textWrap pretty compiles, and generated headings reset user-agent margins', {timeout:360000}, async()=> {
+ const copy='진단 결과를 바탕으로 개선을 제안하고 실행 계획을 함께 세웁니다';
+ const text=(id,name,characters,extra={})=>({id,type:'TEXT',fields:{name,parentId:'root',characters,fontSize:24,
+  lineHeight:{unit:'PIXELS',value:34},width:360,height:68,textAutoResize:'HEIGHT',textTruncation:'DISABLED',
+  layoutSizingHorizontal:'FIXED',layoutSizingVertical:'HUG',...extra}});
+ const snapshot={fileKey:'prime-wrap',version:null,roots:['root'],diagnostics:[],nodes:{
+  root:{id:'root',type:'FRAME',fields:{name:'RenderFixture',width:400,height:400,layoutMode:'VERTICAL',
+   layoutSizingHorizontal:'FIXED',layoutSizingVertical:'HUG',itemSpacing:0,childrenIds:['heading','body','label']}},
+  heading:text('heading','Heading 2','실행 계획'),
+  body:text('body','Body',copy),
+  label:text('label','Label','편집 설정',{textAutoResize:'WIDTH_AND_HEIGHT',width:80,height:34,layoutSizingHorizontal:'HUG'}),
+ }};
+ // No reset stylesheet: the user-agent h2 margin must be neutralized by the
+ // generated my="0px" itself.
+ await rendered(snapshot,async(browser,url,dir)=> {
+  const page=await browser.newPage({viewport:{width:400,height:600},deviceScaleFactor:1});
+  await page.goto(url);await page.evaluate(()=>document.fonts.ready);
+  const source=await readFile(join(dir,'Generated.tsx'),'utf8');
+  assert.match(source,/textWrap="pretty"/);
+  assert.match(source,/as="h2"/);
+  const styles=await page.evaluate(()=>{
+   const pick=(selector)=>{const element=document.querySelector(selector);const style=getComputedStyle(element);
+    return {tag:element.tagName,marginTop:style.marginTop,marginBottom:style.marginBottom,wordBreak:style.wordBreak,
+     overflowWrap:style.overflowWrap,textWrapStyle:style.textWrapStyle,textWrapMode:style.textWrapMode,whiteSpace:style.whiteSpace};};
+   return {heading:pick('[data-figma-node-id="heading"]'),body:pick('[data-figma-node-id="body"]'),label:pick('[data-figma-node-id="label"]')};
+  });
+  assert.equal(styles.heading.tag,'H2',JSON.stringify(styles));
+  assert.equal(styles.heading.marginTop,'0px',JSON.stringify(styles));
+  assert.equal(styles.heading.marginBottom,'0px',JSON.stringify(styles));
+  assert.equal(styles.body.wordBreak,'keep-all',JSON.stringify(styles));
+  assert.equal(styles.body.overflowWrap,'break-word',JSON.stringify(styles));
+  assert.equal(styles.body.textWrapStyle,'pretty',JSON.stringify(styles));
+  assert.equal(styles.body.textWrapMode,'wrap',JSON.stringify(styles));
+  // Intrinsic-width text keeps whiteSpace pre and never gets text-wrap, which
+  // would reset text-wrap-mode and re-enable soft wrapping.
+  assert.equal(styles.label.whiteSpace,'pre',JSON.stringify(styles));
+  assert.equal(styles.label.textWrapMode,'nowrap',JSON.stringify(styles));
+  // keep-all: every line break falls on a word boundary.
+  const lines=await page.evaluate(()=>{
+   const element=document.querySelector('[data-figma-node-id="body"]');
+   const node=[...element.childNodes].find(child=>child.nodeType===Node.TEXT_NODE);
+   const range=document.createRange();const tops=[];let line='';const out=[];
+   for(let index=0;index<node.length;index++){range.setStart(node,index);range.setEnd(node,index+1);
+    const top=Math.round(range.getBoundingClientRect().top);
+    if(tops.length&&top!==tops[tops.length-1]){out.push(line);line='';}
+    if(!tops.length||top!==tops[tops.length-1])tops.push(top);line+=node.data[index];}
+   out.push(line);return out;
+  });
+  assert.ok(lines.length>1,JSON.stringify(lines));
+  for(const line of lines.slice(0,-1)) assert.match(line,/\s$/,`line must end at a word boundary: ${JSON.stringify(lines)}`);
+  await page.close();
+ });
+});

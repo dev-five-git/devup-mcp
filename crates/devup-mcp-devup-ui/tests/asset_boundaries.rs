@@ -117,7 +117,7 @@ fn separate_image_fills_do_not_claim_the_same_file() {
     );
 
     assert!(tsx.contains("/images/card.png"), "{tsx}");
-    assert!(tsx.contains("/images/card-1.png"), "{tsx}");
+    assert!(tsx.contains("/images/card--fill-1.png"), "{tsx}");
 }
 
 #[test]

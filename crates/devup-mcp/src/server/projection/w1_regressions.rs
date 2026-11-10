@@ -2,6 +2,7 @@ include!("responsive_paint_regressions.rs");
 
 include!("design_drift_tests.rs");
 include!("feedback_theme_tests.rs");
+include!("feedback_hidden_master_tests.rs");
 include!("feedback_codegen_tests.rs");
 include!("feedback_delivery_tests.rs");
 include!("truncated_delivery_tests.rs");

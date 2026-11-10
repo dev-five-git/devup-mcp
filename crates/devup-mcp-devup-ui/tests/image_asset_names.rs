@@ -119,3 +119,52 @@ fn distinct_svg_variants_do_not_share_a_filename_when_per_node_is_off() {
         asset_path(&snapshot, "b", false)
     );
 }
+
+/// Feedback 006: extra fills were `{stem}-{index}` while a different asset
+/// with the same base name was deduplicated to `{stem}-2`, so fill 2 of the
+/// first `hero` and the second `hero` asset both became `hero-2.png`.
+#[test]
+fn extra_fill_paths_cannot_collide_with_deduplicated_asset_names() {
+    let snapshot: Snapshot = serde_json::from_value(json!({"fileKey":"fixture","roots":["root"],"diagnostics":[],"nodes":{
+        "root":{"id":"root","type":"FRAME","fields":{"name":"Main","childrenIds":["1:1","1:2","1:3"]}},
+        "1:1":{"id":"1:1","type":"RECTANGLE","fields":{"name":"Hero","parentId":"root","isAsset":true,"fills":[
+            {"type":"IMAGE","imageHash":"photo-a"},{"type":"IMAGE","imageHash":"photo-b"},{"type":"IMAGE","imageHash":"photo-c"}]}},
+        "1:2":{"id":"1:2","type":"RECTANGLE","fields":{"name":"Hero","parentId":"root","isAsset":true,"fills":[{"type":"IMAGE","imageHash":"photo-d"}]}},
+        "1:3":{"id":"1:3","type":"RECTANGLE","fields":{"name":"Hero","parentId":"root","isAsset":true,"fills":[{"type":"IMAGE","imageHash":"photo-e"}]}}
+    }})).unwrap();
+    for per_node in [false, true] {
+        let mut paths = Vec::new();
+        for fill in 0..3 {
+            paths.push(image_fill_path(&snapshot, "1:1", fill, per_node).unwrap());
+        }
+        paths.push(image_fill_path(&snapshot, "1:2", 0, per_node).unwrap());
+        paths.push(image_fill_path(&snapshot, "1:3", 0, per_node).unwrap());
+        assert_eq!(
+            paths,
+            [
+                "/images/hero.png",
+                "/images/hero--fill-1.png",
+                "/images/hero--fill-2.png",
+                "/images/hero-2.png",
+                "/images/hero-3.png",
+            ],
+            "per_node={per_node}"
+        );
+        let unique = paths.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(), paths.len(), "{paths:?}");
+        // The code refers to exactly the paths the manifest reports.
+        let tsx = generate_component(
+            &snapshot,
+            "root",
+            &CodegenOptions {
+                asset_names_per_node: per_node,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .tsx;
+        for path in &paths[1..3] {
+            assert!(tsx.contains(path.as_str()), "{path}: {tsx}");
+        }
+    }
+}

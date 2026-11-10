@@ -18,25 +18,39 @@ fn segments_contain_korean(view: &TypedNode<'_>) -> bool {
         })
 }
 
-fn theme_has_word_break(value: &Value) -> bool {
+fn theme_has_key(value: &Value, key: &str) -> bool {
     match value {
-        Value::Array(values) => values.iter().any(theme_has_word_break),
-        Value::Object(value) => value.contains_key("wordBreak"),
+        Value::Array(values) => values.iter().any(|value| theme_has_key(value, key)),
+        Value::Object(value) => value.contains_key(key),
         _ => false,
     }
 }
 
 /// Korean copy wraps at word boundaries even in measured fixed-width text.
+/// `textWrap="pretty"` lets the browser rebalance word-boundary breaks so
+/// keep-all does not leave a large trailing gap or a single orphaned word.
+/// `text-wrap` is a CSS shorthand that also resets `text-wrap-mode` to
+/// `wrap`, so it is never added to text whose `whiteSpace` (`pre`/`nowrap`)
+/// deliberately disables soft wrapping: it would re-enable wrapping there.
 fn push_korean_wrap_policy(view: &TypedNode<'_>, theme: Option<&Value>, props: &mut Vec<Prop>) {
     if !segments_contain_korean(view)
         || props.iter().any(|(name, _)| name == "wordBreak")
-        || theme.is_some_and(theme_has_word_break)
+        || theme.is_some_and(|value| theme_has_key(value, "wordBreak"))
     {
         return;
     }
     string_prop(props, "wordBreak", "keep-all");
     if !props.iter().any(|(name, _)| name == "overflowWrap") {
         string_prop(props, "overflowWrap", "break-word");
+    }
+    if !props.iter().any(|(name, _)| name == "textWrap")
+        && !props.iter().any(|(name, value)| {
+            name == "whiteSpace"
+                && matches!(value, PropValue::String(mode) if mode == "pre" || mode == "nowrap")
+        })
+        && !theme.is_some_and(|value| theme_has_key(value, "textWrap"))
+    {
+        string_prop(props, "textWrap", "pretty");
     }
 }
 

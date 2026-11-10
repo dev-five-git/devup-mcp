@@ -82,6 +82,7 @@ expression: actual
         letterSpacing="-1px"
         lineHeight="24px"
         overflowWrap="break-word"
+        textWrap="pretty"
         wordBreak="keep-all"
       >
         댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력

@@ -44,6 +44,53 @@ pub fn validate(
     Ok(())
 }
 
+/// A missing-only `devupJson` holds only the tokens the project's devup.json
+/// lacks. Saved as a `devup.json` it would replace the project theme with that
+/// fragment, so such a path is refused before any Figma call.
+pub fn validate_output_path(mode: &str, path: Option<&str>) -> Result<(), DevupError> {
+    let Some(path) = path.filter(|_| mode == "missing-only") else {
+        return Ok(());
+    };
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    if name.eq_ignore_ascii_case("devup.json") {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "missing-only devupJson contains only additions and cannot be saved as devup.json; it would replace the project theme.",
+            false,
+            json!({"devupJsonScope":"additions-only","outputPath":path,
+                "nextAction":"Save it under another name (for example devup.additions.json) and deep-merge its keys into the existing devup.json, or request devupJsonMode full for a complete theme."}),
+        ));
+    }
+    Ok(())
+}
+
+/// What the returned `devupJson` holds, so an additions-only fragment cannot be
+/// mistaken for a complete theme (`themeCompleteness` describes token
+/// resolution, not whether the file is a whole theme).
+pub(super) fn scope_markers(mode: &str, project_root: Option<&str>) -> Map<String, Value> {
+    let mut markers = Map::new();
+    let scope = match mode {
+        "missing-only" => "additions-only",
+        "used-only" => "used-tokens",
+        _ => "complete-theme",
+    };
+    markers.insert("devupJsonScope".into(), json!(scope));
+    if mode == "missing-only" {
+        let target = project_root.map_or_else(
+            || "devup.json".to_owned(),
+            |root| format!("{}/devup.json", root.trim_end_matches(['/', '\\'])),
+        );
+        markers.insert("devupJsonMerge".into(), json!({
+            "target": target,
+            "strategy": "deep-merge-add-missing-keys",
+            "existingValuesPreserved": true,
+            "projectFileWritten": false,
+            "instruction": "devupJson lists only tokens absent from the existing devup.json. Deep-merge these keys into that file without replacing existing values; never use it as the whole theme. Re-validate tokens against the final assembled JSX after merging."
+        }));
+    }
+    markers
+}
+
 fn usage(result: &Map<String, Value>) -> Result<(TokenUsage, usize), DevupError> {
     fn add(
         result: &Map<String, Value>,
@@ -195,6 +242,7 @@ pub fn prepare(
             &options.mode
         }),
     );
+    result.extend(scope_markers(&options.mode, options.project_root.as_deref()));
     result.insert("skippedStyles".into(), json!(output.skipped_styles));
     result.insert(
         "themeModesDropped".into(),

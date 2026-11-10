@@ -111,3 +111,17 @@ every legacy fixture. Full-parent overlays (021 and 191), fluid constraints and
 read-error cases retain their previous policy. Original case JSON and upstream
 identity are unchanged; only four reviewed code snapshots and their
 LF-normalized checksums change. No expected image is regenerated from code.
+
+### Prime Korean pretty wrapping (2026-11-10)
+
+The user-confirmed policy keeps Korean word boundaries (keep-all) and avoids
+large trailing gaps at line ends with `text-wrap: pretty`. Seven reviewed
+codegen goldens add exactly fifteen `textWrap="pretty"` lines (165: 2, 191: 1,
+213: 1, 223: 6, 248: 1, 252: 2, 253: 2) and nothing else. Text with
+`whiteSpace="pre"`/`nowrap` gets no `textWrap`, because the CSS `text-wrap`
+shorthand resets `text-wrap-mode` to `wrap` and would re-enable soft wrapping.
+Explicit local/theme `textWrap` wins. Source case JSON, upstream identity and
+inventory are unchanged; only these seven snapshot checksums change. This is a
+browser line-balancing policy, not new pixel evidence for the pinned screens;
+a diff caused only by Figma breaking inside a Korean word is a documented
+policy difference.
