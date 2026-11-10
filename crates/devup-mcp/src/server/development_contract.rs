@@ -23,11 +23,13 @@ pub(super) fn attach(result: &mut Value) {
             "semantic-native-controls-and-complete-pseudo-states", "variant-palette-consistency",
             "single-source-url-content-selection", "viewport-footer-shell",
             "default-motion-and-safe-progressive-enhancement",
+            "one-shot-reveals-without-ssr-flash",
             "canonical-semantic-assets",
             "landing-detail-api-db-single-source", "runtime-evidence-before-completion"
         ],
         "completionEvidence": ["both-control-directions-and-history", "all-widths-and-zoom-context",
-            "computed-style-and-animation-start-middle-end", "changed-empty-and-failing-api",
+            "computed-style-and-animation-start-middle-end",
+            "motion-trigger-reentry-history-and-image-failure", "changed-empty-and-failing-api",
             "all-public-assets-and-persisted-url-references"],
         "staticExportProvesApplicationBehavior": false,
         "nextAction": "Read the linked rules, apply behaviorPlan, fix and rerun functional E2E plus native Figma visuals before claiming completion."
@@ -52,12 +54,15 @@ mod tests {
             assert!(RULES.contains(term), "missing delivery policy: {term}");
         }
         // Motion is asked for by default, so its rules travel with every export.
-        // The export reply has a 15 KiB budget with a few dozen bytes to
-        // spare, so motion-by-default renames two ids instead of adding any;
-        // the linked rules carry the detail checked below.
-        assert!(requirements.contains(&json!("default-motion-and-safe-progressive-enhancement")));
+        // Motion is a default item: the contract names it and its evidence,
+        // and the linked rules carry the detail checked below.
+        for required in ["default-motion-and-safe-progressive-enhancement", "one-shot-reveals-without-ssr-flash"] {
+            assert!(requirements.contains(&json!(required)), "{required}");
+        }
         let evidence = result["developmentContract"]["completionEvidence"].as_array().unwrap();
-        assert!(evidence.contains(&json!("computed-style-and-animation-start-middle-end")));
+        for required in ["computed-style-and-animation-start-middle-end", "motion-trigger-reentry-history-and-image-failure"] {
+            assert!(evidence.contains(&json!(required)), "{required}");
+        }
         for (document, terms) in [
             (RULES, &["without being asked", "plays once", "opacity: 0", "prefers-reduced-motion", "back/forward", "failed images"][..]),
             (MOTION_RULES, &["user stated", "once: true", "stagger", "background", "Progress line", "hydration", "JavaScript disabled", "focus", "start, a middle and the end", "Trigger timing", "Fast scroll", "back/forward", "block one"][..]),

@@ -81,8 +81,8 @@
         },
         {
           "path": "references/animation.md",
-          "bytes": 6600,
-          "sha256": "cc04c822ea2def17f754e8089f38254d031b7b9501c638355e64674624ed93d1"
+          "bytes": 7669,
+          "sha256": "beaba3bd5b6c564d0f9f1a1bab0928b6e0c58f0c5f7b9f9d723a8df573939b30"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",

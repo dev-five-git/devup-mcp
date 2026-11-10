@@ -102,10 +102,29 @@ added or changed, at one mobile and one desktop width:
 - **Preferences and access**: reduced motion, JavaScript disabled, and
   Tab/Shift+Tab through the block's controls before and during its entrance.
 
-`devup_runtime_audit` motion checks (`kind: "reveal"`) measure the
-intermediate frame, the final state and re-entry for a bound target.
+Most of this list is measurable. A `devup_runtime_audit` motion check with
+`kind: "reveal"` always measures the intermediate and final frames, the
+trigger position (`measured.trigger`: it fails when the entrance starts more
+than 1px off screen or only after the block has been fully visible for
+400ms) and re-entry. Add `scenarios` to run the rest from a fresh load:
+
+| Scenario | Fails when |
+|----------|------------|
+| `fast-scroll` | after a fling to the bottom the block is not fully shown |
+| `reload`, `history` | the block is hidden or displaced at the restored scroll position |
+| `image-delay`, `image-failure` | a stalled or aborted image keeps the block hidden or changes its height |
+| `focus` | a focused control inside the block is still animating (`focus` selects the control) |
+| `progress-sync` | an item appears more than 200ms before or after the line reaches it (`progress` and `items` selectors) |
+
+A scenario that cannot be observed fails rather than passes, and scenarios
+you did not request are listed in `measured.scenariosNotRun`. Run the check
+at one mobile and one desktop width.
+
 `devup_ui_validate` reports what the source alone proves:
-`ssr-hidden-reveal`, `reveal-replays`, `reveal-moves-background` and
-`motion-without-reduced-motion`. Neither replaces the list above. Report each
-item as verified or explicitly unverified, with the width it was checked at;
-never report motion as done from a final screenshot.
+`ssr-hidden-reveal`, `reveal-replays`, `reveal-moves-background`,
+`stagger-too-long` and `motion-without-reduced-motion`.
+
+Still a judgement, not a measurement: whether motion suits the block at all,
+and whether it is restrained. Report each item as verified or explicitly
+unverified, with the width it was checked at; never report motion as done
+from a final screenshot.

@@ -176,6 +176,13 @@ async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow
     let result = export(json!({"url":URL,"projectRoot":root})).await?;
     let bytes = serde_json::to_vec(&result)?.len();
     eprintln!("projectRoot export structured reply: {bytes} bytes");
+    // A plan complete on its first page carries no page-joining instruction.
+    assert_eq!(result["behaviorPlan"]["pagination"]["complete"], true);
+    assert!(
+        result["behaviorPlan"]["pagination"]
+            .get("aggregation")
+            .is_none()
+    );
     assert!(bytes < 15 * 1024, "reply is {bytes} bytes");
     assert_eq!(result["projectContext"]["counts"]["publicFiles"], 180);
     assert_eq!(result["projectContext"]["ui"]["components"], json!([]));
