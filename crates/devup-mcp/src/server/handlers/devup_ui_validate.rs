@@ -37,7 +37,7 @@ impl DevupServer {
                     .into(),
             ));
         }
-        let theme_lookup = if paths_mode {
+        let mut theme_lookup = if paths_mode {
             project_context::theme_for_validation(input.project_root.as_deref()).map_err(to_mcp_error)?
         } else if let Some(files) = &input.files {
             check_bundle(files).map_err(invalid)?;
@@ -50,6 +50,12 @@ impl DevupServer {
             project_context::theme_for_validation(input.project_root.as_deref())
                 .map_err(to_mcp_error)?
         };
+        if !paths_mode
+            && input.files.is_none()
+            && let (Some(root), Some(name)) = (input.project_root.as_deref(), input.source_name.as_deref())
+        {
+            theme_lookup = scopes::for_source_name(root, name, theme_lookup).map_err(invalid)?;
+        }
         // Files are checked against the nearest devup.json above each of them,
         // so one call over a repository of several apps uses each app's theme.
         // `scoped_tokens`/`scoped_guardrail` say which files that left unchecked.
@@ -245,6 +251,7 @@ impl DevupServer {
                 "referencedByTsx": report.checked_tokens,
                 "definedByTheme": report.available_token_count,
                 "unknownTokenCheckRan": theme_available,
+                "devupJson": theme_lookup.devup_json,
             })),
             "themeAvailable": theme_available,
             "themeGuardrail": if scoped_tokens.is_some() { scoped_guardrail } else { theme_lookup.guardrail },

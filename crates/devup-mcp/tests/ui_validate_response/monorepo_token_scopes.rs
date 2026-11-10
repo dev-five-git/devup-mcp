@@ -131,3 +131,60 @@ async fn a_bundle_with_several_themes_is_matched_per_directory() -> anyhow::Resu
     assert!(out["themeGuardrail"]["message"].as_str().unwrap().contains("never reads the filesystem"), "{out}");
     Ok(())
 }
+
+/// A single `tsx` has no path, so at a repository root with several themes
+/// its tokens were unverifiable. A relative `sourceName` gives it a location,
+/// and the nearest `devup.json` above that location is used.
+#[tokio::test]
+async fn a_single_tsx_is_located_by_its_source_name() -> anyhow::Result<()> {
+    let root = monorepo("source-name")?;
+    let tsx = r#"export function Panel() { return <Box bg="$bg" /> }"#;
+    let front = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"apps/front/src/New.tsx"})).await;
+    let admin = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"apps\\admin\\src\\New.tsx"})).await;
+    let shared = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"shared/New.tsx"})).await;
+    let label = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"New.tsx"})).await;
+    let escape = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"../apps/front/src/New.tsx"})).await;
+    std::fs::remove_dir_all(&root)?;
+
+    // The named file does not exist: only its directories are inspected.
+    let out = front?;
+    assert!(!has_rule(&out, "unknown-token"), "{out}");
+    assert_eq!(out["themeAvailable"], true, "{out}");
+    assert_eq!(out["tokens"]["devupJson"], "apps/front/devup.json", "{out}");
+    assert!(out["themeGuardrail"].is_null(), "{out}");
+
+    let out = admin?;
+    assert!(has_rule(&out, "unknown-token"), "{out}");
+    assert_eq!(out["tokens"]["devupJson"], "apps/admin/devup.json", "{out}");
+
+    // No theme above it, a bare label, or a path leaving the project: the
+    // repository-wide answer stands, and that answer is "not verified".
+    for out in [shared?, label?, escape?] {
+        assert!(!has_rule(&out, "unknown-token"), "{out}");
+        assert_eq!(out["themeAvailable"], false, "{out}");
+        assert_eq!(out["okReason"], "clean-unverified-tokens", "{out}");
+        assert!(out["tokens"]["devupJson"].is_null(), "{out}");
+    }
+    Ok(())
+}
+
+/// One theme in the project is still used for a located tsx outside every
+/// package, but not for one inside another package.
+#[tokio::test]
+async fn a_located_tsx_does_not_borrow_another_packages_theme() -> anyhow::Result<()> {
+    let root = monorepo("source-boundary")?;
+    std::fs::remove_file(root.join("apps/admin/devup.json"))?;
+    let tsx = r#"export function Panel() { return <Box bg="$missing" /> }"#;
+    let admin = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"apps/admin/src/New.tsx"})).await;
+    let shared = validate(json!({"tsx":tsx,"projectRoot":root,"sourceName":"shared/New.tsx"})).await;
+    std::fs::remove_dir_all(&root)?;
+    let out = admin?;
+    assert!(!has_rule(&out, "unknown-token"), "{out}");
+    assert_eq!(out["themeAvailable"], false, "{out}");
+    assert_eq!(out["themeGuardrail"]["unverifiedPaths"], json!(["apps/admin/src/New.tsx"]), "{out}");
+    assert_eq!(out["okReason"], "clean-unverified-tokens", "{out}");
+    let out = shared?;
+    assert!(has_rule(&out, "unknown-token"), "{out}");
+    assert_eq!(out["themeAvailable"], true, "{out}");
+    Ok(())
+}

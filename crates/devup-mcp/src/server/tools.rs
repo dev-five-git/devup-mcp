@@ -408,7 +408,9 @@ pub struct UiValidateInput {
         "items" = serde_json::json!({"type":"object","required":["path","content"],"additionalProperties":{"not":{}},"properties":{"path":{"type":"string"},"content":{"type":"string"}}})
     ))]
     pub files: Option<Vec<devup_mcp_devup_ui::ui_validate::SourceFile>>,
-    /// Optional source label echoed in diagnostics; never read as a file path.
+    /// Optional source label echoed in diagnostics; the file is never opened.
+    /// With projectRoot, a relative path (apps/front/src/Hero.tsx) also selects
+    /// the nearest devup.json above that location for this tsx.
     #[serde(default)]
     pub source_name: Option<String>,
     #[serde(default)]

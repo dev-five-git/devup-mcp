@@ -71,6 +71,51 @@ pub(super) fn disk_scopes(root: &str, files: &[SourceFile]) -> Result<DiskScopes
     Ok(DiskScopes { scopes: themes.into_values().collect(), packages })
 }
 
+/// A single `tsx` has no path of its own, so at a repository root with several
+/// themes its tokens could not be checked at all. When the caller labels it
+/// with a relative path (`sourceName`), that location selects the theme the
+/// same way a file's does: the nearest `devup.json` above it. Only directories
+/// are inspected; the named file is never opened and need not exist.
+///
+/// Returns `lookup` unchanged when the label is not a relative path inside
+/// the project or nothing above it decides anything.
+pub(super) fn for_source_name(
+    root: &str,
+    source_name: &str,
+    lookup: super::project_context::ThemeLookup,
+) -> Result<super::project_context::ThemeLookup, String> {
+    let path = source_name.replace('\\', "/");
+    let located = !path.starts_with('/')
+        && !path.contains(':')
+        && path.contains('/')
+        && path.split('/').all(|part| !part.is_empty() && part != ".." && part != ".");
+    if !located {
+        return Ok(lookup);
+    }
+    let file = SourceFile { path: path.clone(), content: String::new() };
+    let mut disk = disk_scopes(root, std::slice::from_ref(&file))?;
+    let nearest = devup_mcp_devup_ui::ui_validate::theme_scopes::nearest_scope(&disk.scopes, &path)
+        .map(|scope| scope.dir.clone());
+    if let Some(dir) = nearest {
+        let index = disk.scopes.iter().position(|scope| scope.dir == dir).expect("nearest scope");
+        let scope = disk.scopes.swap_remove(index);
+        return Ok(super::project_context::ThemeLookup {
+            theme: Some(scope.theme),
+            devup_json: Some(scope.devup_json),
+            guardrail: None,
+        });
+    }
+    // Another package's theme is not this file's: unverified, not checked.
+    if lookup.theme.is_some() && !disk.fallback_applies(&path) {
+        return Ok(super::project_context::ThemeLookup {
+            theme: None,
+            devup_json: None,
+            guardrail: Some(json!({ "message": NO_THEME_ABOVE, "unverifiedFiles": 1, "unverifiedPaths": [path] })),
+        });
+    }
+    Ok(lookup)
+}
+
 /// The `tokens` object for a scoped run. `unknownTokenCheckRan` is true only
 /// when every file was checked: a partly checked project did not pass.
 pub(super) fn tokens(scoped: &ScopedValidation) -> Value {

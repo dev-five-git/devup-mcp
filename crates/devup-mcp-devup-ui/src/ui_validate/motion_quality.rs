@@ -9,9 +9,15 @@
 //!   is invisible until JavaScript hydrates and animates it — and stays
 //!   invisible when JavaScript fails or is slow.
 //! - `reveal-replays`: `whileInView` without `viewport={{ once: true }}`
-//!   plays again on every re-entry.
+//!   plays again on every re-entry (warning). An in-view hook
+//!   (`useInView` from motion or react-intersection-observer) with no
+//!   one-shot option is the same question asked of code whose purpose is not
+//!   visible here, so it is info.
 //! - `reveal-moves-background`: the element that carries the section's paint
 //!   is the one being faded or moved, so the background animates with it.
+//! - `stagger-too-long`: each item of a group waits more than 150ms after
+//!   the previous one (`staggerChildren`, or `delay: index * step`), so a
+//!   handful of cards takes over a second to finish appearing.
 //! - `motion-without-reduced-motion`: entrance motion with no reduced-motion
 //!   handling anywhere in the validated sources (cross-file, see
 //!   [`reduced_motion_finding`]).
@@ -21,6 +27,9 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
+
+/// The longest per-item step, in seconds, that still reads as one group.
+const MAX_STAGGER_STEP: f64 = 0.15;
 
 const BACKGROUND_PROPS: &[&str] =
     &["bg", "bgColor", "bgImage", "background", "backgroundColor", "backgroundImage"];
@@ -48,12 +57,54 @@ pub fn reduced_motion_finding(source: &str) -> Option<Violation> {
 }
 
 /// Whether this source reads the user's motion preference or configures it
-/// for the tree (`useReducedMotion`, `MotionConfig reducedMotion`, a
-/// `prefers-reduced-motion` media rule or query).
+/// for the tree: a reference to `useReducedMotion`/`usePrefersReducedMotion`
+/// (or any `…ReducedMotion` name), a `reducedMotion`/`_motionReduce` prop or
+/// key, or a `prefers-reduced-motion` media rule or query in a string.
+///
+/// Read from the syntax tree, so a comment that mentions reduced motion or an
+/// import nobody calls does not count as handling it.
 pub fn handles_reduced_motion(source: &str) -> bool {
-    ["educedMotion", "prefers-reduced-motion", "_motionReduce"]
-        .iter()
-        .any(|needle| source.contains(needle))
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    if parsed.panicked || !parsed.diagnostics.is_empty() {
+        // Unparseable source is reported as invalid-syntax elsewhere; do not
+        // add a motion finding on top of it.
+        return true;
+    }
+    let mut preference = Preference(false);
+    preference.visit_program(&parsed.program);
+    preference.0
+}
+
+struct Preference(bool);
+
+impl Preference {
+    fn name(&mut self, name: &str) {
+        self.0 |= name.contains("ReducedMotion") || matches!(name, "reducedMotion" | "_motionReduce");
+    }
+    fn text(&mut self, text: &str) {
+        self.0 |= text.contains("prefers-reduced-motion");
+    }
+}
+
+impl<'a> Visit<'a> for Preference {
+    // An import names the hook; only a use of it handles anything.
+    fn visit_import_declaration(&mut self, _: &ImportDeclaration<'a>) {}
+    fn visit_identifier_reference(&mut self, node: &IdentifierReference<'a>) {
+        self.name(node.name.as_str());
+    }
+    fn visit_identifier_name(&mut self, node: &IdentifierName<'a>) {
+        self.name(node.name.as_str());
+    }
+    fn visit_jsx_identifier(&mut self, node: &JSXIdentifier<'a>) {
+        self.name(node.name.as_str());
+    }
+    fn visit_string_literal(&mut self, node: &StringLiteral<'a>) {
+        self.text(node.value.as_str());
+    }
+    fn visit_template_element(&mut self, node: &TemplateElement<'a>) {
+        self.text(node.value.raw.as_str());
+    }
 }
 
 fn collect(source: &str) -> Option<Collector<'_>> {
@@ -62,10 +113,46 @@ fn collect(source: &str) -> Option<Collector<'_>> {
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
     }
-    let mut collector =
-        Collector { source, findings: Vec::new(), first_entrance: None, optional: 0 };
+    let mut components = MotionComponents(Vec::new());
+    components.visit_program(&parsed.program);
+    let mut collector = Collector {
+        source,
+        findings: Vec::new(),
+        first_entrance: None,
+        optional: 0,
+        motion_components: components.0,
+    };
     collector.visit_program(&parsed.program);
     Some(collector)
+}
+
+fn is_motion_namespace(name: &str) -> bool {
+    matches!(name, "motion" | "m")
+}
+
+/// `const MotionBox = motion.create(Box)` / `motion(Box)`: a component that
+/// takes the same `initial`/`whileInView` props as `motion.div`.
+struct MotionComponents(Vec<String>);
+
+impl<'a> Visit<'a> for MotionComponents {
+    fn visit_variable_declarator(&mut self, node: &VariableDeclarator<'a>) {
+        if let (Some(name), Some(Expression::CallExpression(call))) =
+            (node.id.get_binding_identifier(), node.init.as_ref().map(Expression::get_inner_expression))
+        {
+            let wraps = match call.callee.get_inner_expression() {
+                Expression::Identifier(callee) => is_motion_namespace(callee.name.as_str()),
+                Expression::StaticMemberExpression(member) => {
+                    member.property.name == "create"
+                        && matches!(member.object.get_inner_expression(), Expression::Identifier(object) if is_motion_namespace(object.name.as_str()))
+                }
+                _ => false,
+            };
+            if wraps {
+                self.0.push(name.name.to_string());
+            }
+        }
+        walk::walk_variable_declarator(self, node);
+    }
 }
 
 struct Collector<'s> {
@@ -76,6 +163,8 @@ struct Collector<'s> {
     /// element mounts on the client later, so its initial style is not
     /// server markup.
     optional: usize,
+    /// Components this file builds with `motion.create(…)`/`motion(…)`.
+    motion_components: Vec<String>,
 }
 
 fn attribute<'b, 'a>(node: &'b JSXOpeningElement<'a>, name: &str) -> Option<&'b JSXAttribute<'a>> {
@@ -131,9 +220,42 @@ fn hides(expression: &Expression<'_>) -> bool {
     matches!(expression, Expression::ObjectExpression(object) if property(object, "opacity").is_some_and(is_zero))
 }
 
-fn is_motion_element(node: &JSXOpeningElement<'_>) -> bool {
-    matches!(&node.name, JSXElementName::MemberExpression(member)
-        if matches!(&member.object, JSXMemberExpressionObject::IdentifierReference(object) if matches!(object.name.as_str(), "motion" | "m")))
+fn is_motion_element(node: &JSXOpeningElement<'_>, components: &[String]) -> bool {
+    match &node.name {
+        JSXElementName::MemberExpression(member) => {
+            matches!(&member.object, JSXMemberExpressionObject::IdentifierReference(object) if is_motion_namespace(object.name.as_str()))
+        }
+        name => name
+            .get_identifier_name()
+            .is_some_and(|name| components.iter().any(|component| component == name.as_str())),
+    }
+}
+
+/// Whether an in-view hook call is one-shot: `Some(true)` with
+/// `once: true` (motion) or `triggerOnce: true` (react-intersection-observer),
+/// `Some(false)` when every argument is readable and none says so, `None`
+/// when options are built elsewhere.
+fn hook_is_one_shot(call: &CallExpression<'_>) -> Option<bool> {
+    let mut readable = true;
+    for (index, argument) in call.arguments.iter().enumerate() {
+        match argument.as_expression().map(Expression::get_inner_expression) {
+            Some(Expression::ObjectExpression(object)) => {
+                if ["once", "triggerOnce"].iter().any(|key| {
+                    matches!(property(object, key), Some(Expression::BooleanLiteral(flag)) if flag.value)
+                }) {
+                    return Some(true);
+                }
+                readable &= !object
+                    .properties
+                    .iter()
+                    .any(|item| matches!(item, ObjectPropertyKind::SpreadProperty(_)));
+            }
+            // motion's first argument is the element ref.
+            Some(Expression::Identifier(_)) if index == 0 => {}
+            _ => readable = false,
+        }
+    }
+    readable.then_some(false)
 }
 
 /// `initial={{ opacity: 0 }}`, or `initial="hidden"` naming a variant this
@@ -196,9 +318,45 @@ impl<'a> Visit<'a> for Collector<'_> {
         self.optional -= 1;
     }
 
+    fn visit_object_property(&mut self, node: &ObjectProperty<'a>) {
+        // `staggerChildren: 0.3`, or `delay: index * 0.3` (either order). A
+        // fixed `delay: 0.3` is one wait, not a per-item step.
+        let step = match (node.key.static_name().as_deref(), node.value.get_inner_expression()) {
+            (Some("staggerChildren"), Expression::NumericLiteral(number)) => Some(number.value),
+            (Some("delay"), Expression::BinaryExpression(binary)) if binary.operator == BinaryOperator::Multiplication => {
+                match (binary.left.get_inner_expression(), binary.right.get_inner_expression()) {
+                    (Expression::NumericLiteral(number), other) | (other, Expression::NumericLiteral(number))
+                        if !matches!(other, Expression::NumericLiteral(_)) =>
+                    {
+                        Some(number.value)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        if let Some(step) = step.filter(|step| *step > MAX_STAGGER_STEP) {
+            self.findings.push(site::violation(self.source, node.span, "stagger-too-long", Severity::Warning,
+                format!("Each item waits {}ms after the previous one, so the group takes a long time to finish appearing.", (step * 1000.0).round()),
+                "Keep a group stagger short (40-80ms per item, the whole group within about 400ms), or let the group enter together. Keep a longer step only when the design explicitly asks for it."));
+        }
+        walk::walk_object_property(self, node);
+    }
+
+    fn visit_call_expression(&mut self, node: &CallExpression<'a>) {
+        if matches!(node.callee.get_inner_expression(), Expression::Identifier(callee) if callee.name == "useInView")
+            && hook_is_one_shot(node) == Some(false)
+        {
+            self.findings.push(site::violation(self.source, node.span, "reveal-replays", Severity::Info,
+                "This in-view hook has no one-shot option; an entrance driven by it replays on every re-entry.".into(),
+                "For an entrance, pass { once: true } (motion) or { triggerOnce: true } (react-intersection-observer). Leave it as is when it tracks visibility for another purpose."));
+        }
+        walk::walk_call_expression(self, node);
+    }
+
     fn visit_jsx_opening_element(&mut self, node: &JSXOpeningElement<'a>) {
         let in_view = attribute(node, "whileInView");
-        let hidden = is_motion_element(node) && starts_hidden(node);
+        let hidden = is_motion_element(node, &self.motion_components) && starts_hidden(node);
         if (in_view.is_some() || hidden) && self.first_entrance.is_none() {
             self.first_entrance = Some(node.span);
         }
@@ -253,6 +411,43 @@ mod tests {
     }
 
     #[test]
+    fn components_built_from_motion_are_motion_elements() {
+        for source in [
+            r#"const MotionBox = motion.create(Box); const C = () => <MotionBox initial={{ opacity: 0 }} animate={{ opacity: 1 }} />"#,
+            r#"const C = () => <Card initial={{ opacity: 0 }} animate={{ opacity: 1 }} />; const Card = motion(Box)"#,
+            r#"const Fade = m.create('div'); const C = () => <Fade initial={{ opacity: 0 }} animate={{ opacity: 1 }} />"#,
+        ] {
+            assert_eq!(rules(source), ["ssr-hidden-reveal"], "{source}");
+        }
+        // Built by something else: `initial` is not known to be motion's.
+        let other = r#"const Card = styled(Box); const C = () => <Card initial={{ opacity: 0 }} />"#;
+        assert_eq!(rules(other), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn an_in_view_hook_without_a_one_shot_option_is_information() {
+        for source in [
+            r#"function C() { const ref = useRef(null); const inView = useInView(ref); return <div ref={ref} /> }"#,
+            r#"function C() { const inView = useInView(ref, { amount: 0.2 }); return null }"#,
+            r#"function C() { const { ref, inView } = useInView({ threshold: 0.2 }); return <div ref={ref} /> }"#,
+        ] {
+            let found = findings(source);
+            assert_eq!(found.len(), 1, "{source}");
+            assert_eq!((found[0].rule, found[0].severity), ("reveal-replays", Severity::Info), "{source}");
+        }
+        for source in [
+            r#"function C() { const inView = useInView(ref, { once: true, amount: 0.1 }); return null }"#,
+            r#"function C() { const { ref, inView } = useInView({ triggerOnce: true }); return <div ref={ref} /> }"#,
+            // Options built elsewhere cannot be read from here.
+            r#"function C() { const inView = useInView(ref, options); return null }"#,
+            r#"function C() { const inView = useInView(ref, { ...defaults }); return null }"#,
+            r#"function C() { const inView = other.useInView(ref); return null }"#,
+        ] {
+            assert_eq!(rules(source), Vec::<&str>::new(), "{source}");
+        }
+    }
+
+    #[test]
     fn client_mounted_and_unprovable_starts_are_not_reported() {
         for source in [
             // Mounted later on the client: never part of server markup.
@@ -267,6 +462,27 @@ mod tests {
             r#"const C = () => <motion.div initial="hidden" variants={variants} animate="visible" />"#,
             // Not a motion element: `initial` means something else here.
             r#"const C = () => <Form initial={{ opacity: 0 }} />"#,
+        ] {
+            assert_eq!(rules(source), Vec::<&str>::new(), "{source}");
+        }
+    }
+
+    #[test]
+    fn a_group_stagger_stays_short() {
+        for source in [
+            r#"const list = { visible: { transition: { staggerChildren: 0.3 } } }"#,
+            r#"const C = () => items.map((item, index) => <motion.li key={item.id} animate={{ y: 0 }} transition={{ delay: index * 0.25 }} />)"#,
+            r#"const C = () => items.map((item, i) => <motion.li key={item.id} animate={{ y: 0 }} transition={{ delay: 0.2 * i }} />)"#,
+        ] {
+            assert_eq!(rules(source), ["stagger-too-long"], "{source}");
+        }
+        for source in [
+            r#"const list = { visible: { transition: { staggerChildren: 0.06 } } }"#,
+            r#"const C = () => items.map((item, index) => <motion.li key={item.id} animate={{ y: 0 }} transition={{ delay: index * 0.08 }} />)"#,
+            // One fixed wait, and arithmetic that is not a per-item step.
+            r#"const C = () => <motion.div animate={{ y: 0 }} transition={{ delay: 0.4 }} />"#,
+            r#"const C = () => <motion.div animate={{ y: 0 }} transition={{ delay: 2 * 0.4 }} />"#,
+            r#"const C = () => <motion.div animate={{ y: 0 }} transition={{ delay: base + 0.4 }} />"#,
         ] {
             assert_eq!(rules(source), Vec::<&str>::new(), "{source}");
         }
@@ -305,7 +521,8 @@ mod tests {
 
     #[test]
     fn reduced_motion_is_asked_only_of_files_that_add_entrance_motion() {
-        let reveal = r#"const C = () => <motion.div whileInView="visible" viewport={{ once: true }} />"#;
+        let reveal = r#"// reduced motion: later
+const C = () => <motion.div whileInView="visible" viewport={{ once: true }} />"#;
         assert_eq!(reduced_motion_finding(reveal).map(|finding| finding.rule), Some("motion-without-reduced-motion"));
         for source in [
             r#"const C = () => { const reduced = useReducedMotion(); return <motion.div whileInView={reduced ? undefined : "visible"} viewport={{ once: true }} /> }"#,
@@ -316,6 +533,20 @@ mod tests {
         ] {
             assert!(reduced_motion_finding(source).is_none(), "{source}");
         }
-        assert!(handles_reduced_motion("globalCss({ '@media (prefers-reduced-motion: reduce)': {} })"));
+        for source in [
+            "globalCss({ '@media (prefers-reduced-motion: reduce)': {} })",
+            "const query = matchMedia(`(prefers-reduced-motion: reduce)`)",
+            r#"const C = () => <Box _motionReduce={{ transform: 'none' }} />"#,
+            "const transition = { reducedMotion: 'user' }",
+        ] {
+            assert!(handles_reduced_motion(source), "{source}");
+        }
+        // Mentioning it is not handling it.
+        for source in [
+            "// TODO: respect prefers-reduced-motion and useReducedMotion()\nconst a = 1",
+            "import { useReducedMotion } from 'motion/react'\nconst a = 1",
+        ] {
+            assert!(!handles_reduced_motion(source), "{source}");
+        }
     }
 }
