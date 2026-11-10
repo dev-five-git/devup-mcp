@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Minor"
-  },
-  "note": "Entrance and transition motion is now Devup UI static keyframes instead of a script-driven or framer-motion entrance: exports ship Reveal.tsx (keyframes on a view timeline, with staggered groups and progress lines), the shared motion runtime only marks state for browsers without view timelines, and the animation guide, contract and behaviorPlan name the keyframes form. devup_ui_validate reads keyframes and CSS scroll-timeline usage in every entrance rule (ssr-hidden-reveal, reveal-replays, reveal-moves-background, stagger-too-long, motion-without-reduced-motion) and adds entrance-uses-motion-library, entrance-on-static-content and entrance-per-element. devup_runtime_audit reveal checks measure scroll-linked and timed entrances, run every scenario by default (adding bfcache, client-nav, reduced-motion, no-script and stagger bounds), report not-applicable and unverified instead of passing what was not observed, and ingest returns motionEvidence per candidate at mobile and desktop widths. The export reply moves standing prose to the guide, restoring the contract identifiers renamed earlier and leaving over 1 KiB of headroom under the 15 KiB budget. A single tsx at a monorepo root is matched to its owning app's devup.json from an absolute or partial sourceName or by its text.",
-  "date": "2026-11-10T00:00:00.000000000Z"
-}
