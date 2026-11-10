@@ -372,10 +372,12 @@ fn page_with_limit(
         "dataBindings":bindings,"pageContracts":contracts,"implemented":false,"runtimeVerified":false,"requiresReview":true,
         "pagination":{"pageIndex":page_index,"complete":complete,"accumulatedNodes":cursor.visited.len(),
             "cursorBudgetExceeded":cursor_budget_exceeded,"nextAction":next_action},
-        "evidenceLimits":{"nodesScanned":scanned.len(),"maxNodes":MAX_NODES,"maxCandidates":MAX_CANDIDATES,"truncated":!complete,"contextIndex":"The immutable artifact graph and fingerprint are read for context; candidate inference and returned rows are bounded per page."},
-        "intentPolicy":"Captured prototype evidence and inferred motion choices remain separate; explicit user requirements take precedence.",
-        "clientBoundary":"Keep generated server TSX and data pages; mount the supplied tiny shared motion controller in the persistent layout.",
-        "sourcePurity":"Use semantic selectors; node identities and implementation evidence stay in JSON sidecars.","guide":GUIDE});
+        // The standing policies of every plan (captured versus inferred intent,
+        // the client boundary, source purity, how the context index is read)
+        // are in the guide this points at, under "Contract identifiers": the
+        // same four sentences in every export reply cost its byte budget.
+        "evidenceLimits":{"nodesScanned":scanned.len(),"maxNodes":MAX_NODES,"maxCandidates":MAX_CANDIDATES,"truncated":!complete},
+        "guide":GUIDE});
     // How to join pages matters only when there is more than one. A plan
     // that is complete on its first page has nothing to aggregate, and the
     // export reply it rides on has a byte budget.

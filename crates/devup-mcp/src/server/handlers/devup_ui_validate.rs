@@ -4,6 +4,8 @@ use crate::server::tools::UiValidateDetail;
 mod sources;
 #[path = "ui_validate_scopes.rs"]
 mod scopes;
+#[path = "ui_validate_owner.rs"]
+mod owner;
 
 #[tool_router(router = devup_ui_validate_router, vis = "pub(super)")]
 impl DevupServer {
@@ -50,11 +52,16 @@ impl DevupServer {
             project_context::theme_for_validation(input.project_root.as_deref())
                 .map_err(to_mcp_error)?
         };
+        // A single tsx is matched to the app that owns it: by where
+        // sourceName says it is, else by finding the file in the project.
+        let mut token_owner = None;
         if !paths_mode
             && input.files.is_none()
-            && let (Some(root), Some(name)) = (input.project_root.as_deref(), input.source_name.as_deref())
+            && let Some(root) = input.project_root.as_deref()
         {
-            theme_lookup = scopes::for_source_name(root, name, theme_lookup).map_err(invalid)?;
+            let owned = owner::for_single_tsx(root, input.source_name.as_deref(), &input.tsx, theme_lookup).map_err(invalid)?;
+            theme_lookup = owned.lookup;
+            token_owner = owned.owner;
         }
         // Files are checked against the nearest devup.json above each of them,
         // so one call over a repository of several apps uses each app's theme.
@@ -252,6 +259,7 @@ impl DevupServer {
                 "definedByTheme": report.available_token_count,
                 "unknownTokenCheckRan": theme_available,
                 "devupJson": theme_lookup.devup_json,
+                "owner": token_owner,
             })),
             "themeAvailable": theme_available,
             "themeGuardrail": if scoped_tokens.is_some() { scoped_guardrail } else { theme_lookup.guardrail },

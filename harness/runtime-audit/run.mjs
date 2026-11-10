@@ -694,6 +694,9 @@ export async function settleScrollReveals(page, { stepMs = 120, maxMs = 15000 } 
     await frame();
     const running = () => document.getAnimations().filter((animation) => {
       if (animation.playState !== 'running') return false;
+      // A view/scroll timeline is bound to position, not to a clock: it is
+      // "running" for as long as its block is in range and never settles.
+      if (animation.timeline && !(animation.timeline instanceof DocumentTimeline)) return false;
       const timing = animation.effect?.getComputedTiming?.();
       // An infinite loop (marquee, spinner) never settles; it is not a reveal.
       return !(timing && timing.iterations === Infinity);
@@ -711,7 +714,14 @@ export async function settleScrollReveals(page, { stepMs = 120, maxMs = 15000 } 
 export async function freezeAnimations(page) {
   return page.evaluate(() => {
     if (window.__devupFrozenMotion) return window.__devupFrozenMotion.report;
-    const animations = document.getAnimations().filter((animation) => animation.playState === 'running' || animation.pending);
+    const clocked = (animation) => !animation.timeline || animation.timeline instanceof DocumentTimeline;
+    // A scroll-linked entrance (animation-timeline: view()) holds every block
+    // that is not on screen at its hidden first frame, so a full-page capture
+    // or a visibility check would see blank sections. Cancelling it leaves the
+    // resting style, which is the content; restoreAnimations plays it again.
+    const scrollLinked = document.getAnimations().filter((animation) => !clocked(animation));
+    for (const animation of scrollLinked) animation.cancel();
+    const animations = document.getAnimations().filter((animation) => clocked(animation) && (animation.playState === 'running' || animation.pending));
     const saved = animations.map((animation) => ({ animation, currentTime: animation.currentTime, playState: animation.playState }));
     const selector = (element) => {
       if (!(element instanceof Element)) return '(unknown target)';
@@ -732,8 +742,8 @@ export async function freezeAnimations(page) {
     const style = document.createElement('style');
     style.textContent = '*,*::before,*::after{transition-property:none!important;transition-duration:0s!important;transition-delay:0s!important}';
     document.documentElement.append(style);
-    const report = { count: selectors.length, selectors, animationCount: animations.length };
-    window.__devupFrozenMotion = { saved, style, report };
+    const report = { count: selectors.length, selectors, animationCount: animations.length, scrollLinkedCount: scrollLinked.length };
+    window.__devupFrozenMotion = { saved, style, report, scrollLinked };
     return report;
   });
 }
@@ -743,6 +753,7 @@ export async function restoreAnimations(page) {
     const frozen = window.__devupFrozenMotion;
     if (!frozen) return;
     frozen.style.remove();
+    for (const animation of frozen.scrollLinked) animation.play();
     for (const { animation, currentTime, playState } of frozen.saved) {
       animation.currentTime = currentTime;
       if (playState === 'running') animation.play();
@@ -927,7 +938,14 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           }
           if (check.kind === 'motion') {
             await restoreAnimations(page);
-            try { record.checks.push({ ...item, ...await runMotionCheck(page, check.motion) }); }
+            // Start, middle and end frames of an entrance are kept as evidence.
+            const capture = async (name) => {
+              const shot = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor ?? 1}-${safeName(screen.id)}-m${index}-${name}.png`;
+              const bytes = await page.screenshot({ animations: 'allow', caret: 'hide' });
+              await writeFile(join(out, shot), bytes);
+              return { path: shot, sha256: sha256(bytes), bytes: bytes.length };
+            };
+            try { record.checks.push({ ...item, ...await runMotionCheck(page, check.motion, { capture }) }); }
             finally { await freezeAnimations(page); }
             continue;
           }

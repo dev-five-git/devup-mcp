@@ -340,6 +340,7 @@ export function ItemListPage() {
 | `useRouter`, `usePathname` | **Yes** | Next.js client hooks |
 | Context usage (`useContext`) | **Yes** | Client-side state |
 | Conditional rendering (props-based) | No | Can process on Server |
+| Devup UI `keyframes()` / CSS animation props | No | Extracted to static CSS at build time |
 | `framer-motion` animation | **Yes** | Uses browser API |
 
 **Important: Props-based Function Calls**

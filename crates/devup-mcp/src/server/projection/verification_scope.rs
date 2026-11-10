@@ -19,16 +19,14 @@ fn attach_verification_scope(value: &mut Value, responsive_widths: &[f64]) {
     if widths.is_empty() {
         return;
     }
+    // Each entry names the reply field that holds the check. What the two
+    // static checks cover and how a rendered check is obtained is standing
+    // text in the guide (rule 13), not repeated in every reply.
     let mut scope = json!({
         "collectedWidths": widths,
-        "staticallyChecked": {
-            "mapping": "Each generated property against its source field, at the collected widths (quality.projection).",
-            "widthChange": "Anchors and sizing intent when a container is not its drawn width (widthBehavior); read from constraints and geometry, not rendered.",
-        },
-        "rendered": {
-            "state": "not-performed",
-            "note": "Nothing was rendered. devup_visual_compare compares a consumer-rendered PNG at a drawn width; devup_runtime_audit plans and ingests a consumer-side browser run at any widths.",
-        },
+        "staticallyChecked": {"mapping": "quality.projection", "widthChange": "widthBehavior"},
+        "rendered": {"state": "not-performed"},
+        "guide": "devup://guide/usage#13-exact-means-exact-at-the-drawn-width",
     });
     if !responsive_widths.is_empty() {
         scope["betweenCollectedWidths"] = json!(

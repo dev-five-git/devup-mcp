@@ -159,6 +159,10 @@ never carries them. Rule numbers match the original list, which skipped 9.
 For disconnected, out-of-view or mismatched relay-host states, load
 `figma-bridge-setup`. The agent performs desktop setup with computer use,
 then verifies status and a small read. Compare commit/buildId, not version.
+`server.updateAvailable.autoUpdate.installedPath` is the path of the file, not
+a statement about the version. A directory named after a version is the host's,
+fixed when it installed; self-update replaces the file inside it and never renames the directory.
+Read server.commit/buildId for what is actually running.
 Ask before installing Figma, using metered direct OAuth or interrupting another
 session. Missing diagnostics or computer use remain explicit blockers.
 
@@ -317,6 +321,15 @@ With `delivery: "resource"`, devup-mcp returns `devup://artifact/...` resource
 links to read on demand instead of inlining bytes into every response.
 
 ## 13. Exact means exact at the drawn width
+
+`verificationScope` says which widths were collected and what was checked at
+them. `staticallyChecked.mapping` (`quality.projection`): each generated
+property against its source field, at the collected widths.
+`staticallyChecked.widthChange` (`widthBehavior`): anchors and sizing intent
+when a container is not its drawn width, read from constraints and geometry,
+not rendered. `rendered.state: "not-performed"`: nothing was rendered.
+devup_visual_compare compares a consumer-rendered PNG at a drawn width;
+devup_runtime_audit plans and ingests a consumer-side browser run at any widths.
 
 `quality.projection` grades the mapping at the width the frame was drawn at,
 not at any other viewport. Before widening a generated screen, read

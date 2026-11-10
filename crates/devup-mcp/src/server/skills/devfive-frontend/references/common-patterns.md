@@ -449,6 +449,36 @@ export function Tabs({ tabs, defaultTab, onChange }: TabsProps) {
 
 ## 10. Motion Pattern
 
+Entrances and transitions are Devup UI static keyframes, in a Server
+Component, with no animation library (full rules: [animation](animation.md)):
+
+```tsx
+import { Box, keyframes } from '@devup-ui/react'
+
+const rise = keyframes({
+  from: { opacity: 0, transform: 'translateY(16px)' },
+  to: { opacity: 1, transform: 'translateY(0)' },
+})
+
+// 스크롤 진입 시 한 번 나타나는 콘텐츠 그룹 (배경은 고정, 안쪽 래퍼만 이동)
+<Box
+  data-reveal=""
+  animationName={rise}
+  animationTimingFunction="ease-out"
+  animationFillMode="both"
+  animationTimeline="view()"
+  animationRange="entry 0% entry min(100%, 240px)"
+  _motionReduce={{ animation: 'none' }}
+  _focusWithin={{ animation: 'none' }}
+>
+  {content}
+</Box>
+```
+
+A motion library is for what CSS cannot express, in a project that already
+depends on it: exit animations of unmounting elements (`AnimatePresence`, as in
+the BottomSheet above) and gesture-driven motion.
+
 ```tsx
 // components/motion.ts
 'use client'
