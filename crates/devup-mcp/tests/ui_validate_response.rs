@@ -15,3 +15,4 @@ include!("ui_validate_response/a_page_named_module_outside_the_router_is_not_jud
 include!("ui_validate_response/section_coverage.rs");
 include!("ui_validate_response/summary_and_paths.rs");
 include!("ui_validate_response/effective_attributes.rs");
+include!("ui_validate_response/monorepo_token_scopes.rs");

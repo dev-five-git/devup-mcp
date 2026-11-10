@@ -165,7 +165,7 @@ async fn own_external_and_unknown_skills_never_fetch() {
     .unwrap();
     assert_eq!(result["installed"][0]["source"], "embedded");
     let installed_paths = result["installed"][0]["paths"].as_array().unwrap();
-    assert_eq!(installed_paths.len(), 6);
+    assert_eq!(installed_paths.len(), 7);
     let delivery_reference = installed_paths.iter().find_map(|path| {
         let path = std::path::Path::new(path.as_str()?);
         (path.file_name()?.to_str()? == "delivery-quality.md").then_some(path)

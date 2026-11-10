@@ -365,19 +365,24 @@ fn page_with_limit(
     } else {
         continuation_action(&cursor, snapshot, cursor_limit)
     };
-    Ok(
+    let mut plan =
         json!({"version":2,"artifactId":artifact,"snapshotFingerprint":cursor.fingerprint,"scopeNodeIds":cursor.scope,"candidateCount":out.len(),"candidates":out,
         "aggregateCandidates":inventory,"aggregateBindingKeys":cursor.emitted_bindings,
         "coverageReceipt":{"payload":receipt,"signature":receipt_signature},
         "dataBindings":bindings,"pageContracts":contracts,"implemented":false,"runtimeVerified":false,"requiresReview":true,
         "pagination":{"pageIndex":page_index,"complete":complete,"accumulatedNodes":cursor.visited.len(),
-            "aggregation":"Append candidates by id, bindings by nodeId+role and page contracts by kind+rootNodeId+footerNodeId; keep all pages until complete=true.",
             "cursorBudgetExceeded":cursor_budget_exceeded,"nextAction":next_action},
         "evidenceLimits":{"nodesScanned":scanned.len(),"maxNodes":MAX_NODES,"maxCandidates":MAX_CANDIDATES,"truncated":!complete,"contextIndex":"The immutable artifact graph and fingerprint are read for context; candidate inference and returned rows are bounded per page."},
         "intentPolicy":"Captured prototype evidence and inferred motion choices remain separate; explicit user requirements take precedence.",
         "clientBoundary":"Keep generated server TSX and data pages; mount the supplied tiny shared motion controller in the persistent layout.",
-        "sourcePurity":"Use semantic selectors; node identities and implementation evidence stay in JSON sidecars.","guide":GUIDE}),
-    )
+        "sourcePurity":"Use semantic selectors; node identities and implementation evidence stay in JSON sidecars.","guide":GUIDE});
+    // How to join pages matters only when there is more than one. A plan
+    // that is complete on its first page has nothing to aggregate, and the
+    // export reply it rides on has a byte budget.
+    if page_index > 0 || !complete {
+        plan["pagination"]["aggregation"] = json!("Append candidates by id, bindings by nodeId+role and page contracts by kind+rootNodeId+footerNodeId; keep all pages until complete=true.");
+    }
+    Ok(plan)
 }
 
 pub(super) fn verified_inventory(plan: &Value) -> Option<(Vec<Value>, Vec<String>)> {
@@ -446,6 +451,8 @@ mod cursor_budget_tests {
         assert_eq!(decoded.evidence, cursor.evidence);
         let first = page(&json!({"artifactId":"long"}), &snapshot, Some(&token)).unwrap();
         assert_eq!(first["candidateCount"], MAX_CANDIDATES);
+        // More pages follow, so the reader is told how to join them.
+        assert!(first["pagination"]["aggregation"].as_str().is_some_and(|text| text.contains("Append candidates")));
         let next = first["pagination"]["nextAction"]["arguments"]["behaviorCursor"]
             .as_str()
             .unwrap();

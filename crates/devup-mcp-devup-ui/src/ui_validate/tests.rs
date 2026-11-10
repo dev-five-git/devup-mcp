@@ -637,3 +637,5 @@ mod structure;
 pub use structure::{
     MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle, validate_sources,
 };
+#[path = "theme_scopes.rs"]
+pub mod theme_scopes;

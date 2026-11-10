@@ -2,6 +2,8 @@ use super::*;
 use crate::server::tools::UiValidateDetail;
 #[path = "ui_validate_sources.rs"]
 mod sources;
+#[path = "ui_validate_scopes.rs"]
+mod scopes;
 
 #[tool_router(router = devup_ui_validate_router, vis = "pub(super)")]
 impl DevupServer {
@@ -13,7 +15,8 @@ impl DevupServer {
         &self,
         Parameters(mut input): Parameters<UiValidateInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        use devup_mcp_devup_ui::ui_validate::{bundle_theme, check_bundle, validate_bundle};
+        use devup_mcp_devup_ui::ui_validate::check_bundle;
+        use devup_mcp_devup_ui::ui_validate::theme_scopes::{bundle_scopes, validate_scoped};
         let invalid = |message: String| ErrorData::invalid_params(message, None);
         let paths_mode = !input.paths.is_empty();
         if paths_mode {
@@ -34,26 +37,47 @@ impl DevupServer {
                     .into(),
             ));
         }
-        let theme_lookup = if paths_mode {
+        let mut theme_lookup = if paths_mode {
             project_context::theme_for_validation(input.project_root.as_deref()).map_err(to_mcp_error)?
         } else if let Some(files) = &input.files {
             check_bundle(files).map_err(invalid)?;
             if !input.tsx.is_empty() {
                 return Err(invalid("Supply either tsx or files, not both".into()));
             }
-            let theme = bundle_theme(files).map_err(invalid)?;
-            let guardrail = theme.is_none().then(|| json!({
-                "message": "No devup.json supplied in files; token checks skipped. Bundle validation never reads the filesystem."
-            }));
-            project_context::ThemeLookup { theme, guardrail }
+            // A bundle's themes are matched to its files below, per directory.
+            project_context::ThemeLookup { theme: None, devup_json: None, guardrail: None }
         } else {
             project_context::theme_for_validation(input.project_root.as_deref())
                 .map_err(to_mcp_error)?
         };
-        let mut report = if paths_mode {
-            devup_mcp_devup_ui::ui_validate::validate_sources(input.files.as_deref().unwrap_or_default(), theme_lookup.theme.as_ref(), input.strict)
-        } else if let Some(files) = &input.files {
-            validate_bundle(files, theme_lookup.theme.as_ref(), input.strict).map_err(invalid)?
+        if !paths_mode
+            && input.files.is_none()
+            && let (Some(root), Some(name)) = (input.project_root.as_deref(), input.source_name.as_deref())
+        {
+            theme_lookup = scopes::for_source_name(root, name, theme_lookup).map_err(invalid)?;
+        }
+        // Files are checked against the nearest devup.json above each of them,
+        // so one call over a repository of several apps uses each app's theme.
+        // `scoped_tokens`/`scoped_guardrail` say which files that left unchecked.
+        let mut scoped_tokens = None;
+        let mut scoped_guardrail = None;
+        let mut report = if let Some(files) = &input.files {
+            let scoped = if paths_mode {
+                let disk = scopes::disk_scopes(input.project_root.as_deref().unwrap_or_default(), files).map_err(invalid)?;
+                let fallback = theme_lookup.theme.as_ref().map(|theme| (theme_lookup.devup_json.as_deref().unwrap_or("devup.json"), theme));
+                validate_scoped(files, &disk.scopes, fallback, &|path| disk.fallback_applies(path), scopes::NO_THEME_ABOVE, input.strict)
+            } else {
+                let bundle = bundle_scopes(files).map_err(invalid)?;
+                // One supplied theme governs the whole bundle, wherever it sits.
+                match bundle.as_slice() {
+                    [] => validate_scoped(files, &[], None, &|_| true, "No devup.json supplied in files; token checks skipped. Bundle validation never reads the filesystem.", input.strict),
+                    [only] => validate_scoped(files, &[], Some((only.devup_json.as_str(), &only.theme)), &|_| true, scopes::NO_THEME_IN_BUNDLE, input.strict),
+                    several => validate_scoped(files, several, None, &|_| true, scopes::NO_THEME_IN_BUNDLE, input.strict),
+                }
+            };
+            scoped_tokens = Some(scopes::tokens(&scoped));
+            scoped_guardrail = scopes::guardrail(&scoped, theme_lookup.guardrail.clone().filter(|_| paths_mode));
+            scoped.report
         } else {
             devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
                 &input.tsx,
@@ -66,8 +90,13 @@ impl DevupServer {
             && std::path::Path::new(root).join("src").is_dir()
         {
             let project_sources = sources::read_paths(root, &["src".into()]).map_err(invalid)?;
-            if project_sources.iter().any(|file| devup_mcp_devup_ui::ui_validate::visual_behavior::has_global_link_decoration(&file.content)) {
-                report.violations.retain(|finding| finding.rule != "link-underline");
+            let handled: Vec<&str> = [
+                ("link-underline", project_sources.iter().any(|file| devup_mcp_devup_ui::ui_validate::visual_behavior::has_global_link_decoration(&file.content))),
+                // A shared provider elsewhere in src answers for these files.
+                ("motion-without-reduced-motion", project_sources.iter().any(|file| devup_mcp_devup_ui::ui_validate::motion_quality::handles_reduced_motion(&file.content))),
+            ].into_iter().filter_map(|(rule, handled)| handled.then_some(rule)).collect();
+            if !handled.is_empty() {
+                report.violations.retain(|finding| !handled.contains(&finding.rule));
                 report.ok = report.violations.iter().all(|finding| {
                     finding.severity != devup_mcp_devup_ui::ui_validate::Severity::Error
                         && !(input.strict && finding.severity == devup_mcp_devup_ui::ui_validate::Severity::Warning)
@@ -192,7 +221,14 @@ impl DevupServer {
         // tokens is unverified rather than clean. This is the monorepo case
         // that answered `clean` for a `$bg` reference while no devup.json had
         // been read at all.
-        let token_check_skipped = theme_lookup.theme.is_none() && report.checked_tokens > 0;
+        let token_check_skipped = match &scoped_tokens {
+            Some(tokens) => tokens["unverifiedReferences"].as_u64().unwrap_or(0) > 0,
+            None => theme_lookup.theme.is_none() && report.checked_tokens > 0,
+        };
+        let theme_available = match &scoped_tokens {
+            Some(tokens) => tokens["unknownTokenCheckRan"] == true,
+            None => theme_lookup.theme.is_some(),
+        };
         let ok_reason = match (errors, warnings, infos, input.strict) {
             (1.., _, _, _) => "error-violations",
             (_, 1.., _, true) => "strict-warnings",
@@ -211,13 +247,14 @@ impl DevupServer {
             "themeNotes": report.theme_notes,
             "checkedTokens": report.checked_tokens,
             "availableTokenCount": report.available_token_count,
-            "tokens": {
+            "tokens": scoped_tokens.clone().unwrap_or_else(|| json!({
                 "referencedByTsx": report.checked_tokens,
                 "definedByTheme": report.available_token_count,
-                "unknownTokenCheckRan": theme_lookup.theme.is_some(),
-            },
-            "themeAvailable": theme_lookup.theme.is_some(),
-            "themeGuardrail": theme_lookup.guardrail,
+                "unknownTokenCheckRan": theme_available,
+                "devupJson": theme_lookup.devup_json,
+            })),
+            "themeAvailable": theme_available,
+            "themeGuardrail": if scoped_tokens.is_some() { scoped_guardrail } else { theme_lookup.guardrail },
         });
         if input.section_coverage.is_some() {
             result["sectionCoverageVerification"] = json!({"sourceStructure":"Original source-map element/file mappings are compared where unambiguous.","nodeIdentity":"Source order is structural evidence only; extracted or reordered trees require updated mappings.","runtimeVerified":false,"renderedTargets":"Use semantic selectors in .devup/rendered-targets.json; no Figma attributes are required in JSX."});

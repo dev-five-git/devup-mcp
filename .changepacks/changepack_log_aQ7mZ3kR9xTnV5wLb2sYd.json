@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Make restrained entrance/transition motion a default delivery item (animation reference, contract, entrance-motion validation rules, reveal re-entry audit), accept same-file static consts such as keyframes names in css()/globalCss()/keyframes(), and validate tokens per app against the nearest devup.json while reporting unresolved files as unverified. Reveal audits also measure trigger position and opt-in fast-scroll, reload, history, image, focus and progress-sync scenarios; the shipped motion runtime no longer hides content already on screen; a located sourceName selects the theme for a single tsx.",
+  "date": "2026-11-10T00:00:00.000000000Z"
+}

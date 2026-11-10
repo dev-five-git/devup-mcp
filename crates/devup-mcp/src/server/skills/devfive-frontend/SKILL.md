@@ -65,6 +65,12 @@ word boundaries, complete controls and palette variants, motion, canonical asset
 and DB-backed landing/detail content. Apply these rules even when the screenshot
 looks correct; verify actual runtime state, asset URLs and changed data.
 
+Motion is a default quality item: without being asked, survey each page's
+sections and repeated content, propose restrained entrance/transition motion by
+role and implement it, following [animation](references/animation.md). The
+user's stated design always wins. Verify start, middle and end frames and the
+real trigger timing at mobile and desktop widths, never the final frame alone.
+
 Common coding conventions for DevFive frontend projects (puzzle-fit, girok-space, etc.).
 
 ## Links, controls and completion evidence
@@ -710,5 +716,6 @@ export { default } from 'eslint-plugin-devup/oxlint-config'
 - **[Anti-Patterns](references/anti-patterns.md)** - What NOT to do
 - **[Theme Colors](references/theme-colors.md)** - Project theme color tokens
 - **[Common Patterns](references/common-patterns.md)** - Common UI patterns (Modal, Toast, etc.)
+- **[Animation](references/animation.md)** - Default entrance/transition motion: proposal by role, one-shot scroll reveals, no SSR/hydration flash, verification
 
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.

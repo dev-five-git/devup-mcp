@@ -73,6 +73,20 @@ pub fn validate_sources(
     theme: Option<&ProjectTheme>,
     strict: bool,
 ) -> UiValidation {
+    let mut result = validate_sources_with(files, strict, &|_| theme).0;
+    result.available_token_count = theme.map_or(0, ProjectTheme::token_count);
+    result
+}
+
+/// As [`validate_sources`], with the theme chosen per file (`theme_of` takes
+/// the file's path). Also returns each source file's `$token` reference
+/// count, so a caller can say which files were checked against which theme.
+/// `available_token_count` is left at 0: it belongs to a theme, not a bundle.
+pub fn validate_sources_with<'t>(
+    files: &[SourceFile],
+    strict: bool,
+    theme_of: &dyn Fn(&str) -> Option<&'t ProjectTheme>,
+) -> (UiValidation, Vec<(String, usize)>) {
     let boundary = files.iter().filter(|f| is_source(&f.path)).any(|file| {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, &file.content, source_type(&file.path)).parse();
@@ -86,18 +100,28 @@ pub fn validate_sources(
         violations: vec![],
         theme_notes: vec![],
         checked_tokens: 0,
-        available_token_count: theme.map_or(0, ProjectTheme::token_count),
+        available_token_count: 0,
     };
     let mut fixable = 0;
+    let mut references = Vec::new();
     let global_link_decoration = files.iter().filter(|file| is_source(&file.path))
         .any(|file| super::visual_behavior::has_global_link_decoration(&file.content));
+    // Reduced motion is usually handled once for the tree (a provider), so it
+    // is asked of the sources together, never of one file alone.
+    let reduced_motion = files.iter().filter(|file| is_source(&file.path))
+        .any(|file| super::motion_quality::handles_reduced_motion(&file.content));
     for file in files.iter().filter(|f| is_source(&f.path)) {
-        let mut report = validate_source(&file.content, theme, strict, source_type(&file.path));
+        let mut report =
+            validate_source(&file.content, theme_of(&file.path), strict, source_type(&file.path));
+        references.push((file.path.clone(), report.checked_tokens));
         if global_link_decoration {
             report.violations.retain(|finding| finding.rule != "link-underline");
         }
         fixable += report.next_action.as_ref().and_then(|action| action["fixable"].as_u64()).unwrap_or(0) as usize;
         if !report.violations.iter().any(|v| v.rule == "invalid-syntax") {
+            if !reduced_motion {
+                report.violations.extend(super::motion_quality::reduced_motion_finding(&file.content));
+            }
             report.violations.extend(structural(file, boundary));
             report.violations.extend(super::wiring::fixture_findings(files, &file.path, &file.content));
             report
@@ -123,7 +147,7 @@ pub fn validate_sources(
         .violations
         .iter()
         .all(|v| v.severity != Severity::Error && !(strict && v.severity == Severity::Warning));
-    result
+    (result, references)
 }
 fn is_source(path: &str) -> bool {
     path.ends_with(".tsx")

@@ -95,6 +95,8 @@ fn not_found_with_exclusions(message: &str, searched: Vec<String>, excluded: Vec
 /// skipped" apart from "every $token check passed".
 pub struct ThemeLookup {
     pub theme: Option<devup_mcp_devup_ui::theme::ProjectTheme>,
+    /// The file `theme` was read from, when one was.
+    pub devup_json: Option<String>,
     pub guardrail: Option<Value>,
 }
 
@@ -150,6 +152,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
     let Some(root) = find_project_root(&start) else {
         return Ok(ThemeLookup {
             theme: None,
+            devup_json: None,
             guardrail: Some(guardrail_object(
                 PROJECT_ROOT_NOT_FOUND_MESSAGE,
                 vec![display_path(&start)],
@@ -175,6 +178,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         if candidates.len() > 1 {
             return Ok(ThemeLookup {
                 theme: None,
+                devup_json: None,
                 guardrail: Some(ambiguous_theme_guardrail(&root, &candidates, excluded)),
             });
         }
@@ -191,6 +195,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         };
         return Ok(ThemeLookup {
             theme: None,
+            devup_json: None,
             guardrail: Some(guardrail_object(
                 message,
                 vec![display_path(&root.join("devup.json"))],
@@ -208,6 +213,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
     let theme = parse_project_theme(&source)?;
     Ok(ThemeLookup {
         theme: Some(theme),
+        devup_json: Some(display_path(&file)),
         guardrail: None,
     })
 }

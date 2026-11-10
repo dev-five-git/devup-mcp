@@ -180,18 +180,23 @@ function slidingHighlight(root: ParentNode, binding: MotionBinding) {
 export function mountMotion(root: ParentNode, bindings: MotionBinding[]) {
   const active = new Map<MotionBinding, {node: HTMLElement; dependencies: HTMLElement[]; cleanup: () => void}>();
   const reveals = bindings.filter(binding => binding.kind === 'section-entrance');
-  const seen = new WeakSet<Element>(), revealAnimations = new Set<Animation>();
+  const seen = new WeakSet<Element>(), observed = new WeakSet<Element>(), unreported = new WeakSet<Element>(), revealAnimations = new Set<Animation>();
   const revealObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+    const node = entry.target as HTMLElement, first = unreported.delete(node);
     if (!entry.isIntersecting) return;
-    const node = entry.target as HTMLElement, binding = reveals.find(binding => node.matches(binding.target));
+    const binding = reveals.find(binding => node.matches(binding.target));
     if (!binding || seen.has(node) || !visible(node)) return;
     seen.add(node); revealObserver.unobserve(node);
+    // Already on screen when observation began (first viewport, reload or
+    // back/forward at a restored scroll position, client navigation): the
+    // reader is looking at it, so hiding it to replay an entrance is a flash.
+    if (first) return;
     if (!reduced(binding) && !node.contains(document.activeElement)) trackedAnimation(node,[
       { opacity: 0, transform: `translateY(${binding.distancePx ?? 24}px)` }, { opacity: 1, transform: 'translateY(0)' },
     ], { duration: duration(binding, 600), easing: 'ease-out' },revealAnimations);
   }));
   const refresh = () => {
-    reveals.forEach(binding => elements(root, binding.target).filter(node => !seen.has(node)).forEach(node => revealObserver.observe(node)));
+    reveals.forEach(binding => elements(root, binding.target).filter(node => !seen.has(node) && !observed.has(node)).forEach(node => { observed.add(node); unreported.add(node); revealObserver.observe(node); }));
     for (const binding of bindings) {
       if (binding.kind === 'section-entrance') continue;
       const found = elements(root, binding.target), previous = active.get(binding);
