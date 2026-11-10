@@ -113,3 +113,39 @@ test('marquee audit rejects reversed motion and an empty leftward loop seam', as
   }
  } finally {await browser.close();}
 });
+
+test('reveal audit requires one-shot playback: a replay, a re-hide and an unobservable re-entry all fail', {timeout:60000}, async()=> {
+ const browser=await chromium.launch();
+ try {
+  // Each page reveals #reveal with a 300ms fade and upward move on viewport
+  // entry. `mode` decides what happens when it leaves and comes back.
+  const run=async(mode,body='<div style="height:1400px"></div><section id="reveal" style="height:200px">Readable server section</section><div style="height:1400px"></div>')=> {
+   const page=await browser.newPage({viewport:{width:360,height:700}});
+   await page.setContent(`<body style="margin:0">${body}</body>`);
+   await page.evaluate(mode=> {
+    const node=document.querySelector('#reveal');let played=false;
+    new IntersectionObserver(entries=>entries.forEach(entry=> {
+     if(!entry.isIntersecting) {if(mode==='rehide')node.style.opacity='0';return;}
+     if(mode==='rehide')node.style.opacity='';
+     if(played&&mode!=='replay')return;
+     played=true;node.animate([{opacity:0,transform:'translateY(24px)'},{opacity:1,transform:'translateY(0)'}],{duration:300,easing:'linear'});
+    })).observe(node);
+   },mode);
+   const report=await runMotionCheck(page,{kind:'reveal',candidateId:`reveal:${mode}`,target:'#reveal',durationMs:300});
+   await page.close();return report;
+  };
+  const once=await run('once');
+  assert.equal(once.status,'pass',JSON.stringify(once));
+  assert.deepEqual(once.measured.reentry,{verified:true,replayed:false,hiddenWhileAway:false});
+  const replay=await run('replay');
+  assert.equal(replay.status,'fail',JSON.stringify(replay));
+  assert.equal(replay.measured.reentry.replayed,true,JSON.stringify(replay));
+  const rehide=await run('rehide');
+  assert.equal(rehide.status,'fail',JSON.stringify(rehide));
+  assert.equal(rehide.measured.reentry.hiddenWhileAway,true,JSON.stringify(rehide));
+  // A page too short to scroll the target away proves nothing about re-entry.
+  const short=await run('once','<section id="reveal" style="height:200px">Readable server section</section>');
+  assert.equal(short.status,'fail',JSON.stringify(short));
+  assert.equal(short.measured.reentry?.verified,false,JSON.stringify(short));
+ } finally {await browser.close();}
+});

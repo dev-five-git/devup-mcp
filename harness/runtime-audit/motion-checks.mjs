@@ -95,6 +95,24 @@ export async function runMotionCheck(page, options) {
       valid=connected&&middle.animations>0&&last.selected&&Math.abs(last.indicator.x-last.selected.x)<1&&Math.abs(last.indicator.width-last.selected.width)<1&&Math.abs(middle.indicator.x-first.indicator.x)>.1&&Math.abs(middle.indicator.x-last.indicator.x)>.1;
     } else {
       const before=await take();await target.scrollIntoViewIfNeeded();await page.waitForTimeout(Math.min(120,ms*.25));const middle=await take();await page.waitForTimeout(ms+30);const last=await take();valid=before.opacity===1&&middle.opacity>0&&middle.opacity<1&&middle.translate>0&&last.opacity===1&&Math.abs(last.translate)<.1;
+      // A reveal plays once. Leave the viewport and come back: the content
+      // must stay shown while away (never re-hidden) and must not replay.
+      const left=await target.evaluate(node=> {
+        const box=node.getBoundingClientRect(),top=scrollY+box.top,limit=document.documentElement.scrollHeight-innerHeight;
+        const destination=[0,limit].find(y=>top+box.height<=y||top>=y+innerHeight);
+        if(destination===undefined)return false;
+        scrollTo(0,destination);return true;
+      });
+      if(left) {
+        await page.waitForTimeout(60);const away=await take();await target.scrollIntoViewIfNeeded();await page.waitForTimeout(Math.min(120,ms*.25));const reentered=await take();await page.waitForTimeout(ms+30);const settled=await take();
+        const shown=sample=>sample.opacity===1&&Math.abs(sample.translate)<.1;
+        measured.reentry={verified:true,replayed:!shown(reentered),hiddenWhileAway:!shown(away)};
+        valid=valid&&shown(away)&&shown(reentered)&&shown(settled);
+      } else {
+        // Nothing was observed, so nothing is claimed: this is not a pass.
+        measured.reentry={verified:false,reason:'target cannot leave the viewport at this size'};
+        if(valid)return {status:'fail',reason:'Reveal re-entry could not be observed: the target never leaves the viewport at this size. Check it at a viewport where it can scroll out.',measured};
+      }
     }
     if(options.resizeWidth) {
       await page.setViewportSize({...page.viewportSize(),width:options.resizeWidth});await page.waitForTimeout(ms+30);const resized=await take();
