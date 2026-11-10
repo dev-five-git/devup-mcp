@@ -82,6 +82,19 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
     }))
 }
 
+/// Zero drift as a completion signal: every layer was asked for, every one
+/// was actually checked, and none reported a drift. A skipped layer or a
+/// partial request is not evidence that the stack agrees.
+pub fn is_zero_drift(result: &Value) -> bool {
+    result["found"] == true
+        && ALL_LAYERS.iter().all(|layer| {
+            let layer = &result["layers"][*layer];
+            layer.is_object()
+                && layer["checked"] == true
+                && layer["drifts"].as_array().is_some_and(Vec::is_empty)
+        })
+}
+
 /// Ownership is part of every finding, including scan self-checks. Generated
 /// artifacts are evidence to compare, never a destination for manual repairs.
 pub(super) fn attach_source_ownership(result: &mut Value, layer: &str) {

@@ -17,7 +17,11 @@ impl DevupServer {
                 false,
             ))
         };
-        let result = match input.action.as_str() {
+        let completion_root = input
+            .completion
+            .as_ref()
+            .map(|completion| completion.project_root.clone());
+        let mut result = match input.action.as_str() {
             "plan" => {
                 let mut plan = input
                     .plan
@@ -77,6 +81,9 @@ impl DevupServer {
             _ => return Err(invalid("action must be plan, ingest or completion.")),
         }
         .map_err(to_mcp_error)?;
+        // Only the completion receipt can say the application is finished.
+        let complete = skills::marks_completion("devup_runtime_audit", &input.action, &result);
+        self.offer_retro(&mut result, completion_root.as_deref(), complete);
         Ok(tool_result(result))
     }
 }

@@ -297,6 +297,26 @@ replace the agreed CSS viewport, DPR or zoom. If the required capture viewport
 cannot fit onscreen, use an independent automated browser context at that size;
 do not change application layout, CSS zoom or thresholds to make a pane match.
 
+## Final report: offer the retrospective
+
+When the work is complete, end the final completion report with one question
+offering the session retrospective, in the user's language:
+
+- Korean: "작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?"
+- otherwise: "The work is complete. Shall I run /devup-retro to turn this session's follow-up prompts into devup-mcp improvements?"
+
+Use the invocation that works in this client: `/devup-retro` when the
+`devup-retro` skill is installed, otherwise the MCP prompt form
+`/mcp__<server>__devup-retro`. A tool result that marks completion carries the
+ready sentence as `nextSuggestedAction` (`devup_runtime_audit` completion with
+`reportAllowed`, `devup_screen_plan` status with `completion.reportAllowed`,
+`devup_stack_diff` with every layer checked and zero drift). An export's
+`deliverable.isFinal` grades generated source and carries no offer.
+
+Ask once per completed task. Not after an intermediate tool call, a failed or
+unresolved result, or a partial report, and not again once asked. Never run it
+yourself: it starts only when the user says yes.
+
 ## Contract identifiers
 
 Export replies carry `developmentContract` as identifiers only, to stay inside
@@ -329,6 +349,7 @@ before claiming completion. The installed copy of this document is
 | `canonical-semantic-assets` | One asset registry, semantic file names, no duplicates or hash names |
 | `landing-detail-api-db-single-source` | Landing and detail values come from the same API and DB records |
 | `runtime-evidence-before-completion` | Completion is claimed from a runtime audit, not from the export or a screenshot |
+| `offer-devup-retro-in-final-report` | The final completion report ends by offering `/devup-retro` once, in the user's language; it is never run unasked |
 
 `completionEvidence`:
 

@@ -244,3 +244,128 @@ language:"), "a blank argument is not passed on");
         std::fs::remove_dir_all(project).unwrap();
     }
 }
+
+#[cfg(test)]
+mod retro_offer_tests {
+    use super::*;
+
+    fn scratch(label: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("devup-retro-offer-{label}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("scratch directory");
+        path
+    }
+
+    /// The offer is for a finished task. A result that does not mark
+    /// completion gets nothing, so the sentence cannot ride on every reply.
+    #[test]
+    fn only_a_completion_result_carries_the_offer() {
+        let project = scratch("gate");
+        let lookup = Lookup::project_only(project.clone(), Runtime::ClaudeCode);
+        let mut pending = serde_json::json!({"done": false});
+        offer_retro(&mut pending, &lookup, false);
+        assert!(pending.get(RETRO_OFFER_FIELD).is_none(), "{pending}");
+        let mut not_an_object = serde_json::json!([]);
+        offer_retro(&mut not_an_object, &lookup, true);
+        assert_eq!(not_an_object, serde_json::json!([]));
+
+        let mut done = serde_json::json!({"done": true});
+        offer_retro(&mut done, &lookup, true);
+        let offer = &done[RETRO_OFFER_FIELD];
+        assert_eq!(offer["id"], RETRO_NAME);
+        assert_eq!(offer["when"], "final-completion-report");
+        // Not installed here: the MCP prompt form is the one that works.
+        assert_eq!(offer["skillInstalled"], false);
+        assert_eq!(offer["invocation"], format!("/mcp__devup-mcp__{RETRO_NAME}"));
+        assert_eq!(
+            offer["message"]["ko"],
+            format!("작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /mcp__devup-mcp__{RETRO_NAME} 를 실행할까요?")
+        );
+        let how = offer["how"].as_str().unwrap();
+        for rule in ["once per completed task", "not after an intermediate call, a failure", "Never run it yourself", "user's language"] {
+            assert!(how.split_whitespace().collect::<Vec<_>>().join(" ").contains(rule), "{rule}");
+        }
+        std::fs::remove_dir_all(project).unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_installed_skill_is_offered_as_the_slash_command() {
+        let project = scratch("installed");
+        let policy = super::super::output::OutputPolicy::from_roots(vec![project.clone()]).unwrap();
+        let lookup = Lookup::project_only(project.clone(), Runtime::ClaudeCode);
+        install(&policy, &lookup, &[RETRO_NAME.to_owned()]).await.unwrap();
+        let mut done = serde_json::json!({});
+        offer_retro(&mut done, &lookup, true);
+        let offer = &done[RETRO_OFFER_FIELD];
+        assert_eq!(offer["skillInstalled"], true);
+        assert_eq!(offer["invocation"], format!("/{RETRO_NAME}"));
+        assert!(offer["message"]["ko"].as_str().unwrap().contains(&format!("/{RETRO_NAME} 를 실행할까요?")));
+        assert!(offer["message"]["en"].as_str().unwrap().contains(&format!("Shall I run /{RETRO_NAME} ")));
+        drop(policy);
+        std::fs::remove_dir_all(project).unwrap();
+    }
+
+    #[test]
+    fn only_three_results_mark_completion() {
+        use serde_json::json;
+        let receipt = |allowed: bool| json!({"kind": "devup-completion-receipt", "stage": if allowed {"data-verified"} else {"browser-verified"}, "done": allowed, "reportAllowed": allowed});
+        assert!(marks_completion("devup_runtime_audit", "completion", &receipt(true)));
+        assert!(!marks_completion("devup_runtime_audit", "completion", &receipt(false)));
+        assert!(!marks_completion("devup_runtime_audit", "plan", &receipt(true)));
+        assert!(!marks_completion("devup_runtime_audit", "ingest", &json!({"verdict": "pass"})));
+
+        let status = |allowed: bool| json!({"done": allowed, "completion": {"done": allowed, "reportAllowed": allowed}});
+        assert!(marks_completion("devup_screen_plan", "status", &status(true)));
+        assert!(!marks_completion("devup_screen_plan", "status", &status(false)));
+        assert!(!marks_completion("devup_screen_plan", "auditPlan", &status(true)));
+
+        let layer = |checked: bool, drifts: serde_json::Value| json!({"checked": checked, "drifts": drifts});
+        let stack = |layers: serde_json::Value| json!({"found": true, "layers": layers});
+        let clean = || layer(true, json!([]));
+        let all = stack(json!({"db-entity": clean(), "entity-route": clean(), "route-openapi": clean(), "openapi-client": clean()}));
+        assert!(marks_completion("devup_stack_diff", "", &all));
+        let drifted = stack(json!({"db-entity": clean(), "entity-route": layer(true, json!([{"kind": "missing"}])), "route-openapi": clean(), "openapi-client": clean()}));
+        assert!(!marks_completion("devup_stack_diff", "", &drifted));
+        let skipped = stack(json!({"db-entity": layer(false, json!([])), "entity-route": clean(), "route-openapi": clean(), "openapi-client": clean()}));
+        assert!(!marks_completion("devup_stack_diff", "", &skipped), "an unchecked layer is not zero drift");
+        let partial = stack(json!({"db-entity": clean()}));
+        assert!(!marks_completion("devup_stack_diff", "", &partial), "one layer is not the stack");
+        assert!(!marks_completion("devup_stack_diff", "", &json!({"found": false})));
+
+        // The export never marks completion, whatever its deliverable says,
+        // and neither does a clean validation: both happen many times a task.
+        let export = json!({"deliverable": {"isFinal": true}, "reportAllowed": true, "completion": {"reportAllowed": true}});
+        assert!(!marks_completion("devup_figma_export", "", &export));
+        assert!(!marks_completion("devup_ui_validate", "", &json!({"errors": [], "completion": {"reportAllowed": true}})));
+    }
+
+    /// Wherever an agent reads how to finish, it reads the same question.
+    #[test]
+    fn every_completion_text_states_the_offer_and_its_limits() {
+        let ko = RETRO_OFFER_KO.replace("{}", &format!("/{RETRO_NAME}"));
+        let en = RETRO_OFFER_EN.replace("{}", &format!("/{RETRO_NAME}"));
+        let flat = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let embedded = |name: &str, path: &str| {
+            EMBEDDED.iter().find(|(key, _)| *key == name).unwrap().1.iter().find(|(file, _)| *file == path).unwrap().1
+        };
+        let guide = super::super::guide::GUIDE;
+        for (label, text) in [
+            ("delivery-quality", embedded("devfive-frontend", "references/delivery-quality.md")),
+            ("devfive-frontend", embedded("devfive-frontend", "SKILL.md")),
+            ("devup", embedded("devup", "SKILL.md")),
+            ("devup-implementation-plan", embedded("devup-implementation-plan", "SKILL.md")),
+            ("guide", guide),
+        ] {
+            let text = flat(text);
+            assert!(text.contains(&ko), "{label}: Korean offer");
+            assert!(text.contains(&flat(&en)), "{label}: English offer");
+            assert!(text.contains(&format!("/mcp__<server>__{RETRO_NAME}")), "{label}: prompt form");
+            assert!(text.to_lowercase().contains("once"), "{label}: once");
+            assert!(text.to_lowercase().contains("never run it") || text.contains("never run unasked"), "{label}: never auto-run");
+        }
+        let opencode = flat(COMMANDS[0].opencode.unwrap());
+        assert!(opencode.contains(&ko) && opencode.contains("never run it unasked"));
+        assert!(guide.contains("`reportAllowed: true` carries `nextSuggestedAction`"));
+        assert!(!super::super::guide::INSTRUCTIONS.contains(RETRO_NAME), "the bootstrap budget is spent elsewhere");
+    }
+}

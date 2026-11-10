@@ -239,3 +239,30 @@ async fn retro_reports_the_served_calls_and_the_feedback_folder_and_writes_nothi
     std::fs::remove_dir_all(workspace)?;
     Ok(())
 }
+
+/// The offer rides only on a result that marks completion. Through the real
+/// process, a stack diff that found nothing to compare, a skills status and a
+/// retro report are not that, and must not carry it.
+#[tokio::test]
+async fn results_that_do_not_mark_completion_carry_no_offer() -> anyhow::Result<()> {
+    let workspace = scratch("no-offer");
+    let root = workspace.display().to_string();
+    session(&workspace, async |client| {
+        let arguments: Map<String, Value> =
+            json!({"projectRoot": root}).as_object().cloned().unwrap();
+        let diff = client
+            .call_tool(CallToolRequestParams::new("devup_stack_diff").with_arguments(arguments))
+            .await?
+            .structured_content
+            .expect("a structured response");
+        assert!(diff.get("nextSuggestedAction").is_none(), "{diff}");
+        for action in ["status", "retro"] {
+            let result = call(client, json!({"action": action, "projectRoot": root})).await?;
+            assert!(result.get("nextSuggestedAction").is_none(), "{action}");
+        }
+        Ok(())
+    })
+    .await?;
+    std::fs::remove_dir_all(workspace)?;
+    Ok(())
+}

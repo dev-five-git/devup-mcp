@@ -74,3 +74,7 @@ Internal clipping checks never waive an entire section merely because a child
 animates. `allowedMarquees` names exact selectors and requires one visible,
 horizontal-only clipped, infinitely translating nowrap track without controls.
 Vertical clipping, unrelated siblings and invalid exemptions still fail.
+
+A completion receipt with `reportAllowed: true` carries `nextSuggestedAction`:
+end the final completion report by offering `/devup-retro` once, in the user's
+language. Do not offer it for any other stage, and never run it unasked.

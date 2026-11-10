@@ -159,7 +159,9 @@ For Figma work, continue with the following branch after project intake:
     --deny-warnings`, `bun tsc --noEmit` in each changed app and `bun test`
     pass (`bun run test` adds cargo tarpaulin, which does not work on
     Windows), devup_ui_validate has no errors, site completeness filled.
-13. Finish with the status finalReport and summary.
+13. Finish with the status finalReport and summary. When the work is complete,
+    end by offering /devup-retro once in the user's language ("작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?");
+    never after a failure, never run it unasked.
 
 User-owned decisions, before or after confirm, use the runtime question tool.
 Show the evidence table first. Keep table approval and individual decisions as

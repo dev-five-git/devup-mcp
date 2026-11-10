@@ -539,6 +539,12 @@ its computer-use setup yourself. Verify status and a small read before export.
    design fixes requested, the excluded frames, the assumptions and the
    dependencies line - and its one-line `summary`. Report every `fail`,
    `not-run`, unresolved finding and assumption as what it is.
+   Then offer the retrospective once, in the user's language:
+   "작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?"
+   (otherwise "The work is complete. Shall I run /devup-retro to turn this session's follow-up prompts into devup-mcp improvements?";
+   `/mcp__<server>__devup-retro` when the skill is not installed). Only when
+   the work is complete, never after an intermediate call or a failure, and
+   never run it unasked.
 
 Hard rules, after confirm:
 

@@ -77,6 +77,11 @@ Common coding conventions for DevFive frontend projects (puzzle-fit, girok-space
 
 ## Links, controls and completion evidence
 
+End the final completion report by offering the retrospective once, in the user's
+language ("작업이 완료되었습니다. 지금까지 진행한 내용을 개선하기 위해 /devup-retro 를 실행할까요?" / "The work is complete. Shall I run /devup-retro to turn this session's follow-up prompts into devup-mcp improvements?"; `/mcp__<server>__devup-retro` when the skill is not installed).
+Ask once per completed task, never after an intermediate call or a failure, and never
+run it unasked. A completion-state tool result carries the sentence as `nextSuggestedAction`.
+
 `devup_figma_export` produces static visual markup. Its `interactiveCandidates`
 are a review list, and `deliverable.isFinal` never proves working navigation or
 forms. Resolve GNB, logo, footer, CTA, cards, “view all”, tabs and breadcrumbs

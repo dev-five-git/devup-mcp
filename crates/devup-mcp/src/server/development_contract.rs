@@ -32,6 +32,7 @@ pub(super) const REQUIREMENTS: &[&str] = &[
     "canonical-semantic-assets",
     "landing-detail-api-db-single-source",
     "runtime-evidence-before-completion",
+    "offer-devup-retro-in-final-report",
 ];
 
 pub(super) const COMPLETION_EVIDENCE: &[&str] = &[
@@ -48,7 +49,7 @@ pub(super) const COMPLETION_EVIDENCE: &[&str] = &[
 pub(super) fn attach(result: &mut Value) {
     if !result.is_object() { return; }
     result["developmentContract"] = json!({
-        "version": 4,
+        "version": 5,
         "guide": "devup://guide/usage#behavior-and-data-contracts",
         "alwaysApplies": true,
         "requirements": REQUIREMENTS,
@@ -66,10 +67,15 @@ mod tests {
         attach(&mut result);
         assert_eq!(result["developmentContract"]["alwaysApplies"], true);
         assert_eq!(result["developmentContract"]["staticExportProvesApplicationBehavior"], false);
-        assert_eq!(result["developmentContract"]["version"], 4);
+        assert_eq!(result["developmentContract"]["version"], 5);
         let requirements = result["developmentContract"]["requirements"].as_array().unwrap();
         for required in ["route-owned-page-body", "devup-api-only", "stop-affected-api-gaps", "paired-e2e-and-native-figma-visuals"] {
             assert!(requirements.contains(&json!(required)));
+        }
+        assert!(requirements.contains(&json!("offer-devup-retro-in-final-report")));
+        for term in ["Final report: offer the retrospective", "Ask once per completed task", "Never run it
+yourself", "carries no offer", super::super::skills::RETRO_OFFER_FIELD] {
+            assert!(RULES.contains(term), "missing completion offer: {term}");
         }
         for term in ["keep-all", "grayscale", "layout.tsx", "count", "footer", "DB", "aria-current", "sidecar"] {
             assert!(RULES.contains(term), "missing delivery policy: {term}");
@@ -136,6 +142,6 @@ mod tests {
         unique.sort();
         unique.dedup();
         assert_eq!(unique.len(), REQUIREMENTS.len() + COMPLETION_EVIDENCE.len());
-        assert_eq!((REQUIREMENTS.len(), COMPLETION_EVIDENCE.len()), (20, 8));
+        assert_eq!((REQUIREMENTS.len(), COMPLETION_EVIDENCE.len()), (21, 8));
     }
 }
