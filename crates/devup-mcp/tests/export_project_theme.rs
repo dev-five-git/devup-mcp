@@ -184,6 +184,57 @@ async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow
             .is_none()
     );
     assert!(bytes < 15 * 1024, "reply is {bytes} bytes");
+    // The budget is a wall only if nothing can be added before hitting it.
+    // #124 had 31 bytes left and renamed two contract identifiers instead of
+    // adding them. Standing prose now lives in the guide (contract meanings,
+    // behaviorPlan policies, verificationScope and install-path notes), so
+    // the reply keeps at least this much room for the next identifier.
+    // Temporary-directory and binary paths in the reply differ by machine,
+    // which is why the margin is not the exact figure.
+    const HEADROOM: usize = 1024;
+    assert!(
+        bytes + HEADROOM <= 15 * 1024,
+        "reply is {bytes} bytes: less than {HEADROOM} bytes of headroom under the 15 KiB budget. Move standing text to the guide instead of renaming or dropping identifiers."
+    );
+    // Identifiers stay in the reply; their explanations do not.
+    let contract = &result["developmentContract"];
+    assert_eq!(
+        contract["requirements"].as_array().map(Vec::len),
+        Some(20),
+        "{contract}"
+    );
+    assert_eq!(
+        contract["completionEvidence"].as_array().map(Vec::len),
+        Some(8),
+        "{contract}"
+    );
+    for restored in [
+        "motion-candidates-and-safe-progressive-enhancement",
+        "computed-style-and-animation-intermediate-state",
+    ] {
+        assert!(
+            contract.to_string().contains(restored),
+            "{restored} was renamed away in #124 and is back"
+        );
+    }
+    assert!(
+        contract.get("nextAction").is_none() && contract.get("installedReference").is_none(),
+        "{contract}"
+    );
+    assert_eq!(
+        contract["guide"],
+        "devup://guide/usage#behavior-and-data-contracts"
+    );
+    for moved in ["intentPolicy", "clientBoundary", "sourcePurity"] {
+        assert!(
+            result["behaviorPlan"].get(moved).is_none(),
+            "{moved} is standing text in the guide"
+        );
+    }
+    assert_eq!(
+        result["behaviorPlan"]["guide"],
+        "devup://guide/usage#behavior-and-data-contracts"
+    );
     assert_eq!(result["projectContext"]["counts"]["publicFiles"], 180);
     assert_eq!(result["projectContext"]["ui"]["components"], json!([]));
     assert_eq!(

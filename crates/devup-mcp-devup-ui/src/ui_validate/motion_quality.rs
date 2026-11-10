@@ -21,6 +21,23 @@
 //! - `motion-without-reduced-motion`: entrance motion with no reduced-motion
 //!   handling anywhere in the validated sources (cross-file, see
 //!   [`reduced_motion_finding`]).
+//! - `entrance-uses-motion-library` (info, once per file): the entrance is
+//!   driven by a runtime animation library where Devup UI's static keyframes
+//!   would do it in CSS.
+//! - `entrance-on-static-content`: navigation, a header or footer, a form or
+//!   its fields, or a paragraph of body copy is given an entrance. Those are
+//!   read or operated at once and get none.
+//! - `entrance-per-element` (info): a heading or a control carries its own
+//!   entrance; the entrance belongs to the content group around it.
+//!
+//! Every rule reads both styles: framer-motion props (`initial`,
+//! `whileInView`, `viewport`, `transition`) and Devup UI keyframes
+//! (`keyframes()`, `animationName`/`animation`, `animationTimeline`,
+//! `animationRange`, `animationDelay`, selectors and a plain
+//! `IntersectionObserver`), see [`keyframes`].
+#[path = "motion_keyframes.rs"]
+mod keyframes;
+
 use super::{Severity, Violation, site};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
@@ -52,14 +69,15 @@ pub fn reduced_motion_finding(source: &str) -> Option<Violation> {
         "motion-without-reduced-motion",
         Severity::Warning,
         "Entrance motion is added, and no validated source handles prefers-reduced-motion.".into(),
-        "Leave content in place for reduced motion: useReducedMotion(), <MotionConfig reducedMotion=\"user\"> in a shared provider, or a prefers-reduced-motion media rule. Validate the provider together with this file if it lives elsewhere.",
+        "Leave content in place for reduced motion: _motionReduce={{ animation: 'none' }} on the animated element (Devup UI), a prefers-reduced-motion media rule, or useReducedMotion()/<MotionConfig reducedMotion=\"user\"> for a motion library. Validate the shared rule or provider together with this file if it lives elsewhere.",
     ))
 }
 
 /// Whether this source reads the user's motion preference or configures it
 /// for the tree: a reference to `useReducedMotion`/`usePrefersReducedMotion`
-/// (or any `…ReducedMotion` name), a `reducedMotion`/`_motionReduce` prop or
-/// key, or a `prefers-reduced-motion` media rule or query in a string.
+/// (or any `…ReducedMotion` name), a `reducedMotion`/`_motionReduce`/
+/// `_motionSafe` prop or key, or a `prefers-reduced-motion` media rule or
+/// query in a string.
 ///
 /// Read from the syntax tree, so a comment that mentions reduced motion or an
 /// import nobody calls does not count as handling it.
@@ -80,7 +98,7 @@ struct Preference(bool);
 
 impl Preference {
     fn name(&mut self, name: &str) {
-        self.0 |= name.contains("ReducedMotion") || matches!(name, "reducedMotion" | "_motionReduce");
+        self.0 |= name.contains("ReducedMotion") || matches!(name, "reducedMotion" | "_motionReduce" | "_motionSafe");
     }
     fn text(&mut self, text: &str) {
         self.0 |= text.contains("prefers-reduced-motion");
@@ -113,7 +131,7 @@ fn collect(source: &str) -> Option<Collector<'_>> {
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
     }
-    let mut components = MotionComponents(Vec::new());
+    let mut components = MotionComponents(Vec::new(), keyframes::Declared(Vec::new()));
     components.visit_program(&parsed.program);
     let mut collector = Collector {
         source,
@@ -121,6 +139,8 @@ fn collect(source: &str) -> Option<Collector<'_>> {
         first_entrance: None,
         optional: 0,
         motion_components: components.0,
+        declared: components.1,
+        library_noted: false,
     };
     collector.visit_program(&parsed.program);
     Some(collector)
@@ -131,11 +151,13 @@ fn is_motion_namespace(name: &str) -> bool {
 }
 
 /// `const MotionBox = motion.create(Box)` / `motion(Box)`: a component that
-/// takes the same `initial`/`whileInView` props as `motion.div`.
-struct MotionComponents(Vec<String>);
+/// takes the same `initial`/`whileInView` props as `motion.div`. The same
+/// pass records every `const name = keyframes({…})`.
+struct MotionComponents(Vec<String>, keyframes::Declared);
 
 impl<'a> Visit<'a> for MotionComponents {
     fn visit_variable_declarator(&mut self, node: &VariableDeclarator<'a>) {
+        self.1.record(node);
         if let (Some(name), Some(Expression::CallExpression(call))) =
             (node.id.get_binding_identifier(), node.init.as_ref().map(Expression::get_inner_expression))
         {
@@ -165,6 +187,76 @@ struct Collector<'s> {
     optional: usize,
     /// Components this file builds with `motion.create(…)`/`motion(…)`.
     motion_components: Vec<String>,
+    /// `keyframes()` constants of this file.
+    declared: keyframes::Declared,
+    library_noted: bool,
+}
+
+const KEYFRAMES_FIX: &str = "Declare the entrance once with Devup UI keyframes (from: { opacity: 0, transform }) and put animationName, animationFillMode=\"both\", animationTimeline=\"view()\" and animationRange=\"entry 0% entry min(100%, 240px)\" on an inner wrapper: the hidden start then lives only in CSS, and content shows without JavaScript.";
+const MOVES_BACKGROUND: &str = "The element that paints the section background is the one being revealed, so the background fades or moves with it.";
+
+impl Collector<'_> {
+    fn report(&mut self, span: oxc_span::Span, rule: &'static str, severity: Severity, message: &str, help: &'static str) {
+        self.findings.push(site::violation(self.source, span, rule, severity, message.into(), help));
+    }
+
+    /// What the role table of the animation guide excludes, proven from the
+    /// element itself.
+    fn check_role(&mut self, span: oxc_span::Span, role: &str) {
+        if matches!(role, "nav" | "header" | "footer" | "form" | "input" | "textarea" | "select" | "label" | "p") {
+            self.report(span, "entrance-on-static-content", Severity::Warning,
+                "Navigation, headers, footers, forms and body copy are read or operated at once; this element is given an entrance.",
+                "Remove the entrance here. Reveal the content group of a below-fold section instead, and leave what the reader uses immediately in place. Keep it only when the design explicitly asks for it.");
+        } else if matches!(role, "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "button" | "a") {
+            self.report(span, "entrance-per-element", Severity::Info,
+                "This heading or control carries its own entrance.",
+                "One entrance per content group is the normal case: put it on the wrapper around the heading, text and controls rather than on each of them.");
+        }
+    }
+
+    /// Keyframes-style checks for one element's styles. `painted` says the
+    /// element (or its class) paints a background. Returns whether the
+    /// styles declare an entrance.
+    fn check_bag(&mut self, bag: &keyframes::Bag<'_, '_>, painted: bool) -> bool {
+        let entrance = bag.entrance(&self.declared);
+        if let Some(entrance) = &entrance {
+            self.first_entrance.get_or_insert(entrance.span);
+            if let Some(span) = bag.scroll_range_replays(entrance) {
+                self.report(span, "reveal-replays", Severity::Warning,
+                    "This view-timeline entrance has no range that ends while the block is entering, so the content is still part-transparent in the middle of the screen and fades out again as it leaves.",
+                    "Add animationRange=\"entry 0% entry min(100%, 240px)\" (or another range that ends inside the entry, at most cover 50%). Keep a full-pass range only when the design explicitly asks for it.");
+            }
+            if painted {
+                self.report(entrance.span, "reveal-moves-background", Severity::Warning, MOVES_BACKGROUND,
+                    "Keep the painted section fixed and put the animation props on an inner content wrapper.");
+            }
+        }
+        if self.optional == 0
+            && let Some((span, message)) = bag.hidden_until_shown(entrance.as_ref())
+        {
+            self.report(span, "ssr-hidden-reveal", Severity::Warning, message,
+                "Keep the resting style visible and state the hidden start only in the keyframes' first frame (animationFillMode=\"both\"). A fallback script may mark content that is still below the viewport, never content already rendered in view. Check no-JavaScript, reduced motion, reload and client navigation.");
+        }
+        if let Some((span, step)) = bag.stagger_step().filter(|(_, step)| *step > MAX_STAGGER_STEP) {
+            self.stagger(span, step);
+        }
+        entrance.is_some()
+    }
+
+    fn stagger(&mut self, span: oxc_span::Span, step: f64) {
+        self.findings.push(site::violation(self.source, span, "stagger-too-long", Severity::Warning,
+            format!("Each item waits {}ms after the previous one, so the group takes a long time to finish appearing.", (step * 1000.0).round()),
+            "Keep a group stagger short (40-80ms per item, the whole group within about 400ms), or let the group enter together. Keep a longer step only when the design explicitly asks for it."));
+    }
+
+    /// Once per file: this entrance needs a runtime library.
+    fn note_library(&mut self, span: oxc_span::Span) {
+        if !std::mem::replace(&mut self.library_noted, true) {
+            self.report(span, "entrance-uses-motion-library", Severity::Info,
+                "This entrance is driven by a runtime animation library; Devup UI keyframes produce the same motion as static CSS, with no script to download or hydrate.",
+                KEYFRAMES_FIX);
+        }
+    }
 }
 
 fn attribute<'b, 'a>(node: &'b JSXOpeningElement<'a>, name: &str) -> Option<&'b JSXAttribute<'a>> {
@@ -280,18 +372,33 @@ fn starts_hidden(node: &JSXOpeningElement<'_>) -> bool {
         .is_some_and(hides)
 }
 
-fn paints_background(node: &JSXOpeningElement<'_>) -> bool {
-    if BACKGROUND_PROPS.iter().any(|name| attribute(node, name).is_some()) {
-        return true;
+/// What the element is: `as="nav"`, an intrinsic tag (`<footer>`), or the
+/// tag of a motion element (`motion.p`).
+fn element_role<'b>(node: &'b JSXOpeningElement<'_>) -> Option<&'b str> {
+    if let Some(role) = attribute(node, "as").and_then(string) {
+        return Some(role);
     }
-    // `className={css({ bg: … })}` on a motion element.
-    attribute(node, "className").and_then(expression).is_some_and(|value| match value {
-        Expression::CallExpression(call) => call.arguments.first().is_some_and(|argument| {
-            matches!(argument, Argument::ObjectExpression(object)
-                if BACKGROUND_PROPS.iter().any(|name| property(object, name).is_some()))
-        }),
-        _ => false,
-    })
+    match &node.name {
+        JSXElementName::Identifier(name) => Some(name.name.as_str()),
+        JSXElementName::MemberExpression(member) => Some(member.property.name.as_str()),
+        _ => None,
+    }
+}
+
+/// The object of `className={css({ … })}`.
+fn class_object<'b, 'a>(node: &'b JSXOpeningElement<'a>) -> Option<&'b ObjectExpression<'a>> {
+    match attribute(node, "className").and_then(expression)? {
+        Expression::CallExpression(call) => match call.arguments.first()? {
+            Argument::ObjectExpression(object) => Some(object),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn paints_background(node: &JSXOpeningElement<'_>) -> bool {
+    BACKGROUND_PROPS.iter().any(|name| attribute(node, name).is_some())
+        || class_object(node).is_some_and(|object| BACKGROUND_PROPS.iter().any(|name| property(object, name).is_some()))
 }
 
 impl<'a> Visit<'a> for Collector<'_> {
@@ -336,11 +443,32 @@ impl<'a> Visit<'a> for Collector<'_> {
             _ => None,
         };
         if let Some(step) = step.filter(|step| *step > MAX_STAGGER_STEP) {
-            self.findings.push(site::violation(self.source, node.span, "stagger-too-long", Severity::Warning,
-                format!("Each item waits {}ms after the previous one, so the group takes a long time to finish appearing.", (step * 1000.0).round()),
-                "Keep a group stagger short (40-80ms per item, the whole group within about 400ms), or let the group enter together. Keep a longer step only when the design explicitly asks for it."));
+            self.stagger(node.span, step);
         }
         walk::walk_object_property(self, node);
+    }
+
+    fn visit_object_expression(&mut self, node: &ObjectExpression<'a>) {
+        // A style object (`css({…})`, `styled.div({…})`, a selector's value).
+        let bag = keyframes::Bag::of_object(node);
+        if bag.animates() {
+            let painted = bag.paints_background();
+            let _ = self.check_bag(&bag, painted);
+        }
+        walk::walk_object_expression(self, node);
+    }
+
+    fn visit_new_expression(&mut self, node: &NewExpression<'a>) {
+        if let Some(callback) = keyframes::observer_callback(node).filter(|callback| !callback.stops) {
+            let (severity, message) = if callback.mirrors_visibility {
+                (Severity::Warning, "This observer writes isIntersecting straight into the element, so leaving the viewport undoes the entrance and re-entering replays it.")
+            } else {
+                (Severity::Info, "This observer never calls unobserve() or disconnect(); an entrance driven by it replays on every re-entry.")
+            };
+            self.report(node.span, "reveal-replays", severity, message,
+                "For an entrance, mark the element once and then unobserve it. Leave it as is when it tracks visibility for another purpose.");
+        }
+        walk::walk_new_expression(self, node);
     }
 
     fn visit_call_expression(&mut self, node: &CallExpression<'a>) {
@@ -360,10 +488,33 @@ impl<'a> Visit<'a> for Collector<'_> {
         if (in_view.is_some() || hidden) && self.first_entrance.is_none() {
             self.first_entrance = Some(node.span);
         }
+        // An exit/enter pair inside AnimatePresence is state motion that CSS
+        // keyframes do not replace; only an always-rendered entrance is noted.
+        if in_view.is_some() || (hidden && self.optional == 0) {
+            self.note_library(node.span);
+        }
+        // The same element in keyframes form: its own props, with the
+        // background its class paints.
+        let bag = keyframes::Bag::of_element(node);
+        let class_entrance = class_object(node).and_then(|object| keyframes::Bag::of_object(object).entrance(&self.declared)).map(|entrance| entrance.span);
+        let mut enters = in_view.is_some() || (hidden && self.optional == 0) || class_entrance.is_some();
+        if bag.animates() || bag.rests_hidden().is_some() {
+            let painted = paints_background(node);
+            enters |= self.check_bag(&bag, painted);
+        } else if BACKGROUND_PROPS.iter().any(|name| attribute(node, name).is_some())
+            && let Some(span) = class_entrance
+        {
+            // The class animates and the element's own props paint.
+            self.report(span, "reveal-moves-background", Severity::Warning, MOVES_BACKGROUND,
+                "Keep the painted section fixed and put the animation props on an inner content wrapper.");
+        }
+        if enters && let Some(role) = element_role(node) {
+            self.check_role(node.span, role);
+        }
         if hidden && self.optional == 0 {
             self.findings.push(site::violation(self.source, node.span, "ssr-hidden-reveal", Severity::Warning,
                 "Server markup renders this content at opacity 0 until JavaScript animates it.".into(),
-                "Render visible server content and let a shared observer start the motion after it attaches, or make the hidden start conditional on a mounted/enhanced state. Check no-JavaScript, slow hydration, reload and client navigation."));
+                KEYFRAMES_FIX));
         }
         if let Some(trigger) = in_view {
             let once = match attribute(node, "viewport") {
@@ -392,11 +543,17 @@ impl<'a> Visit<'a> for Collector<'_> {
 }
 
 #[cfg(test)]
+#[path = "motion_keyframes_tests.rs"]
+mod keyframes_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
-    fn rules(source: &str) -> Vec<&'static str> {
-        findings(source).into_iter().map(|finding| finding.rule).collect()
+    /// The rules found, without the once-per-file library note (it has its
+    /// own test in `motion_keyframes_tests.rs`).
+    pub(super) fn rules(source: &str) -> Vec<&'static str> {
+        findings(source).into_iter().map(|finding| finding.rule).filter(|rule| *rule != "entrance-uses-motion-library").collect()
     }
 
     #[test]

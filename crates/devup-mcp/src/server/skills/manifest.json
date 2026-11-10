@@ -51,13 +51,13 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 31003,
-          "sha256": "751f76110eed1fe18874702cc208571c2a651f2822712fba7fc3d309869c0e75"
+          "bytes": 31428,
+          "sha256": "e4729816c355ee065c1a5908516a68c95c9bca59131c62958404ce94db30d320"
         },
         {
           "path": "references/critical-rules.md",
-          "bytes": 57345,
-          "sha256": "35b3c66d5d6ddc6911085003cb9d5f795f7c9456c97714c4ae40323a7c42cc33"
+          "bytes": 57439,
+          "sha256": "107b4ac6b657ae4f00dd74fba94ad841815cb25124eb2bc32af8c998dccc2fb0"
         },
         {
           "path": "references/anti-patterns.md",
@@ -66,8 +66,8 @@
         },
         {
           "path": "references/common-patterns.md",
-          "bytes": 12110,
-          "sha256": "fe1d165394824ae0777a3f11dda5a47e0cf27e17872c1e83b70b18de8e29828c"
+          "bytes": 13055,
+          "sha256": "6fe0e68253d3c6215a0d47f4a79ba355b5cf93960b0ed19671df41e1159a583c"
         },
         {
           "path": "references/theme-colors.md",
@@ -76,13 +76,13 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 19364,
-          "sha256": "4ce226a73eb37f62e3341c3d8bd86078a6a6f0d43f6b66278f79f31bfdab1f3d"
+          "bytes": 25551,
+          "sha256": "b5e6013167c80f785b93ae4c80b4ad2f300a381610065a7fcf183524f79e48a3"
         },
         {
           "path": "references/animation.md",
-          "bytes": 7669,
-          "sha256": "beaba3bd5b6c564d0f9f1a1bab0928b6e0c58f0c5f7b9f9d723a8df573939b30"
+          "bytes": 13308,
+          "sha256": "de275d513330b2a84834be13226c63115ad591cfc5922858110a7cf79dfe0e5e"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",

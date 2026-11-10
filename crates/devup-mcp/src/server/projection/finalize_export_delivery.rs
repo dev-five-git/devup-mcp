@@ -250,7 +250,7 @@ pub(super) async fn finalize_export_delivery(
             *contents = serde_json::to_string_pretty(&result[name]).unwrap_or_default();
         }
     }
-    for field in ["behaviorPlan", "developmentContract", "motionControllerTsx", "motionRuntime", "motionBindings"] {
+    for field in ["behaviorPlan", "developmentContract", "motionControllerTsx", "motionRuntime", "revealTsx", "motionBindings"] {
         if output_paths.contains_key(field)
             && let Some(value) = result.get(field)
         {
@@ -288,6 +288,7 @@ pub(super) async fn finalize_export_delivery(
         "behaviorPlan",
         "motionControllerTsx",
         "motionRuntime",
+        "revealTsx",
         "motionBindings",
         "developmentContract",
     ] {

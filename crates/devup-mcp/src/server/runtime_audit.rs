@@ -14,6 +14,7 @@
 // Source sections share this module to preserve privacy and test names.
 include!("runtime_audit/inputs_and_capture.rs");
 include!("runtime_audit/motion_validation.rs");
+include!("runtime_audit/motion_evidence.rs");
 include!("runtime_audit/write_plan.rs");
 include!("runtime_audit/capture_comparison.rs");
 include!("runtime_audit/plan_columns.rs");

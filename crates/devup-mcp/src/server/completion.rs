@@ -151,8 +151,12 @@ async fn complete_behavior_plan(
     let rebuilt = continuation(&response["behaviorPlan"], complete_plans);
     complete_inventory_for(&rebuilt, record, scope).then_some(rebuilt)
 }
+/// Motion candidates a report covers. An entrance (`reveal`) is covered only
+/// by a passing check at a mobile and at a desktop width; other kinds by one
+/// passing check.
 fn planned_motion_coverage(plan: &Value, report: &Value) -> BTreeSet<String> {
     let mut covered = BTreeSet::new();
+    let mut reveal_widths = std::collections::BTreeMap::<String, (bool, bool)>::new();
     for viewport in values(&plan["plan"], "viewports") {
         let runs = values(report, "runs")
             .filter(|run| {
@@ -188,11 +192,19 @@ fn planned_motion_coverage(plan: &Value, report: &Value) -> BTreeSet<String> {
                     && rows[0]["measured"]["candidateId"] == check["motion"]["candidateId"]
                     && let Some(id) = check["motion"]["candidateId"].as_str()
                 {
-                    covered.insert(id.to_owned());
+                    if check["motion"]["kind"] == "reveal" {
+                        let width = viewport["width"].as_u64().unwrap_or(0);
+                        let seen = reveal_widths.entry(id.to_owned()).or_default();
+                        seen.0 |= width <= 767;
+                        seen.1 |= width >= 1024;
+                    } else {
+                        covered.insert(id.to_owned());
+                    }
                 }
             }
         }
     }
+    covered.extend(reveal_widths.into_iter().filter(|(_, (mobile, desktop))| *mobile && *desktop).map(|(id, _)| id));
     covered
 }
 fn widths() -> Vec<u32> {

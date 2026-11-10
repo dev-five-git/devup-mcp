@@ -202,6 +202,7 @@ pub(super) async fn apply_delivery(
         "tsx",
         "motionControllerTsx",
         "motionRuntime",
+        "revealTsx",
         "motionBindings",
         "componentTsx",
         "responsiveTsx",
