@@ -2,7 +2,7 @@ pub(super) fn projected_outputs_from_result(
     result: &Map<String, Value>,
 ) -> Result<Vec<ProjectedOutput>, DevupError> {
     let mut outputs = Vec::new();
-    for (field, name) in [("motionControllerTsx", "MotionController.tsx"), ("motionRuntime", "motion-runtime.ts")] {
+    for (field, name) in [("motionControllerTsx", "MotionController.tsx"), ("motionRuntime", "motion-runtime.ts"), ("revealTsx", "Reveal.tsx")] {
         if let Some(source) = result.get(field).and_then(Value::as_str) { outputs.push(ProjectedOutput::text(name, "text/typescript", source.as_bytes().to_vec())); }
     }
     for field in ["tsx", "componentTsx", "responsiveTsx"] {

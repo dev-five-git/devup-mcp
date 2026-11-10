@@ -422,8 +422,8 @@ pub fn report() -> Value {
         // once, at install time, and never renames it - so the directory can
         // say 0.9.0-dev while the binary inside it reports 0.10.1 after a
         // self-update replaced the file in place. That is the mechanism
-        // working, not a mismatch, and it reads like one.
-        "installedPathNote": include_str!("text/self_update-report-28b64040.md"),
+        // working, not a mismatch, and it reads like one. The explanation is
+        // in the usage guide ("Server identity"), not repeated in every reply.
         "note": ownership.note(),
         "disableWith": DISABLE_ENV,
     })

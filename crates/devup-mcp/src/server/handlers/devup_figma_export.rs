@@ -12,7 +12,7 @@ impl DevupServer {
     ) -> Result<CallToolResult, ErrorData> {
         let mut input = workflow.input;
         if let Some(cursor) = workflow.behavior_cursor.as_deref() {
-            if input.url.is_some() || workflow.job_id.is_some() || !input.frame_ids.is_empty() || input.all_screens || input.refresh || !input.asset_requests.is_empty() || input.page_scaffold.is_some() || workflow.asset_public_root.is_some() || input.output_paths.keys().any(|key|!matches!(key.as_str(),"behaviorPlan"|"motionControllerTsx"|"motionRuntime"|"motionBindings")) {
+            if input.url.is_some() || workflow.job_id.is_some() || !input.frame_ids.is_empty() || input.all_screens || input.refresh || !input.asset_requests.is_empty() || input.page_scaffold.is_some() || workflow.asset_public_root.is_some() || input.output_paths.keys().any(|key|!matches!(key.as_str(),"behaviorPlan"|"motionControllerTsx"|"motionRuntime"|"revealTsx"|"motionBindings")) {
                 return Err(to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, "behaviorCursor continues the original artifact/scope. Only behaviorPlan and generated motion outputPaths may be written; omit recapture/job/scaffold options.", false)));
             }
             let id = input.artifact_id.as_deref().ok_or_else(|| to_mcp_error(DevupError::new(ErrorCode::DevupInvalidInput, "behaviorCursor requires its original artifactId.", false)))?;

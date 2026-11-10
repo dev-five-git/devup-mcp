@@ -278,6 +278,28 @@ fn page_footer_and_reveal_recommendations_preserve_readable_server_content() {
             .unwrap()
             .contains("never prehide SSR")
     );
+    // The entrance is proposed as Devup UI static keyframes, and the file
+    // that implements it ships with the plan: no animation library.
+    let entrance = &kind(&result, "section-entrance")["implementation"];
+    assert_eq!(entrance["pattern"], "devup-ui-static-keyframes-reveal");
+    for term in ["keyframes()", "animationTimeline view()", "animationRange entry 0% entry min(100%, 240px)", "no animation library"] {
+        assert!(entrance["implementation"].as_str().unwrap().contains(term), "{term}");
+    }
+    assert_eq!(entrance["reducedMotion"], "_motionReduce animation none");
+    assert!(entrance["verify"].as_array().unwrap().contains(&json!("bfcache")));
+    let reveal = result["revealTsx"].as_str().unwrap();
+    for term in ["import { Box, keyframes } from '@devup-ui/react'", "animationTimeline=\"view()\"", "animationRange=\"entry 0% entry min(100%, 240px)\"", "animationFillMode=\"both\"", "_motionReduce={{ animation: 'none' }}", "_focusWithin={{ animation: 'none' }}", "calc(var(--reveal-index) * 60ms)", "export function RevealLine"] {
+        assert!(reveal.contains(term), "Reveal.tsx lacks {term}");
+    }
+    for library in ["framer-motion", "motion/react", "'use client'", "useEffect"] {
+        assert!(!reveal.contains(library), "Reveal.tsx is static server code: {library}");
+    }
+    // The shared controller only marks state; it holds no entrance animation.
+    let runtime = result["motionRuntime"].as_str().unwrap();
+    assert!(runtime.contains("data-reveal-state") && runtime.contains("CSS.supports('animation-timeline: view()')"));
+    assert!(!runtime.contains("translateY("), "the runtime animates no entrance");
+    assert_eq!(result["motionBindings"]["files"]["revealTsx"], "Reveal.tsx");
+    assert_eq!(result["motionBindings"]["entranceStyle"], "devup-ui-static-keyframes");
     assert_eq!(
         result["behaviorPlan"]["pageContracts"][0]["implementation"]["minHeight"],
         "100dvh"

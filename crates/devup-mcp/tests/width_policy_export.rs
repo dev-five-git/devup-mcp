@@ -194,6 +194,19 @@ async fn the_default_export_reports_width_behavior_and_reuse() -> anyhow::Result
     let scope = &output["verificationScope"];
     assert_eq!(scope["collectedWidths"], json!([360.0]), "{scope}");
     assert_eq!(scope["rendered"]["state"], "not-performed");
+    // Each static check names the reply field that holds it; the guide says
+    // what it covers.
+    assert_eq!(
+        scope["staticallyChecked"],
+        json!({"mapping": "quality.projection", "widthChange": "widthBehavior"}),
+        "{scope}"
+    );
+    assert!(
+        scope["guide"]
+            .as_str()
+            .is_some_and(|uri| uri.starts_with("devup://guide/usage")),
+        "{scope}"
+    );
     Ok(())
 }
 

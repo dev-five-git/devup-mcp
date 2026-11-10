@@ -67,8 +67,10 @@ looks correct; verify actual runtime state, asset URLs and changed data.
 
 Motion is a default quality item: without being asked, survey each page's
 sections and repeated content, propose restrained entrance/transition motion by
-role and implement it, following [animation](references/animation.md). The
-user's stated design always wins. Verify start, middle and end frames and the
+role and implement it, following [animation](references/animation.md). Write
+it with Devup UI `keyframes()` and CSS animation props (`animationTimeline="view()"`
+for scroll reveals), not an animation library: it is static CSS with no bundle
+and no hydration flash. The user's stated design always wins. Verify start, middle and end frames and the
 real trigger timing at mobile and desktop widths, never the final frame alone.
 
 Common coding conventions for DevFive frontend projects (puzzle-fit, girok-space, etc.).
@@ -165,7 +167,7 @@ use `Get-ChildItem`/`Select-String` and `Select-Object -First` instead of assumi
 | API Client | @devup-api/fetch, @devup-api/react-query |
 | Forms | react-hook-form 7+ |
 | State | Zustand (when needed) |
-| Animation | framer-motion 12+ |
+| Animation | Devup UI `keyframes()` + CSS animation props (static CSS). framer-motion 12+ only where a project already uses it for exit/gesture motion |
 | Linting | oxlint with `eslint-plugin-devup/oxlint-config` |
 | Package Manager | **bun** (default) |
 
@@ -418,6 +420,7 @@ Maximize Server Components to minimize JS bundle size.
 | Event handlers **defined internally** | **Yes** |
 | Event handlers **received via props** | **No** |
 | `useRouter`, `usePathname` | **Yes** |
+| Devup UI `keyframes()` / CSS animation props | No |
 | `framer-motion` animation | **Yes** |
 
 **Key insight:** Components receiving optional functions via props don't need `'use client'` - but **only if you pass props directly without wrapping in arrow function**.
@@ -716,6 +719,6 @@ export { default } from 'eslint-plugin-devup/oxlint-config'
 - **[Anti-Patterns](references/anti-patterns.md)** - What NOT to do
 - **[Theme Colors](references/theme-colors.md)** - Project theme color tokens
 - **[Common Patterns](references/common-patterns.md)** - Common UI patterns (Modal, Toast, etc.)
-- **[Animation](references/animation.md)** - Default entrance/transition motion: proposal by role, one-shot scroll reveals, no SSR/hydration flash, verification
+- **[Animation](references/animation.md)** - Default entrance/transition motion as Devup UI static keyframes: proposal by role, view-timeline scroll reveals with a marker fallback, no SSR/hydration flash, verification
 
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.

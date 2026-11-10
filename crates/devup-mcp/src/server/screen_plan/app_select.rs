@@ -701,7 +701,7 @@ fn site_questions(
                 "Beyond hover, focus and page transitions, should sections reveal on scroll? Nothing in the plan shows designed motion.".into(),
                 vec![
                     choice("None", "Recommended unless the design shows motion; hover and focus transitions are still added.", json!({"motion": {"source": "none"}})),
-                    choice("Subtle reveal on scroll", "Sections fade and slide in once as they enter; off under prefers-reduced-motion.", json!({"motion": {"source": "reveal"}})),
+                    choice("Subtle reveal on scroll", "Sections fade and slide in once as they enter, as Devup UI static keyframes on a view timeline (CSS only, no animation library); off under prefers-reduced-motion.", json!({"motion": {"source": "reveal", "implementation": "devup-ui-static-keyframes"}})),
                 ],
             ));
         }
