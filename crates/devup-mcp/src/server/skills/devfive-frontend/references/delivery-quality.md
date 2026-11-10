@@ -83,6 +83,32 @@ preferences; do not introduce unsolicited pause controls or hover suspension.
   every layout property. Reduced-motion behavior is the accessible default unless
   an explicit requirement says otherwise; document intentional exceptions.
 
+## Entrance and transition motion is a default item
+
+Do this without being asked, on every page built or changed; the installed
+`devfive-frontend/references/animation.md` has the full rules. A design the
+user stated (no animation, a given timing, a replaying effect) always wins.
+
+- Survey sections and repeated content, then propose motion by role and
+  implement it: one restrained entrance per below-fold content group, a short
+  stagger for card groups only where it helps, transitions for state changes.
+  Do not animate every heading or control, the first viewport, body copy,
+  forms or navigation.
+- A scroll reveal starts when its content is actually visible and plays once;
+  re-entry, scrolling back and back/forward never replay or re-hide it. A
+  section with a background keeps the painted element fixed and moves an inner
+  wrapper. A progress line or graph shares one trigger and timeline with the
+  items it connects.
+- Server markup stays readable: no content that starts at `opacity: 0` or
+  translated away waiting for JavaScript, and no visible content hidden on
+  hydration to replay an entrance. Reload, client navigation and a restored
+  scroll position start from visible content. No-JavaScript, delayed scripts,
+  `prefers-reduced-motion` and keyboard focus all show content in place.
+- Verify the animation, not the final frame: start, middle and end states and
+  the real trigger position at one mobile and one desktop width, plus scroll
+  re-entry, fast scroll, back/forward, and delayed and failed images. Report
+  each as verified or explicitly unverified.
+
 ## One source for business data
 
 Inventory every statistic, product summary and list/detail field before declaring

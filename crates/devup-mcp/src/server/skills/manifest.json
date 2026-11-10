@@ -44,15 +44,15 @@
       "name": "devfive-frontend",
       "origin": "own",
       "title": "DevFive frontend conventions",
-      "description": "Where the generated code goes in a Next App Router project: app/ holds only layout.tsx and page.tsx, components live under components/pages/<route>/, Server Components are the default, and all styling is devup-ui props rather than an authored CSS file. Multi-file: SKILL.md plus four reference documents.",
+      "description": "Where the generated code goes in a Next App Router project: app/ holds only layout.tsx and page.tsx, components live under components/pages/<route>/, Server Components are the default, and all styling is devup-ui props rather than an authored CSS file. Multi-file: SKILL.md plus its reference documents.",
       "usedFor": "devup_figma_export returns one screen's TSX; a project is a tree of routes. This is the skill that says which file that TSX becomes and which rules it is then judged by. Without it an agent that can already write devup-ui still puts the screen in the wrong place - most visibly by switching screens with local state instead of file routing, and by authoring a .css file next to code that has globalCss().",
       "repo": "dev-five-git/devup-mcp",
       "path": "crates/devup-mcp/src/server/skills/devfive-frontend",
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 30455,
-          "sha256": "21ba16688d97ff24a6a5d2352af5ad611a9ad5813c9e9d4301f07b64ac38648d"
+          "bytes": 31003,
+          "sha256": "751f76110eed1fe18874702cc208571c2a651f2822712fba7fc3d309869c0e75"
         },
         {
           "path": "references/critical-rules.md",
@@ -76,8 +76,13 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 17775,
-          "sha256": "cf25b0dfef30dc2cdf106a353c396bc2fbb15673ada487fefad988b1a1f3a029"
+          "bytes": 19364,
+          "sha256": "4ce226a73eb37f62e3341c3d8bd86078a6a6f0d43f6b66278f79f31bfdab1f3d"
+        },
+        {
+          "path": "references/animation.md",
+          "bytes": 6600,
+          "sha256": "cc04c822ea2def17f754e8089f38254d031b7b9501c638355e64674624ed93d1"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",

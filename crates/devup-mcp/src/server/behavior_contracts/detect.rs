@@ -431,7 +431,7 @@ pub(super) fn section_entrance(
         node,
         json!({"sectionHeight":node.typed_view().number("height"),"belowFirstContentSection":true}),
         json!({
-            "pattern":"shared-scroll-reveal-controller","scope":"selected major below-fold sections, not every text or control","serverMarkup":"render readable content immediately; never prehide SSR content","observer":"one shared observer plus new content from client navigation; disconnect/cleanup correctly","motion":"short upward translation and fade once per element, avoiding focused controls","reducedMotion":"leave content in place","timing":"implementation choice, not captured Figma motion","verify":["intermediate frame","once on entry","client navigation","observer cleanup","focus","reduced motion","JavaScript disabled"]
+            "pattern":"shared-scroll-reveal-controller","scope":"selected major below-fold sections, not every text or control","serverMarkup":"render readable content immediately; never prehide SSR content","observer":"one shared observer plus new content from client navigation; disconnect/cleanup correctly","motion":"short upward translation and fade once per element, avoiding focused controls","reducedMotion":"leave content in place","timing":"implementation choice, not captured Figma motion","rules":"devfive-frontend/references/animation.md","verify":["start/middle/end frames","trigger timing","once on entry","scroll re-entry","client navigation","back/forward","observer cleanup","focus","reduced motion","JavaScript disabled"]
         }),
     ))
 }
