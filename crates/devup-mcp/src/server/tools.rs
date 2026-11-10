@@ -362,7 +362,8 @@ pub struct UiValidateInput {
     #[serde(default)]
     pub detail: UiValidateDetail,
     /// Files or recursive directories inside projectRoot. Exclusive with tsx/files;
-    /// at most 512 source files and 8 MiB read. Uses the project's disk theme.
+    /// at most 512 source files and 8 MiB read. Each file uses the nearest
+    /// devup.json above it; files with none are reported as unverified.
     #[serde(default)]
     #[schemars(length(max = 512))]
     pub paths: Vec<String>,
@@ -398,7 +399,8 @@ pub struct UiValidateInput {
     pub tsx: String,
     /// Optional supplied-source bundle: at most 64 entries and 1 MiB total
     /// UTF-8 path/content bytes. Enables structural checks without disk reads.
-    /// Entries require path and content strings; include devup.json for tokens.
+    /// Entries require path and content strings; include devup.json for tokens
+    /// (several are matched to the sources under each one's directory).
     /// Omit tsx when supplying files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<Vec<std::collections::BTreeMap<String, String>>>", extend(

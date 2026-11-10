@@ -10,15 +10,22 @@ pub mod wiring;
 pub mod visual_behavior;
 #[path = "delivery_quality.rs"]
 mod delivery_quality;
+#[path = "static_consts.rs"]
+mod static_consts;
+#[path = "motion_quality.rs"]
+pub mod motion_quality;
+#[cfg(test)]
+#[path = "static_consts_tests.rs"]
+mod static_consts_tests;
 #[cfg(test)]
 #[path = "visual_behavior_tests.rs"]
 mod visual_behavior_tests;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXElementName, JSXOpeningElement, ObjectExpression, ObjectPropertyKind,
-    PropertyKey, UnaryOperator,
+    Argument, BinaryOperator, CallExpression, Expression, JSXAttribute, JSXAttributeItem,
+    JSXAttributeName, JSXAttributeValue, JSXElementName, JSXOpeningElement, ObjectExpression,
+    ObjectPropertyKind, PropertyKey, UnaryOperator,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
@@ -156,12 +163,14 @@ fn validate_source(
         violations: Vec::new(),
         element_stack: Vec::new(),
         render_element_stack: Vec::new(),
+        static_consts: static_consts::static_const_names(&parsed.program),
     };
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
     violations.extend(wiring::findings(tsx));
     violations.extend(visual_behavior::findings(tsx));
     violations.extend(delivery_quality::findings(tsx));
+    violations.extend(motion_quality::findings(tsx));
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
     violations.extend(blur_layers::check(tsx, &attributes));
@@ -266,6 +275,8 @@ struct TsxVisitor<'t> {
     violations: Vec<Violation>,
     element_stack: Vec<Option<String>>,
     render_element_stack: Vec<Option<String>>,
+    /// Module-level `const`s of this file that hold a build-time value.
+    static_consts: BTreeSet<String>,
 }
 
 impl<'t> TsxVisitor<'t> {
@@ -576,7 +587,7 @@ impl<'t> TsxVisitor<'t> {
                 continue;
             };
             let key = property_key_name(&property.key).unwrap_or_else(|| "?".to_owned());
-            if !is_static_expression(&property.value, call_name == "css") {
+            if !is_static_expression(&property.value, call_name == "css", &self.static_consts) {
                 self.violations.push(Violation {
                     rule: "runtime-value",
                     severity: Severity::Error,
@@ -690,44 +701,67 @@ fn property_key_name(key: &PropertyKey) -> Option<String> {
     }
 }
 
-/// Static-analysis literal check mirroring devup-ui's `css-utils-literal-only`
-/// ESLint rule: string/number/boolean/null literals, unary-negated numeric
-/// literals, and arrays/objects composed entirely of such, are allowed.
-/// Identifiers, member/call expressions, template literals with
-/// substitutions, and arbitrary runtime value leaves are not. css() alone can
-/// select among recursively static conditional branches; the condition is kept
-/// in generated class selection (devup-ui extractor::extract_style_from_expression).
-fn is_static_expression(expression: &Expression, conditional_classes: bool) -> bool {
+/// Static-analysis check mirroring devup-ui's `css-utils-literal-only` rule and
+/// its documented build-time constants: string/number/boolean/null literals,
+/// unary-negated numeric literals, arrays/objects composed entirely of such,
+/// and a module-level `const` of the same file holding one of those or a
+/// `keyframes()`/`css()` name (`consts`, see `static_consts`), including in a
+/// template or arithmetic over them. Imports, parameters, member/call
+/// expressions and other runtime value leaves are not. css() alone can select
+/// among recursively static conditional branches; the condition is kept in
+/// generated class selection (devup-ui extractor::extract_style_from_expression).
+fn is_static_expression(
+    expression: &Expression,
+    conditional_classes: bool,
+    consts: &BTreeSet<String>,
+) -> bool {
     match expression.get_inner_expression() {
-        Expression::Identifier(id) if conditional_classes && id.name == "undefined" => true,
+        Expression::Identifier(id) => {
+            (conditional_classes && id.name == "undefined") || consts.contains(id.name.as_str())
+        }
         Expression::ConditionalExpression(conditional) => {
             conditional_classes
-                && is_static_expression(&conditional.consequent, true)
-                && is_static_expression(&conditional.alternate, true)
+                && is_static_expression(&conditional.consequent, true, consts)
+                && is_static_expression(&conditional.alternate, true, consts)
         }
         Expression::StringLiteral(_)
         | Expression::NumericLiteral(_)
         | Expression::BooleanLiteral(_)
         | Expression::NullLiteral(_) => true,
-        Expression::TemplateLiteral(template) => template.expressions.is_empty(),
+        Expression::TemplateLiteral(template) => template
+            .expressions
+            .iter()
+            .all(|part| is_static_expression(part, false, consts)),
+        Expression::BinaryExpression(binary) => {
+            matches!(
+                binary.operator,
+                BinaryOperator::Addition
+                    | BinaryOperator::Subtraction
+                    | BinaryOperator::Multiplication
+                    | BinaryOperator::Division
+            ) && is_static_expression(&binary.left, false, consts)
+                && is_static_expression(&binary.right, false, consts)
+        }
         Expression::UnaryExpression(unary) => {
             matches!(
                 unary.operator,
                 UnaryOperator::UnaryNegation | UnaryOperator::UnaryPlus
-            ) && is_static_expression(&unary.argument, conditional_classes)
+            ) && is_static_expression(&unary.argument, conditional_classes, consts)
         }
         Expression::ArrayExpression(array) => array.elements.iter().all(|element| {
             element
                 .as_expression()
-                .is_some_and(|e| is_static_expression(e, conditional_classes))
+                .is_some_and(|e| is_static_expression(e, conditional_classes, consts))
                 || element.is_elision()
         }),
         Expression::ObjectExpression(object) => {
             object.properties.iter().all(|property| match property {
                 ObjectPropertyKind::ObjectProperty(property) => {
-                    is_static_expression(&property.value, conditional_classes)
+                    is_static_expression(&property.value, conditional_classes, consts)
                 }
-                ObjectPropertyKind::SpreadProperty(_) => false,
+                ObjectPropertyKind::SpreadProperty(spread) => {
+                    is_static_expression(&spread.argument, false, consts)
+                }
             })
         }
         _ => false,
