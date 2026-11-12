@@ -25,7 +25,7 @@ impl DevupServer {
                 screen_plan::draft_with(&input, &screens, &assets, source, &self.output_policy)
                     .await
             }
-            "confirm" => screen_plan::confirm(&input, &self.output_policy),
+            "confirm" => screen_plan::confirm_approved(&input, &self.output_policy),
             "assume" => screen_plan::assume(&input, &self.output_policy),
             "status" => screen_plan::status(&input, &self.output_policy, &self.artifacts).await,
             "auditPlan" => {
@@ -46,6 +46,12 @@ impl DevupServer {
                 .is_some_and(|bridge| bridge.attached_files.len() == 1)
         {
             prefer_bridge_reference_calls(&mut result);
+        }
+        // Every reply says where the workflow stands and the one call to make next.
+        if let Some(root) = input.project_root.as_deref().filter(|root| !root.trim().is_empty())
+            && result.is_object()
+        {
+            result["procedure"] = screen_plan::procedure(root);
         }
         // Status is done only after application completion was re-evaluated.
         let complete = skills::marks_completion("devup_screen_plan", &input.action, &result);

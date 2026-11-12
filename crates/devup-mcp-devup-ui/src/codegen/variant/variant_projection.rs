@@ -248,9 +248,26 @@ pub(super) fn generate_variant_component_set(
             }
         }
     }
-    let transition = transition(snapshot, &default.node_id, &transition_props);
+    let set_name = set.typed_view().name().unwrap_or("Component");
+    let field_focus = field_focus_within(set_name, &root, &mut selectors).map(|_| Diagnostic {
+        code: "DEVUP_CODEGEN_FIELD_FOCUS_WITHIN".to_owned(),
+        message: "The focus variant of this field component is applied with _focusWithin on its container, because the container is not what receives focus: the <input>, <textarea> or <select> rendered inside it is.".to_owned(),
+        node_id: Some(set.id.clone()),
+        severity: Some(DiagnosticSeverity::Info),
+        details: Some(serde_json::json!({
+            "classification": "field-focus-container",
+            "selector": "_focusWithin",
+            "nextAction": "Render the real <input>/<textarea>/<select> inside this container, keep keyboard focus on it (never tabIndex on the container), and remove only its own default outline (outline: none) because the container's _focusWithin border/ring replaces it. Keep the focused border width equal to the resting one or draw the ring with boxShadow/outline so nothing shifts. Then run the runtime audit input-focus check (click and Tab)."
+        })),
+        ..Diagnostic::default()
+    });
+    let transition = field_transition(
+        set_name,
+        transition(snapshot, &default.node_id, &transition_props),
+        &transition_props,
+    );
     let text_properties = bind_text_properties(snapshot, set, &mut root, &dimensions);
-    let component_name = legacy_component_name(set.typed_view().name().unwrap_or("Component"));
+    let component_name = legacy_component_name(set_name);
     let code = mark_node(
         &set.id,
         render_component(
@@ -282,6 +299,7 @@ pub(super) fn generate_variant_component_set(
             })
             .chain(viewport_alt_diagnostics(&records, &root, &[]))
             .chain(state_diagnostics)
+            .chain(field_focus)
             .collect(),
         source_map: crate::provenance::SourceMap::empty(),
         projection_trace: crate::provenance::ProjectionTrace::default(),

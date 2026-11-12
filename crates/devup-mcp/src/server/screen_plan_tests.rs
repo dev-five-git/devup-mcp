@@ -12,3 +12,5 @@ include!("screen_plan_tests/feedback_remaining.rs");
 include!("screen_plan_tests/component_width.rs");
 include!("screen_plan_tests/responsive_contract.rs");
 include!("screen_plan_tests/responsive_groups.rs");
+include!("screen_plan_tests/user_approval.rs");
+include!("screen_plan_tests/motion_completeness.rs");

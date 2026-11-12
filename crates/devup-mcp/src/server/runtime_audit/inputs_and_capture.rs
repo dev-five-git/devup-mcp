@@ -253,6 +253,12 @@ pub struct CheckInput {
     /// overflow-hidden box; ellipsis and line clamp are intended and pass.
     /// interaction: hovering or keyboard-focusing subject (`state`) changes
     /// something visible; without a subject, every visible link and button.
+    /// input-focus: every visible input, textarea and select (optional
+    /// subject scope) is focused by mouse click and again by keyboard Tab; each
+    /// time focus must stay on the field, a focus indicator must surround its
+    /// visual container (the field, or the bordered box around it), no inner
+    /// default outline may show inside that container, and neither the
+    /// container nor the next element may move or resize.
     /// capture: screenshot subject's element box for devup_visual_compare
     /// against `reference`; ingest turns it into a ready call.
     /// no-low-contrast-text: text against effective computed background colours.
@@ -266,7 +272,7 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources", "motion", "data-binding"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "input-focus", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources", "motion", "data-binding"]))]
     pub kind: String,
     /// Observe actual intermediate motion and continuity using semantic selectors.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -721,7 +727,8 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
         }
         "visible" | "view-transition" | "hidden" => needs(true, false)?,
         "stale-resources" | "styles-applied" | "markup" => needs(false, false)?,
-        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance" => {
+        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance"
+        | "input-focus" => {
             if check.container.is_some() {
                 return Err(invalid(format!(
                     "A {} check takes no container.",

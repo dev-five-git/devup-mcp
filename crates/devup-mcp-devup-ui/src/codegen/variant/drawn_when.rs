@@ -569,19 +569,32 @@ fn transition(
         .trim_start_matches("EASE_")
         .to_ascii_lowercase()
         .replace('_', "-");
-    let properties = props
-        .iter()
-        .map(|prop| match prop.as_str() {
-            "bg" => "background",
-            "boxShadow" => "box-shadow",
-            value => value,
-        })
-        .collect::<Vec<_>>()
-        .join(",");
     Some((
         format!("{}ms ease-{easing}", layout::format_number(duration)),
-        properties,
+        css_properties(props),
     ))
+}
+
+/// The CSS `transition-property` list for Devup props: `bg` is `background`,
+/// and camelCase props are written in kebab-case (`borderColor` ->
+/// `border-color`), the only spelling the browser accepts there.
+fn css_properties(props: &BTreeSet<String>) -> String {
+    props
+        .iter()
+        .map(|prop| match prop.as_str() {
+            "bg" => "background".to_owned(),
+            value => value.chars().fold(String::new(), |mut out, c| {
+                if c.is_ascii_uppercase() {
+                    out.push('-');
+                    out.push(c.to_ascii_lowercase());
+                } else {
+                    out.push(c);
+                }
+                out
+            }),
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn render_component(

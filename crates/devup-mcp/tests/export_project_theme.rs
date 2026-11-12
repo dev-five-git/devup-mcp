@@ -202,7 +202,7 @@ async fn export_context_summarizes_a_large_project_under_fifteen_kib() -> anyhow
     let contract = &result["developmentContract"];
     assert_eq!(
         contract["requirements"].as_array().map(Vec::len),
-        Some(21),
+        Some(23),
         "{contract}"
     );
     assert_eq!(

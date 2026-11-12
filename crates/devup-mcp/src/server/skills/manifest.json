@@ -76,8 +76,8 @@
         },
         {
           "path": "references/delivery-quality.md",
-          "bytes": 26870,
-          "sha256": "ee1dd0b19c1a4bff42709af86e19e15496ccc2f22fa99b60ffa9490db2574362"
+          "bytes": 29079,
+          "sha256": "51c4c81fb36a969f708696ab9becf15de5cc458ac50975ea496a5aa1546b80e8"
         },
         {
           "path": "references/animation.md",
@@ -99,8 +99,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 45897,
-          "sha256": "ddbfcb3588c4c61c1e867abae24d062f4a88ed838fd47e7917d98edcfd498e2c"
+          "bytes": 46928,
+          "sha256": "eeef6ee8744deccda24908be0d94b0016e4d4364e172903adf1745422b6ca511"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -117,8 +117,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 25151,
-          "sha256": "52c926b03727b9b05bd09a2a8875f1dbbb71c253ef60cb4054434f4d600b5fdc"
+          "bytes": 26465,
+          "sha256": "ada6d39398c2d19f22e7b5eb036da6d37940c76ca9c9f550948d9c30125a8aee"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

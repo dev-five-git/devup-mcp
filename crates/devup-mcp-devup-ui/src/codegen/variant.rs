@@ -9,3 +9,4 @@ include!("variant/structural_branches.rs");
 include!("variant/instance_booleans.rs");
 
 include!("variant/tree_signature.rs");
+include!("variant/field_focus.rs");

@@ -86,7 +86,10 @@ impl DevupServer {
             };
             match screen_plan::export_gate(&request).map_err(to_mcp_error)? {
                 screen_plan::Gate::Open => {}
-                screen_plan::Gate::Blocked(response) => return Ok(tool_result(response)),
+                screen_plan::Gate::Blocked(mut response) => {
+                    response["procedure"] = screen_plan::procedure(&project_root);
+                    return Ok(tool_result(response));
+                }
                 screen_plan::Gate::Route(route) => {
                     if let Some(scaffold) = input.page_scaffold.as_mut() {
                         scaffold.route = route;

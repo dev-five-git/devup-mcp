@@ -698,9 +698,10 @@ fn site_questions(
                 "motion",
                 "site:motion",
                 "Motion beyond hover",
-                "Beyond hover, focus and page transitions, should sections reveal on scroll? Nothing in the plan shows designed motion.".into(),
+                "Beyond hover, focus and page transitions, how should the screens move? The recommended answer reads the motion the design implies.".into(),
                 vec![
-                    choice("None", "Recommended unless the design shows motion; hover and focus transitions are still added.", json!({"motion": {"source": "none"}})),
+                    choice("Predict from the design", "Read each frame's prototype reactions and layout (hero, card grids, lists, counters, logo rows, tabs) and apply the motion they imply - entrance reveals, count-up, marquee, eased hover/focus/field states - from behaviorPlan motion candidates, as Devup UI static keyframes and transitions (no animation library), off under prefers-reduced-motion; the runtime audit motion check proves each one.", json!({"motion": {"source": "predicted", "implementation": "devup-ui-static-keyframes"}})),
+                    choice("None", "Only hover, focus and field-state transitions; nothing reveals or loops.", json!({"motion": {"source": "none"}})),
                     choice("Subtle reveal on scroll", "Sections fade and slide in once as they enter, as Devup UI static keyframes on a view timeline (CSS only, no animation library); off under prefers-reduced-motion.", json!({"motion": {"source": "reveal", "implementation": "devup-ui-static-keyframes"}})),
                 ],
             ));
@@ -763,6 +764,8 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
     let mut motion = false;
     let mut reduced = false;
     let mut transitions = false;
+    let mut keyframes = false;
+    let mut snapping_fields = Vec::new();
     for relative in &evidence.sources {
         let Some(source) = read_small(&join_relative(&evidence.root, relative)) else {
             continue;
@@ -776,6 +779,13 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
             || source.contains("transform")
             || source.contains("animation");
         reduced |= source.contains("_motionReduce") || source.contains("prefers-reduced-motion");
+        keyframes |= source.contains("keyframes") || source.contains("animationName");
+        let fields = ["as=\"input\"", "as=\"textarea\"", "as=\"select\"", "<input", "<textarea", "<select"]
+            .iter()
+            .any(|field| source.contains(field));
+        if fields && !source.contains("transition") {
+            snapping_fields.push(relative.clone());
+        }
         transitions |= source.contains("ViewTransition")
             || source.contains("viewTransitionName")
             || source.contains("@view-transition");
@@ -791,6 +801,25 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
     items.push(json!({"item": "reduced-motion",
         "state": if reduced { "filled" } else if motion { "missing" } else { "not-applicable" },
         "detail": if reduced { "prefers-reduced-motion is handled" } else if motion { "transitions or transforms with no prefers-reduced-motion handling" } else { "no motion in the sources" }}));
+    // The motion the user chose is in the sources: a predicted or reveal
+    // answer needs keyframes, and every file with a field eases its states.
+    let chosen = site["motion"]["answer"]["motion"]["source"]
+        .as_str()
+        .or_else(|| site["motion"]["answer"]["source"].as_str())
+        .or_else(|| site["motion"]["value"].as_str());
+    items.push(match chosen {
+        Some("none") => json!({"item": "motion", "state": "not-applicable", "detail": "the user chose no motion beyond hover, focus and field states"}),
+        Some(_) if keyframes => json!({"item": "motion", "state": "filled", "detail": "keyframes are in the sources; the runtime audit motion check proves each candidate"}),
+        Some(_) => json!({"item": "motion", "state": "missing", "detail": "motion was chosen (predicted from the design or reveal) but no keyframes are in the sources yet: implement the behaviorPlan motion candidates"}),
+        None if decided("motion") || site["motion"].is_null() => json!({"item": "motion", "state": "not-applicable", "detail": "no motion decision in this plan"}),
+        None => json!({"item": "motion", "state": "missing", "detail": "the site:motion question is unanswered"}),
+    });
+    items.push(if snapping_fields.is_empty() {
+        json!({"item": "field-state-motion", "state": "filled", "detail": "every source with a field declares a transition, or there is no field"})
+    } else {
+        json!({"item": "field-state-motion", "state": "missing",
+            "detail": format!("fields snap between rest, focus, invalid and disabled with no transition in: {} (transition=\"160ms ease-out\" with transitionProperty on the box that changes)", snapping_fields.join(", "))})
+    });
     // Decided again from what is installed now: the plan was drafted before
     // the dependency update, and the update is what makes it possible.
     let planned = view_transition_default(evidence);

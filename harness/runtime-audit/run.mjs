@@ -21,6 +21,7 @@ import { assertSelection } from './selection-checks.mjs';
 import { installMotionProbe, runMotionCheck } from './motion-checks.mjs';
 import { runDataBindingCheck } from './data-checks.mjs';
 import { sourceDigest } from './source-digest.mjs';
+import { evaluateInputFocus, observeInputFocus } from './input-focus-checks.mjs';
 import {
   ERROR_PAGE_TEXT, STATE_PROPERTIES, evaluateBounds, evaluateHidden, evaluateCheck, evaluateClippedText, evaluateDimensions,
   evaluateInteraction, evaluatePageHealth, evaluateTextAlignment, evaluateSequenceOrder, evaluateSectionLayout, evaluateStylesApplied, evaluateNoLowContrastText, evaluateRenderedCompleteness, evaluateViewTransition, summarize,
@@ -1056,7 +1057,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
             record.checks.push({ ...item, ...evaluateClippedText(await clippedText(page, check.subject)) });
             continue;
           }
-          if (check.kind === 'interaction') continue;
+          if (check.kind === 'interaction' || check.kind === 'input-focus') continue;
           if (check.kind === 'capture') {
             const target = locate(page, check.subject);
             const count = await target.count();
@@ -1110,6 +1111,21 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           record.checks.push({ index, kind: check.kind, label: check.label, ...(observed.error
             ? { status: 'inconclusive', reason: `the subject could not be ${check.state === 'focus' ? 'focused' : 'hovered'}: ${observed.error.split('\n')[0]}`, measured: {} }
             : evaluateInteraction(check, observed)) });
+        }
+        // Fields focused by click and by Tab, after the interaction checks so
+        // their hover and focus have been left.
+        for (const [index, check] of screen.checks.entries()) {
+          if (check.kind !== 'input-focus' || (check.widths?.length && !check.widths.includes(viewport.width))) continue;
+          const item = { index, kind: check.kind, label: check.label };
+          const scope = check.subject ? locate(page, check.subject) : page.locator('body');
+          if ((await scope.count()) !== 1) {
+            record.checks.push({ ...item, status: 'inconclusive', reason: 'subject must match exactly one element', measured: {} });
+            continue;
+          }
+          const observed = await observeInputFocus(page, scope, { timeout: stepTimeout }).catch((error) => ({ error: String(error?.message ?? error) }));
+          record.checks.push({ ...item, ...(observed.error
+            ? { status: 'inconclusive', reason: `fields could not be focused: ${observed.error.split('\n')[0]}`, measured: {} }
+            : evaluateInputFocus(observed)) });
         }
         // Links on this page, so a dynamic route ([slug]) can be audited at the
         // URLs the site itself links to.

@@ -43,6 +43,17 @@ binary ships this document in its usage resource and skill installation.
   pending and captured state styles. Capture the whole COMPONENT_SET before
   projecting states; a static icon or screenshot is not a working select.
   Verify select open/choose/close, arrows, Enter/Escape, ARIA and focus restoration.
+- A field's focus marks the box the user sees. When the input/textarea/select
+  is itself the bordered box, its `_focusVisible` draws the ring. When it sits
+  in a container with an icon, prefix or button, the container takes
+  `_focusWithin` (border colour plus a ring) and the field drops its own
+  outline only then, so no second inner outline appears. Keyboard focus stays
+  on the field: never `tabIndex` on the container. Keep the border width equal
+  at rest and focused (draw extra width with `boxShadow`/`outline`) so the
+  field and its neighbours never move. Labels, aria-invalid error styles and
+  disabled stay. The runtime `input-focus` check focuses each field by click
+  and by Tab and fails an inner outline, a ring that misses the container,
+  focus landing on the container and any movement.
 - A colour variant must use its own captured palette for background, text,
   border, icon, hover, press, focus and disabled states. Do not inherit primary
   blue into a secondary variant or infer absent tokens by suffix number.
@@ -91,6 +102,19 @@ Do this without being asked, on every page built or changed; the installed
 `devfive-frontend/references/animation.md` has the full rules. A design the
 user stated (no animation, a given timing, a replaying effect) always wins.
 
+- Predict motion from the design: the screen plan's `site:motion` question
+  recommends "Predict from the design" - read each frame's prototype
+  reactions and layout (hero, card grids, lists, counters, logo rows, tabs)
+  and implement the behaviorPlan motion candidates they imply. Status lists a
+  `motion` completion item that stays missing until keyframes are in the
+  sources, and a `field-state-motion` item that stays missing while a file
+  with a field has no transition.
+- Field states ease: the box that changes on focus, invalid or disabled has
+  `transition="160ms ease-out"` and a `transitionProperty` naming only the
+  changed paint (`border-color,box-shadow,background`), unless the prototype
+  gives its own. Generated field components carry it; `devup_ui_validate`
+  reports `input-state-transition` and the runtime `input-focus` check fails a
+  focus state that snaps.
 - Survey sections and repeated content, then propose motion by role and
   implement it: one restrained entrance per below-fold content group, a short
   stagger for card groups only where it helps, transitions for state changes.
@@ -339,6 +363,7 @@ before claiming completion. The installed copy of this document is
 | `preserve-instance-sizing-and-paint` | Captured instance overrides, sizes and paints are kept |
 | `paired-e2e-and-native-figma-visuals` | Functional E2E and native Figma visual comparisons are run together |
 | `semantic-native-controls-and-complete-pseudo-states` | Native elements with accessible names and every pseudo-state painted |
+| `field-focus-on-visual-container` | A field's focus ring surrounds the box the user sees - the field itself, or its container via `_focusWithin` with the inner outline removed - focus stays on the field and nothing moves; proven by the runtime `input-focus` check by click and by Tab |
 | `variant-palette-consistency` | Every variant uses the captured palette, including selected and disabled |
 | `single-source-url-content-selection` | The URL is the single source of which content is selected (`aria-current`) |
 | `viewport-footer-shell` | A short page keeps its footer at the viewport bottom |
@@ -348,6 +373,7 @@ before claiming completion. The installed copy of this document is
 | `one-shot-reveals-without-ssr-flash` | A reveal completes when its content is visible and never replays, re-hides or flashes on hydration, reload, back/forward or client navigation |
 | `canonical-semantic-assets` | One asset registry, semantic file names, no duplicates or hash names |
 | `landing-detail-api-db-single-source` | Landing and detail values come from the same API and DB records |
+| `user-approved-plan-before-implementation` | The screen and project plans are confirmed only with `userApproval`: the user's own answer and, for screens, every approved URL; an agent never confirms on the user's behalf |
 | `runtime-evidence-before-completion` | Completion is claimed from a runtime audit, not from the export or a screenshot |
 | `offer-devup-retro-in-final-report` | The final completion report ends by offering `/devup-retro` once, in the user's language; it is never run unasked |
 

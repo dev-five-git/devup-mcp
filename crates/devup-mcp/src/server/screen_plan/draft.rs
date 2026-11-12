@@ -569,11 +569,11 @@ pub(super) async fn draft_with(
         "writtenTo": written,
         "replacedConfirmedPlan": replaced,
         "nextAction": if questions.is_empty() {
-            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": {}},
-                "how": "Nothing is open. Show the user the screens table, then confirm with empty answers."})
+            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": {}, "userApproval": {"via": "question-tool", "userAnswer": "<the label the user chose, verbatim>", "approvedUrls": ["<every URL in the table, exactly as shown>"]}},
+                "how": "Nothing is open, but the user still approves the URLs. Show the screens table (every screen and its URL) and ask with the question tool; confirm only after the user answers, with userApproval carrying their answer and every URL in the table.", "mustAskUser": true})
         } else {
-            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "acceptRecommended": true, "answers": "<only the rows the user changed: question id -> chosen label or custom text>"},
-                "how": ASK_INSTRUCTION})
+            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "acceptRecommended": true, "answers": "<only the rows the user changed: question id -> chosen label or custom text>", "userApproval": {"via": "question-tool", "userAnswer": "<the label the user chose, verbatim>", "approvedUrls": ["<every URL in the table, exactly as shown>"]}},
+                "how": ASK_INSTRUCTION, "mustAskUser": true, "approvalRule": APPROVAL_INSTRUCTION})
         },
     }))
 }

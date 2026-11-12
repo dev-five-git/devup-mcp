@@ -178,6 +178,14 @@ So the order is fixed, and none of it is optional.
   the rows to change. Then confirm with `acceptRecommended: true` and only the
   changed rows in `answers`. Use `questions` / `questionRounds` only to review
   the rows the user asked to change.
+- **The user approves the URLs, not you.** Confirm (screen plan and project
+  plan) requires `userApproval`: `via` (`question-tool`, `user-message`, or
+  `delegated` only when the user told you to decide alone), `userAnswer` (the
+  user's own words, verbatim) and, for the screen plan, `approvedUrls` - every
+  URL of the table exactly as the user saw it. A missing receipt or a URL list
+  that differs from what confirm builds confirms nothing and returns the table
+  to show. Ask, wait for the answer, then confirm; never in the same turn as
+  the question, never with an answer the user did not give.
 - **Ask in the user's language.** Translate the table, the question and the
   option labels into the language the user first wrote to you in, for display
   only. Answers sent to confirm stay keyed by question id and use the original
@@ -273,7 +281,7 @@ and the final report repeats them:
 | Card that links | 2-4px lift + shadow token; inner image zooms 1.02-1.04 (overflow hidden) | lift removed | ring on the card | - |
 | Nav item / tab | colour | - | ring | current route: `aria-current="page"` and the Figma active style (e.g. the underline the header draws) |
 | Icon button | background circle or tint | press | ring | `aria-label` required |
-| Input / select / textarea | border | - | border + ring | invalid state with its message; disabled |
+| Input / select / textarea | border | - | border + ring on the box the user sees: the field itself (`_focusVisible`), or - when the field sits in a container with an icon, prefix or button - the container with `_focusWithin`, and the field's own outline removed (`outline: "none"`) only then; focus stays on the field (no `tabIndex` on the container); same border width at rest and focused (ring by `boxShadow`/`outline`) | invalid state with its message; disabled; verified by the runtime `input-focus` check (click and Tab) |
 | Accordion / disclosure / dropdown | - | - | ring | `aria-expanded`; the chevron rotates 180deg |
 | Mobile menu / drawer | - | - | - | an open/close transition, when the design has one |
 

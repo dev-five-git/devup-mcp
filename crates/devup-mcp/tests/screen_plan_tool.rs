@@ -44,6 +44,32 @@ impl FigmaUpstream for NoFigma {
     }
 }
 
+/// The first value under `key` anywhere in `value`.
+fn find<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
+    match value {
+        Value::Object(map) => map
+            .get(key)
+            .or_else(|| map.values().find_map(|child| find(child, key))),
+        Value::Array(items) => items.iter().find_map(|child| find(child, key)),
+        _ => None,
+    }
+}
+
+/// A confirm through the tool: refused without the user's receipt, then sent
+/// again with the URLs the refusal says the user has to approve.
+async fn confirm_as_user(root: &Path, mut arguments: Value) -> anyhow::Result<(bool, Value)> {
+    let (failed, refused) = call(root, "devup_screen_plan", arguments.clone()).await?;
+    if !failed {
+        return Ok((failed, refused));
+    }
+    let Some(urls) = find(&refused, "expectedUrls").cloned() else {
+        return Ok((failed, refused));
+    };
+    assert!(refused.to_string().contains("userApproval"), "{refused}");
+    arguments["userApproval"] = json!({"via": "question-tool", "userAnswer": "Accept the table (Recommended)", "approvedUrls": urls});
+    call(root, "devup_screen_plan", arguments).await
+}
+
 async fn call(root: &Path, tool: &'static str, arguments: Value) -> anyhow::Result<(bool, Value)> {
     let server = DevupServer::with_output_roots(
         Services::new(Arc::new(Auth), Arc::new(NoFigma)),
@@ -110,7 +136,7 @@ async fn recommended_contact_routes_confirm_through_the_tool_surface() -> anyhow
     )
     .await?;
     assert!(!failed, "{draft}");
-    let (failed, confirmed) = call(&root, "devup_screen_plan", json!({
+    let (failed, confirmed) = confirm_as_user(&root, json!({
         "action":"confirm", "projectRoot":root, "planId":draft["planId"], "acceptRecommended":true
     })).await?;
     assert!(!failed, "{confirmed}");
@@ -204,9 +230,8 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
     assert!(!failed, "{gated}");
     assert_eq!(gated["status"], "plan_required", "{gated}");
 
-    let (failed, confirmed) = call(
+    let (failed, confirmed) = confirm_as_user(
         &root,
-        "devup_screen_plan",
         json!({"action": "confirm", "projectRoot": root_text, "planId": plan_id,
             "answers": {"route:1:5": "/pricing (Recommended)",
                 "group:1:2": "One responsive page (Recommended)",
@@ -308,5 +333,28 @@ async fn validate_warns_on_bare_controls_missing_metadata_and_no_icon() -> anyho
     assert!(found.contains(&"page-metadata".to_owned()), "{bundle}");
     assert!(found.contains(&"hover-transition".to_owned()), "{bundle}");
     std::fs::remove_dir_all(root).ok();
+    Ok(())
+}
+
+/// The project plan, too, is confirmed only with the user's receipt; the
+/// refusal comes before anything is read or written.
+#[tokio::test]
+async fn a_project_plan_confirm_without_the_users_receipt_is_refused() -> anyhow::Result<()> {
+    let root = project("project-approval");
+    let root_text = root.to_str().unwrap();
+    let (failed, refused) = call(
+        &root,
+        "devup_project_plan",
+        json!({"action": "confirm", "projectRoot": root_text, "planId": "any", "acceptRecommended": true}),
+    )
+    .await?;
+    assert!(failed, "{refused}");
+    let text = refused.to_string();
+    assert!(
+        text.contains("userApproval") && text.contains("question tool"),
+        "{text}"
+    );
+    assert!(!root.join(".devup/project-plan.json").exists());
+    std::fs::remove_dir_all(root)?;
     Ok(())
 }

@@ -610,6 +610,7 @@ fn confirmed_plan() -> Value {
     json!({
         "kind": PLAN_KIND, "schemaVersion": SCHEMA_VERSION, "planId": "sp-test", "status": "confirmed",
         "source": {"nodeId": "10:0"},
+        "userApproval": {"via": "question-tool", "userAnswer": "Accept (test user)", "approvedUrls": ["/", "/about"], "reviewedByUser": true},
         "routes": [
             {"url": "/", "screen": "10:1", "name": "Main", "nodeIds": ["10:1", "10:2"], "drawnWidths": [1440, 390], "implementation": "page", "file": "src/app/page.tsx"},
             {"url": "/about", "screen": "10:3", "name": "About", "nodeIds": ["10:3"], "drawnWidths": [1440], "implementation": "page", "file": "src/app/about/page.tsx"},

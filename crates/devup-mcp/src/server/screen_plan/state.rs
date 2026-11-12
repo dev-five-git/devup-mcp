@@ -108,6 +108,12 @@ pub struct ScreenPlanInput {
     /// the rows the user changed need to be sent.
     #[serde(default)]
     pub accept_recommended: bool,
+    /// confirm (required through the tool): the user's approval of the
+    /// screens and URLs table - how they answered, their own words, and every
+    /// URL exactly as shown. Without it, or with URLs that differ from what
+    /// confirm builds, nothing is confirmed and the table to show is returned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_approval: Option<UserApprovalInput>,
     /// status: the runtime audit plan JSON, together with auditReportPath.
     #[serde(default)]
     pub audit_plan_path: Option<String>,
