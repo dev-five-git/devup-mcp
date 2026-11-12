@@ -43,3 +43,5 @@ include!("screen_plan/lookup.rs");
 include!("screen_plan/component_width.rs");
 include!("screen_plan/responsive_groups.rs");
 include!("screen_plan/responsive_contract.rs");
+include!("screen_plan/user_approval.rs");
+include!("screen_plan/procedure.rs");

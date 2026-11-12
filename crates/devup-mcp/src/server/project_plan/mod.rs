@@ -45,6 +45,10 @@ pub struct ProjectPlanInput {
     /// missing from `answers` takes its recommended option.
     #[serde(default)]
     pub accept_recommended: bool,
+    /// confirm (required): the user's approval of the plan - how they
+    /// answered and their own words. Without it nothing is confirmed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_approval: Option<screen_plan::UserApprovalInput>,
     #[serde(default)]
     pub features: Vec<Feature>,
     /// Explicit ERD models in vespertide wire format; confirm may refine the draft.
@@ -325,8 +329,9 @@ fn forward_screen_answers(
     }
     let forward = json!({"tool":"devup_screen_plan","arguments":{
         "action":"confirm","planId":screen["planId"],"projectRoot":root,
-        "answers":screen_answers,"acceptRecommended":accept_recommended},
-        "how":"These answers belong to the screen plan: send them with this call. The user was asked once, in the merged proposal."});
+        "answers":screen_answers,"acceptRecommended":accept_recommended,
+        "userApproval":{"via":"question-tool","userAnswer":"<the label the user chose, verbatim>","approvedUrls":["<every URL in the screens table, exactly as shown>"]}},
+        "how":"These answers belong to the screen plan: send them with this call, with userApproval from the user's answer to the merged proposal (it showed every screen and URL).","mustAskUser":true});
     (own, forward)
 }
 fn without_screens(plan: &Value) -> Vec<Value> {
@@ -659,7 +664,9 @@ pub(super) async fn run(
                         .map(|q| q["id"].clone()).collect::<Vec<_>>(),
                     "nextAction":{"tool":"devup_project_plan","arguments":{
                         "action":"confirm","projectRoot":input.project_root,
-                        "planId":plan["planId"],"answers":{},"acceptRecommended":true}}
+                        "planId":plan["planId"],"answers":{},"acceptRecommended":true,
+                        "userApproval":{"via":"question-tool","userAnswer":"<the label the user chose, verbatim>"}},
+                        "how":screen_plan::APPROVAL_INSTRUCTION}
                 });
                 error
             })?;
@@ -691,6 +698,7 @@ pub(super) async fn run(
                 )));
             }
             wiring::draft(&mut plan);
+            plan["userApproval"] = screen_plan::approval_record(input.user_approval.as_ref());
             erd::write_models(&mut tx, policy, &input.project_root, &plan)?;
             plan["writtenTo"] = json!(if erd::api(&plan) {
                 array(&plan["entities"]).iter()

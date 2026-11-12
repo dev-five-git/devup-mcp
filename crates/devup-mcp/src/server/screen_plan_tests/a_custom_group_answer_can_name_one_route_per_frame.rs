@@ -395,7 +395,7 @@ fn site_files_are_asked_with_evidence_backed_candidates() {
         labels(find(&plan, "site:name"))[0],
         "prime-web (Recommended)"
     );
-    assert_eq!(labels(find(&plan, "site:motion"))[0], "None (Recommended)");
+    assert_eq!(labels(find(&plan, "site:motion"))[0], "Predict from the design (Recommended)");
     assert!(!question_ids(&plan).contains(&"site:analytics".to_owned()));
     let defaults = array(&plan["defaults"])
         .iter()

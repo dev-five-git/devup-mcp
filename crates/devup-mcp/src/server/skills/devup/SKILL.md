@@ -155,6 +155,14 @@ This is the devup-implementation-plan workflow, started explicitly. Follow it
 in this order and do not skip a step. The devup-implementation-plan skill has
 the full rules; these are the steps.
 
+Every `devup_screen_plan` reply, and every export the plan gate refuses,
+carries a `procedure` block computed from the plan on disk: `step` (where the
+work is, of 5), `next` (the one call to make now), `waitForUser` and
+`forbiddenNow`. Do exactly `next`. When `waitForUser` is true, end the turn
+after asking and do nothing else until the user answers. Never do anything in
+`forbiddenNow`. If what you planned differs from `procedure.next`, the
+procedure wins.
+
 1. **Connection.** `devup_figma_auth` with `action: "status"`. With a Bridge
    plugin attached nothing needs a login; do not ask for one. For disconnected,
    out-of-view or mismatched-host states, load `figma-bridge-setup` and perform
@@ -180,10 +188,22 @@ the full rules; these are the steps.
    (every open decision with its recommended answer) in the language the user
    first wrote in, and ask ONE question with your question tool: accept, or
    name the rows to change. Collect known decisions in one question call.
-6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId`,
-   `acceptRecommended: true` and only the changed rows in `answers`. If
-   confirm reports two screens on one URL, retry with its
-   `details.retryAnswers` merged into your answers.
+   **This is a hard stop.** Do not call confirm in the same turn as the
+   question. Wait for the user's answer. Never pick an answer for the user,
+   never treat silence or your own recommendation as approval.
+6. **Confirm with the user's receipt.** `devup_screen_plan` with
+   `action: "confirm"`, the `planId`, `acceptRecommended: true`, only the
+   changed rows in `answers`, and `userApproval`:
+   `{ via: "question-tool", userAnswer: "<the label the user chose, verbatim>",
+   approvedUrls: [<every URL in the table you showed, exactly>] }`.
+   Confirm refuses without it, and refuses when `approvedUrls` differs from
+   the URLs it would build - then it returns `details.markdownTable`: show
+   that table, ask again, and confirm with the URLs the user approved. Use
+   `via: "delegated"` only when the user said in this session to decide
+   without asking, quoting those words; the final report then says the URLs
+   were not reviewed. If confirm reports two screens on one URL, retry with
+   its `details.retryAnswers` merged into your answers - and the new URL goes
+   back to the user the same way.
 7. **Latest first, before implementing, without asking.**
     a. At the repository root, run `bunx @dependency-check-updates/cli -d -u
        --rm`. It updates every manifest in the repository to the latest

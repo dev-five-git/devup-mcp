@@ -110,7 +110,13 @@ For Figma work, continue with the following branch after project intake:
 5. Ask every question now with the `question` tool: the flat `questions` list
    in one call. Never in prose. New user-owned decisions after confirm still
    use the question tool; workers escalate to the supervisor.
-6. `devup_screen_plan` confirm with every answer that applies.
+   Stop there and wait for the answer; never answer for the user.
+6. `devup_screen_plan` confirm with every answer that applies and
+   `userApproval: {via: "question-tool", userAnswer: "<the user's answer,
+   verbatim>", approvedUrls: [<every URL of the table shown>]}`. Without it,
+   or with URLs that differ from what confirm builds, nothing is confirmed:
+   show the returned table and ask again. `devup_project_plan` confirm takes
+   the same receipt (without approvedUrls).
 7. Latest first, without asking: at the repository root run
    `bunx @dependency-check-updates/cli -d -u --rm` - it updates every
    manifest in the repository, every bun workspace and Cargo.toml included,

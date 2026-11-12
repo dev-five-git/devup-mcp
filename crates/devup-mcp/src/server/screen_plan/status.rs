@@ -362,7 +362,11 @@ pub(super) fn status_report(
     if links_fail {
         for item in &mut queue { item["done"] = json!(false); }
     }
-    let final_report = super::audit_plan::final_report(plan, &rows, &trailing) + &link_markdown;
+    // Who approved the URLs is part of what was delivered.
+    let approval = approval_line(&plan["userApproval"]);
+    let final_report = super::audit_plan::final_report(plan, &rows, &trailing)
+        + &link_markdown
+        + &format!("\n\nURL plan: {approval}.\n");
     let blocking_urls = rows.iter().filter(|row| {
         row["implemented"] != "yes" || array(&row["widths"]).iter().any(|width| width["result"] != "pass")
             || row["generatedExport"]["issue"].is_string()
@@ -382,6 +386,7 @@ pub(super) fn status_report(
         "blockingUrls": blocking_urls,
         "completion": {"done": done, "blockingUrls": blocking_urls, "reportAllowed": done},
         "pendingDecisions": plan["pendingDecisions"],
+        "userApproval": {"line": approval, "record": plan["userApproval"]},
         "finalReport": final_report,
         "linkTable": link_table,
         "mobileNavigation": plan["mobileNavigation"],
@@ -599,6 +604,11 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         }
         _ => return Ok(Gate::Open),
     };
+    // The user approves the URLs before any page is written: a confirmed plan
+    // without the user's receipt is approved first, not built.
+    if gated && !has_user_approval(&plan) {
+        return Ok(Gate::Blocked(approval_gate(&plan, request.project_root)));
+    }
     if gated && let Some(erd) = super::project_plan::erd_required(request.project_root) {
         return Ok(Gate::Blocked(json!({
             "status": "erd_required",

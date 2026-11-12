@@ -22,6 +22,7 @@ pub(super) const REQUIREMENTS: &[&str] = &[
     "preserve-instance-sizing-and-paint",
     "paired-e2e-and-native-figma-visuals",
     "semantic-native-controls-and-complete-pseudo-states",
+    "field-focus-on-visual-container",
     "variant-palette-consistency",
     "single-source-url-content-selection",
     "viewport-footer-shell",
@@ -31,6 +32,7 @@ pub(super) const REQUIREMENTS: &[&str] = &[
     "one-shot-reveals-without-ssr-flash",
     "canonical-semantic-assets",
     "landing-detail-api-db-single-source",
+    "user-approved-plan-before-implementation",
     "runtime-evidence-before-completion",
     "offer-devup-retro-in-final-report",
 ];
@@ -49,7 +51,7 @@ pub(super) const COMPLETION_EVIDENCE: &[&str] = &[
 pub(super) fn attach(result: &mut Value) {
     if !result.is_object() { return; }
     result["developmentContract"] = json!({
-        "version": 5,
+        "version": 6,
         "guide": "devup://guide/usage#behavior-and-data-contracts",
         "alwaysApplies": true,
         "requirements": REQUIREMENTS,
@@ -67,7 +69,7 @@ mod tests {
         attach(&mut result);
         assert_eq!(result["developmentContract"]["alwaysApplies"], true);
         assert_eq!(result["developmentContract"]["staticExportProvesApplicationBehavior"], false);
-        assert_eq!(result["developmentContract"]["version"], 5);
+        assert_eq!(result["developmentContract"]["version"], 6);
         let requirements = result["developmentContract"]["requirements"].as_array().unwrap();
         for required in ["route-owned-page-body", "devup-api-only", "stop-affected-api-gaps", "paired-e2e-and-native-figma-visuals"] {
             assert!(requirements.contains(&json!(required)));
@@ -142,6 +144,6 @@ yourself", "carries no offer", super::super::skills::RETRO_OFFER_FIELD] {
         unique.sort();
         unique.dedup();
         assert_eq!(unique.len(), REQUIREMENTS.len() + COMPLETION_EVIDENCE.len());
-        assert_eq!((REQUIREMENTS.len(), COMPLETION_EVIDENCE.len()), (21, 8));
+        assert_eq!((REQUIREMENTS.len(), COMPLETION_EVIDENCE.len()), (23, 8));
     }
 }

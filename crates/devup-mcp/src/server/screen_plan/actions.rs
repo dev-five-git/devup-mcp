@@ -1,6 +1,29 @@
 /// `confirm`: every question that applies answered, in one call, or nothing
-/// changes.
+/// changes. A `userApproval` sent here is checked and recorded, but not
+/// required; the tool requires it ([`confirm_approved`]). Tests drive the
+/// plan logic through this one.
+/// A plan confirmed here without a receipt is recorded as approved by a test
+/// user, so the export gate's other rules stay testable; the gate itself is
+/// tested by removing the receipt.
+#[cfg(test)]
 pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
+    let result = confirm_with(input, policy, false)?;
+    if input.user_approval.is_none() && result["alreadyConfirmed"] != true {
+        let (plan_root, mut plan) = audit_plan_location(input)?;
+        plan["userApproval"] = json!({"via": "question-tool", "userAnswer": "Accept (test user)",
+            "approvedUrls": plan_urls(&plan), "reviewedByUser": true, "recordedAt": now()});
+        write_plan(policy, plan_root.to_str().unwrap_or_default(), &plan)?;
+    }
+    Ok(result)
+}
+
+/// `confirm` as the tool runs it: refused unless `userApproval` shows the
+/// user approved exactly the URLs that are built.
+pub(super) fn confirm_approved(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
+    confirm_with(input, policy, true)
+}
+
+fn confirm_with(input: &ScreenPlanInput, policy: &OutputPolicy, approval_required: bool) -> Result<Value, DevupError> {
     let (plan_root, mut plan) = audit_plan_location(input)?;
     let root = plan_root.to_str().ok_or_else(|| invalid("The plan root is not UTF-8."))?;
     let plan_id = input
@@ -16,15 +39,35 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         ));
     }
     if plan["status"] == "confirmed" && input.answers.is_empty() {
+        // A plan confirmed before receipts existed (or without one) takes the
+        // user's approval of its URLs now; pages stay blocked until it has.
+        let table = json!(route_markdown(array(&plan["routes"])));
+        let built = plan_urls(&plan);
+        let mut written = Value::Null;
+        if let Some(approval) = approval_receipt(input.user_approval.as_ref(), false, "screens and their URLs", &table, &built)? {
+            check_approved_urls(approval, &built, &table)?;
+            plan["userApproval"] = approval_record(Some(approval));
+            written = json!(write_plan(policy, root, &plan)?);
+        }
+        let approved = has_user_approval(&plan);
         return Ok(json!({
             "status": "confirmed",
             "alreadyConfirmed": true,
             "planId": plan["planId"],
             "confirmedAt": plan["confirmedAt"],
             "routes": plan["routes"],
-            "markdownTable": route_markdown(array(&plan["routes"])),
-            "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "status", "projectRoot": root, "planId": plan_id},
-                "how": "Nothing changed. The plan was confirmed before; continue implementation from its status."},
+            "markdownTable": table,
+            "userApproval": plan["userApproval"],
+            "approval": approval_line(&plan["userApproval"]),
+            "writtenTo": written,
+            "nextAction": if approved {
+                json!({"tool": "devup_screen_plan", "arguments": {"action": "status", "projectRoot": root, "planId": plan_id},
+                    "how": "The plan was confirmed before and carries the user's approval; continue implementation from its status."})
+            } else {
+                json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan_id, "answers": {},
+                    "userApproval": {"via": "question-tool", "userAnswer": "<the label the user chose, verbatim>", "approvedUrls": built}},
+                    "how": APPROVAL_INSTRUCTION, "mustAskUser": true})
+            },
         }));
     }
     let mut questions = array(&plan["questions"]).to_vec();
@@ -386,6 +429,25 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             .find(|frame| frame["pageId"] == page).map(|frame| frame["pageName"].clone());
         plan["confirmedPage"] = json!({"id":page,"name":name,"basis":"base-page answer"});
     }
+    // The user approves the URLs that are built, not a table they never saw.
+    let table = json!(route_markdown(&routes));
+    let built = routes
+        .iter()
+        .filter_map(|route| route["url"].as_str().map(str::to_owned))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let approval = approval_receipt(
+        input.user_approval.as_ref(),
+        approval_required,
+        "screens and their URLs",
+        &table,
+        &built,
+    )?;
+    if let Some(approval) = approval {
+        check_approved_urls(approval, &built, &table)?;
+    }
+    plan["userApproval"] = approval_record(approval);
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
     refresh_inventory_checks(&mut plan);
@@ -421,6 +483,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "confirmedPage": plan["confirmedPage"],
         "routes": routes,
         "markdownTable": route_markdown(&routes),
+        "userApproval": plan["userApproval"],
+        "approval": approval_line(&plan["userApproval"]),
         "frameInventory": plan["frameInventory"],
         "linkLabelCheck": plan["linkLabelCheck"],
         "excluded": excluded,
