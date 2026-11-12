@@ -78,6 +78,7 @@ fn write_plan(
                 include_bytes!("../../../../../harness/runtime-audit/data-checks.mjs").as_slice(),
             ),
             ("clipping-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/clipping-checks.mjs").as_slice()),
+            ("input-focus-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/input-focus-checks.mjs").as_slice()),
             (
                 "selection-checks.mjs",
                 include_bytes!("../../../../../harness/runtime-audit/selection-checks.mjs").as_slice(),

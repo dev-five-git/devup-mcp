@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fields</title>
+<style>
+  body { font: 16px/1.4 sans-serif; margin: 24px; }
+  section { margin: 0 0 24px; }
+  input, textarea, select { font: inherit; }
+  /* The field is its own box. */
+  .own { border: 1px solid #c4c4c4; border-radius: 8px; padding: 8px 12px; background: #fff; transition: border-color 160ms ease-out, box-shadow 160ms ease-out; }
+  .own:focus-visible { outline: none; border-color: #0057bb; box-shadow: 0 0 0 2px #0057bb; }
+  .own[aria-invalid="true"] { border-color: #d92d20; }
+  .own[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 2px #d92d20; }
+  .own:disabled { opacity: .5; }
+  /* An icon, the field and a button inside one box. */
+  .box { display: flex; align-items: center; gap: 8px; width: 320px; padding: 0 8px; border: 1px solid #c4c4c4; border-radius: 12px; background: #fff; }
+  .box input { flex: 1; border: none; background: transparent; padding: 10px 0; }
+  .box svg { width: 16px; height: 16px; }
+  .box button { border: none; background: transparent; }
+  .box button:focus-visible { outline: 2px solid #0057bb; }
+  .good { transition: 160ms ease-out; transition-property: border-color, box-shadow; }
+  .good:focus-within { border-color: #0057bb; box-shadow: 0 0 0 2px #0057bb; }
+  .snap:focus-within { border-color: #0057bb; box-shadow: 0 0 0 2px #0057bb; }
+  .snap input { outline: none; }
+  .good input { outline: none; }
+  .dup:focus-within { border-color: #0057bb; box-shadow: 0 0 0 2px #0057bb; }
+  .shift { border: 1px solid #c4c4c4; padding: 8px; background: #fff; }
+  .shift:focus { outline: none; border: 3px solid #0057bb; }
+</style>
+</head>
+<body>
+<main>
+  <section id="own"><label>Name <input class="own" name="name"></label></section>
+  <section id="wrapped-good">
+    <div class="box good"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#555"/></svg><input aria-label="Search" type="search"><button type="button" aria-label="Clear">x</button></div>
+  </section>
+  <section id="wrapped-bad">
+    <div class="box"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#555"/></svg><input aria-label="Find"></div>
+  </section>
+  <section id="snap">
+    <div class="box snap"><input aria-label="Jump"></div>
+  </section>
+  <section id="wrapped-dup">
+    <div class="box dup"><input aria-label="Filter"><button type="button">Go</button></div>
+  </section>
+  <section id="textarea"><label>Message <textarea class="own" rows="3"></textarea></label></section>
+  <section id="states">
+    <label>Email <input class="own" aria-invalid="true" value="not-an-email"></label>
+    <label>Locked <input class="own" disabled value="locked"></label>
+  </section>
+  <section id="shift"><label>Code <input class="shift"></label><span>after</span></section>
+  <section id="moved">
+    <div class="box good" tabindex="0"><input aria-label="Coupon"></div>
+  </section>
+  <section id="select">
+    <div class="box good"><select aria-label="Sort" style="flex:1;border:none;background:transparent;padding:10px 0;outline:none"><option>New</option><option>Old</option></select></div>
+  </section>
+</main>
+</body>
+</html>

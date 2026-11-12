@@ -61,7 +61,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 14);
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 15);
         let imported = std::process::Command::new("node")
             .args(["--input-type=module", "-e", "await import('./run.mjs')"])
             .current_dir(dir.join("runner"))

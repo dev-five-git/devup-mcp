@@ -535,7 +535,7 @@ pub(super) fn url_plan(
                     "assetRequests": batch.iter().map(|id| json!({"nodeId": id, "renderMode": "node", "format": "png", "scale": 1})).collect::<Vec<_>>()}}}));
         }
     }
-    let room = MAX_CHECKS.saturating_sub(checks.len() + layout.len() + 3);
+    let room = MAX_CHECKS.saturating_sub(checks.len() + layout.len() + 4);
     if parts.len() > room {
         notes.push(format!(
             "{} card and child position checks left out: a screen holds at most {MAX_CHECKS} checks.",
@@ -551,9 +551,10 @@ pub(super) fn url_plan(
             "subject": node(id), "nodeId": id, "widths": [width]}),
         ));
     }
-    checks.truncate(MAX_CHECKS - 3);
+    checks.truncate(MAX_CHECKS - 4);
     checks.push(check(json!({"kind": "interaction", "label": "hover on every link and button", "state": "hover", "widths": [widest]})));
     checks.push(check(json!({"kind": "interaction", "label": "focus on every link and button", "state": "focus", "widths": [widest]})));
+    checks.push(check(json!({"kind": "input-focus", "label": "focus on every field surrounds its box, by click and by Tab", "widths": [widest]})));
     match target.next_url {
         Some(next) => checks.push(check(
             json!({"kind": "view-transition", "label": format!("view transition to {next}"),

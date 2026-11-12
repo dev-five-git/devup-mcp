@@ -22,6 +22,31 @@
 //! - `nav-current` (info): a link in a nav with no `aria-current` handling.
 //! - `page-metadata` (warning): an App Router `page` or `layout` that exports
 //!   neither `metadata` nor `generateMetadata`.
+//!
+//! Inputs are the one role whose focusable element is often not the box the
+//! user sees: an `<input>` with no border of its own inside a bordered
+//! container (with an icon, prefix or button) shows focus only if the
+//! container reacts to `:focus-within`. Source alone cannot prove what the
+//! browser paints (a global reset may remove the outline, a theme may draw
+//! the border), so these are review items marked `verification:
+//! "browser-required"` and answered by the runtime audit `input-focus` check:
+//!
+//! - `input-focus-container` (info): the field sits inside a visual
+//!   container that has no `_focusWithin`; a focus style on the field draws
+//!   inside the box, or nothing marks the box at all.
+//! - `input-focus-duplicate-outline` (info): the container has
+//!   `_focusWithin` but the field keeps its default outline, so a second,
+//!   inner ring appears.
+//! - `input-focus-outline-removed` (warning): the field removes its outline
+//!   and nothing in this source replaces it - not on the field, not on the
+//!   container.
+//! - `input-focus-layout-shift` (info): the focused border is wider than the
+//!   resting one, which moves the text and the elements around the field.
+//! - `input-focus-moved-to-container` (warning): the container takes
+//!   `tabIndex`, so keyboard focus can land on a box that is not the field.
+//! - `input-state-transition` (info): the box that shows focus changes its
+//!   border or ring with no `transition`, so the state snaps instead of
+//!   easing; the runtime `input-focus` check measures it.
 
 use super::{Severity, Violation};
 use crate::effective_attributes::AttributeContext;
@@ -30,6 +55,10 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType, Span};
+
+#[path = "site/input_focus.rs"]
+mod input_focus;
+use input_focus::{input_focus_findings, paints_box};
 
 /// Interactive elements found in one source, and how many carry states.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -103,7 +132,30 @@ struct Element {
     child_hover: bool,
     /// The opening tag as written, for the motion checks.
     text: String,
+    /// For an input: the nearest ancestor that draws the visible box, when
+    /// the field draws none of its own.
+    container: Option<Container>,
 }
+
+/// An ancestor that paints a border, background or shadow.
+#[derive(Clone)]
+struct Container {
+    name: String,
+    span: Span,
+    focus_within: bool,
+    tab_index: bool,
+    /// The opening tag as written.
+    text: String,
+}
+
+/// What the visitor remembers about each open ancestor element.
+struct Frame {
+    container: Option<Container>,
+}
+
+/// How many ancestors up a field's visual container may be: the field, an
+/// optional inner wrapper, the box.
+const CONTAINER_DEPTH: usize = 3;
 
 impl Element {
     fn complete(&self) -> bool {
@@ -112,8 +164,16 @@ impl Element {
             Role::IconButton => self.hover && self.focus && self.aria_label,
             Role::NavItem => self.hover && self.focus && self.aria_current,
             Role::Disclosure => self.focus,
-            Role::Input | Role::Link | Role::Card | Role::Clickable => self.hover && self.focus,
+            Role::Input => self.hover && self.shows_focus(),
+            Role::Link | Role::Card | Role::Clickable => self.hover && self.focus,
         }
+    }
+
+    /// Whether focusing this element shows something: its own focus style,
+    /// or, for a field inside a visual container, the container's
+    /// `_focusWithin`.
+    fn shows_focus(&self) -> bool {
+        self.focus || self.container.as_ref().is_some_and(|box_| box_.focus_within)
     }
 }
 
@@ -122,6 +182,7 @@ struct Collector<'s> {
     nav_depth: usize,
     elements: Vec<Element>,
     attributes: AttributeContext,
+    ancestors: Vec<Frame>,
 }
 
 fn attribute_name<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a str> {
@@ -229,11 +290,26 @@ impl<'a> Visit<'a> for Collector<'_> {
         } else {
             None
         };
+        let span = opening.span();
+        let text = self
+            .source
+            .get(span.start as usize..span.end as usize)
+            .unwrap_or_default()
+            .to_owned();
+        let paints = paints_box(&attributes);
+        let container = (input && !paints)
+            .then(|| {
+                self.ancestors
+                    .iter()
+                    .rev()
+                    .take(CONTAINER_DEPTH)
+                    .find_map(|frame| frame.container.clone())
+            })
+            .flatten();
         if let Some(role) = role.filter(|_| !spread) {
-            let span = opening.span();
             self.elements.push(Element {
                 span,
-                name: tag,
+                name: tag.clone(),
                 role,
                 hover: has("_hover"),
                 focus: has("_focusVisible") || has("_focus") || has("_focusWithin"),
@@ -245,16 +321,25 @@ impl<'a> Visit<'a> for Collector<'_> {
                 child_focus: link
                     && descendant_has(&node.children, &["_focusVisible", "_focus"]),
                 child_hover: link && descendant_has(&node.children, &["_hover"]),
-                text: self
-                    .source
-                    .get(span.start as usize..span.end as usize)
-                    .unwrap_or_default()
-                    .to_owned(),
+                text: text.clone(),
+                container,
             });
         }
+        let tab_index = attributes.contains("tabIndex")
+            && attributes.literal("tabIndex").as_deref() != Some("-1");
+        self.ancestors.push(Frame {
+            container: (paints && !input).then(|| Container {
+                name: tag.clone(),
+                span,
+                focus_within: has("_focusWithin"),
+                tab_index,
+                text,
+            }),
+        });
         self.nav_depth += usize::from(nav);
         walk::walk_jsx_element(self, node);
         self.nav_depth -= usize::from(nav);
+        self.ancestors.pop();
     }
 }
 
@@ -277,6 +362,7 @@ fn collect(path: &str, source: &str) -> Option<Vec<Element>> {
         nav_depth: 0,
         elements: Vec::new(),
         attributes: AttributeContext::from_program(&parsed.program),
+        ancestors: Vec::new(),
     };
     collector.visit_program(&parsed.program);
     Some(collector.elements)
@@ -290,7 +376,7 @@ pub fn interaction_coverage(path: &str, source: &str) -> InteractionCoverage {
         interactive: elements.len(),
         with_states: elements
             .iter()
-            .filter(|element| element.hover || element.focus)
+            .filter(|element| element.hover || element.shows_focus())
             .count(),
         hover_without_transition: elements
             .iter()
@@ -463,7 +549,8 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                 "Put _hover on the element rendered as the link: <Text as={Link} props={{ href }} _hover={{ ... }}>.",
             );
         }
-        if !element.hover && !element.focus && !element.child_focus && !element.child_hover {
+        let focus = element.shows_focus();
+        if !element.hover && !focus && !element.child_focus && !element.child_hover {
             push(
                 "interactive-states",
                 Severity::Warning,
@@ -473,7 +560,7 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                 ),
                 include_str!("../text/site-interaction_findings-3f71ed85.md"),
             );
-        } else if !element.focus && !element.child_focus {
+        } else if !focus && !element.child_focus {
             push(
                 "focus-style",
                 Severity::Warning,
@@ -550,6 +637,9 @@ pub fn interaction_findings(path: &str, source: &str) -> Vec<Violation> {
                 format!("<{name}> is in a nav but never marks the current page."),
                 "Set aria-current=\"page\" on the link for the current route (usePathname) and give it the Figma active style.",
             );
+        }
+        if matches!(element.role, Role::Input) {
+            found.extend(input_focus_findings(source, &element));
         }
     }
     found
@@ -745,4 +835,5 @@ export function Cards() { return <Box as={Link} href="/work/1"><Image src="/a.pn
         assert!(metadata_finding("src/components/About.tsx", bare).is_none());
         assert!(is_route_file("app/layout.tsx"));
     }
+
 }

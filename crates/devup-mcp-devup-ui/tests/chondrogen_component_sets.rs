@@ -136,3 +136,61 @@ fn variant_root_remains_a_containing_block_for_absolute_descendants() {
     assert!(output.tsx.contains("pos=\"absolute\""), "{}", output.tsx);
     assert!(output.tsx.contains("left=\"3px\""), "{}", output.tsx);
 }
+
+/// The button set with its `active` state relabelled `focus` and the set named
+/// as a field: the frame is the visual container, the <input> inside it is
+/// what receives focus.
+fn field_set(name: &str) -> Snapshot {
+    load(
+        &include_str!("fixtures/chondrogen_button_set.json")
+            .replace("\"active\"", "\"focus\"")
+            .replace("effect=active", "effect=focus")
+            .replace("\"name\": \"button\"", &format!("\"name\": \"{name}\"")),
+    )
+}
+
+#[test]
+fn a_field_container_takes_its_focus_state_with_focus_within() {
+    for name in ["Search Input", "text-field", "검색창"] {
+        let snapshot = field_set(name);
+        let root = snapshot.roots[0].clone();
+        let output = generate_component(&snapshot, &root, &CodegenOptions::default()).unwrap();
+        assert!(
+            output.tsx.contains("_focusWithin={"),
+            "{name}: {}",
+            output.tsx
+        );
+        assert!(!output.tsx.contains("_focus={"), "{name}: {}", output.tsx);
+        // The design names no prototype transition: the field still eases its
+        // state change, on the changed props only, in CSS spelling.
+        assert!(
+            output.tsx.contains("transition=\"160ms ease-out\""),
+            "{name}: {}",
+            output.tsx
+        );
+        assert!(
+            output.tsx.contains("transitionProperty=\""),
+            "{name}: {}",
+            output.tsx
+        );
+        assert!(
+            !output.tsx.contains("transitionProperty=\"bg"),
+            "{name}: {}",
+            output.tsx
+        );
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "DEVUP_CODEGEN_FIELD_FOCUS_WITHIN"),
+            "{name}"
+        );
+    }
+    // A button keeps `_focus`: it is itself the focusable element.
+    let snapshot = field_set("button");
+    let root = snapshot.roots[0].clone();
+    let output = generate_component(&snapshot, &root, &CodegenOptions::default()).unwrap();
+    assert!(output.tsx.contains("_focus={"), "{}", output.tsx);
+    assert!(!output.tsx.contains("_focusWithin"), "{}", output.tsx);
+    assert!(!output.tsx.contains("160ms ease-out"), "{}", output.tsx);
+}

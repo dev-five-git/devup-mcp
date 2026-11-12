@@ -124,7 +124,7 @@ pub(crate) fn failure_class(kind: &str, reason: &str) -> &'static str {
         "bounds" if reason.starts_with("position") => "layout-position",
         "bounds" | "dimensions" | "visible" => "layout-size",
         "contained" | "aligned" | "spans" => "layout-position",
-        "interaction" => "interaction",
+        "interaction" | "input-focus" => "interaction",
         "view-transition" => "view-transition",
         _ => "layout-position",
     }
@@ -156,6 +156,7 @@ pub(crate) fn fix_hint(class: &str, kind: &str, measured: &Value) -> String {
         "asset-mismatch" => include_str!("../text/runtime_audit-fix_hint-650b18d4.md").to_owned(),
         "section-visual" => include_str!("../text/runtime_audit-fix_hint-a13b2885.md").to_owned(),
         "page-visual" => include_str!("../text/runtime_audit-fix_hint-5960cebc.md").to_owned(),
+        "interaction" if kind == "input-focus" => include_str!("../text/runtime_audit-fix_hint-input-focus.md").to_owned(),
         "interaction" => include_str!("../text/runtime_audit-fix_hint-e19dc0a1.md").to_owned(),
         "view-transition" => include_str!("../text/runtime_audit-fix_hint-7a003bba.md").to_owned(),
         _ => "Re-run the check and read its reason.".to_owned(),

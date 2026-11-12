@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Field focus marks the box the user sees. A Figma field component set (input, text field, textarea, search, select, combobox, dropdown) now generates its focus variant as _focusWithin on the container instead of an unreachable _focus (DEVUP_CODEGEN_FIELD_FOCUS_WITHIN). devup_ui_validate reports input-focus-container, input-focus-duplicate-outline and input-focus-layout-shift as browser-required review items (info) and input-focus-outline-removed and input-focus-moved-to-container as warnings; a container's _focusWithin now counts as the field's focus style. devup_runtime_audit adds the input-focus check (planned by auditPlan): every visible input, textarea and select is focused by click and by Tab and fails an inner default outline inside the container, a ring that does not surround the container, focus landing on the container and any size or position change; disabled fields are listed and skipped. Contract identifier field-focus-on-visual-container. Field states ease instead of snapping: a generated field component without a Figma prototype transition gets transition 160ms ease-out on the props its states change (transitionProperty is now written in CSS kebab-case, e.g. border-color), devup_ui_validate reports input-state-transition (info, browser-required), and the input-focus runtime check fails a focus state no transition covers.",
+  "date": "2026-11-12T00:00:00.000000000Z"
+}
