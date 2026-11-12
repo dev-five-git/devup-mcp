@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "Cargo.toml": "Minor"
-  },
-  "note": "The plan gates can no longer be self-confirmed. devup_screen_plan confirm through the tool requires userApproval {via: question-tool | user-message | delegated, userAnswer: the user's verbatim answer, approvedUrls: every URL of the table shown}; a missing or placeholder receipt, or URLs that differ from what confirm builds, confirms nothing and returns the table and expectedUrls to show. devup_project_plan confirm requires the same receipt (without URLs). The receipt is written to the plan and printed in confirm, status and the finalReport (delegated or missing receipts are reported as not reviewed by the user). Draft nextAction carries mustAskUser and the receipt template; the server instructions, the devup and devup-implementation-plan skills and the OpenCode command state the hard stop. Contract identifier user-approved-plan-before-implementation (developmentContract v6). A confirmed plan without the user's receipt writes no page: devup_figma_export page writes return status approval_required until confirm records the approval. Every devup_screen_plan reply and every refused export carry a procedure block (step of 5, the one next call, waitForUser, forbiddenNow) computed from the plan on disk. The site:motion question now recommends Predict from the design (motion source predicted, Devup UI static keyframes), and status adds motion and field-state-motion completion items that stay missing until the sources carry them.",
-  "date": "2026-11-12T00:00:00.000000000Z"
-}
