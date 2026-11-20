@@ -221,6 +221,9 @@ pub(super) async fn compare(
     if !(0.0..=1.0).contains(&options.max_changed_ratio) {
         return Err(invalid("threshold must be between 0 and 1 inclusive."));
     }
+    if input.max_luminance_delta.is_some_and(|limit| !(0.0..=255.0).contains(&limit)) {
+        return Err(invalid("maxLuminanceDelta must be between 0 and 255 inclusive."));
+    }
     // Resolve every supplied path before any PNG read.
     let actual_target = policy.resolve(&input.actual)?;
     let reference_target = match &input.reference {
@@ -370,9 +373,14 @@ pub(super) async fn compare(
         environment["filledByServer"] = json!(filled);
     }
     let passed = report.passed();
-    let verdict = if environment["status"] != "valid" {
+    let luminance = input.max_luminance_delta.map(|limit| {
+        let measured = report.mean_luminance_delta;
+        json!({"limit":limit,"actualMinusReference":measured,"passed":measured.map(|value| value.abs() <= limit)})
+    });
+    let verdict = if environment["status"] != "valid"
+        || luminance.as_ref().is_some_and(|check| check["passed"].is_null()) {
         "inconclusive"
-    } else if passed {
+    } else if passed && luminance.as_ref().is_none_or(|check| check["passed"] == true) {
         "pass"
     } else {
         "fail"
@@ -382,6 +390,9 @@ pub(super) async fn compare(
     visual["passed"] = json!(passed);
     let mut result =
         json!({"verdict":verdict,"visual":visual,"environment":environment,"reference":provenance});
+    if let Some(luminance) = luminance {
+        result["luminance"] = luminance;
+    }
     result["comparisonScope"] = json!(if asset_comparison {
         "asset-pixels-against-native-node-export"
     } else {
@@ -400,6 +411,12 @@ pub(super) async fn compare(
     });
     if asset_comparison {
         result["canvasFidelity"] = json!("unverified-outside-reference-node-subtree");
+    } else if result["environment"]["status"] != "valid" {
+        result["nextAction"] = json!({
+            "kind": "repair-capture-environment",
+            "guide": "devup://guide/usage",
+            "how": "Resolve environment.issues using measured browser evidence, then rerun this comparison. For a source-bound application audit, use devup_runtime_audit plan and ingest with Figma references and visualEnvironments."
+        });
     }
     if let (Some(target), Some(bytes)) = (diff_target, diff.as_ref()) {
         let display = target.display_path().display().to_string();

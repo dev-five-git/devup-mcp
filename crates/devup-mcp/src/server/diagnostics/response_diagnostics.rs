@@ -58,10 +58,10 @@ pub fn connection_report(
             "Reading through the Devup Bridge plugin: no login needed and no Figma allowance spent."
         }
         Some(ActivePath::Direct) if bridge_blocked => {
-            "Reading through the metered direct path (Figma allowance is spent). The Devup Bridge plugin is not reachable from this process; this is not a server failure - paths.bridge.reason says why."
+            "The metered direct path is available. Direct reads count against Figma usage limits. The Devup Bridge plugin is not reachable from this process; this is not a server failure - paths.bridge.reason says why."
         }
         Some(ActivePath::Direct) => {
-            "Reading through the metered direct path (Figma allowance is spent). No Devup Bridge plugin is attached; running it on the file avoids the cost."
+            "The metered direct path is available. Direct reads count against Figma usage limits. No Devup Bridge plugin is attached; running it on the file avoids the cost."
         }
         None => "Neither the Devup Bridge plugin nor the direct path can serve a read right now.",
     };

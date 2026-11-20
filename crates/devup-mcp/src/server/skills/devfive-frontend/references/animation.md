@@ -187,6 +187,15 @@ that change (`transition="opacity .2s, transform .2s"`), switched off with
 - **Images.** Images inside a revealed block reserve their size. A slow or
   failed image must not hold the block hidden or shift it when it arrives.
 
+For timed scroll entrances, prepare only offscreen elements for motion. Once
+an element is visible at its resting position, keep it there if hydration or
+the observer is late. The first rendered frame in the viewport must already
+be continuous with the entrance. Ready content stays visible with JavaScript
+disabled or reduced motion enabled. A sticky header uses a short color
+transition between states and a consistent height; it has no entrance
+translation. Check the reverse scroll direction and the reduced-motion
+variant.
+
 ## 4. Verify the motion, not the final screenshot
 
 A correct final frame says nothing about the animation. For every motion you

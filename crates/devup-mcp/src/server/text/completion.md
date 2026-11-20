@@ -46,6 +46,16 @@ in the browser plan, or pass the explicitly agreed required widths to both.
    comparison ID (tsxResource, themePath, assetDirectory, devupUiVersion and
    fontManifest). Observed viewport, capture context, renderer and actual PNG
    stay bound to the audited run. Retain actual/reference/diff and thresholds.
+   Apply this gate to follow-up edits, including shared components and CSS-only
+   fixes after the initial plan was approved. List affected routes and states
+   before testing. Capture the updated page against the corresponding Figma
+   state at each drawn width and retain the fresh source-bound evidence. Record
+   any user-approved variation with its state and source node so a known
+   design difference remains visible in the report. A static Figma frame
+   establishes an endpoint only; measure transitions and functional actions in
+   the browser. If a state has no Figma reference or the verdict is
+   inconclusive, state the gap and use the approved acceptance criteria for
+   runtime evidence. A tool receipt or an old screenshot does not clear it.
 5. Operational data uses a typed `data-binding` check with actual OpenAPI/model
    anchors, exact exported binding IDs (`nodeId::role`), explicit aggregate and
    landing/list/detail selectors. The runner requires an isolated disposable DB,

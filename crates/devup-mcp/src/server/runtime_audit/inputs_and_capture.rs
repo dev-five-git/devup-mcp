@@ -144,7 +144,7 @@ pub struct ScreenInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct StepInput {
-    #[schemars(extend("enum" = ["click", "fill", "press", "back", "forward", "reload"]))]
+    #[schemars(extend("enum" = ["click", "fill", "press", "scroll", "back", "forward", "reload"]))]
     pub action: String,
     #[serde(default)]
     pub target: LocatorInput,
@@ -272,11 +272,14 @@ pub struct CheckInput {
     /// minHeightRatio of the frame's height, every listed section and image
     /// renders (images decoded), and no text is invisible against what is
     /// painted behind it. A drawn width without a passing one is not-run.
-    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "input-focus", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources", "motion", "data-binding"]))]
+    #[schemars(extend("enum" = ["links-resolve", "no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition", "page-health", "markup", "bounds", "no-clipped-text", "interaction", "input-focus", "capture", "hidden", "rendered-completeness", "sequence-order", "section-layout", "text-align", "no-clipped-content", "styles-applied", "no-low-contrast-text", "image-loaded", "native-appearance", "stale-resources", "motion", "data-binding", "regression"]))]
     pub kind: String,
     /// Observe actual intermediate motion and continuity using semantic selectors.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub motion: Option<Value>,
+    /// Observed header, inquiry, image handoff or delayed-font regression.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regression: Option<RegressionInput>,
     /// links-resolve: confirmed URL patterns and routes found on disk.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub planned_targets: Vec<String>,
@@ -358,6 +361,9 @@ pub struct CaptureReferenceInput {
     /// not a filled shape where an outline was drawn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threshold: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0.0, max = 255.0))]
+    pub max_luminance_delta: Option<f64>,
 }
 
 /// Changed-pixel ratios that absorb anti-aliasing between Figma's renderer
@@ -613,12 +619,12 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
             }
             timeout("steps[].timeoutMs", step.timeout_ms)?;
             match (step.action.as_str(), &step.value) {
-                ("click" | "back" | "forward" | "reload", None) => {}
+                ("click" | "scroll" | "back" | "forward" | "reload", None) => {}
                 ("fill", Some(value)) if value.chars().count() <= MAX_TEXT => {}
                 ("press", Some(value)) if !value.is_empty() && value.chars().count() <= MAX_TEXT => {}
                 _ => {
                     return Err(invalid(
-                        "A step is click, back, forward or reload (no value), or fill/press (nonempty value, at most 300 characters).",
+                        "A step is click, scroll, back, forward or reload (no value), or fill/press (nonempty value, at most 300 characters).",
                     ));
                 }
             }
@@ -689,223 +695,6 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
         timeout("readiness.timeoutMs", readiness.timeout_ms)?;
     }
     timeout("stepTimeoutMs", plan.step_timeout_ms)
-}
-
-fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
-    if !check.allowed_marquees.is_empty() {
-        if check.kind != "no-clipped-content" || check.allowed_marquees.len()>16 {
-            return Err(invalid("allowedMarquees is bounded to 16 selectors on no-clipped-content checks."));
-        }
-        for selector in &check.allowed_marquees { bounded_text("allowedMarquees selector",selector)?; }
-    }
-    if let Some(reason) = &check.unavailable_reason {
-        return bounded_text("unavailableReason", reason);
-    }
-    let needs = |subject: bool, container: bool| -> Result<(), DevupError> {
-        if subject != check.subject.is_some() || container != check.container.is_some() {
-            return Err(invalid(format!(
-                "A {} check takes {}subject and {}container.",
-                check.kind,
-                if subject { "a " } else { "no " },
-                if container { "a " } else { "no " },
-            )));
-        }
-        Ok(())
-    };
-    if check.kind == "motion" {
-        needs(false, false)?;
-        return validate_motion(check.motion.as_ref());
-    }
-    match check.kind.as_str() {
-        "data-binding" => {
-            needs(false, false)?;
-            let config=check.data_binding.as_ref().ok_or_else(||invalid("data-binding requires dataBinding configuration."))?;
-            super::data_verification::validate_config(config)?;
-        }
-        "links-resolve" | "no-horizontal-overflow" | "page-health" | "no-clipped-content" => {
-            needs(false, false)?
-        }
-        "visible" | "view-transition" | "hidden" => needs(true, false)?,
-        "stale-resources" | "styles-applied" | "markup" => needs(false, false)?,
-        "no-clipped-text" | "no-low-contrast-text" | "image-loaded" | "native-appearance"
-        | "input-focus" => {
-            if check.container.is_some() {
-                return Err(invalid(format!(
-                    "A {} check takes no container.",
-                    check.kind
-                )));
-            }
-        }
-        "bounds" => {
-            needs(true, true)?;
-            if check.tolerance_px.is_some() {
-                return Err(invalid(
-                    "A bounds check is exact (half a pixel of rounding); it takes no tolerancePx. A mismatch is code drift or a converter bug, never noise.",
-                ));
-            }
-            let Some(expected) = &check.expected else {
-                return Err(invalid(
-                    "A bounds check needs expected {x, y, width, height}.",
-                ));
-            };
-            if [expected.x, expected.y, expected.width, expected.height]
-                .iter()
-                .any(|value| !value.is_finite() || value.abs() > 100_000.0)
-                || expected.width < 0.0
-                || expected.height < 0.0
-            {
-                return Err(invalid(
-                    "bounds expected values must be finite px, width and height nonnegative.",
-                ));
-            }
-        }
-        "interaction" => {
-            // Without a subject it sweeps every visible link and button.
-            if check.container.is_some() {
-                return Err(invalid("An interaction check takes no container."));
-            }
-            if !matches!(check.state.as_deref(), Some("hover" | "focus")) {
-                return Err(invalid("An interaction check needs state hover or focus."));
-            }
-        }
-        "capture" => {
-            needs(true, false)?;
-            let Some(reference) = &check.reference else {
-                return Err(invalid(
-                    "A capture check needs reference {scope, artifactId, assetId}.",
-                ));
-            };
-            if !matches!(reference.scope.as_str(), "section" | "asset") {
-                return Err(invalid("capture reference.scope must be section or asset."));
-            }
-            bounded_text("reference.artifactId", &reference.artifact_id)?;
-            bounded_text("reference.assetId", &reference.asset_id)?;
-            if reference
-                .threshold
-                .is_some_and(|value| !(0.0..=1.0).contains(&value))
-            {
-                return Err(invalid("reference.threshold must be between 0 and 1."));
-            }
-        }
-        "dimensions" => {
-            needs(true, false)?;
-            if check.tolerance_px.is_none()
-                || check.figma_dimensions.is_empty()
-                || !matches!(check.measure.as_deref(), None | Some("box"))
-            {
-                return Err(invalid(
-                    "A dimensions check needs tolerancePx, figmaDimensions and measure box.",
-                ));
-            }
-        }
-        "text-align" => {
-            needs(true, false)?;
-            if !matches!(
-                check.edge.as_deref(),
-                Some("left" | "right" | "center" | "justify")
-            ) {
-                return Err(invalid(
-                    "A text-align check needs edge left, right, center or justify.",
-                ));
-            }
-        }
-        "sequence-order" => needs(false, false)?,
-        "section-layout" => {
-            if check.subject.is_some() {
-                needs(true, true)?;
-            } else {
-                needs(false, false)?;
-            }
-        }
-        "rendered-completeness" => {
-            needs(false, false)?;
-            let Some(completeness) = &check.completeness else {
-                return Err(invalid(
-                    "A rendered-completeness check needs completeness {frameHeight, sections, images}.",
-                ));
-            };
-            validate_completeness(completeness)?;
-            if check.widths.len() != 1 {
-                return Err(invalid(
-                    "A rendered-completeness check holds one frame, so it names exactly one width.",
-                ));
-            }
-        }
-        "contained" | "spans" => needs(true, true)?,
-        "aligned" => {
-            needs(true, true)?;
-            if !matches!(check.edge.as_deref(), Some("left" | "right" | "center")) {
-                return Err(invalid(
-                    "An aligned check needs edge left, right or center.",
-                ));
-            }
-        }
-        other => return Err(invalid(format!("Unknown check kind {other}."))),
-    }
-    for (field, present, kind) in [
-        ("dataBinding",check.data_binding.is_some(),"data-binding"),
-        ("expected", check.expected.is_some(), "bounds"),
-        ("state", check.state.is_some(), "interaction"),
-        ("reference", check.reference.is_some(), "capture"),
-        (
-            "completeness",
-            check.completeness.is_some(),
-            "rendered-completeness",
-        ),
-    ] {
-        if present && check.kind != kind {
-            return Err(invalid(format!("{field} is only valid for {kind} checks.")));
-        }
-    }
-    if let Some(node_id) = &check.node_id {
-        bounded_text("checks[].nodeId", node_id)?;
-    }
-    if check.kind != "dimensions" && !check.figma_dimensions.is_empty() {
-        return Err(invalid(
-            "figmaDimensions is only valid for dimensions checks.",
-        ));
-    }
-    let mut widths = std::collections::BTreeSet::new();
-    for reference in &check.figma_dimensions {
-        bounded_text("figmaDimensions.artifactId", &reference.artifact_id)?;
-        bounded_text("figmaDimensions.nodeId", &reference.node_id)?;
-        if !widths.insert(reference.viewport_width) {
-            return Err(invalid(
-                "A dimensions check needs at most one explicit reference per width.",
-            ));
-        }
-    }
-    for (field, locator) in [("subject", &check.subject), ("container", &check.container)] {
-        if let Some(locator) = locator {
-            validate_locator(&format!("checks[].{field}"), locator, true)?;
-        }
-    }
-    match check.measure.as_deref() {
-        None | Some("box") => {}
-        Some("painted-mask") if check.subject.is_some() => {}
-        Some(other) => {
-            return Err(invalid(format!(
-                "measure {other} is not box, or painted-mask on a check with a subject."
-            )));
-        }
-    }
-    for value in [check.offset_px, check.inset_px, check.tolerance_px]
-        .into_iter()
-        .flatten()
-    {
-        if !value.is_finite() || value.abs() > 10_000.0 {
-            return Err(invalid(
-                "Check offsets, insets and tolerances must be finite px values.",
-            ));
-        }
-    }
-    if check.tolerance_px.is_some_and(|value| value < 0.0) {
-        return Err(invalid("tolerancePx must be nonnegative."));
-    }
-    if let Some(label) = &check.label {
-        bounded_text("checks[].label", label)?;
-    }
-    Ok(())
 }
 
 /// The id a plan is known by: the SHA-256 of its normalized form, so the same

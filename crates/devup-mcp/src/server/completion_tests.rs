@@ -69,6 +69,8 @@ fn fixture() -> (std::path::PathBuf, OutputPolicy, CompletionInput) {
         static_bindings: BTreeMap::new(),
         routes: vec!["/".into()],
         widths: vec![360],
+        required_regressions: vec![],
+        required_visual_states: vec![],
     };
     (root, policy, input)
 }
@@ -372,6 +374,24 @@ async fn source_bound_static_checks_cannot_replace_figma_visuals() {
     input.visual_environments.insert(comparison_id, serde_json::from_value(json!({"tsxResource":{"uri":"devup://artifact/test/tsx","sha256":"a".repeat(64)},"themePath":"devup.json","assetDirectory":"public/images","devupUiVersion":"test","fontManifest":[{"family":"Test","sha256":"b".repeat(64)}]})).unwrap());
     let result = write(&input, &policy, &store, None).await.unwrap();
     assert_eq!(result["stage"], "data-verified", "{result}");
+    let mut known = input.clone();
+    known.required_visual_states.push(RequiredVisualState {
+        route_path: "/".into(), screen_id: "home".into(), width: 360, node_id: "1:1".into(),
+    });
+    assert_eq!(evaluate(&known, &policy, &store).await.unwrap()["reportAllowed"], true);
+
+    let mut required = input.clone();
+    required.required_visual_states.push(RequiredVisualState {
+        route_path:"/".into(), screen_id:"scrolled".into(), width:360, node_id:"1:1".into(),
+    });
+    required.required_regressions.push(RequiredRegression {
+        route_path:"/".into(), screen_id:"home".into(), width:360, kind:"sticky-header".into(),
+    });
+    let missing = evaluate(&required, &policy, &store).await.unwrap();
+    assert_eq!(missing["reportAllowed"], false);
+    assert_eq!(missing["blockers"]["missingVisualNodes"][0]["screenId"], "scrolled");
+    assert_eq!(missing["blockers"]["missingRegressions"][0]["kind"], "sticky-header");
+
     // The one receipt that may be reported is the one that carries the offer.
     assert!(super::super::skills::marks_completion("devup_runtime_audit", "completion", &result));
     assert!(!super::super::skills::marks_completion("devup_runtime_audit", "ingest", &result));

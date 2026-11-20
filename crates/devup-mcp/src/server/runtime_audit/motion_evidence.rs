@@ -106,6 +106,10 @@ fn motion_evidence_row(policy: &OutputPolicy, report_dir: &Path, at: &MotionChec
                 None => unverified.push(format!("{name}: not requested")),
             }
         }
+        let fast_scroll = &measured["scenarios"]["fast-scroll"];
+        if fast_scroll["flash"].is_object() {
+            row["firstEntryFlash"] = fast_scroll["flash"].clone();
+        }
         row["notApplicable"] = json!(names(&measured["notApplicable"]));
         let stagger = &measured["scenarios"]["stagger"];
         if stagger["stepsMs"].is_array() {

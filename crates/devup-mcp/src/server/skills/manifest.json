@@ -81,8 +81,8 @@
         },
         {
           "path": "references/animation.md",
-          "bytes": 13308,
-          "sha256": "de275d513330b2a84834be13226c63115ad591cfc5922858110a7cf79dfe0e5e"
+          "bytes": 13837,
+          "sha256": "5cac2098bd4be5302e0b018e955b5ceb8ae83810d511b9bf99161b601d4d7a0e"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",
@@ -99,8 +99,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 46928,
-          "sha256": "eeef6ee8744deccda24908be0d94b0016e4d4364e172903adf1745422b6ca511"
+          "bytes": 48735,
+          "sha256": "5fe7b752fb5f830e8efda50cb33e1e6ae23db22d6725544139d4fc70401f83d3"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -135,8 +135,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 10021,
-          "sha256": "a307ae31c9272fa921c193cfb522a2f3ac99d73eeb9c2fed174c9614a0b692d3"
+          "bytes": 10253,
+          "sha256": "2e22d128d8210eeabb40fe2fa3eb71544e031b7ff2d3855387b78d98928be528"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-retro",

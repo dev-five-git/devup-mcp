@@ -19,6 +19,7 @@ import { invalidateReloadedScreen, observeDevServer, serverLogReader } from './d
 import { collectMarkup, evaluateMarkup } from './markup-checks.mjs';
 import { assertSelection } from './selection-checks.mjs';
 import { installMotionProbe, runMotionCheck } from './motion-checks.mjs';
+import { runRegressionCheck } from './regression-checks.mjs';
 import { runDataBindingCheck } from './data-checks.mjs';
 import { sourceDigest } from './source-digest.mjs';
 import { evaluateInputFocus, observeInputFocus } from './input-focus-checks.mjs';
@@ -892,6 +893,10 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
               if (step.action === 'click') await target.click({ timeout });
               else if (step.action === 'press') await target.press(step.value, { timeout });
               else if (step.action === 'fill') await target.fill(step.value, { timeout });
+              else if (step.action === 'scroll') {
+                await target.waitFor({ state: 'visible', timeout });
+                await target.evaluate(element => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
+              }
               else throw new Error(`unknown step action: ${step.action}`);
             }
           }
@@ -935,6 +940,21 @@ async function runViewport(browser, plan, viewport, out, deadline, references, r
           try {
           if (check.kind === 'data-binding') {
             record.checks.push({ ...item, ...await runDataBindingCheck(check, page, { out, viewport, ...auditBinding }) });
+            continue;
+          }
+          if (check.kind === 'regression') {
+            const fresh = await browser.newContext(contextOptions);
+            try {
+              await guardOrigins(fresh, allowed, blocked);
+              const tab = await fresh.newPage();
+              tab.setDefaultTimeout(stepTimeout);
+              tab.setDefaultNavigationTimeout(stepTimeout);
+              const url = new URL(screen.routePath ?? page.url(), plan.baseUrl);
+              if (!allowed.has(url.origin)) throw new Error('Regression URL is outside allowedOrigins.');
+              record.checks.push({ ...item, ...await runRegressionCheck(tab, check.regression, url.href) });
+            } finally {
+              await fresh.close();
+            }
             continue;
           }
           if (check.kind === 'motion') {

@@ -41,6 +41,45 @@ pub struct CompletionInput {
     pub routes: Vec<String>,
     #[serde(default = "widths")]
     pub widths: Vec<u32>,
+    /// Affected UI states that must have measured passing regression checks.
+    #[serde(default)]
+    pub required_regressions: Vec<RequiredRegression>,
+    /// Explicit affected Figma page or section capture targets.
+    #[serde(default)]
+    pub required_visual_states: Vec<RequiredVisualState>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct RequiredRegression {
+    pub route_path: String,
+    pub screen_id: String,
+    pub width: u32,
+    #[schemars(extend("enum" = ["sticky-header", "inquiry", "image-handoff", "font-stability"]))]
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct RequiredVisualState {
+    pub route_path: String,
+    pub screen_id: String,
+    pub width: u32,
+    pub node_id: String,
+}
+
+impl RequiredVisualState {
+    fn key(&self) -> (String, String, u32, String) {
+        (self.route_path.clone(), self.screen_id.clone(), self.width, self.node_id.clone())
+    }
+}
+
+impl RequiredRegression {
+    fn key(&self) -> (String, String, u32, String) {
+        (self.route_path.clone(), self.screen_id.clone(), self.width, self.kind.clone())
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -367,6 +406,8 @@ pub(super) async fn evaluate(
         || input.behavior_plan_paths.len() > 1000
         || input.routes.len() > 1000
         || input.static_bindings.len() > 10000
+        || input.required_regressions.len() > 1000
+        || input.required_visual_states.len() > 1000
     {
         return Err(invalid(
             "Completion requires one to eight bounded widths, at most sixty audits, one thousand behavior plans/routes and ten thousand static binding decisions.",
@@ -473,6 +514,10 @@ pub(super) async fn evaluate(
         routes.extend(values(&plan, "routes").filter_map(|r| r["url"].as_str().map(str::to_owned)));
     }
     let mut covered = BTreeSet::new();
+    let mut regression_covered = BTreeSet::new();
+    let mut expected_visual_states = BTreeSet::new();
+    let mut measured_visual_states = BTreeSet::new();
+    let mut visual_node_states = BTreeSet::new();
     let mut required_visual = BTreeSet::new();
     let mut visual_covered = BTreeSet::new();
     let mut visual_results = Vec::new();
@@ -507,10 +552,21 @@ pub(super) async fn evaluate(
                     policy, artifacts).await;
                 let visual_pass = result["verdict"] == "pass";
                 audit_ok &= visual_pass;
+                if visual_pass && matches!(comparison["class"].as_str(), Some("page-visual" | "section-visual"))
+                    && let (Some(route), Some(screen), Some(width), Some(node)) = (
+                        comparison["routePath"].as_str(), comparison["screen"].as_str(),
+                        comparison["viewport"]["width"].as_u64(), comparison["nodeId"].as_str()
+                    )
+                {
+                    visual_node_states.insert((route.to_owned(), screen.to_owned(), width as u32, node.to_owned()));
+                }
                 if visual_pass && comparison["class"] == "page-visual"
                     && let (Some(route), Some(width)) = (comparison["routePath"].as_str(), comparison["viewport"]["width"].as_u64())
                 {
                     visual_covered.insert((route.to_owned(), width as u32));
+                    if let Some(screen) = comparison["screen"].as_str() {
+                        measured_visual_states.insert((route.to_owned(), screen.to_owned(), width as u32));
+                    }
                 }
                 visual_results.push(result);
             }
@@ -521,6 +577,21 @@ pub(super) async fn evaluate(
                             let drawn = screen["figma"]["drawnWidths"].as_array();
                             if drawn.is_none_or(|v| v.is_empty() || v.iter().any(|w| w.as_u64() == Some(width))) {
                                 required_visual.insert((route.to_owned(), width as u32));
+                                if screen["figma"].is_object()
+                                    && let Some(id) = screen["id"].as_str()
+                                {
+                                    expected_visual_states.insert((route.to_owned(), id.to_owned(), width as u32));
+                                }
+                            }
+                            if let Some(screen_id) = screen["id"].as_str() {
+                                for check in values(screen, "checks").filter(|check| {
+                                    check["kind"] == "regression" && check["unavailableReason"].is_null()
+                                        && check["widths"].as_array().is_none_or(|list| list.is_empty() || list.iter().any(|w| w.as_u64() == Some(width)))
+                                }) {
+                                    if let Some(kind) = check["regression"]["kind"].as_str() {
+                                        regression_covered.insert((route.to_owned(), screen_id.to_owned(), width as u32, kind.to_owned()));
+                                    }
+                                }
                             }
                             let kinds = values(screen, "checks")
                                 .filter(|check| {
@@ -561,13 +632,23 @@ pub(super) async fn evaluate(
         .cloned()
         .collect::<Vec<_>>();
     let missing_visual = required_visual.difference(&visual_covered).cloned().collect::<Vec<_>>();
+    let missing_visual_states = expected_visual_states.difference(&measured_visual_states).cloned().collect::<Vec<_>>();
+    let missing_regressions = input.required_regressions.iter()
+        .filter(|requirement| !regression_covered.contains(&requirement.key()))
+        .collect::<Vec<_>>();
+    let missing_visual_nodes = input.required_visual_states.iter()
+        .filter(|requirement| !visual_node_states.contains(&requirement.key()))
+        .collect::<Vec<_>>();
     let browser_verified = implemented
         && audit_ok
         && !routes.is_empty()
         && missing_routes.is_empty()
         && missing_motion.is_empty()
         && !required_visual.is_empty()
-        && missing_visual.is_empty();
+        && missing_visual.is_empty()
+        && missing_visual_states.is_empty()
+        && missing_visual_nodes.is_empty()
+        && missing_regressions.is_empty();
     let mut data = json!({"sourceMatched":false,"apiVerified":false,"dbVerified":false,"coveredBindingIds":[]});
     if let (Some(plan_path), Some(receipt_path)) = (&input.data_plan_path, &input.data_receipt_path)
     {
@@ -620,7 +701,7 @@ pub(super) async fn evaluate(
         json!({"kind":"devup-completion-receipt","schemaVersion":1,"sourceDigest":source_digest,"sourceFileCount":files.len(),"sourceScope":"project-source-and-public-assets","stage":stage,"done":data_verified,"reportAllowed":data_verified,
         "stages":{"generated":generated,"implemented":implemented,"browserVerified":browser_verified,"dataVerified":data_verified},
         "requiredMotionIds":required_motion,"requiredBindingIds":required_bindings,"staticBindingDecisions":input.static_bindings,
-        "blockers":{"incompleteBehaviorCoverage":truncated,"missingChecks":missing_checks,"missingRoutesOrWidths":missing_routes,"missingVisualComparisons":missing_visual,"missingMotion":missing_motion,"missingBindings":missing_bindings},
+        "blockers":{"incompleteBehaviorCoverage":truncated,"missingChecks":missing_checks,"missingRoutesOrWidths":missing_routes,"missingVisualComparisons":missing_visual,"missingVisualStates":missing_visual_states,"missingVisualNodes":missing_visual_nodes,"missingRegressions":missing_regressions,"missingMotion":missing_motion,"missingBindings":missing_bindings},
         "audits":audit_results,"visualResults":visual_results,"dataEvidence":data,"dataVerificationScope":if required_bindings.is_empty(){"not-required"}else{"isolated-database-snapshots"},"input":input,
         "trust":"Command exits, browser measurements and SQL rows are executor-observed; source digests, plan/report bindings and referenced artifact hashes are independently rechecked. A generated export or a caller success boolean never establishes application completion."}),
     )

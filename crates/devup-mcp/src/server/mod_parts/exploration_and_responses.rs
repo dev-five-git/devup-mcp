@@ -770,7 +770,7 @@ impl ServerHandler for DevupServer {
         let mut response = match self.tool_router.call(call).await {
             Ok(response) => response,
             Err(error) if error.data.as_ref().and_then(|d| d.get("code")).is_some() => {
-                return Ok(structured_tool_error(error).into());
+                structured_tool_error(error).into()
             }
             Err(error) => return Err(with_error_identity(error)),
         };
@@ -791,7 +791,10 @@ impl ServerHandler for DevupServer {
                 ));
             }
         }
-        record.finish(!matches!(&response, rmcp::model::CallToolResponse::Complete(result) if result.is_error == Some(true)));
+        match &response {
+            rmcp::model::CallToolResponse::Complete(result) => record.finish_result(result),
+            _ => record.finish(true),
+        }
         Ok(response)
     }
 

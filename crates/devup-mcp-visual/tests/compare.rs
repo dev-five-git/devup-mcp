@@ -60,6 +60,16 @@ fn exact_and_changed_pngs_report_deterministic_metrics_and_diff() -> anyhow::Res
     assert_eq!(report.changed_pixels, 2);
     assert_eq!(report.total_pixels, 8);
     assert_eq!(report.changed_ratio, Some(0.25));
+    assert_eq!(report.mean_max_channel_delta, Some(63.75));
+    assert_eq!(
+        report.changed_bounds,
+        Some(devup_mcp_visual::PixelBounds {
+            x: 1,
+            y: 0,
+            width: 2,
+            height: 1,
+        })
+    );
     assert!(diff.exists());
     std::fs::remove_dir_all(root)?;
     Ok(())
