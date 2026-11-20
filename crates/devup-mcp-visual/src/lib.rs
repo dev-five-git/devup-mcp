@@ -31,6 +31,15 @@ pub enum VisualStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PixelBounds {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VisualReport {
     pub status: VisualStatus,
     pub reference_dimensions: [u32; 2],
@@ -42,6 +51,12 @@ pub struct VisualReport {
     pub max_changed_ratio: f64,
     pub channel_tolerance: u8,
     pub max_channel_delta: u8,
+    /// Mean of each pixel's largest absolute RGBA channel delta (0..255).
+    #[serde(default)]
+    pub mean_max_channel_delta: Option<f64>,
+    /// Smallest rectangle enclosing pixels above the channel tolerance.
+    #[serde(default)]
+    pub changed_bounds: Option<PixelBounds>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff_path: Option<String>,
 }
@@ -127,6 +142,8 @@ pub fn compare_png_bytes(
                 max_changed_ratio: options.max_changed_ratio,
                 channel_tolerance: options.channel_tolerance,
                 max_channel_delta: 0,
+                mean_max_channel_delta: None,
+                changed_bounds: None,
                 diff_path: None,
             },
             None,
@@ -135,6 +152,8 @@ pub fn compare_png_bytes(
 
     let mut changed_pixels = 0_u64;
     let mut max_channel_delta = 0_u8;
+    let mut delta_sum = 0_u64;
+    let (mut left, mut top, mut right, mut bottom) = (reference.width(), reference.height(), 0, 0);
     let mut diff = include_diff.then(|| {
         ImageBuffer::from_pixel(
             reference.width(),
@@ -142,8 +161,7 @@ pub fn compare_png_bytes(
             Rgba::<u8>([0, 0, 0, 0]),
         )
     });
-    for (index, (reference_pixel, actual_pixel)) in
-        reference.pixels().zip(actual.pixels()).enumerate()
+    for ((x, y, reference_pixel), actual_pixel) in reference.enumerate_pixels().zip(actual.pixels())
     {
         let delta = reference_pixel
             .0
@@ -153,13 +171,16 @@ pub fn compare_png_bytes(
             .max()
             .unwrap_or(0);
         max_channel_delta = max_channel_delta.max(delta);
+        delta_sum += u64::from(delta);
         if delta <= options.channel_tolerance {
             continue;
         }
         changed_pixels += 1;
+        left = left.min(x);
+        top = top.min(y);
+        right = right.max(x);
+        bottom = bottom.max(y);
         if let Some(diff) = &mut diff {
-            let x = index as u32 % reference.width();
-            let y = index as u32 / reference.width();
             diff.put_pixel(x, y, Rgba::<u8>([255, 0, 0, 255]));
         }
     }
@@ -194,6 +215,14 @@ pub fn compare_png_bytes(
             max_changed_ratio: options.max_changed_ratio,
             channel_tolerance: options.channel_tolerance,
             max_channel_delta,
+            mean_max_channel_delta: (total_pixels > 0)
+                .then(|| delta_sum as f64 / total_pixels as f64),
+            changed_bounds: (changed_pixels > 0).then(|| PixelBounds {
+                x: left,
+                y: top,
+                width: right - left + 1,
+                height: bottom - top + 1,
+            }),
             diff_path: None,
         },
         diff_png,

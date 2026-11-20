@@ -115,6 +115,38 @@ function installRevealLibrary() {
     return { verified: true, mode, startedOffscreen: false, late: true, visibleRatio: ratio(node), start: first, middle, end: sample(node, items) };
   };
 
+  // Start observing before scrolling so a painted resting frame cannot
+  // disappear into an entrance while the audit waits for the animation.
+  const enter = async (node, items, ms) => {
+    const list = parts(node, items);
+    const firstShown = new Map();
+    let flash = null, visibleFrames = 0;
+    const capture = () => {
+      let visible = false;
+      for (const [index, part] of list.entries()) {
+        const box = part.getBoundingClientRect();
+        if (box.bottom <= 0 || box.top >= innerHeight || box.right <= 0 || box.left >= innerWidth) continue;
+        visible = true;
+        const opacity = getComputedStyle(part).visibility === 'visible' ? paintedOpacity(part, node) : 0;
+        const current = { opacity, translate: Math.abs(shiftOf(part)), scrollY };
+        if (current.opacity >= 0.99 && current.translate <= 0.1) {
+          if (!firstShown.has(index)) firstShown.set(index, current);
+        } else if (!flash && firstShown.has(index) && (current.opacity < 0.95 || current.translate > 1)) {
+          flash = { itemIndex: index, before: firstShown.get(index), after: current };
+        }
+      }
+      if (visible) visibleFrames++;
+    };
+    capture();
+    node.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const end = performance.now() + ms;
+    while (performance.now() < end) {
+      await frame();
+      capture();
+    }
+    return { visibleFrames, flash, sample: sample(node, items) };
+  };
+
   // Watches the target for a while and reports whether it was ever hidden or
   // displaced while on screen.
   const watch = async (node, items, ms) => {
@@ -153,7 +185,7 @@ function installRevealLibrary() {
     return { verified: true, scrollLinked, observed: hiddenOnce.filter(Boolean).length, startedAt, shownAt };
   };
 
-  window.__devupReveal = { frame, sample, shown, intermediate, approach, watch, timeItems };
+  window.__devupReveal = { frame, sample, shown, intermediate, approach, enter, watch, timeItems };
 }
 
 const shown = value => value.opacity === 1 && Math.abs(value.translate) < 0.1;
@@ -269,9 +301,13 @@ export async function runRevealCheck(page, options, measured, context = {}) {
     try {
       if (name === 'fast-scroll') {
         await fresh();
-        await page.evaluate(async () => { for (let index = 0; index < 400 && scrollY < document.documentElement.scrollHeight - innerHeight - 1; index++) { scrollBy(0, innerHeight * 1.5); await new Promise(resolve => requestAnimationFrame(resolve)); } });
-        await center(page); await page.waitForTimeout(ms + 150 + (items ? options.maxTotalMs ?? 1000 : 0));
-        const value = await sampleOn(page); result = { status: shown(value) ? 'pass' : 'fail', sample: value };
+        const observed = await target.evaluate((node, config) => window.__devupReveal.enter(node, config.items, config.ms),
+          { items, ms: ms + 400 + (items ? options.maxTotalMs ?? 1000 : 0) });
+        if (observed.visibleFrames < 2) result = unverified('fewer than two on-screen frames were available');
+        else {
+          result = { ...observed, status: !observed.flash && shown(observed.sample) ? 'pass' : 'fail' };
+          if (observed.flash) result.reason = 'An on-screen item was shown before the entrance hid or displaced it.';
+        }
       } else if (name === 'reload' || name === 'history') {
         await fresh(); await center(page); await page.waitForTimeout(ms + 150 + (items ? options.maxTotalMs ?? 1000 : 0));
         if (name === 'reload') await page.reload({ waitUntil: 'load' });

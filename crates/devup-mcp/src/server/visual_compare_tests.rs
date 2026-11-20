@@ -83,10 +83,15 @@ async fn missing_environment_inconclusive() {
     let f = fixture();
     let mut i = input();
     i.as_object_mut().unwrap().remove("environment");
+    f.png("actual.png", BLACK);
     let r = run(i, &f.policy(), &ArtifactStore::default())
         .await
         .unwrap();
     assert_eq!(r["verdict"], "inconclusive");
+    assert_eq!(r["visual"]["status"], "mismatch");
+    assert_eq!(r["visual"]["changedBounds"], json!({"x":0,"y":0,"width":1,"height":1}));
+    assert_eq!(r["visual"]["meanMaxChannelDelta"], 255.0);
+    assert_eq!(r["nextAction"]["kind"], "repair-capture-environment");
 }
 
 async fn asset_store(representation: &str, broken_hash: bool) -> (ArtifactStore, String) {

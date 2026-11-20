@@ -636,6 +636,24 @@ evidence and replaces the question it would otherwise take:
 - `visualThresholds` sets the changed-pixel ratio the comparisons allow:
   `{ "page": 0.03, "section": 0.03, "asset": 0.05, "nodes": { "12:34": 0.08 } }`.
 
+**After a follow-up UI edit**, use the same Figma and browser completion gate as
+the first implementation, even for CSS-only changes. Recheck the affected
+states of every route that shares the component, at the original designed
+widths. For a sticky header, capture the over-hero and scrolled states, check
+logo visibility and home navigation from both, and verify background blending
+in both directions and the under-edge divider in each settled state. Keep
+approved deviations explicit (for example a logo that the user requests in
+the header's over-hero variant). Preserve differing screenshot evidence and
+explain it using the affected state, region and rendered styles.
+
+When the design contains details or forms, navigate to them in the browser.
+Compare text and action availability after clicking the entry control, exercise
+the actual selection/submit path, and check computed focus and pressed states.
+For image transitions, include a delayed response and verify the visible
+image remains usable until its successor decodes. For font changes, compare
+the first viewport geometry on a cold load and while font responses are
+delayed; preload only fonts actually needed by the initial viewport.
+
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.
 
 ## Staged split, contract-first data and decisions

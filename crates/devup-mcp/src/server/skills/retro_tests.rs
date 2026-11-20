@@ -148,6 +148,26 @@ language:"), "a blank argument is not passed on");
     }
 
     #[test]
+    fn retro_separates_tool_errors_from_inconclusive_comparisons() {
+        let log = CallLog::default();
+        let mut error = crate::server::delivery::tool_result(serde_json::json!({
+            "error":{"code":"DEVUP_SNAPSHOT_UNSUPPORTED","message":"private-details"}
+        }));
+        error.is_error = Some(true);
+        log.begin("devup_figma_export", None).finish_result(&error);
+        let compare = crate::server::delivery::tool_result(serde_json::json!({
+            "verdict":"inconclusive","environment":{"issues":["private-details"]}
+        }));
+        log.begin("devup_visual_compare", None).finish_result(&compare);
+        let report = log.report();
+        assert_eq!(report["calls"][0]["ok"], false);
+        assert_eq!(report["calls"][0]["errorCode"], "DEVUP_SNAPSHOT_UNSUPPORTED");
+        assert_eq!(report["calls"][1]["ok"], true);
+        assert_eq!(report["calls"][1]["verdict"], "inconclusive");
+        assert!(!report.to_string().contains("private-details"));
+    }
+
+    #[test]
     fn timestamps_are_utc_calendar_dates() {
         assert_eq!(rfc3339(0), "1970-01-01T00:00:00Z");
         assert_eq!(rfc3339(951_782_400_000), "2000-02-29T00:00:00Z");

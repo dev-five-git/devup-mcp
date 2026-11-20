@@ -400,6 +400,12 @@ pub(super) async fn compare(
     });
     if asset_comparison {
         result["canvasFidelity"] = json!("unverified-outside-reference-node-subtree");
+    } else if verdict == "inconclusive" {
+        result["nextAction"] = json!({
+            "kind": "repair-capture-environment",
+            "guide": "devup://guide/usage",
+            "how": "Resolve environment.issues using measured browser evidence, then rerun this comparison. For a source-bound application audit, use devup_runtime_audit plan and ingest with Figma references and visualEnvironments."
+        });
     }
     if let (Some(target), Some(bytes)) = (diff_target, diff.as_ref()) {
         let display = target.display_path().display().to_string();

@@ -22,6 +22,7 @@ ${mode==='markup-hidden'?'<style>[data-hidden]{opacity:0}</style>':''}${spacer}<
 const mode=${JSON.stringify(mode)},node=document.querySelector('#reveal');let played=false,first=true;
 node.removeAttribute('data-hidden');
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches&&mode!=='ignores-preference';
+if(mode==='good' && node.getBoundingClientRect().top>=innerHeight && !reduce) node.style.opacity='0';
 const play=()=>node.animate([{opacity:0,transform:'translateY(24px)'},{opacity:1,transform:'translateY(0)'}],{duration:300,easing:'linear'});
 if(mode==='image-gated'){node.style.opacity='0';node.querySelector('img').addEventListener('load',()=>{node.style.opacity='';});}
 if(mode==='pageshow-replay')addEventListener('pageshow',event=>{if(event.persisted)play();});
@@ -34,6 +35,8 @@ else new IntersectionObserver(entries=>entries.forEach(entry=> {
  if(!entry.isIntersecting||played)return;played=true;
  if(mode==='stuck'){node.style.opacity='0';return;}
  if(mode==='late'){setTimeout(play,900);return;}
+ if(mode==='entry-flash'){setTimeout(play,120);return;}
+ if(mode==='good')node.style.opacity='';
  if(initial&&mode!=='flash')return;
  if(reduce)return;
  if(node.contains(document.activeElement)&&mode!=='focusanim')return;
@@ -198,6 +201,21 @@ test('each fresh-load scenario fails the page that breaks its rule', {timeout:60
   const unavailable=await check('mode=good',{scenarios:undefined},VIEWPORTS[0],{launchRestorable});
   assert.equal(unavailable.measured.scenarios.bfcache.status,'unverified',JSON.stringify(unavailable.measured.scenarios.bfcache));assert.ok(unavailable.measured.unverified.includes('bfcache'));assert.equal(unavailable.status,'inconclusive');
   assert.equal((await check('mode=good',{scenarios:['bfcache']},VIEWPORTS[0],{launchRestorable})).status,'fail');
+ });
+});
+
+test('fast entry rejects a visible resting frame followed by a fade from below', {timeout:60000}, async()=> {
+ await withPages(async check=> {
+  for(const viewport of VIEWPORTS) {
+   const result=await check('mode=entry-flash',{scenarios:['fast-scroll']},viewport);
+   const entry=result.measured.scenarios['fast-scroll'];
+   assert.equal(result.status,'fail',JSON.stringify(result));
+   assert.equal(entry.status,'fail');
+   assert.ok(entry.visibleFrames>1);
+   assert.equal(entry.flash.before.opacity,1);
+   assert.ok(entry.flash.after.opacity<0.95 && entry.flash.after.translate>1);
+   assert.equal(entry.sample.opacity,1,'the final state alone would pass');
+  }
  });
 });
 

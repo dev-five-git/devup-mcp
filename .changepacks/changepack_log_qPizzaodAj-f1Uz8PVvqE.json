@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Patch"
+  },
+  "note": "Catch first-entry animation flashes, improve Figma comparison diagnostics and record MCP failure outcomes",
+  "date": "2026-11-20T00:43:07.731450300Z"
+}

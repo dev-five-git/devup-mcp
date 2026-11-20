@@ -262,7 +262,9 @@ mod tests {
             json!(["url"])
         );
         let summary = direct_only["summary"].as_str().unwrap();
-        assert!(summary.contains("metered direct path"), "{summary}");
+        assert!(summary.contains("metered direct path is available"), "{summary}");
+        assert!(summary.contains("count against Figma usage limits"), "{summary}");
+        assert!(!summary.contains("allowance is spent"), "{summary}");
         assert!(!summary.contains("disconnected"), "{summary}");
         assert!(
             bridge_only["summary"]

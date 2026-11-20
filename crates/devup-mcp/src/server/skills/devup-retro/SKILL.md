@@ -31,7 +31,7 @@ confirms the review list.
    `server.commit`, `server.buildId`), this server process's devup-mcp call log
    with timestamps (`callLog`), the `.feedback/` folder state (`feedback`), the
    surface list (`surfaces`) and where release notes live (`releases`).
-   The call log only covers this server process: after a reconnect or in a
+   For a failed call, use the retained errorCode and the original error response when visible. A completed visual comparison can separately carry verdict=inconclusive; this is a missing verification result, not a tool execution error. The call log only covers this server process: after a reconnect or in a
    resumed session it is partial, and `callLog.note` says so. It is an aid for
    ordering, never the evidence itself.
 2. Find the starting point: the first devup-mcp call of the work under review

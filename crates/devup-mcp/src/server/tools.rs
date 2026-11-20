@@ -75,6 +75,8 @@ pub struct FigmaExportInput {
     pub url: Option<String>,
     #[serde(default)]
     pub artifact_id: Option<String>,
+    /// Collect referencePng separately for each width using its own Figma frame
+    /// URL (scope=node); omit frameIds and allScreens in those calls.
     #[serde(default = "default_outputs")]
     #[schemars(extend("items" = serde_json::json!({
         "type": "string",

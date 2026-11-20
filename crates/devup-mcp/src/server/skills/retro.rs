@@ -40,6 +40,8 @@ struct CallEntry {
     at_ms: u64,
     duration_ms: u64,
     ok: bool,
+    error_code: Option<String>,
+    verdict: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -105,6 +107,8 @@ impl CallLog {
                 at_ms: now_ms(),
                 duration_ms: 0,
                 ok: false,
+                error_code: None,
+                verdict: None,
             },
             started: std::time::Instant::now(),
         }
@@ -123,6 +127,12 @@ impl CallLog {
                     "durationMs": entry.duration_ms,
                     "ok": entry.ok,
                 });
+                if let Some(code) = &entry.error_code {
+                    call["errorCode"] = serde_json::json!(code);
+                }
+                if let Some(verdict) = &entry.verdict {
+                    call["verdict"] = serde_json::json!(verdict);
+                }
                 if let Some(action) = &entry.action {
                     call["action"] = serde_json::json!(action);
                 }
@@ -144,7 +154,7 @@ impl CallLog {
             "note": "Calls this devup-mcp process served, oldest first, UTC. A reconnect, a \
                      restart or a resumed session starts an empty log, so a short log is not \
                      evidence that nothing was called: the conversation is the record, and this \
-                     only helps order it. Arguments' contents and results are not kept.",
+                     only helps order it. Only a stable error code or visual verdict is retained from the result.",
         })
     }
 }
@@ -152,6 +162,23 @@ impl CallLog {
 impl CallRecord {
     pub fn finish(&mut self, ok: bool) {
         self.entry.ok = ok;
+    }
+
+    pub fn finish_result(&mut self, result: &rmcp::model::CallToolResult) {
+        self.finish(result.is_error != Some(true));
+        let Some(data) = &result.structured_content else {
+            return;
+        };
+        if !self.entry.ok {
+            self.entry.error_code = data["error"]["code"].as_str()
+                .filter(|code| code.starts_with("DEVUP_") && code.len() <= 64
+                    && code.bytes().all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_'))
+                .map(str::to_owned);
+        } else if self.entry.tool == "devup_visual_compare" {
+            self.entry.verdict = data["verdict"].as_str()
+                .filter(|verdict| matches!(*verdict, "pass" | "fail" | "inconclusive"))
+                .map(str::to_owned);
+        }
     }
 }
 
