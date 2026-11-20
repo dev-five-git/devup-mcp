@@ -51,6 +51,7 @@ pub struct CompletionInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct RequiredRegression {
     pub route_path: String,
     pub screen_id: String,
@@ -61,6 +62,7 @@ pub struct RequiredRegression {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct RequiredVisualState {
     pub route_path: String,
     pub screen_id: String,

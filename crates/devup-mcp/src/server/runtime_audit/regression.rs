@@ -7,6 +7,7 @@
     deny_unknown_fields
 )]
 pub enum RegressionInput {
+    #[schemars(extend("additionalProperties" = json!({"not": {}})))]
     StickyHeader {
         header: String,
         hero: String,
@@ -14,6 +15,7 @@ pub enum RegressionInput {
         links: String,
         scrolled_background: String,
     },
+    #[schemars(extend("additionalProperties" = json!({"not": {}})))]
     Inquiry {
         open: String,
         detail: String,
@@ -27,6 +29,7 @@ pub enum RegressionInput {
         error: String,
         recipient: String,
     },
+    #[schemars(extend("additionalProperties" = json!({"not": {}})))]
     ImageHandoff {
         /// An application selector attached only once the opening action is hydrated.
         ready: Option<String>,
@@ -38,6 +41,7 @@ pub enum RegressionInput {
         swipe: Option<String>,
         next_src: String,
     },
+    #[schemars(extend("additionalProperties" = json!({"not": {}})))]
     FontStability {
         fonts: Vec<String>,
         targets: Vec<String>,
@@ -46,6 +50,7 @@ pub enum RegressionInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct InquiryChoice {
     pub control: String,
     pub value: String,
@@ -57,6 +62,7 @@ pub struct InquiryChoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
 pub struct InquiryField {
     pub selector: String,
     pub value: String,
