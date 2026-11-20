@@ -46,6 +46,7 @@ fn capture_comparison(
                 "actual": shot.path,
                 "reference": {"artifactId": reference.artifact_id, "assetId": reference.asset_id},
                 "threshold": threshold,
+                "maxLuminanceDelta": reference.max_luminance_delta,
                 "diffPath": diff_path(&shot.path, &id),
             },
         },

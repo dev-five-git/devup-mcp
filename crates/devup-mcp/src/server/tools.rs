@@ -53,6 +53,10 @@ pub struct AuthInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(extend("allOf" = serde_json::json!([{
+    "if": {"required": ["outputs"], "properties": {"outputs": {"contains": {"const": "referencePng"}}}},
+    "then": {"properties": {"frameIds": {"maxItems": 1}, "allScreens": {"const": false}}}
+}])))]
 pub struct FigmaExportInput {
     /// Caller-declared observations from an independently inspected screenshot.
     /// Used only to rank actual explore candidates when selection is empty;
@@ -562,6 +566,10 @@ pub struct VisualCompareInput {
     #[serde(default)]
     #[schemars(range(min = 0.0, max = 1.0))]
     pub threshold: Option<f64>,
+    /// Optional maximum absolute mean signed luminance delta on shared opaque pixels (0..255).
+    #[serde(default)]
+    #[schemars(range(min = 0.0, max = 255.0))]
+    pub max_luminance_delta: Option<f64>,
     #[serde(default)]
     pub environment: Option<super::visual_compare::VisualEnvironment>,
     /// Include the red diff PNG using the standard binary delivery limits.

@@ -71,6 +71,7 @@ fn write_plan(
         for (name, bytes) in [
             ("source-digest.mjs", include_bytes!("../../../../../harness/runtime-audit/source-digest.mjs").as_slice()),
             ("record-project-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/record-project-checks.mjs").as_slice()),
+            ("regression-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/regression-checks.mjs").as_slice()),
             ("motion-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/motion-checks.mjs").as_slice()),
             ("reveal-checks.mjs", include_bytes!("../../../../../harness/runtime-audit/reveal-checks.mjs").as_slice()),
             (

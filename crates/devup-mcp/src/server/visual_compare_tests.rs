@@ -94,6 +94,21 @@ async fn missing_environment_inconclusive() {
     assert_eq!(r["nextAction"]["kind"], "repair-capture-environment");
 }
 
+#[tokio::test]
+async fn hero_brightness_can_fail_a_comparison_below_the_changed_pixel_limit() {
+    let f = fixture();
+    f.png("reference.png", BLACK);
+    let mut args = input();
+    args["environment"]["referenceResource"]["sha256"] = json!(hash(&STANDARD.decode(BLACK).unwrap()));
+    args["threshold"] = json!(1.0);
+    args["maxLuminanceDelta"] = json!(5.0);
+    let result = run(args, &f.policy(), &ArtifactStore::default()).await.unwrap();
+    assert_eq!(result["visual"]["passed"], true);
+    assert_eq!(result["luminance"]["actualMinusReference"], 255.0);
+    assert_eq!(result["luminance"]["passed"], false);
+    assert_eq!(result["verdict"], "fail");
+}
+
 async fn asset_store(representation: &str, broken_hash: bool) -> (ArtifactStore, String) {
     let store = ArtifactStore::default();
     let mut payload = super::super::artifacts::w3_tests::payload();

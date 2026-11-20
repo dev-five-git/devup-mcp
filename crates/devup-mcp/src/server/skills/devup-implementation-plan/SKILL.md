@@ -654,6 +654,15 @@ image remains usable until its successor decodes. For font changes, compare
 the first viewport geometry on a cold load and while font responses are
 delayed; preload only fonts actually needed by the initial viewport.
 
+Bind these observed behaviors in the runtime audit plan instead of relying on
+a screenshot to prove them. Use regression contracts for sticky headers,
+artwork-to-inquiry flows, delayed image handoffs, and first-viewport font
+stability. Put affected route/screen/width contracts in requiredRegressions,
+and exact Figma state comparisons in requiredVisualStates on completion.
+Use a scroll step and a native-section PNG for a scrolled header. When the
+hero appears lighter or darker, compare the same Figma section and examine
+the signed luminance delta. Use an approved brightness bound where applicable.
+
 Connected URLs: run `links-resolve` at every width. Each same-origin anchor contributes source URL, accessible label, href, resolved pathname and width to `linkTable` (also Markdown in `finalReport`). GET each distinct target once, including concrete dynamic hrefs, and reject HTTP failures, error pages and `unplanned-target` URLs absent from the confirmed plan and existing routes. Any failing link row blocks done.
 
 ## Staged split, contract-first data and decisions

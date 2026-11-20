@@ -54,6 +54,10 @@ pub struct VisualReport {
     /// Mean of each pixel's largest absolute RGBA channel delta (0..255).
     #[serde(default)]
     pub mean_max_channel_delta: Option<f64>,
+    /// Mean signed Rec. 709 channel-weighted difference (actual - reference)
+    /// over pixels opaque in both images, in 0..255 channel units.
+    #[serde(default)]
+    pub mean_luminance_delta: Option<f64>,
     /// Smallest rectangle enclosing pixels above the channel tolerance.
     #[serde(default)]
     pub changed_bounds: Option<PixelBounds>,
@@ -143,6 +147,7 @@ pub fn compare_png_bytes(
                 channel_tolerance: options.channel_tolerance,
                 max_channel_delta: 0,
                 mean_max_channel_delta: None,
+                mean_luminance_delta: None,
                 changed_bounds: None,
                 diff_path: None,
             },
@@ -153,6 +158,8 @@ pub fn compare_png_bytes(
     let mut changed_pixels = 0_u64;
     let mut max_channel_delta = 0_u8;
     let mut delta_sum = 0_u64;
+    let mut opaque_pixels = 0_u64;
+    let mut luminance_delta_sum = 0_i64;
     let (mut left, mut top, mut right, mut bottom) = (reference.width(), reference.height(), 0, 0);
     let mut diff = include_diff.then(|| {
         ImageBuffer::from_pixel(
@@ -172,6 +179,13 @@ pub fn compare_png_bytes(
             .unwrap_or(0);
         max_channel_delta = max_channel_delta.max(delta);
         delta_sum += u64::from(delta);
+        if reference_pixel[3] == 255 && actual_pixel[3] == 255 {
+            opaque_pixels += 1;
+            for (channel, weight) in [2126_i64, 7152, 722].into_iter().enumerate() {
+                luminance_delta_sum += weight
+                    * (i64::from(actual_pixel[channel]) - i64::from(reference_pixel[channel]));
+            }
+        }
         if delta <= options.channel_tolerance {
             continue;
         }
@@ -217,6 +231,8 @@ pub fn compare_png_bytes(
             max_channel_delta,
             mean_max_channel_delta: (total_pixels > 0)
                 .then(|| delta_sum as f64 / total_pixels as f64),
+            mean_luminance_delta: (opaque_pixels > 0)
+                .then(|| luminance_delta_sum as f64 / (10_000.0 * opaque_pixels as f64)),
             changed_bounds: (changed_pixels > 0).then(|| PixelBounds {
                 x: left,
                 y: top,
