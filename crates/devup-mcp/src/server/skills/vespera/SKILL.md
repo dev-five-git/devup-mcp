@@ -54,8 +54,12 @@ async fn main() -> std::io::Result<()> {
         openapi  = "openapi.json", // writes file at compile time
         title    = "My API",
         version  = "1.0.0",
-        docs_url = "/docs",        // Swagger UI
-        redoc_url = "/redoc"       // ReDoc alternative
+        license  = "MIT",          // info.license (SPDX); also description, summary,
+                                   // terms_of_service, contact_{name,url,email},
+                                   // license_name + license_url
+        docs_url = "/docs",        // Swagger UI (pinned + SRI-checked assets)
+        redoc_url = "/redoc",      // ReDoc alternative
+        spec_url = "/openapi.json" // raw spec as application/json
     )
     .serve("0.0.0.0:3000")
     .await
@@ -108,7 +112,42 @@ pub async fn create(
 - Derive `garde::Validate` and annotate fields with `#[garde(...)]` rules
   (`length`, `email`, `range`, `pattern`, custom, …).
 - Vespera's `#[derive(Schema)]` continues to drive the OpenAPI spec — the two
-  derives compose cleanly on the same struct.
+  derives compose cleanly on the same struct, and `#[derive(Schema)]`
+  documents every `#[garde(...)]` rule with an exact JSON Schema equivalent:
+  `length(chars, ..)` → `minLength`/`maxLength` (default byte-mode string
+  `length` only maps `min = 1`), `length` on `Vec`/maps → `minItems`/
+  `minProperties`…, `range` → `minimum`/`maximum`, `email`/`url`/`ipv4`/
+  `ipv6`/`ip` → `format` (`ip` = `anyOf`), `pattern`/`prefix`/`suffix`/
+  `contains`/`ascii` → `pattern` (+`allOf`), `inner(..)` → `items`. Explicit
+  `#[schema(...)]` keywords win. Not documented: `alphanumeric`, `required`,
+  `custom`, `matches`, `credit_card`, `phone_number`, `dive`, `if`, consts.
+  `Query<T>` / `Path<T>` struct parameters carry the same constraints.
+- Or skip garde entirely: a runtime `#[schema(...)]` rule (`min_length`,
+  `format = "email"`, …) makes `#[derive(Schema)]` generate the impl. A
+  rule-less struct or an enum has none, so `Validated<Json<T>>` with it fails at
+  the argument with `` `T` cannot be validated by `Validated` / `ValidatedWith` ``.
+- Any `Validated` / `ValidatedWith` argument documents the `422` response,
+  even after a plain `Path<T>` argument.
+
+### Context-aware validation (`ValidatedWith<C, T>`)
+
+For `#[garde(context(C))]` rules, use `ValidatedWith<C, T>`. The context is
+borrowed from the router state via `vespera::ValidationContext<C>`. A state of
+type `C` implements this automatically; otherwise implement it for your state:
+
+```rust
+impl vespera::ValidationContext<TagPolicy> for Arc<AppState> {
+    fn validation_context(&self) -> &TagPolicy { &self.tag_policy }
+}
+
+#[vespera::route(post)]
+pub async fn create(post: ValidatedWith<TagPolicy, Json<TaggedPost>>) -> &'static str {
+    let Json(_post) = post.into_inner(); // tuple pattern is private — use into_inner / Deref
+    "ok"
+}
+```
+
+The spec documents the same body, parameters and `422` as for `Validated`.
 
 ### JNI / Binary wire integration
 
@@ -142,6 +181,52 @@ async fn main() -> std::io::Result<()> {
 - Works on **any** `axum::Router`, including the output of `Router::merge`,
   `Router::nest`, or `vespera!(...)` itself.
 - Returns `std::io::Result<()>` — propagate with `?` from `main`.
+- Handlers can extract `ConnectInfo<SocketAddr>` (the router is served with
+  `into_make_service_with_connect_info`).
+- `.serve_with_graceful_shutdown(addr, signal)` stops accepting connections
+  once `signal` resolves and waits for in-flight requests (with the `cron`
+  feature it also stops the cron scheduler; see below).
+- `.serve_listener(listener)` / `.serve_listener_with_graceful_shutdown(listener, signal)`
+  serve a `tokio::net::TcpListener` you already bound (port `0` in tests — read
+  `listener.local_addr()` first, no bind-drop-rebind race — or a socket tuned
+  with `tokio::net::TcpSocket`). Custom `Serve` implementors must provide them
+  (added in 0.8).
+
+```rust
+let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+println!("listening on {}", listener.local_addr()?);
+vespera!(title = "My API").serve_listener(listener).await
+```
+
+---
+
+## Cron Jobs (`#[vespera::cron]`)
+
+Feature `cron`. Put the attribute on any `pub async fn` with **no
+parameters**, anywhere in the crate; `vespera!()` discovers and starts it once
+per process. Expressions have 6 fields (`sec min hour day month weekday`,
+optional trailing year) and are validated at compile time.
+
+```rust
+#[vespera::cron("0 */5 * * * *")]                       // UTC (default)
+pub async fn cleanup() {}
+
+#[vespera::cron("0 0 9 * * Mon-Fri", tz = "Asia/Seoul")] // needs feature `cron-tz`
+pub async fn morning_report() {}
+
+#[vespera::cron("0 * * * * *", overlap = "skip")]       // no self-overlap
+pub async fn reindex() {}
+```
+
+- **Time zone:** UTC unless `tz = "Area/City"` (IANA, case-sensitive, checked
+  at compile time). `tz` requires `features = ["cron", "cron-tz"]`; without
+  `cron-tz` it is a compile error.
+- **Overlap:** default `"allow"` (a slow run may overlap the next one);
+  `"skip"` skips and logs a tick while the previous run is still going.
+- **Panics:** logged via `tracing` (target `vespera::cron`, ERROR) with the `tracing` feature, otherwise to stderr; the schedule keeps going.
+- **Shutdown:** `vespera::cron::shutdown()` stops new runs (process-wide,
+  permanent); `vespera::cron::shutdown_and_wait(timeout).await` also waits for
+  in-flight runs. `serve_with_graceful_shutdown` calls both (10 s grace).
 
 ---
 
@@ -154,32 +239,81 @@ async fn main() -> std::io::Result<()> {
 | `f32`, `f64` | `number` | |
 | `bool` | `boolean` | |
 | `Vec<T>` | `array` + items | |
-| `BTreeSet<T>`, `HashSet<T>` | `array` + items + `uniqueItems: true` | Set types |
-| `Option<T>` | T (nullable context) | Parent marks as optional |
+| `BTreeSet<T>`, `HashSet<T>` | `array` + items; `uniqueItems: true` in responses only | Set types. Request views omit `uniqueItems`: serde reads a duplicate and drops it |
+| `Option<T>` | T, nullable | Required in responses (serde writes `null`), optional in request bodies |
 | `HashMap<K,V>` | `object` + additionalProperties | |
 | `Uuid` | `string` + `format: uuid` | |
 | `Decimal` | `string` + `format: decimal` | |
 | `NaiveDate` | `string` + `format: date` | |
-| `NaiveTime` | `string` + `format: time` | |
-| `DateTime`, `DateTimeWithTimeZone` | `string` + `format: date-time` | |
+| `NaiveTime`, `NaiveDateTime`, bare sea-orm `DateTime` / `Time` | `string` | No offset, so no `time` / `date-time` format (RFC 3339 requires one) |
+| `PrimitiveDateTime`, `OffsetDateTime`, `time::Date`, `time::Time` | `string` (no `format`) | The `time` crate's own encoding, not RFC 3339; the description says so |
+| `DateTime<Tz>`, `DateTimeWithTimeZone`, `DateTimeUtc`, `DateTimeLocal` | `string` + `format: date-time` | |
 | `FieldData<NamedTempFile>` | `string` + `format: binary` | File upload field |
-| `()` | empty response | 204 No Content |
+| `Ipv4Addr` / `Ipv6Addr` | `string` + `format: ipv4` / `ipv6` | |
+| `IpAddr`, `SocketAddr` (+`V4`/`V6`), `PathBuf` | `string` | serde writes them as strings |
+| `url::Url` | `string` + `format: uri` | |
+| `serde_json::Value`, SeaORM `Json` / `JsonValue` | `{}` | Any JSON value (a `Json<T>` with a type argument is axum's wrapper) |
+| field `#[schema(value_type = T)]` | `T`'s schema | Use with `#[serde(with = ..)]` etc. |
+| field `#[serde(with / serialize_with / deserialize_with)]` without `value_type` | responses: `{}` + description note; requests: the Rust type | Response shape unknown (`with` / `serialize_with`); request views document the field's type |
+| container `#[serde(into = "T")]` / `from` / `try_from` | `T` for responses / requests | Other direction keeps the fields (`{Name}Input`); container `#[schema(value_type = T)]` = both |
+| `std::time::Duration` | `object` `{secs, nanos}` | serde's std shape; bare `Duration` (no crate path) and other qualified `Duration`s → `{}` (bare one with a description) |
+| `()` | empty response | `200` without `content` (use `status = 204` for No Content) |
 | Custom struct | `$ref` | Must derive Schema |
 
 ## Extractor Mapping Reference
 
 | Axum Extractor | OpenAPI Location | Notes |
 |----------------|------------------|-------|
-| `Path<T>` | path parameter | T can be tuple or struct |
-| `Query<T>` | query parameters | Struct fields become params |
+| `Path<T>` | path parameter | T can be tuple or struct (struct fields matched by serde name); `{*rest}` → `{rest}`; a tuple longer than the route's params (nest prefix) is aligned from the end; `file-{name}` ok, `{name}.png` is a compile error |
+| `Query<T>` | query parameters | Struct fields become params; skip/flatten honoured; `Vec<T>` → `style: form, explode: true` |
 | `Json<T>` | requestBody | application/json |
-| `Form<T>` | requestBody | application/x-www-form-urlencoded |
+| `Form<T>` | requestBody; query parameters on `GET` / `HEAD` | application/x-www-form-urlencoded; on `GET` / `HEAD` axum reads the query string, so the fields become query params |
 | `TypedMultipart<T>` | requestBody | multipart/form-data — typed with schema |
 | `Multipart` | requestBody | multipart/form-data — untyped, generic object |
+| `Option<Json<T>>` | requestBody | `required: false` |
+| `Bytes` / `Body` | requestBody | application/octet-stream binary |
 | `State<T>` | **ignored** | Internal, not API |
 | `Extension<T>` | **ignored** | Internal, not API |
-| `TypedHeader<T>` | header parameter | |
+| `TypedHeader<T>` | header parameter | Named after `T`, never the binding: known `headers::*` wire name (`UserAgent` → `User-Agent`), else `T` in kebab-case (`XRequestId` → `x-request-id`); `Authorization` / `Accept` / `Content-Type` omitted |
+| `Result<E, Rejection>` | same as `E` | still required; handler gets the rejection |
 | `HeaderMap` | **ignored** | Too dynamic |
+
+`TypedMultipart<T>`, `#[derive(Multipart)]` and `schema_type!(..., multipart)` need
+the `multipart` feature. It is on by default; with `default-features = false`
+add `features = ["multipart"]` (without it `#[derive(Multipart)]` is a compile
+error naming the feature).
+
+---
+
+## Security Schemes & OAuth2 Scopes
+
+```rust
+vespera!(
+    security_schemes = [
+        { name = "bearerAuth", type = "http", scheme = "bearer" },
+        { name = "oauth2", type = "oauth2", flows = {
+            client_credentials = {
+                token_url = "https://auth.example.com/token",
+                scopes = { "read:users" = "Read users" },
+            },
+        } },
+        { name = "oidc", type = "openIdConnect",
+          open_id_connect_url = "https://auth.example.com/.well-known/openid-configuration" }
+    ],
+)
+
+#[vespera::route(get, security = ["bearerAuth"])]                       // no scopes
+#[vespera::route(get, security = [("oauth2", ["read:users"])])]         // → [{"oauth2":["read:users"]}]
+#[vespera::route(get, security = [["apiKey", ("oauth2", ["read:users"])]])] // AND group
+#[vespera::route(get, security = [])]                                   // explicitly public
+```
+
+- Flows: `implicit` (`authorization_url`), `password` / `client_credentials`
+  (`token_url`), `authorization_code` (both); `refresh_url` optional.
+- Compile errors: unknown scheme, `oauth2` without `flows`, missing flow URL,
+  a scope no flow of that `oauth2` scheme declares.
+- Runtime (feature `inprocess`): `principal.require_scopes(&["read:users"])?`
+  → `403` + `WWW-Authenticate: Bearer error="insufficient_scope"`.
 
 ---
 
@@ -233,7 +367,7 @@ pub struct UserResponse {
     #[serde(rename = "fullName")]  // ✅ Respected
     name: String,        // → "fullName" in JSON Schema
     
-    #[serde(default)]    // ✅ Recognized (does NOT affect `required` — only Option<T> does)
+    #[serde(default)]    // ✅ Optional in request bodies (`UserResponseInput`, see below)
     bio: Option<String>,
     
     #[serde(skip)]       // ✅ Excluded from schema
@@ -282,7 +416,12 @@ npx @apidevtools/swagger-cli validate openapi.json
 | `VESPERA_VERSION` | API version | `CARGO_PKG_VERSION` |
 | `VESPERA_DOCS_URL` | Swagger UI path | none |
 | `VESPERA_REDOC_URL` | ReDoc path | none |
-| `VESPERA_SERVER_URL` | Server URL | `http://localhost:3000` |
+| `VESPERA_SPEC_URL` | Raw OpenAPI JSON path (`application/json`) | none |
+| `VESPERA_SERVER_URL` | Server URL | none (`servers` omitted → same origin) |
+| `VESPERA_SERVER_DESCRIPTION` | Description of the `VESPERA_SERVER_URL` server (ignored without it) | none |
+| `VESPERA_TARGET_DIR` | Override the directory of vespera's build cache (relative: against the workspace root) | the target directory of the running cargo build |
+
+Every variable in this table treats a value that is set but empty as unset.
 
 ---
 
@@ -510,7 +649,9 @@ vespera::schema_type!(Schema from Model, name = "MemoSchema");
 
 **Database Defaults in OpenAPI:** Fields with `#[sea_orm(default_value = "...")]` or `#[sea_orm(primary_key)]` automatically get `default` values in the generated OpenAPI schema. SQL functions like `NOW()` and `gen_random_uuid()` are mapped to type-appropriate defaults.
 
-**Required Logic:** `required` is determined **solely by nullability** (`Option<T>`). Fields with `#[serde(default)]` or `#[serde(skip_serializing_if)]` are still `required` unless they are `Option<T>`.
+**Required Logic:** the response view requires every field serde writes (`Option<T>` included — it is written as `null`, with a nullable type); `skip_serializing_if` fields are not required (with `Option::is_none` / `#[skip_serializing_none]` the type is also not nullable — `null` is never written) and `skip_serializing` fields are absent. Request views make `Option<T>` and `#[serde(default)]` fields optional.
+
+**Request views (`{Name}Input`):** when serde reads a type differently than it writes it (`#[serde(default)]` on a field or the container, one-sided `skip_deserializing` / `skip_serializing`, `rename(deserialize = ..)` / `rename_all(deserialize = ..)` differing from the serialize side, a container `into` / `from` / `try_from` documented through a different type per direction, a `with` / `serialize_with` (response shape unknown, request typed), an `Option` read by a custom deserializer (required in requests), a `HashSet` / `BTreeSet` (`uniqueItems` is response-only), a `Decimal` (request also accepts a JSON number), a `std::time::Duration` (request also accepts a `[secs, nanos]` array), or a field type that itself has an input view), request bodies (`Json` / `Form` / `TypedMultipart`) reference an extra `{Name}Input` component: defaulted fields are optional, `skip_deserializing` fields are absent, keys use the deserialize name. `{Name}` stays the response view. Nothing extra is emitted when both views are identical or no request body uses the type; a type only request bodies reach (no response, directly or transitively) keeps its name — `{Name}` is then its request view, no `{Name}Input`. `#[schema(name = "X")]` gives `XInput`; if that name is taken, `XInput2`, `XInput3`, ….
 
 ### Same-File Relation Adapters
 
@@ -551,7 +692,7 @@ Ok(ArticleResponse {
     user: user.into(),
     category: category.into(),
     article_review_users,
-    ..
+    ..Default::default() // the remaining fields; list them instead if the struct has no Default
 })
 ```
 
@@ -560,6 +701,7 @@ Rules:
 - Only applies to single-value relations (`HasOne` / `BelongsTo`)
 - Must be opted in explicitly with `relation_adapters = [("field", AdapterStruct)]`
 - The adapter struct name is used verbatim; Vespera does not infer adapter names by convention
+- Entries naming a missing, repeated, excluded or non-`HasOne`/`BelongsTo` field are compile errors
 - Missing explicitly named adapter structs are compile errors
 - Vespera generates local compile adapters so `Option<Model>.into()` works without changing the route
 - OpenAPI references the adapter DTO's own schema (`UserInArticle`, `CategoryInArticle`), honoring any `#[schema(name = "...")]` override
@@ -655,7 +797,7 @@ schema_type!(PatchUploadRequest from CreateUploadRequest, multipart, partial, om
 
 **Dependencies required in your Cargo.toml:**
 ```toml
-vespera = "0.1"                # Includes multipart support natively
+vespera = "0.8"                # Includes multipart support natively
 tempfile = "3"                 # For NamedTempFile file uploads
 ```
 
@@ -721,7 +863,7 @@ let app = vespera!(
 **What happens:**
 1. Child routers merged into parent router
 2. OpenAPI specs merged (paths, schemas, tags)
-3. Swagger UI shows all routes
+3. Swagger UI shows all routes (and `spec_url`, if set, serves the merged spec)
 
 ### How It Works (Compile-Time)
 
@@ -729,11 +871,11 @@ let app = vespera!(
 Child compilation (export_app!):
   1. Scan routes/ folder
   2. Generate OpenAPI spec
-  3. Write to target/vespera/{Name}.openapi.json
+  3. Write to target/vespera/export/<crate>/<App>.openapi.json
 
 Parent compilation (vespera! with merge):
   1. Generate parent OpenAPI spec
-  2. Read child specs from target/vespera/
+  2. Read child specs from target/vespera/export/<crate>/
   3. Merge all specs together
   4. Write merged openapi.json
 ```
