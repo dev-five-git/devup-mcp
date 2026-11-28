@@ -102,6 +102,8 @@ mod validation;
 mod validation_guidance;
 #[path = "../verdict_scope.rs"]
 mod verdict_scope;
+#[path = "../verification_matrix.rs"]
+mod verification_matrix;
 #[path = "../visual_compare.rs"]
 mod visual_compare;
 

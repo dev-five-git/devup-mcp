@@ -611,4 +611,16 @@ pub struct FeatureTraceInput {
     /// Per-array response cap, default 100, maximum 200. Byte cap is 65536.
     #[schemars(range(min = 1, max = 200))]
     pub max_items: Option<usize>,
+    /// States (default/hover/active/focus/selected/disabled...) of components or screens, grouped by target and compared with Figma.
+    #[serde(default)]
+    pub state_checks: Vec<super::verification_matrix::StateCheck>,
+    /// Design spec cards and user requirements linked to screens, components and states.
+    #[serde(default)]
+    pub requirements: Vec<super::verification_matrix::TracedRequirement>,
+    /// Figma nodes or properties a read or export did not deliver, beyond those found in artifactId.
+    #[serde(default)]
+    pub design_gaps: Vec<super::verification_matrix::DesignGap>,
+    /// Changes to describe in the user review report.
+    #[serde(default)]
+    pub changes: Vec<super::verification_matrix::ReviewChange>,
 }

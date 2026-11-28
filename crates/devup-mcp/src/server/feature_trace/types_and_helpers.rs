@@ -568,7 +568,7 @@ fn bound(mut value: Value, max_items: usize) -> Value {
             .as_object()
             .unwrap()
             .iter()
-            .filter(|(k, _)| !matches!(k.as_str(), "truncation" | "limits" | "status" | "summary"))
+            .filter(|(k, _)| !matches!(k.as_str(), "truncation" | "limits" | "status" | "summary" | "verification"))
             .max_by_key(|(_, v)| v.to_string().len())
             .map(|(k, _)| k.clone());
         let Some(key) = key else {
