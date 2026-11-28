@@ -679,6 +679,62 @@ These rules apply to every plan this workflow produces.
 
 Treat `DEVUP_DESIGN_COMPONENT_WIDTH_MISMATCH` as an automatically resolved design placement error. The screen plan records the strict same-width majority, the expected master and a correct sibling instance, plus native-node PNG comparisons when available (otherwise `render=unavailable`). Follow that assumption without another question. Header/Footer/Nav remains one responsive component across widths, not a second variant. Audit planning substitutes the correct sibling's height and children at screen width and the suspect's original y position. The original whole-page PNG still depicts the design error and must not be accepted as a corrected-page visual reference.
 
+## Verify states and requirements, report for review
+
+Use `devup_feature_trace` as the verification matrix. Static source reading and
+browser observation are kept apart everywhere: a value read from source is
+`static`, and static evidence never verifies rendered behaviour.
+
+- **Before implementing**, read `reuseCandidates` (existing components and
+  style patterns), `verification.changeImpact` (every screen that imports a
+  component you will change: `shared` means the change reaches all of them) and
+  `verification.configScope` (shared files such as `devup.json` or the root
+  layout versus screen-only files). Put a value only one screen needs in that
+  screen's files.
+- **States.** Send one `stateChecks` row per state of a component or screen
+  (default, hover, active, focus, selected, disabled, ...): `target`,
+  `routePath`, `state`, the Figma `figmaNodeId` of that state (with
+  `artifactId` its size, position, colour, border and typography are read from
+  the snapshot; component-set variants become `expectedStates`), the measured
+  `implementation` values and `implementationSource` (`browser` when read from
+  computed style in a browser). Add `visual` (the `devup_visual_compare` input)
+  only when a pixel comparison is needed. A state without a design or a capture,
+  an expected state nobody checked, and a static-only state are `unverified`,
+  never a pass. Capture only to compare or to analyse a failure.
+- **Requirements.** Send each design spec card (`origin: design-spec-card`)
+  and user requirement as `requirements` with its `targets` (route, component,
+  state, Figma node) and `check` kind. Verdicts are `verified`, `unverified`
+  or `not-applicable` with `reason`, `evidence` and `scope`. Interaction and
+  visual requirements need browser, automated-test or manual evidence; static
+  passes leave them `browser-verification-required`. A requirement reaching
+  several screens (`scope.multiScreen`, `sharedComponents`) needs evidence on
+  every screen in `scope.screens`.
+- **Incomplete Figma data.** `verification.designData.gaps` lists each missing
+  node or property with its cause (from the artifact, plus `designGaps` you add
+  for failed reads or exports) and `cannotJudge` names the screens, states and
+  requirements it blocks. While `claims.designMatch` or
+  `claims.verificationComplete` is `blocked`, do not report a design match or
+  a finished verification.
+- **Review report.** Pass `changes` (summary, route, files, requirementIds).
+  `reviewReport.changes` gives the user, per change, the path to open, the
+  steps, the expected result and the results split into automated, browser,
+  manual and static. Captures appear only for failed visual comparisons; write
+  a separate capture summary only when the user asks for one.
+- **When a verification cannot be finished**, follow `followUp.order`:
+  1. find the cause; fix what is inside the request's scope and verify again
+     (`followUp.fixInScope` carries the next action);
+  2. finish other work that does not depend on it;
+  3. only when a user permission or an external environment change is
+     required, ask once, briefly: the unfinished verification and the cause
+     found so far, the recommended fix and what it would verify, and the action
+     or permission needed (record it as `blocker` with `cause`,
+     `recommendation`, `verifies`, `userAction`; `followUp.askUser` names any
+     field still missing);
+  4. keep doing unaffected work while waiting;
+  5. report what cannot be resolved with the attempts made and the remaining
+     constraint (`blocker.kind: unresolvable` with `attempts`; listed in
+     `followUp.unresolved`).
+
 ## Delivery quality
 
 Apply `developmentContract` and `behaviorPlan` on every export. Read the bundled

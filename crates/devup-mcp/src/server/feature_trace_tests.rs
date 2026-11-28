@@ -411,3 +411,70 @@ async fn unreadable_or_escaping_component_anchor_is_a_required_fix() {
         assert!(!v["summary"]["required"].as_array().unwrap().is_empty());
     }
 }
+
+#[tokio::test]
+async fn state_checks_are_explicit_anchors_and_gate_completion_claims() {
+    let f = Fixture::new();
+    let v = f
+        .trace(json!({"stateChecks":[{"target":"components/UserForm.tsx","routePath":"/users","state":"hover",
+            "design":{"width":10},"implementation":{"width":10}}]}))
+        .await;
+    assert_eq!(v["status"], "OK", "{v}");
+    let state = &v["verification"]["stateGroups"][0]["states"][0];
+    assert_eq!(state["verdict"], "unverified");
+    assert_eq!(state["browserVerificationRequired"], true);
+    assert_eq!(v["summary"]["verification"]["designMatch"], "blocked");
+    assert!(
+        v["summary"]["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r
+                .as_str()
+                .unwrap()
+                .starts_with("Do not claim a design match"))
+    );
+    let impact = &v["verification"]["changeImpact"][0];
+    assert_eq!(impact["path"], "components/UserForm.tsx");
+    assert_eq!(impact["affectedScreens"], json!(["/users"]));
+}
+
+#[tokio::test]
+async fn untargeted_requirements_stay_refused_and_old_calls_are_unchanged() {
+    let f = Fixture::new();
+    let refused = f
+        .trace(json!({"requirements":[{"id":"R","text":"anchorless prose"}]}))
+        .await;
+    assert_eq!(refused["status"], "REFUSED");
+    let plain = f.trace(json!({"routePath":"/users"})).await;
+    assert!(plain["verification"].is_null());
+    assert!(plain["summary"].get("verification").is_none());
+}
+
+#[tokio::test]
+async fn a_missing_artifact_is_a_design_gap_for_state_checks() {
+    let f = Fixture::new();
+    let v = f
+        .trace(json!({"artifactId":"gone","stateChecks":[{"target":"Button","state":"default","figmaNodeId":"1:1",
+            "design":{"width":1},"implementation":{"width":1},"implementationSource":"browser"}]}))
+        .await;
+    assert_eq!(v["verification"]["designData"]["complete"], false);
+    assert_eq!(
+        v["verification"]["designData"]["gaps"][0]["kind"],
+        "read-failed"
+    );
+    assert_eq!(v["verification"]["claims"]["designMatch"], "blocked");
+}
+
+#[test]
+fn verification_inputs_reject_unknown_fields() {
+    let parsed = serde_json::from_value::<FeatureTraceInput>(
+        json!({"stateChecks":[{"target":"x","state":"hover","bogus":1}]}),
+    );
+    assert!(parsed.is_err());
+    let parsed = serde_json::from_value::<FeatureTraceInput>(
+        json!({"requirements":[{"id":"r","text":"t","check":"interaction","targets":[{"routePath":"/"}]}]}),
+    )
+    .unwrap();
+    assert_eq!(parsed.requirements.len(), 1);
+}

@@ -1,8 +1,17 @@
-
-
+#[cfg(test)]
 pub(super) async fn run(
     input: FeatureTraceInput,
     artifacts: &ArtifactStore,
+) -> Result<Value, DevupError> {
+    run_with(input, artifacts, None).await
+}
+
+/// The trace, with the output policy that lets state checks reuse
+/// devup_visual_compare for their optional pixel comparisons.
+pub(super) async fn run_with(
+    input: FeatureTraceInput,
+    artifacts: &ArtifactStore,
+    policy: Option<&super::output::OutputPolicy>,
 ) -> Result<Value, DevupError> {
     let max_items = input.max_items.unwrap_or(100);
     if !(1..=200).contains(&max_items) {
@@ -34,6 +43,11 @@ pub(super) async fn run(
     ]
     .into_iter()
     .any(supplied)
+        && input.state_checks.is_empty()
+        && !input
+            .requirements
+            .iter()
+            .any(|r| !r.targets.is_empty() || supplied(&r.figma_node_id))
     {
         return Ok(json!({"status":"REFUSED","message":ACCEPTED}));
     }
@@ -447,11 +461,22 @@ pub(super) async fn run(
         "implementedEvidence":implemented.get(*state),
         "reason":"Presence records explicit state declarations or App Router boundary components only. Missing evidence is unknown, never assumed absent; runtime coverage requires tests."})).collect::<Vec<_>>();
     let acceptance=input.acceptance_criteria.iter().map(|criterion|json!({"criterion":criterion,"status":"UNVERIFIED","reason":"Caller acceptance text is preserved without semantic interpretation; supply tests or inspect the linked evidence."})).collect::<Vec<_>>();
-    let summary = summarize(
+    let mut summary = summarize(
         &chain,
         &anchor_status,
         ui["truncation"]["truncated"] == true,
     );
+    let verification = verification(&input, &ui, &root, artifacts, policy).await;
+    if let Some(claims) = verification.as_ref().map(|v| &v["claims"]) {
+        let required = summary["required"].as_array_mut().unwrap();
+        for reason in array(&claims["completionBlockedBy"]) {
+            required.push(json!(format!(
+                "Do not claim a design match or a finished verification: {}",
+                text(reason)
+            )));
+        }
+        summary["verification"] = json!({"designMatch":claims["designMatch"],"verificationComplete":claims["verificationComplete"]});
+    }
     let mut navigation_graph = super::navigation::graph(
         &design.evidence["interactiveCandidates"],
         &navigation_sources,
@@ -469,7 +494,7 @@ pub(super) async fn run(
     Ok(bound(
         json!({"status":"OK","summary":summary,"projectRoot":root,"anchors":{"routePath":input.route_path,"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id,"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method,"componentPath":input.component_path,"tableName":input.table_name},"requirement":input.requirement,"acceptanceMatrix":acceptance,
         "chain":chain,"artifacts":traced_artifacts.into_values().collect::<Vec<_>>(),"sourceOwnership":ownership,"reuseCandidates":reuse,"designContract":comparisons,"requiredStates":states,
-        "navigationGraph":navigation_graph,
+        "navigationGraph":navigation_graph,"verification":verification,
         "designEvidence":design.evidence,"designDiagnostics":design.diagnostics,"diagnostics":diagnostics,
         "inventoryEvidence":{"uiTruncation":ui["truncation"],"uiLimits":ui["limits"],"uiDiagnostics":ui["diagnostics"],"uiExcludedPaths":ui["excludedPaths"],"unparsedFiles":ui["unparsedFiles"],"api":{"found":api["found"],"excludedPaths":api["excludedPaths"],"authorityNote":api["authorityNote"],"issues":array(&api["specs"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()},
             "db":{"found":db["found"],"excludedPaths":db["excludedPaths"],"authorityNote":db["authorityNote"],"issues":array(&db["tables"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()}
@@ -477,6 +502,52 @@ pub(super) async fn run(
         "limitations":["Read-only static evidence, never runtime execution proof. Shared parser findings retain low/medium confidence.","Missing results do not prove absence: scan depth, UI inventory caps, unreadable files, dynamic imports/calls, wrappers and macro expansion can hide links.","Source ownership comes unchanged from stack_diff; edit authored models/routes/frontend and regenerate generated artifacts."]}),
         max_items,
     ))
+}
+/// The verification matrix over the caller's states, requirements, gaps and changes.
+async fn verification(
+    input: &FeatureTraceInput,
+    ui: &Value,
+    root: &Path,
+    artifacts: &ArtifactStore,
+    policy: Option<&super::output::OutputPolicy>,
+) -> Option<Value> {
+    use super::verification_matrix::{MatrixContext, MatrixInput, build};
+    let matrix = MatrixInput {
+        state_checks: &input.state_checks,
+        requirements: &input.requirements,
+        design_gaps: &input.design_gaps,
+        changes: &input.changes,
+        component_path: input.component_path.as_deref(),
+    };
+    if matrix.is_empty() {
+        return None;
+    }
+    let lookup = match input
+        .artifact_id
+        .as_deref()
+        .filter(|id| !id.trim().is_empty())
+    {
+        Some(id) => Some(
+            artifacts
+                .get(id)
+                .await
+                .ok_or("artifactId is missing or expired; the design data could not be read."),
+        ),
+        None => None,
+    };
+    let payload = lookup
+        .as_ref()
+        .and_then(|l| l.as_ref().ok())
+        .map(|l| l.payload.clone());
+    let context = MatrixContext {
+        ui,
+        root,
+        payload: payload.as_deref(),
+        artifact_unavailable: lookup.and_then(|l| l.err()).map(str::to_owned),
+        policy,
+        store: artifacts,
+    };
+    build(&context, &matrix).await
 }
 /// Normalise a caller-supplied component path to the inventory's `a/b/c.tsx` form.
 fn anchor_path(path: &str) -> String {

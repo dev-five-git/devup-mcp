@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "Cargo.toml": "Minor"
+  },
+  "note": "Add a per-state and per-requirement verification matrix to devup_feature_trace: Figma-vs-implementation state comparisons, requirement verdicts with scope and evidence, Figma data gaps that block design-match claims, change impact, a user review report and an ordered follow-up for unfinished verification",
+  "date": "2026-11-28T14:35:15.989000Z"
+}

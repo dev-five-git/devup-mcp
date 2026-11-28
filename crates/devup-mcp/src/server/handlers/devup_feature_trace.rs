@@ -10,7 +10,7 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<tools::FeatureTraceInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        let result = feature_trace::run(input, &self.artifacts)
+        let result = feature_trace::run_with(input, &self.artifacts, Some(&self.output_policy))
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))
